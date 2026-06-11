@@ -4,6 +4,7 @@ import { pathToFileURL } from 'node:url';
 import Database from 'better-sqlite3';
 import { databasePath } from '../config/env.js';
 
+/** 全量建表 DDL（含索引），使用 CREATE TABLE IF NOT EXISTS，幂等可重复执行 */
 export const DDL = `
 CREATE TABLE IF NOT EXISTS posts (
   id                  TEXT PRIMARY KEY,
@@ -73,7 +74,12 @@ function addColumnIfMissing(
   }
 }
 
-/** 打开数据库（首次调用自动建目录、建表，幂等） */
+/**
+ * 打开 SQLite 数据库连接，首次调用自动创建目录、建表并运行列迁移，幂等可重复调用。
+ * - 启用 WAL 模式提升并发读写性能
+ * - 启用外键约束（评论随帖子级联删除）
+ * @returns 全局单例数据库实例
+ */
 export function getDb(): Database.Database {
   if (db) return db;
   const file = resolve(databasePath());
@@ -88,6 +94,7 @@ export function getDb(): Database.Database {
   return db;
 }
 
+/** 关闭当前数据库连接并清空单例缓存；下次调用 getDb() 将重新打开 */
 export function closeDb(): void {
   if (db) {
     db.close();

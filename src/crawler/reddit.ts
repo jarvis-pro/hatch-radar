@@ -5,35 +5,57 @@ const TOKEN_URL = 'https://www.reddit.com/api/v1/access_token';
 const API_BASE = 'https://oauth.reddit.com';
 const MAX_ATTEMPTS = 5;
 
+/** Reddit OAuth（script 类型）应用凭据 */
 export interface RedditConfig {
+  /** OAuth 应用的 Client ID */
   clientId: string;
+  /** OAuth 应用的 Client Secret */
   clientSecret: string;
+  /** 用于 script 类型授权的账号用户名 */
   username: string;
+  /** 账号密码 */
   password: string;
+  /** 请求头 User-Agent，建议格式：`<app>/<ver> (by /u/<user>)` */
   userAgent: string;
 }
 
+/** 帖子数据的通用结构，供 Reddit / HN / RSS 各客户端统一映射 */
 export interface RedditPost {
+  /** 帖子唯一 ID；Reddit 为 base36，HN 格式 `hn_{id}`，RSS 格式 `rss_{sha1前16位}` */
   id: string;
+  /** 版块/频道名称；Reddit 为版块名（不含 r/），其他源为自定义频道标识 */
   subreddit: string;
   title: string;
+  /** 发帖人用户名；账号已删除时为 `[deleted]` */
   author: string;
+  /** 正文内容；外链帖或无正文时为空字符串 */
   selftext: string;
+  /** 外链或来源 URL */
   url: string;
+  /** 固定链接；Reddit 为相对路径，HN/RSS 为完整 URL */
   permalink: string;
   score: number;
+  /** 评论总数（含所有层级） */
   numComments: number;
+  /** 发帖 Unix 时间戳（秒） */
   createdUtc: number;
+  /** 是否为版主置顶帖；置顶帖在入库前会被过滤 */
   stickied: boolean;
 }
 
+/** 评论数据的通用结构，供 Reddit / HN 各客户端统一映射 */
 export interface RedditComment {
   id: string;
+  /** 父评论 ID；顶层评论为 null */
   parentId: string | null;
   author: string;
+  /** 评论正文；已过滤 [deleted] / [removed] 的评论不入库 */
   body: string;
+  /** 点赞数；HN 评论不暴露评分，恒为 0 */
   score: number;
+  /** 发评论 Unix 时间戳（秒） */
   createdUtc: number;
+  /** 评论深度：0 为顶层，1 为回复，最多回捞 2 层 */
   depth: number;
 }
 
@@ -61,6 +83,12 @@ function mapPost(d: Record<string, unknown>, fallbackSubreddit: string): RedditP
   };
 }
 
+/**
+ * Reddit REST API（OAuth）客户端。
+ * - 自动管理访问令牌的获取与续期（令牌提前 60 秒刷新）
+ * - 所有请求经 TokenBucketQueue 限速，遵守 100 次/分钟配额
+ * - 429 / 5xx 自动指数退避重试，最多 5 次
+ */
 export class RedditClient {
   private token: { value: string; expiresAt: number } | null = null;
 
@@ -137,7 +165,13 @@ export class RedditClient {
     throw new Error(`Reddit GET ${path}: 重试 ${MAX_ATTEMPTS} 次后仍失败`);
   }
 
-  /** 抓取版块 hot / new 列表，过滤置顶帖 */
+  /**
+   * 抓取版块 hot 或 new 列表，自动过滤置顶帖。
+   * @param subreddit 版块名称（不含 r/ 前缀）
+   * @param sort 排序方式：hot 按热度，new 按时间
+   * @param limit 最多返回条数，默认 25
+   * @returns 过滤置顶后的帖子列表
+   */
   async fetchListing(subreddit: string, sort: 'hot' | 'new', limit = 25): Promise<RedditPost[]> {
     const data = await this.get<ListingResponse>(`/r/${subreddit}/${sort}`, { limit });
     return (data.data?.children ?? [])
@@ -146,7 +180,14 @@ export class RedditClient {
       .filter((post) => post.id && !post.stickied);
   }
 
-  /** 抓取帖子评论树（top 排序，最多两层），拍平返回 */
+  /**
+   * 抓取帖子评论树（top 排序，最多两层深度），拍平为列表返回。
+   * - 已删除或已移除的评论（body 为 [deleted]/[removed]）不包含在结果中
+   * @param subreddit 帖子所属版块名称
+   * @param postId Reddit 帖子 ID（base36）
+   * @param limit 最多返回的评论数，默认 100
+   * @returns 拍平的评论列表，顶层 depth=0，回复 depth=1
+   */
   async fetchComments(subreddit: string, postId: string, limit = 100): Promise<RedditComment[]> {
     const data = await this.get<ListingResponse[]>(`/r/${subreddit}/comments/${postId}`, {
       limit,

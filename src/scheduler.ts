@@ -12,19 +12,30 @@ import { log } from './log.js';
 const ARCHIVE_DAYS = 30;
 const COMMENT_BATCH_LIMIT = 200;
 
+/** startScheduler() 与 createJobs() 所需的外部依赖 */
 export interface SchedulerDeps {
+  /** Reddit 客户端；未提供时跳过 Reddit 抓取与评论回捞 */
   reddit?: RedditClient;
+  /** HackerNews 客户端；未提供时跳过 HN 抓取与评论回捞 */
   hackernews?: HackerNewsClient;
   anthropic: Anthropic;
+  /** 使用的 Claude 模型 ID */
   model: string;
+  /** 每轮 AI 分析的帖子批次上限 */
   analyzeBatchSize: number;
+  /** 要监控的 Reddit 版块名称列表；reddit 为 undefined 时忽略 */
   subreddits: string[];
 }
 
+/** createJobs() 返回的四个调度任务句柄 */
 export interface Jobs {
+  /** 从所有已启用来源抓取最新帖子并写入数据库 */
   scan: () => Promise<void>;
+  /** 对到达 6h/12h 窗口的帖子回捞评论（RSS 帖子不在此列） */
   comments: () => Promise<void>;
+  /** 批量 AI 分析待处理帖子并落库洞察 */
   analyze: () => Promise<void>;
+  /** 清理 30 天前的原始帖子与评论数据 */
   archive: () => Promise<void>;
 }
 
@@ -49,6 +60,11 @@ function guard(name: string, fn: () => Promise<void>): () => Promise<void> {
   };
 }
 
+/**
+ * 创建四个调度任务函数，每个任务通过 guard 保证同名任务不并发执行。
+ * @param deps 运行时依赖；reddit / hackernews 为 undefined 时对应来源的操作被跳过
+ * @returns 可直接调用或传给 cron 调度的任务对象
+ */
 export function createJobs(deps: SchedulerDeps): Jobs {
   const scan = guard('扫描', async () => {
     // Reddit
@@ -82,7 +98,9 @@ export function createJobs(deps: SchedulerDeps): Jobs {
         const { added, updated } = q.upsertPosts(posts, 'rss', q.nowSec(), 2);
         log.info(`[扫描] RSS/${feed.name}: 抓取 ${posts.length}，新增 ${added}，更新 ${updated}`);
       } catch (err) {
-        log.warn(`[扫描] RSS/${feed.name} 失败: ${err instanceof Error ? err.message : String(err)}`);
+        log.warn(
+          `[扫描] RSS/${feed.name} 失败: ${err instanceof Error ? err.message : String(err)}`,
+        );
       }
     }
   });
@@ -124,11 +142,13 @@ export function createJobs(deps: SchedulerDeps): Jobs {
 }
 
 /**
- * 调度策略：
+ * 创建调度任务并注册 cron 计划，立即返回任务句柄供启动时调用。
  * - 扫描（Reddit hot/new + HN + RSS）：每 30 分钟
  * - 评论补全（Reddit + HN，RSS 跳过）：每 30 分钟检查，发帖满 6h/12h 回捞
  * - AI 批量分析：每小时
- * - 历史归档：每天凌晨
+ * - 历史归档：每天凌晨 3:30
+ * @param deps 运行时依赖
+ * @returns 注册成功的任务句柄（可在启动时手动执行初始轮次）
  */
 export function startScheduler(deps: SchedulerDeps): Jobs {
   const jobs = createJobs(deps);

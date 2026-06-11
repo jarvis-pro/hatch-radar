@@ -11,8 +11,13 @@ import {
   type Intensity,
 } from './prompt.js';
 
+/**
+ * 创建 Anthropic SDK 客户端实例。
+ * - 内置 429 / 5xx 指数退避重试，最多 3 次
+ * @param apiKey Anthropic API 密钥
+ * @returns 配置好重试策略的客户端实例
+ */
 export function createAnthropicClient(apiKey: string): Anthropic {
-  // SDK 自带对 429 / 5xx 的指数退避重试
   return new Anthropic({ apiKey, maxRetries: 3 });
 }
 
@@ -46,6 +51,16 @@ function normalizeInsight(raw: unknown): InsightResult {
   };
 }
 
+/**
+ * 对单篇帖子调用 Claude 进行结构化分析，返回痛点与产品机会。
+ * - 使用 adaptive thinking 与 JSON schema 约束输出格式
+ * - 网络错误由 SDK 内置重试处理；业务异常直接上抛
+ * @param client Anthropic SDK 实例
+ * @param model 使用的模型 ID
+ * @param post 目标帖子行
+ * @param comments 该帖子的全部评论
+ * @returns 归一化后的分析结果；pain_points / opportunities 可能为空数组
+ */
 export async function analyzePost(
   client: Anthropic,
   model: string,
@@ -71,13 +86,25 @@ export async function analyzePost(
   return normalizeInsight(JSON.parse(textBlock.text));
 }
 
+/** runAnalysisBatch() 的批次执行统计 */
 export interface AnalysisStats {
+  /** 本批次成功完成分析的帖子数（含无洞察产出的帖子） */
   analyzed: number;
+  /** 产出并写入洞察记录的帖子数 */
   saved: number;
+  /** 分析过程中抛出异常的帖子数 */
   failed: number;
 }
 
-/** 取一批未分析帖子逐条送入 Claude，落库洞察结果 */
+/**
+ * 取一批待分析帖子逐条送入 Claude，将有效洞察落库。
+ * - 分析失败时递增 analyze_attempts，不影响后续帖子的处理
+ * - pain_points 与 opportunities 均为空时不写入洞察（视为无信号），但仍标记为已分析
+ * @param client Anthropic SDK 实例
+ * @param model 使用的模型 ID
+ * @param batchSize 本批次最多分析的帖子数
+ * @returns 本批次的执行统计
+ */
 export async function runAnalysisBatch(
   client: Anthropic,
   model: string,

@@ -1,3 +1,4 @@
+/** 默认监控的 Reddit 版块列表，可按需增减 */
 export const SUBREDDITS = [
   // 通用创业 / 产品
   'entrepreneur',

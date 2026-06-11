@@ -10,7 +10,15 @@ function truncate(text: string, max: number): string {
   return trimmed.length <= max ? trimmed : `${trimmed.slice(0, max)}…`;
 }
 
-/** 将帖子 + 评论组装为送入 AI 的结构化上下文 */
+/**
+ * 将帖子与评论组装为送入 AI 分析的结构化纯文本上下文。
+ * - 正文截断至 4000 字符，评论截断至 500 字符/条
+ * - 展示得分最高的前 20 条顶层评论及每条最多 3 条回复
+ * - Reddit 频道显示为 `r/{name}`，其他来源直接显示频道标识符
+ * @param post 目标帖子行
+ * @param comments 该帖子的全部评论（所有深度）
+ * @returns 多行文本，可直接作为用户消息发送给 Claude
+ */
 export function buildContext(post: PostRow, comments: CommentRow[]): string {
   const channel = post.source === 'reddit' ? `r/${post.subreddit}` : post.subreddit;
   const lines: string[] = [

@@ -57,6 +57,12 @@ async function fetchBatch(ids: number[]): Promise<HNItem[]> {
   return out;
 }
 
+/**
+ * HackerNews Firebase REST API 客户端（无需鉴权）。
+ * - 并发批量抓取，每批最多 10 个并发请求
+ * - 评论分数恒为 0（HN API 不暴露评论评分）
+ * - HTML 实体与标签自动解码为纯文本
+ */
 export class HackerNewsClient {
   private async fetchIds(endpoint: string): Promise<number[]> {
     const res = await fetch(`${API_BASE}/${endpoint}.json`);
@@ -64,6 +70,13 @@ export class HackerNewsClient {
     return (await res.json()) as number[];
   }
 
+  /**
+   * 抓取指定 HN 分区的故事列表。
+   * @param endpoint HN Firebase 端点名，决定抓取分区
+   * @param channel 写入 `posts.subreddit` 的频道标识符（如 ask_hn / hackernews_top）
+   * @param limit 最多取前 N 条故事 ID；实际返回数可能更少（deleted / dead 条目被过滤）
+   * @returns 映射为 RedditPost 结构的故事列表，id 格式为 `hn_{numericId}`
+   */
   async fetchStories(
     endpoint: 'topstories' | 'askstories' | 'showstories',
     channel: string,
@@ -88,6 +101,12 @@ export class HackerNewsClient {
       }));
   }
 
+  /**
+   * 抓取 HN 帖子的评论树，最多两层（顶层 + 直接回复），拍平返回。
+   * @param hnPostId DB 中存储的帖子 ID，格式 `hn_{numericId}`
+   * @param limit 总评论数上限，默认 80；超出后提前截断
+   * @returns 评论列表，顶层 depth=0，回复 depth=1；score 均为 0
+   */
   async fetchComments(hnPostId: string, limit = 80): Promise<RedditComment[]> {
     const numericId = Number(hnPostId.replace('hn_', ''));
     const story = await fetchItem(numericId);
