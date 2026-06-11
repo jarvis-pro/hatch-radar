@@ -1,5 +1,3 @@
-import type { RssFeed } from '../crawler/rss.js';
-
 /** HackerNews 分区抓取配置 */
 export interface HnSection {
   /** HN Firebase REST API 端点名 */
@@ -15,7 +13,15 @@ export const HN_SECTIONS: HnSection[] = [
   { endpoint: 'topstories', channel: 'hackernews_top' },
 ];
 
-/** 需要监控的 RSS 订阅源列表，按需增减；name 写入 `posts.subreddit` 作为频道标识符 */
+/** RSS 订阅源配置 */
+export interface RssFeed {
+  /** 频道标识符，写入 `posts.subreddit` 字段，同时作为 ID 哈希的命名空间前缀 */
+  name: string;
+  /** RSS feed 的完整 URL */
+  url: string;
+}
+
+/** 需要监控的 RSS 订阅源列表，按需增减 */
 export const RSS_FEEDS: RssFeed[] = [
   { name: 'techcrunch', url: 'https://techcrunch.com/feed/' },
   { name: 'yc_blog', url: 'https://www.ycombinator.com/blog/rss.xml' },

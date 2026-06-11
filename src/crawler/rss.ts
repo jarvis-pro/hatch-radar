@@ -1,15 +1,8 @@
 import { createHash } from 'node:crypto';
 import Parser from 'rss-parser';
 
+import type { RssFeed } from '../config/feeds.js';
 import type { RedditPost } from './reddit.js';
-
-/** RSS 订阅源配置 */
-export interface RssFeed {
-  /** 频道标识符，写入 `posts.subreddit` 字段，同时作为 ID 哈希的命名空间前缀 */
-  name: string;
-  /** RSS feed 的完整 URL */
-  url: string;
-}
 
 const parser = new Parser({ timeout: 10_000 });
 
