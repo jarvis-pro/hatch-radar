@@ -25,7 +25,8 @@
     "@anthropic-ai/sdk": "^0.104.1",
     "better-sqlite3": "^12.10.0",
     "dotenv": "^17.4.2",
-    "node-cron": "^4.2.1"
+    "node-cron": "^4.2.1",
+    "rss-parser": "^3.13.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
