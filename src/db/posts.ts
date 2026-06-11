@@ -1,5 +1,5 @@
-import type { RedditPost } from '../crawler/reddit.js';
-import { getDb } from './schema.js';
+import type { RedditPost } from '../crawler/reddit';
+import { getDb } from './schema';
 
 /** posts 表的行结构 */
 export interface PostRow {

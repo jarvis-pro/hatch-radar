@@ -1,6 +1,6 @@
-import type { InsightResult, Intensity, Opportunity, PainPoint } from '../analyzer/prompt.js';
-import type { PostRow } from './posts.js';
-import { getDb } from './schema.js';
+import type { InsightResult, Intensity, Opportunity, PainPoint } from '../analyzer/prompt';
+import type { PostRow } from './posts';
+import { getDb } from './schema';
 
 interface InsightRow {
   id: number;

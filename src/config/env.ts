@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { z } from 'zod';
-import type { RedditConfig } from '../crawler/reddit.js';
+import type { RedditConfig } from '../crawler/reddit';
 
 const envSchema = z
   .object({

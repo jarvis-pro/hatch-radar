@@ -1,14 +1,14 @@
-import { createAnthropicClient } from './analyzer/analyze.js';
-import { HN_SECTIONS, RSS_FEEDS } from './config/feeds.js';
-import { loadEnv } from './config/env.js';
-import { SUBREDDITS } from './config/subreddits.js';
-import { HackerNewsClient } from './crawler/hackernews.js';
-import { TokenBucketQueue } from './crawler/queue.js';
-import { RedditClient } from './crawler/reddit.js';
-import { getStats } from './db/utils.js';
-import { closeDb, getDb } from './db/schema.js';
-import { logger } from './logger.js';
-import { startScheduler } from './scheduler.js';
+import { createAnthropicClient } from './analyzer/analyze';
+import { HN_SECTIONS, RSS_FEEDS } from './config/feeds';
+import { loadEnv } from './config/env';
+import { SUBREDDITS } from './config/subreddits';
+import { HackerNewsClient } from './crawler/hackernews';
+import { TokenBucketQueue } from './crawler/queue';
+import { RedditClient } from './crawler/reddit';
+import { getStats } from './db/utils';
+import { closeDb, getDb } from './db/schema';
+import { logger } from './logger';
+import { startScheduler } from './scheduler';
 
 async function main(): Promise<void> {
   const env = loadEnv();

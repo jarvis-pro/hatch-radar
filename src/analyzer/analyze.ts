@@ -1,19 +1,19 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { buildContext } from '../crawler/context.js';
-import { getCommentsForPost } from '../db/comments.js';
-import { bumpAnalyzeAttempts, getPostsToAnalyze, markAnalyzed } from '../db/posts.js';
-import type { CommentRow } from '../db/comments.js';
-import type { PostRow } from '../db/posts.js';
-import { saveInsight } from '../db/insights.js';
-import { nowSec } from '../db/utils.js';
-import { logger } from '../logger.js';
+import { buildContext } from '../crawler/context';
+import { getCommentsForPost } from '../db/comments';
+import { bumpAnalyzeAttempts, getPostsToAnalyze, markAnalyzed } from '../db/posts';
+import type { CommentRow } from '../db/comments';
+import type { PostRow } from '../db/posts';
+import { saveInsight } from '../db/insights';
+import { nowSec } from '../db/utils';
+import { logger } from '../logger';
 import {
   INSIGHT_SCHEMA,
   SYSTEM_PROMPT,
   buildUserPrompt,
   type InsightResult,
   type Intensity,
-} from './prompt.js';
+} from './prompt';
 
 /**
  * 创建 Anthropic SDK 客户端实例。

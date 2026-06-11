@@ -1,5 +1,5 @@
-import type { RedditComment } from '../crawler/reddit.js';
-import { getDb } from './schema.js';
+import type { RedditComment } from '../crawler/reddit';
+import { getDb } from './schema';
 
 /** comments 表的行结构 */
 export interface CommentRow {

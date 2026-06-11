@@ -1,4 +1,4 @@
-import type { RedditComment, RedditPost } from './reddit.js';
+import type { RedditComment, RedditPost } from './reddit';
 
 const API_BASE = 'https://hacker-news.firebaseio.com/v0';
 const CONCURRENT = 10;

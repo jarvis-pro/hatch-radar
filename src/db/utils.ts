@@ -1,4 +1,4 @@
-import { getDb } from './schema.js';
+import { getDb } from './schema';
 
 /** 返回当前 Unix 时间戳（秒） */
 export function nowSec(): number {

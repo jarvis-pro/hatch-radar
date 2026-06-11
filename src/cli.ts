@@ -5,8 +5,8 @@
  * 支持人类可读的文本输出与 `--json` 机读输出两种模式。
  */
 import { parseArgs } from 'node:util';
-import { searchInsights } from './db/insights.js';
-import { getDb } from './db/schema.js';
+import { searchInsights } from './db/insights';
+import { getDb } from './db/schema';
 
 /** `--help` 输出的用法说明文本。 */
 const USAGE = `检索已落库的洞察结果

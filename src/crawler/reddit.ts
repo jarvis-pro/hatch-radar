@@ -1,5 +1,5 @@
-import { logger } from '../logger.js';
-import type { TokenBucketQueue } from './queue.js';
+import { logger } from '../logger';
+import type { TokenBucketQueue } from './queue';
 
 const TOKEN_URL = 'https://www.reddit.com/api/v1/access_token';
 const API_BASE = 'https://oauth.reddit.com';

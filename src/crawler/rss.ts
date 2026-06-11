@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto';
 import Parser from 'rss-parser';
 
-import type { RssFeed } from '../config/feeds.js';
-import type { RedditPost } from './reddit.js';
+import type { RssFeed } from '../config/feeds';
+import type { RedditPost } from './reddit';
 
 const parser = new Parser({ timeout: 10_000 });
 

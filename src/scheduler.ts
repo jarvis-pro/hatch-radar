@@ -1,15 +1,15 @@
 import type Anthropic from '@anthropic-ai/sdk';
 import cron from 'node-cron';
-import { runAnalysisBatch } from './analyzer/analyze.js';
-import { HN_SECTIONS, RSS_FEEDS } from './config/feeds.js';
-import type { HackerNewsClient } from './crawler/hackernews.js';
-import type { RedditComment } from './crawler/reddit.js';
-import type { RedditClient } from './crawler/reddit.js';
-import { fetchFeed } from './crawler/rss.js';
-import { replaceComments } from './db/comments.js';
-import { archiveOldData, getPostsDueForComments, upsertPosts } from './db/posts.js';
-import { nowSec } from './db/utils.js';
-import { logger } from './logger.js';
+import { runAnalysisBatch } from './analyzer/analyze';
+import { HN_SECTIONS, RSS_FEEDS } from './config/feeds';
+import type { HackerNewsClient } from './crawler/hackernews';
+import type { RedditComment } from './crawler/reddit';
+import type { RedditClient } from './crawler/reddit';
+import { fetchFeed } from './crawler/rss';
+import { replaceComments } from './db/comments';
+import { archiveOldData, getPostsDueForComments, upsertPosts } from './db/posts';
+import { nowSec } from './db/utils';
+import { logger } from './logger';
 
 const ARCHIVE_DAYS = 30;
 const COMMENT_BATCH_LIMIT = 200;
