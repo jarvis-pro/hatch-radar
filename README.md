@@ -60,6 +60,8 @@ ANTHROPIC_API_KEY=your_anthropic_api_key
 DATABASE_URL=./data/radar.db
 ```
 
+可选配置（分析模型 `ANTHROPIC_MODEL`、每轮分析上限 `ANALYZE_BATCH_SIZE`）见 `.env.example` 注释。
+
 ### 3. 初始化数据库
 
 ```bash
@@ -108,18 +110,21 @@ export const SUBREDDITS = [
 hatch-radar/
 ├── src/
 │   ├── config/
+│   │   ├── env.ts              # 环境变量加载与校验
 │   │   └── subreddits.ts       # 目标版块配置
 │   ├── crawler/
 │   │   ├── queue.ts            # 令牌桶请求队列
 │   │   ├── reddit.ts           # Reddit API 封装
 │   │   └── context.ts          # 帖子+评论上下文构建
 │   ├── analyzer/
-│   │   ├── prompt.ts           # AI 分析 prompt
+│   │   ├── prompt.ts           # AI 分析 prompt 与输出 schema
 │   │   └── analyze.ts          # Claude API 调用
 │   ├── db/
-│   │   ├── schema.ts           # 数据库 schema
+│   │   ├── schema.ts           # 数据库 schema（兼作迁移脚本）
 │   │   └── queries.ts          # 存取操作
 │   ├── scheduler.ts            # 定时任务调度
+│   ├── cli.ts                  # 洞察检索 CLI（pnpm insights）
+│   ├── log.ts                  # 日志工具
 │   └── index.ts                # 入口
 ├── data/                       # SQLite 数据文件（gitignore）
 ├── .env.example
@@ -165,6 +170,21 @@ hatch-radar/
 ```
 
 强度分级：`HIGH` / `MEDIUM` / `LOW`，依据评论数量、点赞数与情绪强烈程度综合判断。
+
+---
+
+## 检索洞察
+
+```bash
+# 最新洞察
+pnpm insights
+
+# 按版块 / 标签 / 强度过滤
+pnpm insights --subreddit SaaS --tag 效率 --intensity HIGH
+
+# JSON 输出，便于二次处理
+pnpm insights --json
+```
 
 ---
 
