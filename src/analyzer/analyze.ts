@@ -1,7 +1,11 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { buildContext } from '../crawler/context.js';
-import type { CommentRow, PostRow } from '../db/queries.js';
-import * as q from '../db/queries.js';
+import { getCommentsForPost } from '../db/comments.js';
+import { bumpAnalyzeAttempts, getPostsToAnalyze, markAnalyzed } from '../db/posts.js';
+import type { CommentRow } from '../db/comments.js';
+import type { PostRow } from '../db/posts.js';
+import { saveInsight } from '../db/insights.js';
+import { nowSec } from '../db/utils.js';
 import { log } from '../log.js';
 import {
   INSIGHT_SCHEMA,
@@ -110,28 +114,28 @@ export async function runAnalysisBatch(
   model: string,
   batchSize: number,
 ): Promise<AnalysisStats> {
-  const posts = q.getPostsToAnalyze(batchSize);
+  const posts = getPostsToAnalyze(batchSize);
   const stats: AnalysisStats = { analyzed: 0, saved: 0, failed: 0 };
   if (posts.length === 0) return stats;
 
   log.info(`本轮待分析帖子 ${posts.length} 篇（模型: ${model}）`);
   for (const post of posts) {
-    const comments = q.getCommentsForPost(post.id);
+    const comments = getCommentsForPost(post.id);
     try {
       const insight = await analyzePost(client, model, post, comments);
-      const now = q.nowSec();
+      const now = nowSec();
       if (insight.pain_points.length > 0 || insight.opportunities.length > 0) {
-        q.saveInsight(post, model, insight, now);
+        saveInsight(post, model, insight, now);
         stats.saved++;
         log.info(
           `  ✓ r/${post.subreddit}「${post.title.slice(0, 48)}」→ 痛点 ${insight.pain_points.length} / 机会 ${insight.opportunities.length}`,
         );
       }
-      q.markAnalyzed(post.id, now);
+      markAnalyzed(post.id, now);
       stats.analyzed++;
     } catch (err) {
       stats.failed++;
-      q.bumpAnalyzeAttempts(post.id);
+      bumpAnalyzeAttempts(post.id);
       log.error(`  ✗ 分析失败 ${post.id}: ${err instanceof Error ? err.message : String(err)}`);
     }
   }

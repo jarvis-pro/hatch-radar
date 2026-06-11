@@ -6,7 +6,9 @@ import type { HackerNewsClient } from './crawler/hackernews.js';
 import type { RedditComment } from './crawler/reddit.js';
 import type { RedditClient } from './crawler/reddit.js';
 import { fetchFeed } from './crawler/rss.js';
-import * as q from './db/queries.js';
+import { replaceComments } from './db/comments.js';
+import { archiveOldData, getPostsDueForComments, upsertPosts } from './db/posts.js';
+import { nowSec } from './db/utils.js';
 import { log } from './log.js';
 
 const ARCHIVE_DAYS = 30;
@@ -72,7 +74,7 @@ export function createJobs(deps: SchedulerDeps): Jobs {
       for (const subreddit of deps.subreddits) {
         for (const sort of ['hot', 'new'] as const) {
           const posts = await deps.reddit.fetchListing(subreddit, sort, 25);
-          const { added, updated } = q.upsertPosts(posts, 'reddit', q.nowSec());
+          const { added, updated } = upsertPosts(posts, 'reddit', nowSec());
           log.info(
             `[扫描] r/${subreddit}/${sort}: 抓取 ${posts.length}，新增 ${added}，更新 ${updated}`,
           );
@@ -84,7 +86,7 @@ export function createJobs(deps: SchedulerDeps): Jobs {
     if (deps.hackernews) {
       for (const section of HN_SECTIONS) {
         const posts = await deps.hackernews.fetchStories(section.endpoint, section.channel, 30);
-        const { added, updated } = q.upsertPosts(posts, 'hackernews', q.nowSec());
+        const { added, updated } = upsertPosts(posts, 'hackernews', nowSec());
         log.info(
           `[扫描] HN/${section.channel}: 抓取 ${posts.length}，新增 ${added}，更新 ${updated}`,
         );
@@ -95,7 +97,7 @@ export function createJobs(deps: SchedulerDeps): Jobs {
     for (const feed of RSS_FEEDS) {
       try {
         const posts = await fetchFeed(feed, 20);
-        const { added, updated } = q.upsertPosts(posts, 'rss', q.nowSec(), 2);
+        const { added, updated } = upsertPosts(posts, 'rss', nowSec(), 2);
         log.info(`[扫描] RSS/${feed.name}: 抓取 ${posts.length}，新增 ${added}，更新 ${updated}`);
       } catch (err) {
         log.warn(
@@ -106,7 +108,7 @@ export function createJobs(deps: SchedulerDeps): Jobs {
   });
 
   const comments = guard('评论补全', async () => {
-    const due = q.getPostsDueForComments(q.nowSec(), COMMENT_BATCH_LIMIT);
+    const due = getPostsDueForComments(nowSec(), COMMENT_BATCH_LIMIT);
     if (due.length === 0) {
       log.info(`[评论补全] 没有到达 6h/12h 回捞窗口的帖子`);
       return;
@@ -119,7 +121,7 @@ export function createJobs(deps: SchedulerDeps): Jobs {
       } else if (post.source === 'reddit' && deps.reddit) {
         fetched = await deps.reddit.fetchComments(post.subreddit, post.id);
       }
-      q.replaceComments(post.id, fetched, pass, q.nowSec());
+      replaceComments(post.id, fetched, pass, nowSec());
     }
   });
 
@@ -131,8 +133,8 @@ export function createJobs(deps: SchedulerDeps): Jobs {
   });
 
   const archive = guard('归档', async () => {
-    const cutoff = q.nowSec() - ARCHIVE_DAYS * 86400;
-    const removed = q.archiveOldData(cutoff);
+    const cutoff = nowSec() - ARCHIVE_DAYS * 86400;
+    const removed = archiveOldData(cutoff);
     log.info(
       `[归档] 清理 ${ARCHIVE_DAYS} 天前原始数据：帖子 ${removed.posts}，评论 ${removed.comments}（洞察保留）`,
     );

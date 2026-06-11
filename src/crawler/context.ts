@@ -1,4 +1,5 @@
-import type { CommentRow, PostRow } from '../db/queries.js';
+import type { CommentRow } from '../db/comments.js';
+import type { PostRow } from '../db/posts.js';
 
 const MAX_TOP_COMMENTS = 20;
 const MAX_REPLIES_PER_COMMENT = 3;

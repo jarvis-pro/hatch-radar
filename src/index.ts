@@ -5,7 +5,7 @@ import { SUBREDDITS } from './config/subreddits.js';
 import { HackerNewsClient } from './crawler/hackernews.js';
 import { TokenBucketQueue } from './crawler/queue.js';
 import { RedditClient } from './crawler/reddit.js';
-import * as q from './db/queries.js';
+import { getStats } from './db/utils.js';
 import { closeDb, getDb } from './db/schema.js';
 import { log } from './log.js';
 import { startScheduler } from './scheduler.js';
@@ -19,7 +19,7 @@ async function main(): Promise<void> {
   const hackernews = new HackerNewsClient();
   const anthropic = createAnthropicClient(env.anthropicApiKey);
 
-  const stats = q.getStats();
+  const stats = getStats();
   log.info(`hatch-radar 启动`);
 
   const sources: string[] = [];

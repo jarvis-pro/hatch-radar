@@ -1,5 +1,5 @@
 import { parseArgs } from 'node:util';
-import { searchInsights } from './db/queries.js';
+import { searchInsights } from './db/insights.js';
 import { getDb } from './db/schema.js';
 
 const USAGE = `检索已落库的洞察结果
