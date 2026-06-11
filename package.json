@@ -26,7 +26,8 @@
     "better-sqlite3": "^12.10.0",
     "dotenv": "^17.4.2",
     "node-cron": "^4.2.1",
-    "rss-parser": "^3.13.0"
+    "rss-parser": "^3.13.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
