@@ -1,64 +1,11 @@
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import Database from 'better-sqlite3';
 import { databasePath } from '../config/env.js';
 
-/** 全量建表 DDL（含索引），使用 CREATE TABLE IF NOT EXISTS，幂等可重复执行 */
-export const DDL = `
-CREATE TABLE IF NOT EXISTS posts (
-  id                  TEXT PRIMARY KEY,
-  source              TEXT NOT NULL DEFAULT 'reddit',
-  subreddit           TEXT NOT NULL,
-  title               TEXT NOT NULL,
-  author              TEXT,
-  selftext            TEXT NOT NULL DEFAULT '',
-  url                 TEXT,
-  permalink           TEXT,
-  score               INTEGER NOT NULL DEFAULT 0,
-  num_comments        INTEGER NOT NULL DEFAULT 0,
-  created_utc         INTEGER NOT NULL,
-  fetched_at          INTEGER NOT NULL,
-  comment_pass        INTEGER NOT NULL DEFAULT 0,
-  comments_fetched_at INTEGER,
-  analyzed_at         INTEGER,
-  analyze_attempts    INTEGER NOT NULL DEFAULT 0
-);
-CREATE INDEX IF NOT EXISTS idx_posts_subreddit ON posts (subreddit);
-CREATE INDEX IF NOT EXISTS idx_posts_created   ON posts (created_utc);
-CREATE INDEX IF NOT EXISTS idx_posts_pending   ON posts (analyzed_at, comment_pass);
-
-CREATE TABLE IF NOT EXISTS comments (
-  id          TEXT PRIMARY KEY,
-  post_id     TEXT NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
-  parent_id   TEXT,
-  author      TEXT,
-  body        TEXT NOT NULL,
-  score       INTEGER NOT NULL DEFAULT 0,
-  depth       INTEGER NOT NULL DEFAULT 0,
-  created_utc INTEGER NOT NULL,
-  fetched_at  INTEGER NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_comments_post ON comments (post_id);
-
-CREATE TABLE IF NOT EXISTS insights (
-  id            INTEGER PRIMARY KEY AUTOINCREMENT,
-  post_id       TEXT NOT NULL,
-  source        TEXT NOT NULL DEFAULT 'reddit',
-  subreddit     TEXT NOT NULL,
-  post_title    TEXT NOT NULL,
-  permalink     TEXT,
-  model         TEXT NOT NULL,
-  intensity     TEXT NOT NULL CHECK (intensity IN ('HIGH', 'MEDIUM', 'LOW')),
-  pain_points   TEXT NOT NULL,
-  opportunities TEXT NOT NULL,
-  tags          TEXT NOT NULL,
-  created_at    INTEGER NOT NULL
-);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_insights_post      ON insights (post_id);
-CREATE INDEX IF NOT EXISTS        idx_insights_subreddit ON insights (subreddit);
-CREATE INDEX IF NOT EXISTS        idx_insights_intensity ON insights (intensity);
-`;
+/** 全量建表 DDL（含索引），从 schema.sql 读取，幂等可重复执行 */
+export const DDL = readFileSync(fileURLToPath(new URL('./schema.sql', import.meta.url)), 'utf8');
 
 let db: Database.Database | null = null;
 
