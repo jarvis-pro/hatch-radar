@@ -9,20 +9,8 @@ export const DDL = readFileSync(fileURLToPath(new URL('./schema.sql', import.met
 
 let db: Database.Database | null = null;
 
-function addColumnIfMissing(
-  database: Database.Database,
-  table: string,
-  column: string,
-  definition: string,
-): void {
-  const cols = database.pragma(`table_info(${table})`) as Array<{ name: string }>;
-  if (!cols.some((c) => c.name === column)) {
-    database.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
-  }
-}
-
 /**
- * 打开 SQLite 数据库连接，首次调用自动创建目录、建表并运行列迁移，幂等可重复调用。
+ * 打开 SQLite 数据库连接，首次调用自动创建目录与建表，幂等可重复调用。
  * - 启用 WAL 模式提升并发读写性能
  * - 启用外键约束（评论随帖子级联删除）
  * @returns 全局单例数据库实例
@@ -36,8 +24,6 @@ export function getDb(): Database.Database {
   db.pragma('foreign_keys = ON');
   db.pragma('busy_timeout = 5000');
   db.exec(DDL);
-  addColumnIfMissing(db, 'posts', 'source', `TEXT NOT NULL DEFAULT 'reddit'`);
-  addColumnIfMissing(db, 'insights', 'source', `TEXT NOT NULL DEFAULT 'reddit'`);
   return db;
 }
 
