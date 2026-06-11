@@ -1,4 +1,4 @@
-import { log } from '../log.js';
+import { logger } from '../logger.js';
 import type { TokenBucketQueue } from './queue.js';
 
 const TOKEN_URL = 'https://www.reddit.com/api/v1/access_token';
@@ -154,7 +154,7 @@ export class RedditClient {
         const retryAfter = Number(res.headers.get('retry-after'));
         const delay = retryAfter > 0 ? retryAfter * 1000 : Math.min(2 ** attempt * 1000, 60_000);
         if (res.status === 429) this.queue.pause(delay);
-        log.warn(
+        logger.warn(
           `Reddit ${res.status}，${Math.round(delay / 1000)}s 后重试（${attempt}/${MAX_ATTEMPTS}）: ${path}`,
         );
         await sleep(delay + Math.floor(Math.random() * 250));

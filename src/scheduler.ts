@@ -9,7 +9,7 @@ import { fetchFeed } from './crawler/rss.js';
 import { replaceComments } from './db/comments.js';
 import { archiveOldData, getPostsDueForComments, upsertPosts } from './db/posts.js';
 import { nowSec } from './db/utils.js';
-import { log } from './log.js';
+import { logger } from './logger.js';
 
 const ARCHIVE_DAYS = 30;
 const COMMENT_BATCH_LIMIT = 200;
@@ -46,16 +46,16 @@ function guard(name: string, fn: () => Promise<void>): () => Promise<void> {
   let running = false;
   return async () => {
     if (running) {
-      log.warn(`[${name}] 上一轮仍在执行，跳过本轮`);
+      logger.warn(`[${name}] 上一轮仍在执行，跳过本轮`);
       return;
     }
     running = true;
     const started = Date.now();
     try {
       await fn();
-      log.info(`[${name}] 完成，耗时 ${((Date.now() - started) / 1000).toFixed(1)}s`);
+      logger.info(`[${name}] 完成，耗时 ${((Date.now() - started) / 1000).toFixed(1)}s`);
     } catch (err) {
-      log.error(`[${name}] 出错: ${err instanceof Error ? err.message : String(err)}`);
+      logger.error(`[${name}] 出错: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       running = false;
     }
@@ -75,7 +75,7 @@ export function createJobs(deps: SchedulerDeps): Jobs {
         for (const sort of ['hot', 'new'] as const) {
           const posts = await deps.reddit.fetchListing(subreddit, sort, 25);
           const { added, updated } = upsertPosts(posts, 'reddit', nowSec());
-          log.info(
+          logger.info(
             `[扫描] r/${subreddit}/${sort}: 抓取 ${posts.length}，新增 ${added}，更新 ${updated}`,
           );
         }
@@ -87,7 +87,7 @@ export function createJobs(deps: SchedulerDeps): Jobs {
       for (const section of HN_SECTIONS) {
         const posts = await deps.hackernews.fetchStories(section.endpoint, section.channel, 30);
         const { added, updated } = upsertPosts(posts, 'hackernews', nowSec());
-        log.info(
+        logger.info(
           `[扫描] HN/${section.channel}: 抓取 ${posts.length}，新增 ${added}，更新 ${updated}`,
         );
       }
@@ -98,9 +98,11 @@ export function createJobs(deps: SchedulerDeps): Jobs {
       try {
         const posts = await fetchFeed(feed, 20);
         const { added, updated } = upsertPosts(posts, 'rss', nowSec(), 2);
-        log.info(`[扫描] RSS/${feed.name}: 抓取 ${posts.length}，新增 ${added}，更新 ${updated}`);
+        logger.info(
+          `[扫描] RSS/${feed.name}: 抓取 ${posts.length}，新增 ${added}，更新 ${updated}`,
+        );
       } catch (err) {
-        log.warn(
+        logger.warn(
           `[扫描] RSS/${feed.name} 失败: ${err instanceof Error ? err.message : String(err)}`,
         );
       }
@@ -110,10 +112,10 @@ export function createJobs(deps: SchedulerDeps): Jobs {
   const comments = guard('评论补全', async () => {
     const due = getPostsDueForComments(nowSec(), COMMENT_BATCH_LIMIT);
     if (due.length === 0) {
-      log.info(`[评论补全] 没有到达 6h/12h 回捞窗口的帖子`);
+      logger.info(`[评论补全] 没有到达 6h/12h 回捞窗口的帖子`);
       return;
     }
-    log.info(`[评论补全] ${due.length} 篇帖子待回捞评论`);
+    logger.info(`[评论补全] ${due.length} 篇帖子待回捞评论`);
     for (const { post, pass } of due) {
       let fetched: RedditComment[] = [];
       if (post.source === 'hackernews' && deps.hackernews) {
@@ -127,7 +129,7 @@ export function createJobs(deps: SchedulerDeps): Jobs {
 
   const analyze = guard('AI 分析', async () => {
     const stats = await runAnalysisBatch(deps.anthropic, deps.model, deps.analyzeBatchSize);
-    log.info(
+    logger.info(
       `[AI 分析] 分析 ${stats.analyzed} 篇，产出洞察 ${stats.saved} 条，失败 ${stats.failed} 篇`,
     );
   });
@@ -135,7 +137,7 @@ export function createJobs(deps: SchedulerDeps): Jobs {
   const archive = guard('归档', async () => {
     const cutoff = nowSec() - ARCHIVE_DAYS * 86400;
     const removed = archiveOldData(cutoff);
-    log.info(
+    logger.info(
       `[归档] 清理 ${ARCHIVE_DAYS} 天前原始数据：帖子 ${removed.posts}，评论 ${removed.comments}（洞察保留）`,
     );
   });

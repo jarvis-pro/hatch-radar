@@ -6,7 +6,7 @@ import type { CommentRow } from '../db/comments.js';
 import type { PostRow } from '../db/posts.js';
 import { saveInsight } from '../db/insights.js';
 import { nowSec } from '../db/utils.js';
-import { log } from '../log.js';
+import { logger } from '../logger.js';
 import {
   INSIGHT_SCHEMA,
   SYSTEM_PROMPT,
@@ -118,7 +118,7 @@ export async function runAnalysisBatch(
   const stats: AnalysisStats = { analyzed: 0, saved: 0, failed: 0 };
   if (posts.length === 0) return stats;
 
-  log.info(`本轮待分析帖子 ${posts.length} 篇（模型: ${model}）`);
+  logger.info(`本轮待分析帖子 ${posts.length} 篇（模型: ${model}）`);
   for (const post of posts) {
     const comments = getCommentsForPost(post.id);
     try {
@@ -127,7 +127,7 @@ export async function runAnalysisBatch(
       if (insight.pain_points.length > 0 || insight.opportunities.length > 0) {
         saveInsight(post, model, insight, now);
         stats.saved++;
-        log.info(
+        logger.info(
           `  ✓ r/${post.subreddit}「${post.title.slice(0, 48)}」→ 痛点 ${insight.pain_points.length} / 机会 ${insight.opportunities.length}`,
         );
       }
@@ -136,7 +136,7 @@ export async function runAnalysisBatch(
     } catch (err) {
       stats.failed++;
       bumpAnalyzeAttempts(post.id);
-      log.error(`  ✗ 分析失败 ${post.id}: ${err instanceof Error ? err.message : String(err)}`);
+      logger.error(`  ✗ 分析失败 ${post.id}: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
   return stats;
