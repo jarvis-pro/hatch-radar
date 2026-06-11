@@ -1,14 +1,15 @@
 import type { RssFeed } from '../crawler/rss.js';
 
-/**
- * 需要监控的 HackerNews 分区配置。
- * - endpoint：HN Firebase API 端点名
- * - channel：写入 `posts.subreddit` 的频道标识符
- */
-export const HN_SECTIONS: Array<{
+/** HackerNews 分区抓取配置 */
+export interface HnSection {
+  /** HN Firebase REST API 端点名 */
   endpoint: 'topstories' | 'askstories' | 'showstories';
+  /** 写入 `posts.subreddit` 的频道标识符，用于后续过滤与展示 */
   channel: string;
-}> = [
+}
+
+/** 需要监控的 HackerNews 分区列表，按需增减 */
+export const HN_SECTIONS: HnSection[] = [
   { endpoint: 'askstories', channel: 'ask_hn' },
   { endpoint: 'showstories', channel: 'show_hn' },
   { endpoint: 'topstories', channel: 'hackernews_top' },
