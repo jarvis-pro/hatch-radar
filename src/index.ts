@@ -1,6 +1,8 @@
 import { createAnthropicClient } from './analyzer/analyze.js';
+import { HN_SECTIONS, RSS_FEEDS } from './config/feeds.js';
 import { loadEnv } from './config/env.js';
 import { SUBREDDITS } from './config/subreddits.js';
+import { HackerNewsClient } from './crawler/hackernews.js';
 import { TokenBucketQueue } from './crawler/queue.js';
 import { RedditClient } from './crawler/reddit.js';
 import * as q from './db/queries.js';
@@ -10,15 +12,21 @@ import { startScheduler } from './scheduler.js';
 
 async function main(): Promise<void> {
   const env = loadEnv();
-  getDb(); // 初始化数据库（自动建表）
+  getDb();
 
   const queue = new TokenBucketQueue();
-  const reddit = new RedditClient(queue, env.reddit);
+  const reddit = env.reddit ? new RedditClient(queue, env.reddit) : undefined;
+  const hackernews = new HackerNewsClient();
   const anthropic = createAnthropicClient(env.anthropicApiKey);
 
   const stats = q.getStats();
   log.info(`hatch-radar 启动`);
-  log.info(`监控版块: ${SUBREDDITS.map((s) => `r/${s}`).join(', ')}`);
+
+  const sources: string[] = [];
+  if (reddit) sources.push(`Reddit (${SUBREDDITS.map((s) => `r/${s}`).join(', ')})`);
+  sources.push(`HackerNews (${HN_SECTIONS.map((s) => s.channel).join(', ')})`);
+  sources.push(`RSS (${RSS_FEEDS.map((f) => f.name).join(', ')})`);
+  log.info(`监控来源: ${sources.join(' | ')}`);
   log.info(`分析模型: ${env.anthropicModel} | 每轮分析上限: ${env.analyzeBatchSize}`);
   log.info(
     `当前数据: 帖子 ${stats.posts} / 评论 ${stats.comments} / 待分析 ${stats.pendingAnalysis} / 洞察 ${stats.insights}`,
@@ -26,10 +34,11 @@ async function main(): Promise<void> {
 
   const jobs = startScheduler({
     reddit,
+    hackernews,
     anthropic,
     model: env.anthropicModel,
     analyzeBatchSize: env.analyzeBatchSize,
-    subreddits: SUBREDDITS,
+    subreddits: reddit ? SUBREDDITS : [],
   });
 
   const shutdown = (signal: string) => {
@@ -40,7 +49,6 @@ async function main(): Promise<void> {
   process.on('SIGINT', () => shutdown('SIGINT'));
   process.on('SIGTERM', () => shutdown('SIGTERM'));
 
-  // 启动后立即跑一轮 扫描 → 评论 → 分析，无需等待下一个整点
   log.info('启动初始化轮次：扫描 → 评论补全 → AI 分析');
   await jobs.scan();
   await jobs.comments();

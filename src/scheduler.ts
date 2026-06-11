@@ -1,7 +1,11 @@
 import type Anthropic from '@anthropic-ai/sdk';
 import cron from 'node-cron';
 import { runAnalysisBatch } from './analyzer/analyze.js';
+import { HN_SECTIONS, RSS_FEEDS } from './config/feeds.js';
+import type { HackerNewsClient } from './crawler/hackernews.js';
+import type { RedditComment } from './crawler/reddit.js';
 import type { RedditClient } from './crawler/reddit.js';
+import { fetchFeed } from './crawler/rss.js';
 import * as q from './db/queries.js';
 import { log } from './log.js';
 
@@ -9,7 +13,8 @@ const ARCHIVE_DAYS = 30;
 const COMMENT_BATCH_LIMIT = 200;
 
 export interface SchedulerDeps {
-  reddit: RedditClient;
+  reddit?: RedditClient;
+  hackernews?: HackerNewsClient;
   anthropic: Anthropic;
   model: string;
   analyzeBatchSize: number;
@@ -46,13 +51,38 @@ function guard(name: string, fn: () => Promise<void>): () => Promise<void> {
 
 export function createJobs(deps: SchedulerDeps): Jobs {
   const scan = guard('扫描', async () => {
-    for (const subreddit of deps.subreddits) {
-      for (const sort of ['hot', 'new'] as const) {
-        const posts = await deps.reddit.fetchListing(subreddit, sort, 25);
-        const { added, updated } = q.upsertPosts(posts, q.nowSec());
+    // Reddit
+    if (deps.reddit && deps.subreddits.length > 0) {
+      for (const subreddit of deps.subreddits) {
+        for (const sort of ['hot', 'new'] as const) {
+          const posts = await deps.reddit.fetchListing(subreddit, sort, 25);
+          const { added, updated } = q.upsertPosts(posts, 'reddit', q.nowSec());
+          log.info(
+            `[扫描] r/${subreddit}/${sort}: 抓取 ${posts.length}，新增 ${added}，更新 ${updated}`,
+          );
+        }
+      }
+    }
+
+    // HackerNews
+    if (deps.hackernews) {
+      for (const section of HN_SECTIONS) {
+        const posts = await deps.hackernews.fetchStories(section.endpoint, section.channel, 30);
+        const { added, updated } = q.upsertPosts(posts, 'hackernews', q.nowSec());
         log.info(
-          `[扫描] r/${subreddit}/${sort}: 抓取 ${posts.length}，新增 ${added}，更新 ${updated}`,
+          `[扫描] HN/${section.channel}: 抓取 ${posts.length}，新增 ${added}，更新 ${updated}`,
         );
+      }
+    }
+
+    // RSS（无评论，直接设 comment_pass=2 进入分析队列）
+    for (const feed of RSS_FEEDS) {
+      try {
+        const posts = await fetchFeed(feed, 20);
+        const { added, updated } = q.upsertPosts(posts, 'rss', q.nowSec(), 2);
+        log.info(`[扫描] RSS/${feed.name}: 抓取 ${posts.length}，新增 ${added}，更新 ${updated}`);
+      } catch (err) {
+        log.warn(`[扫描] RSS/${feed.name} 失败: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
   });
@@ -65,7 +95,12 @@ export function createJobs(deps: SchedulerDeps): Jobs {
     }
     log.info(`[评论补全] ${due.length} 篇帖子待回捞评论`);
     for (const { post, pass } of due) {
-      const fetched = await deps.reddit.fetchComments(post.subreddit, post.id);
+      let fetched: RedditComment[] = [];
+      if (post.source === 'hackernews' && deps.hackernews) {
+        fetched = await deps.hackernews.fetchComments(post.id);
+      } else if (post.source === 'reddit' && deps.reddit) {
+        fetched = await deps.reddit.fetchComments(post.subreddit, post.id);
+      }
       q.replaceComments(post.id, fetched, pass, q.nowSec());
     }
   });
@@ -89,9 +124,9 @@ export function createJobs(deps: SchedulerDeps): Jobs {
 }
 
 /**
- * 调度策略（见 README）：
- * - 热门帖子扫描：每 30 分钟
- * - 评论补全：每 30 分钟检查一次，对发帖满 6h / 12h 的帖子回捞评论
+ * 调度策略：
+ * - 扫描（Reddit hot/new + HN + RSS）：每 30 分钟
+ * - 评论补全（Reddit + HN，RSS 跳过）：每 30 分钟检查，发帖满 6h/12h 回捞
  * - AI 批量分析：每小时
  * - 历史归档：每天凌晨
  */

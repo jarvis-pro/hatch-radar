@@ -7,6 +7,7 @@ import { databasePath } from '../config/env.js';
 export const DDL = `
 CREATE TABLE IF NOT EXISTS posts (
   id                  TEXT PRIMARY KEY,
+  source              TEXT NOT NULL DEFAULT 'reddit',
   subreddit           TEXT NOT NULL,
   title               TEXT NOT NULL,
   author              TEXT,
@@ -42,6 +43,7 @@ CREATE INDEX IF NOT EXISTS idx_comments_post ON comments (post_id);
 CREATE TABLE IF NOT EXISTS insights (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
   post_id       TEXT NOT NULL,
+  source        TEXT NOT NULL DEFAULT 'reddit',
   subreddit     TEXT NOT NULL,
   post_title    TEXT NOT NULL,
   permalink     TEXT,
@@ -59,6 +61,18 @@ CREATE INDEX IF NOT EXISTS        idx_insights_intensity ON insights (intensity)
 
 let db: Database.Database | null = null;
 
+function addColumnIfMissing(
+  database: Database.Database,
+  table: string,
+  column: string,
+  definition: string,
+): void {
+  const cols = database.pragma(`table_info(${table})`) as Array<{ name: string }>;
+  if (!cols.some((c) => c.name === column)) {
+    database.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
+}
+
 /** 打开数据库（首次调用自动建目录、建表，幂等） */
 export function getDb(): Database.Database {
   if (db) return db;
@@ -69,6 +83,8 @@ export function getDb(): Database.Database {
   db.pragma('foreign_keys = ON');
   db.pragma('busy_timeout = 5000');
   db.exec(DDL);
+  addColumnIfMissing(db, 'posts', 'source', `TEXT NOT NULL DEFAULT 'reddit'`);
+  addColumnIfMissing(db, 'insights', 'source', `TEXT NOT NULL DEFAULT 'reddit'`);
   return db;
 }
 

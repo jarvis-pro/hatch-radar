@@ -4,6 +4,7 @@ import { getDb } from './schema.js';
 
 export interface PostRow {
   id: string;
+  source: string;
   subreddit: string;
   title: string;
   author: string | null;
@@ -35,6 +36,7 @@ export interface CommentRow {
 interface InsightRow {
   id: number;
   post_id: string;
+  source: string;
   subreddit: string;
   post_title: string;
   permalink: string | null;
@@ -49,6 +51,7 @@ interface InsightRow {
 export interface Insight {
   id: number;
   postId: string;
+  source: string;
   subreddit: string;
   postTitle: string;
   permalink: string | null;
@@ -64,16 +67,21 @@ export function nowSec(): number {
   return Math.floor(Date.now() / 1000);
 }
 
-/** 写入/更新帖子；已存在时仅刷新分数、评论数等动态字段 */
+/**
+ * 写入/更新帖子；已存在时仅刷新分数、评论数等动态字段。
+ * initialCommentPass: RSS 等无评论来源传 2，跳过评论回捞直接进入分析队列
+ */
 export function upsertPosts(
   posts: RedditPost[],
+  source: string,
   fetchedAt: number,
+  initialCommentPass = 0,
 ): { added: number; updated: number } {
   const db = getDb();
   const exists = db.prepare(`SELECT 1 FROM posts WHERE id = ?`);
   const insert = db.prepare(`
-    INSERT INTO posts (id, subreddit, title, author, selftext, url, permalink, score, num_comments, created_utc, fetched_at)
-    VALUES (@id, @subreddit, @title, @author, @selftext, @url, @permalink, @score, @numComments, @createdUtc, @fetchedAt)
+    INSERT INTO posts (id, source, subreddit, title, author, selftext, url, permalink, score, num_comments, created_utc, fetched_at, comment_pass)
+    VALUES (@id, @source, @subreddit, @title, @author, @selftext, @url, @permalink, @score, @numComments, @createdUtc, @fetchedAt, @commentPass)
     ON CONFLICT(id) DO UPDATE SET
       title        = excluded.title,
       selftext     = excluded.selftext,
@@ -89,6 +97,7 @@ export function upsertPosts(
       else added++;
       insert.run({
         id: p.id,
+        source,
         subreddit: p.subreddit,
         title: p.title,
         author: p.author,
@@ -99,6 +108,7 @@ export function upsertPosts(
         numComments: p.numComments,
         createdUtc: p.createdUtc,
         fetchedAt,
+        commentPass: initialCommentPass,
       });
     }
   })();
@@ -205,11 +215,12 @@ export function saveInsight(
   getDb()
     .prepare(
       `INSERT OR REPLACE INTO insights
-         (post_id, subreddit, post_title, permalink, model, intensity, pain_points, opportunities, tags, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         (post_id, source, subreddit, post_title, permalink, model, intensity, pain_points, opportunities, tags, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       post.id,
+      post.source,
       post.subreddit,
       post.title,
       post.permalink,
@@ -266,6 +277,7 @@ export function searchInsights(filter: InsightFilter): Insight[] {
   return rows.map((row) => ({
     id: row.id,
     postId: row.post_id,
+    source: row.source,
     subreddit: row.subreddit,
     postTitle: row.post_title,
     permalink: row.permalink,

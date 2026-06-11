@@ -2,7 +2,7 @@ import 'dotenv/config';
 import type { RedditConfig } from '../crawler/reddit.js';
 
 export interface AppEnv {
-  reddit: RedditConfig;
+  reddit?: RedditConfig;
   anthropicApiKey: string;
   anthropicModel: string;
   analyzeBatchSize: number;
@@ -23,14 +23,19 @@ export function databasePath(): string {
 }
 
 export function loadEnv(): AppEnv {
+  const hasReddit = !!(
+    process.env.REDDIT_CLIENT_ID?.trim() && process.env.REDDIT_CLIENT_SECRET?.trim()
+  );
   return {
-    reddit: {
-      clientId: required('REDDIT_CLIENT_ID'),
-      clientSecret: required('REDDIT_CLIENT_SECRET'),
-      username: required('REDDIT_USERNAME'),
-      password: required('REDDIT_PASSWORD'),
-      userAgent: required('REDDIT_USER_AGENT'),
-    },
+    reddit: hasReddit
+      ? {
+          clientId: required('REDDIT_CLIENT_ID'),
+          clientSecret: required('REDDIT_CLIENT_SECRET'),
+          username: required('REDDIT_USERNAME'),
+          password: required('REDDIT_PASSWORD'),
+          userAgent: required('REDDIT_USER_AGENT'),
+        }
+      : undefined,
     anthropicApiKey: required('ANTHROPIC_API_KEY'),
     anthropicModel: process.env.ANTHROPIC_MODEL?.trim() || 'claude-opus-4-8',
     analyzeBatchSize: Math.max(1, Number(process.env.ANALYZE_BATCH_SIZE) || 20),

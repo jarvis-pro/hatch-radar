@@ -75,9 +75,15 @@ if (insights.length === 0) {
 
 for (const item of insights) {
   const date = new Date(item.createdAt * 1000).toISOString().slice(0, 16).replace('T', ' ');
-  console.log(`\n#${item.id} [${item.intensity}] r/${item.subreddit} · ${date}`);
+  const channel = item.source === 'reddit' ? `r/${item.subreddit}` : item.subreddit;
+  console.log(`\n#${item.id} [${item.intensity}] ${channel} · ${date}`);
   console.log(`  ${item.postTitle}`);
-  if (item.permalink) console.log(`  https://reddit.com${item.permalink}`);
+  if (item.permalink) {
+    const url = item.permalink.startsWith('http')
+      ? item.permalink
+      : `https://reddit.com${item.permalink}`;
+    console.log(`  ${url}`);
+  }
   if (item.tags.length > 0) console.log(`  标签: ${item.tags.join(' / ')}`);
   for (const pain of item.painPoints) {
     console.log(`  ▸ 痛点[${pain.intensity}] ${pain.description}`);

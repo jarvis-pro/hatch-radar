@@ -12,10 +12,11 @@ function truncate(text: string, max: number): string {
 
 /** 将帖子 + 评论组装为送入 AI 的结构化上下文 */
 export function buildContext(post: PostRow, comments: CommentRow[]): string {
+  const channel = post.source === 'reddit' ? `r/${post.subreddit}` : post.subreddit;
   const lines: string[] = [
     `标题: ${post.title}`,
-    `版块: r/${post.subreddit}`,
-    `作者: u/${post.author ?? '[deleted]'}`,
+    `版块: ${channel}`,
+    `作者: ${post.author ?? '[deleted]'}`,
     `发布时间: ${new Date(post.created_utc * 1000).toISOString()}`,
     `点赞: ${post.score} | 评论数: ${post.num_comments}`,
   ];
