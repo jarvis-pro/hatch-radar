@@ -21,7 +21,7 @@ export interface RedditConfig {
 
 /** 帖子数据的通用结构，供 Reddit / HN / RSS 各客户端统一映射 */
 export interface RedditPost {
-  /** 帖子唯一 ID；Reddit 为 base36，HN 格式 `hn_{id}`，RSS 格式 `rss_{sha1前16位}` */
+  /** 帖子唯一 ID；Reddit 格式 `rd_{base36}`，HN 格式 `hn_{id}`，RSS 格式 `rss_{sha1前16位}` */
   id: string;
   /** 版块/频道名称；Reddit 为版块名（不含 r/），其他源为自定义频道标识 */
   subreddit: string;
@@ -69,7 +69,7 @@ function sleep(ms: number): Promise<void> {
 
 function mapPost(d: Record<string, unknown>, fallbackSubreddit: string): RedditPost {
   return {
-    id: String(d.id ?? ''),
+    id: `rd_${String(d.id ?? '')}`,
     subreddit: String(d.subreddit ?? fallbackSubreddit),
     title: String(d.title ?? ''),
     author: String(d.author ?? '[deleted]'),
