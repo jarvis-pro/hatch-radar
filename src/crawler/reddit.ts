@@ -25,6 +25,7 @@ export interface RedditPost {
   id: string;
   /** 版块/频道名称；Reddit 为版块名（不含 r/），其他源为自定义频道标识 */
   subreddit: string;
+  /** 帖子标题 */
   title: string;
   /** 发帖人用户名；账号已删除时为 `[deleted]` */
   author: string;
@@ -34,6 +35,7 @@ export interface RedditPost {
   url: string;
   /** 固定链接；Reddit 为相对路径，HN/RSS 为完整 URL */
   permalink: string;
+  /** 帖子得分（赞数减踩数） */
   score: number;
   /** 评论总数（含所有层级） */
   numComments: number;
@@ -45,9 +47,11 @@ export interface RedditPost {
 
 /** 评论数据的通用结构，供 Reddit / HN 各客户端统一映射 */
 export interface RedditComment {
+  /** 评论唯一 ID */
   id: string;
   /** 父评论 ID；顶层评论为 null */
   parentId: string | null;
+  /** 评论作者用户名；账号已删除时为 `[deleted]` */
   author: string;
   /** 评论正文；已过滤 [deleted] / [removed] 的评论不入库 */
   body: string;
