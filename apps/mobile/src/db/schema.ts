@@ -1,22 +1,12 @@
-import { DDL } from '@hatch-radar/shared';
+import { DDL, TRIAGE_DDL } from '@hatch-radar/shared';
 import * as SQLite from 'expo-sqlite';
 
 /**
- * 移动端专属表（叠加在共享 DDL 之上）：
- * - triage：人工研判结果（状态/评级/标签/笔记），按 insight_id 一对一，里程碑 5 的 UI 落地于此
- * - outbox：操作日志（规格 §D），结构与 shared 的 OutboxRow 对应，里程碑 6 同步用
- * - meta：App 级 key/value（工作台地址、最近导入时间等）
+ * 移动端专属表（叠加在共享 DDL 与 TRIAGE_DDL 之上）：
+ * - outbox：操作日志（规格 §D），结构与 shared 的 OutboxRow 对应，同步推送用
+ * - meta：App 级 key/value（工作台地址、设备 ID、最近导入时间等）
  */
 export const MOBILE_DDL = `-- hatch-radar 移动端本地表
-CREATE TABLE IF NOT EXISTS triage (
-  insight_id INTEGER PRIMARY KEY,            -- 对应 insights.id
-  status     TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'shortlisted', 'archived')),
-  rating     INTEGER CHECK (rating BETWEEN 1 AND 5),
-  tags       TEXT NOT NULL DEFAULT '[]',     -- JSON 字符串数组（研判标签，区别于洞察自带标签）
-  note       TEXT NOT NULL DEFAULT '',
-  updated_at INTEGER NOT NULL
-);
-
 CREATE TABLE IF NOT EXISTS outbox (
   op_id      TEXT PRIMARY KEY,               -- 客户端生成 UUID，服务端幂等去重
   type       TEXT NOT NULL,
@@ -46,6 +36,7 @@ export function getDb(): SQLite.SQLiteDatabase {
   db.execSync('PRAGMA journal_mode = WAL;');
   db.execSync('PRAGMA foreign_keys = ON;');
   db.execSync(DDL);
+  db.execSync(TRIAGE_DDL);
   db.execSync(MOBILE_DDL);
   return db;
 }

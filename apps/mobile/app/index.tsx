@@ -1,39 +1,55 @@
 import { useCallback, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Link, useFocusEffect, useRouter } from 'expo-router';
-import type { Insight, Intensity } from '@hatch-radar/shared';
-import { getLocalStats, listInsights, type LocalStats } from '../src/db/queries';
+import type { Intensity, TriageStatus } from '@hatch-radar/shared';
+import {
+  getLocalStats,
+  listInsights,
+  type InsightListItem,
+  type ListFilter,
+  type LocalStats,
+} from '../src/db/queries';
 import {
   channelLabel,
   INTENSITY_BG,
   INTENSITY_COLORS,
   INTENSITY_LABELS,
   timeAgo,
+  TRIAGE_STATUS_COLORS,
+  TRIAGE_STATUS_LABELS,
 } from '../src/lib/format';
 
-const FILTERS: { label: string; value: Intensity | undefined }[] = [
+const INTENSITY_FILTERS: { label: string; value: Intensity | undefined }[] = [
   { label: '全部', value: undefined },
   { label: '高强度', value: 'HIGH' },
   { label: '中强度', value: 'MEDIUM' },
   { label: '低强度', value: 'LOW' },
 ];
 
+const STATUS_FILTERS: { label: string; value: TriageStatus | undefined }[] = [
+  { label: '全部状态', value: undefined },
+  { label: '待研判', value: 'pending' },
+  { label: '已入选', value: 'shortlisted' },
+  { label: '已归档', value: 'archived' },
+];
+
 export default function HomeScreen() {
   const router = useRouter();
   const [stats, setStats] = useState<LocalStats | null>(null);
   const [intensity, setIntensity] = useState<Intensity | undefined>(undefined);
-  const [insights, setInsights] = useState<Insight[]>([]);
+  const [status, setStatus] = useState<TriageStatus | undefined>(undefined);
+  const [items, setItems] = useState<InsightListItem[]>([]);
 
-  const reload = useCallback((filter: Intensity | undefined) => {
+  const reload = useCallback((filter: ListFilter) => {
     setStats(getLocalStats());
-    setInsights(listInsights(filter));
+    setItems(listInsights(filter));
   }, []);
 
-  // 从导入页返回时自动刷新本地数据
+  // 从导入/详情页返回时自动刷新本地数据（研判徽标与待同步计数随之更新）
   useFocusEffect(
     useCallback(() => {
-      reload(intensity);
-    }, [reload, intensity]),
+      reload({ intensity, status });
+    }, [reload, intensity, status]),
   );
 
   const empty = stats !== null && stats.insights === 0;
@@ -55,7 +71,7 @@ export default function HomeScreen() {
           </Pressable>
         </Link>
         <View style={styles.filterRow}>
-          {FILTERS.map((f) => {
+          {INTENSITY_FILTERS.map((f) => {
             const active = intensity === f.value;
             return (
               <Pressable
@@ -63,7 +79,24 @@ export default function HomeScreen() {
                 style={[styles.chip, active && styles.chipActive]}
                 onPress={() => {
                   setIntensity(f.value);
-                  reload(f.value);
+                  reload({ intensity: f.value, status });
+                }}
+              >
+                <Text style={[styles.chipText, active && styles.chipTextActive]}>{f.label}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+        <View style={styles.filterRow}>
+          {STATUS_FILTERS.map((f) => {
+            const active = status === f.value;
+            return (
+              <Pressable
+                key={f.label}
+                style={[styles.chip, active && styles.chipActive]}
+                onPress={() => {
+                  setStatus(f.value);
+                  reload({ intensity, status: f.value });
                 }}
               >
                 <Text style={[styles.chipText, active && styles.chipTextActive]}>{f.label}</Text>
@@ -74,8 +107,8 @@ export default function HomeScreen() {
       </View>
 
       <FlatList
-        data={insights}
-        keyExtractor={(item) => String(item.id)}
+        data={items}
+        keyExtractor={(item) => String(item.insight.id)}
         contentContainerStyle={styles.listContent}
         ListEmptyComponent={
           <View style={styles.empty}>
@@ -83,35 +116,46 @@ export default function HomeScreen() {
             <Text style={styles.emptyHint}>
               {empty
                 ? '回到工作台局域网拉取批次，或导入 AirDrop 来的批次文件。'
-                : '试试切换强度筛选。'}
+                : '试试切换强度或研判状态筛选。'}
             </Text>
           </View>
         }
-        renderItem={({ item }) => (
-          <Pressable style={styles.card} onPress={() => router.push(`/insight/${item.id}`)}>
-            <View style={styles.cardMeta}>
-              <View style={[styles.badge, { backgroundColor: INTENSITY_BG[item.intensity] }]}>
-                <Text style={[styles.badgeText, { color: INTENSITY_COLORS[item.intensity] }]}>
-                  {INTENSITY_LABELS[item.intensity]}强度
+        renderItem={({ item }) => {
+          const insight = item.insight;
+          return (
+            <Pressable style={styles.card} onPress={() => router.push(`/insight/${insight.id}`)}>
+              <View style={styles.cardMeta}>
+                <View style={[styles.badge, { backgroundColor: INTENSITY_BG[insight.intensity] }]}>
+                  <Text style={[styles.badgeText, { color: INTENSITY_COLORS[insight.intensity] }]}>
+                    {INTENSITY_LABELS[insight.intensity]}强度
+                  </Text>
+                </View>
+                {item.status !== 'pending' ? (
+                  <Text style={[styles.triageText, { color: TRIAGE_STATUS_COLORS[item.status] }]}>
+                    {TRIAGE_STATUS_LABELS[item.status]}
+                  </Text>
+                ) : null}
+                {item.rating != null ? <Text style={styles.ratingText}>★{item.rating}</Text> : null}
+                <Text style={styles.metaText}>
+                  {channelLabel(insight.source, insight.subreddit)}
                 </Text>
+                <Text style={styles.metaText}>{timeAgo(insight.createdAt)}</Text>
               </View>
-              <Text style={styles.metaText}>{channelLabel(item.source, item.subreddit)}</Text>
-              <Text style={styles.metaText}>{timeAgo(item.createdAt)}</Text>
-            </View>
-            <Text style={styles.cardTitle} numberOfLines={2}>
-              {item.postTitle}
-            </Text>
-            {item.painPoints[0] ? (
-              <Text style={styles.cardExcerpt} numberOfLines={2}>
-                {item.painPoints[0].description}
+              <Text style={styles.cardTitle} numberOfLines={2}>
+                {insight.postTitle}
               </Text>
-            ) : null}
-            <Text style={styles.cardCounts}>
-              痛点 {item.painPoints.length} · 机会 {item.opportunities.length}
-              {item.tags.length > 0 ? ` · ${item.tags.join(' / ')}` : ''}
-            </Text>
-          </Pressable>
-        )}
+              {insight.painPoints[0] ? (
+                <Text style={styles.cardExcerpt} numberOfLines={2}>
+                  {insight.painPoints[0].description}
+                </Text>
+              ) : null}
+              <Text style={styles.cardCounts}>
+                痛点 {insight.painPoints.length} · 机会 {insight.opportunities.length}
+                {insight.tags.length > 0 ? ` · ${insight.tags.join(' / ')}` : ''}
+              </Text>
+            </Pressable>
+          );
+        }}
       />
     </View>
   );
@@ -174,6 +218,8 @@ const styles = StyleSheet.create({
   badge: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 1 },
   badgeText: { fontSize: 11.5 },
   metaText: { fontSize: 12.5, color: '#6b7585' },
+  triageText: { fontSize: 12, fontWeight: '600' },
+  ratingText: { fontSize: 12, color: '#d97706', fontWeight: '600' },
   cardTitle: { fontSize: 15.5, fontWeight: '600', color: '#1c2330', lineHeight: 21 },
   cardExcerpt: { fontSize: 13.5, color: '#6b7585', lineHeight: 19 },
   cardCounts: { fontSize: 12, color: '#6b7585' },

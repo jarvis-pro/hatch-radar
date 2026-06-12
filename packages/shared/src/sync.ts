@@ -6,11 +6,7 @@
  * 服务端按 opId 去重、幂等应用。当前同步方向仅 App → 工作台。
  */
 
-/**
- * 研判状态：移动端人工筛选洞察时的处理阶段。
- * 初始集合，离线研判 UI（里程碑 5）落地时可按需扩展。
- */
-export type TriageStatus = 'pending' | 'shortlisted' | 'archived';
+import type { TriageStatus } from './triage';
 
 /** 各同步操作类型对应的 payload 结构 */
 export interface SyncOpPayloads {

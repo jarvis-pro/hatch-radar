@@ -1,4 +1,4 @@
-import type { Intensity } from '@hatch-radar/shared';
+import type { Intensity, TriageStatus } from '@hatch-radar/shared';
 
 /** Unix 秒 → 'YYYY-MM-DD HH:mm' */
 export function fmtDate(unixSec: number): string {
@@ -40,4 +40,18 @@ export const INTENSITY_BG: Record<Intensity, string> = {
   HIGH: '#fdecec',
   MEDIUM: '#fdf3e3',
   LOW: '#e7f6f0',
+};
+
+/** 研判状态 → 中文展示名 */
+export const TRIAGE_STATUS_LABELS: Record<TriageStatus, string> = {
+  pending: '待研判',
+  shortlisted: '已入选',
+  archived: '已归档',
+};
+
+/** 研判状态 → 主色 */
+export const TRIAGE_STATUS_COLORS: Record<TriageStatus, string> = {
+  pending: '#6b7585',
+  shortlisted: '#2563eb',
+  archived: '#9aa3b2',
 };
