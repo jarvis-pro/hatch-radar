@@ -1,3 +1,7 @@
+packages:
+  - apps/*
+  - packages/*
+
 # better-sqlite3 / esbuild 需要运行原生模块安装脚本
 onlyBuiltDependencies:
   - better-sqlite3

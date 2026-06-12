@@ -1,0 +1,19 @@
+{
+  "name": "@hatch-radar/shared",
+  "version": "0.1.0",
+  "private": true,
+  "description": "跨端共享：数据库 DDL、行类型、洞察域类型与同步协议类型（零运行时依赖，Node / Next.js / React Native 通用）",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3"
+  }
+}
