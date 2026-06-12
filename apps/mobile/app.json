@@ -7,8 +7,10 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
-    "plugins": ["expo-router", "expo-sqlite"],
+    "plugins": [
+      "expo-router",
+      "expo-sqlite"
+    ],
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
@@ -16,7 +18,8 @@
           "NSAllowsLocalNetworking": true
         },
         "NSLocalNetworkUsageDescription": "在局域网内连接工作台拉取洞察批次（仅下行数据，无账号与追踪）。"
-      }
+      },
+      "bundleIdentifier": "com.anonymous.hatch-radar-mobile"
     },
     "android": {
       "adaptiveIcon": {
