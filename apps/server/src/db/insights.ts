@@ -12,7 +12,8 @@ import { getDb } from './schema';
 /**
  * 将 AI 分析结果落库为洞察记录。
  * - intensity 取所有 pain_points 中最高强度，作为整条洞察的索引强度
- * - 同一 post_id 重复写入时覆盖（INSERT OR REPLACE）
+ * - 同一 post_id 重复写入时按 post_id 唯一索引原地 UPDATE，保留 insights.id 不变
+ *   （重分析不换 id，triage 等按 insight_id 的软引用因此不会悬空）
  * @param post 来源帖子行（提供 id / source / subreddit / title / permalink）
  * @param model 用于分析的模型 ID
  * @param insight AI 返回的结构化结果
@@ -31,9 +32,20 @@ export function saveInsight(
   }
   getDb()
     .prepare(
-      `INSERT OR REPLACE INTO insights
+      `INSERT INTO insights
          (post_id, source, subreddit, post_title, permalink, model, intensity, pain_points, opportunities, tags, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(post_id) DO UPDATE SET
+         source        = excluded.source,
+         subreddit     = excluded.subreddit,
+         post_title    = excluded.post_title,
+         permalink     = excluded.permalink,
+         model         = excluded.model,
+         intensity     = excluded.intensity,
+         pain_points   = excluded.pain_points,
+         opportunities = excluded.opportunities,
+         tags          = excluded.tags,
+         created_at    = excluded.created_at`,
     )
     .run(
       post.id,
