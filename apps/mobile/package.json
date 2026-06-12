@@ -6,8 +6,12 @@
   "main": "expo-router/entry",
   "scripts": {
     "start": "expo start",
-    "android": "expo run:android --device",
-    "ios": "expo run:ios --device",
+    "android": "APP_VARIANT=development expo run:android --device",
+    "ios": "APP_VARIANT=development expo run:ios --device",
+    "prebuild": "APP_VARIANT=development expo prebuild --clean",
+    "prebuild:prod": "expo prebuild --clean",
+    "ios:release": "expo run:ios --device --configuration Release",
+    "android:release": "expo run:android --device --variant release",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
