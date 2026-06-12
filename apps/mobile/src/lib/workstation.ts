@@ -52,7 +52,9 @@ async function getJson<T>(cfg: WorkstationConfig, path: string): Promise<T> {
     return (await res.json()) as T;
   } catch (err) {
     if (err instanceof Error && err.name === 'AbortError') {
-      throw new Error('连接超时：请确认与工作台在同一局域网，且 server / pnpm serve 已启动');
+      throw new Error('连接超时：请确认与工作台在同一局域网，且 server / pnpm serve 已启动', {
+        cause: err,
+      });
     }
     throw err;
   } finally {
