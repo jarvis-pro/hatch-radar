@@ -1,7 +1,7 @@
 import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
 import { hapticSelect } from '@/lib/haptics';
-import { loadThemeMode, saveThemeMode, type ThemeMode } from '@/lib/theme-mode';
+import { useThemeMode, type ThemeMode } from '@/lib/theme-mode';
 import { cn } from '@/lib/utils';
 import { Check, Monitor, Moon, Sun, type LucideIcon } from 'lucide-react-native';
 import { useColorScheme } from 'nativewind';
@@ -20,13 +20,12 @@ const OPTIONS: { value: ThemeMode; label: string; icon: LucideIcon }[] = [
  */
 export function ThemeToggle() {
   const { colorScheme } = useColorScheme();
+  const { mode, setMode } = useThemeMode();
   const [open, setOpen] = useState(false);
-  const [mode, setMode] = useState<ThemeMode>(loadThemeMode);
 
   const select = (m: ThemeMode) => {
     hapticSelect();
     setMode(m);
-    saveThemeMode(m);
     setOpen(false);
   };
 

@@ -2,15 +2,22 @@ import '../global.css';
 
 import { ThemeToggle } from '@/components/theme-toggle';
 import { THEME } from '@/lib/theme';
-import { applyStoredThemeMode } from '@/lib/theme-mode';
+import { ThemeModeProvider } from '@/lib/theme-mode';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useColorScheme } from 'nativewind';
-import { useState } from 'react';
 
 export default function RootLayout() {
-  // 首帧前按持久化偏好应用主题（useState 初始化器同步执行一次，避免闪烁）
-  useState(applyStoredThemeMode);
+  return (
+    <ThemeModeProvider>
+      <ThemedStack />
+    </ThemeModeProvider>
+  );
+}
+
+// 在 Provider 内部消费 useColorScheme：首帧前 Provider 已应用持久化偏好，
+// 导航头/StatusBar 取到的即是正确配色
+function ThemedStack() {
   const { colorScheme } = useColorScheme();
   const theme = THEME[colorScheme === 'dark' ? 'dark' : 'light'];
 
