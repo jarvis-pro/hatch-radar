@@ -2,7 +2,18 @@ packages:
   - apps/*
   - packages/*
 
-# better-sqlite3 / esbuild 需要运行原生模块安装脚本
+# better-sqlite3 / esbuild / @tailwindcss/oxide 需要运行原生模块安装脚本
 onlyBuiltDependencies:
+  - '@tailwindcss/oxide'
   - better-sqlite3
   - esbuild
+
+# input-otp 的 d.ts 引 react 却未声明 @types/react 可选 peer，
+# pnpm 隔离布局下解析不到类型，Context 泛型塌成 {}；这里补上声明
+packageExtensions:
+  input-otp:
+    peerDependencies:
+      '@types/react': '*'
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
