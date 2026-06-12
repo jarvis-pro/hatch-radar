@@ -49,8 +49,7 @@ export default function SyncScreen() {
   const { colorScheme } = useColorScheme();
   const theme = THEME[colorScheme === 'dark' ? 'dark' : 'light'];
   const saved = loadWorkstationConfig();
-  const [baseUrl, setBaseUrl] = useState(saved?.baseUrl ?? '');
-  const [token, setToken] = useState(saved?.token ?? '');
+  const [baseUrl, setBaseUrl] = useState(saved?.baseUrl ?? 'http://192.168.0.95:8787');
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
   const [pending, setPending] = useState(0);
 
@@ -76,7 +75,7 @@ export default function SyncScreen() {
   };
 
   const cfgFromInputs = () => {
-    const cfg = { baseUrl: normalizeBaseUrl(baseUrl), token: token.trim() || undefined };
+    const cfg = { baseUrl: normalizeBaseUrl(baseUrl) };
     saveWorkstationConfig(cfg);
     setBaseUrl(cfg.baseUrl);
     return cfg;
@@ -157,17 +156,7 @@ export default function SyncScreen() {
                 editable={!busy}
               />
             </View>
-            <View className="gap-1.5">
-              <Label>访问令牌</Label>
-              <Input
-                placeholder="工作台未设 API_TOKEN 则留空"
-                autoCapitalize="none"
-                autoCorrect={false}
-                value={token}
-                onChangeText={setToken}
-                editable={!busy}
-              />
-            </View>
+
             <View className="flex-row gap-2.5">
               <Button variant="outline" className="flex-1" onPress={onTest} disabled={busy}>
                 <Icon as={Radio} size={16} />
