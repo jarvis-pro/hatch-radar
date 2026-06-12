@@ -81,7 +81,12 @@ export default async function InsightsPage(props: { searchParams: Promise<Search
             </option>
           ))}
         </select>
-        <input type="search" name="q" placeholder="搜索标题 / 标签 / 痛点 / 机会" defaultValue={q ?? ''} />
+        <input
+          type="search"
+          name="q"
+          placeholder="搜索标题 / 标签 / 痛点 / 机会"
+          defaultValue={q ?? ''}
+        />
         <button type="submit">筛选</button>
         {hasFilter ? (
           <a className="filter-reset" href="/">

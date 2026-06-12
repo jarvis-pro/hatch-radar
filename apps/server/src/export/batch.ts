@@ -45,7 +45,9 @@ export function collectExportBatch(filter: ExportFilter): ExportBatch {
     .all(...params) as InsightRow[];
 
   const postStmt = db.prepare(`SELECT * FROM posts WHERE id = ?`);
-  const commentStmt = db.prepare(`SELECT * FROM comments WHERE post_id = ? ORDER BY created_utc, id`);
+  const commentStmt = db.prepare(
+    `SELECT * FROM comments WHERE post_id = ? ORDER BY created_utc, id`,
+  );
   const posts: PostRow[] = [];
   const comments: CommentRow[] = [];
   for (const insight of insights) {

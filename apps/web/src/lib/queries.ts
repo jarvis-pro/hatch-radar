@@ -66,12 +66,16 @@ export function listInsights(db: Db, filter: InsightListFilter): Paged<Insight> 
     params.push(filter.intensity);
   }
   if (filter.q) {
-    clauses.push('(post_title LIKE ? OR tags LIKE ? OR pain_points LIKE ? OR opportunities LIKE ?)');
+    clauses.push(
+      '(post_title LIKE ? OR tags LIKE ? OR pain_points LIKE ? OR opportunities LIKE ?)',
+    );
     const like = `%${filter.q}%`;
     params.push(like, like, like, like);
   }
   const where = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
-  const total = (db.prepare(`SELECT COUNT(*) n FROM insights ${where}`).get(...params) as { n: number }).n;
+  const total = (
+    db.prepare(`SELECT COUNT(*) n FROM insights ${where}`).get(...params) as { n: number }
+  ).n;
   const { page, pageCount } = clampPage(total, filter.page);
   const rows = db
     .prepare(`SELECT * FROM insights ${where} ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`)
@@ -113,7 +117,9 @@ export function listPosts(db: Db, filter: PostListFilter): Paged<PostRow> {
     params.push(like, like);
   }
   const where = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
-  const total = (db.prepare(`SELECT COUNT(*) n FROM posts ${where}`).get(...params) as { n: number }).n;
+  const total = (
+    db.prepare(`SELECT COUNT(*) n FROM posts ${where}`).get(...params) as { n: number }
+  ).n;
   const { page, pageCount } = clampPage(total, filter.page);
   const items = db
     .prepare(`SELECT * FROM posts ${where} ORDER BY created_utc DESC, id LIMIT ? OFFSET ?`)
@@ -161,9 +167,13 @@ export interface FilterOptions {
 /** 洞察页筛选项：取自 insights 表（帖子归档后洞察仍在） */
 export function insightFilterOptions(db: Db): FilterOptions {
   return {
-    sources: (db.prepare(`SELECT DISTINCT source s FROM insights ORDER BY s`).all() as { s: string }[]).map((r) => r.s),
+    sources: (
+      db.prepare(`SELECT DISTINCT source s FROM insights ORDER BY s`).all() as { s: string }[]
+    ).map((r) => r.s),
     subreddits: (
-      db.prepare(`SELECT DISTINCT subreddit s FROM insights ORDER BY s COLLATE NOCASE`).all() as { s: string }[]
+      db.prepare(`SELECT DISTINCT subreddit s FROM insights ORDER BY s COLLATE NOCASE`).all() as {
+        s: string;
+      }[]
     ).map((r) => r.s),
   };
 }
@@ -171,9 +181,13 @@ export function insightFilterOptions(db: Db): FilterOptions {
 /** 帖子页筛选项：取自 posts 表 */
 export function postFilterOptions(db: Db): FilterOptions {
   return {
-    sources: (db.prepare(`SELECT DISTINCT source s FROM posts ORDER BY s`).all() as { s: string }[]).map((r) => r.s),
+    sources: (
+      db.prepare(`SELECT DISTINCT source s FROM posts ORDER BY s`).all() as { s: string }[]
+    ).map((r) => r.s),
     subreddits: (
-      db.prepare(`SELECT DISTINCT subreddit s FROM posts ORDER BY s COLLATE NOCASE`).all() as { s: string }[]
+      db.prepare(`SELECT DISTINCT subreddit s FROM posts ORDER BY s COLLATE NOCASE`).all() as {
+        s: string;
+      }[]
     ).map((r) => r.s),
   };
 }

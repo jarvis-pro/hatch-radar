@@ -45,7 +45,9 @@ function assertVersion(version: number): void {
     throw new Error('批次缺少有效的格式版本，可能不是 hatch-radar 导出文件');
   }
   if (version > EXPORT_FORMAT_VERSION) {
-    throw new Error(`批次格式版本 ${version} 高于 App 支持的 ${EXPORT_FORMAT_VERSION}，请先升级 App`);
+    throw new Error(
+      `批次格式版本 ${version} 高于 App 支持的 ${EXPORT_FORMAT_VERSION}，请先升级 App`,
+    );
   }
 }
 

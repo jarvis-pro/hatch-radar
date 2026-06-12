@@ -22,7 +22,10 @@ import {
   saveWorkstationConfig,
 } from '../src/lib/workstation';
 
-type Status = { kind: 'idle' } | { kind: 'busy'; label: string } | { kind: 'done' | 'error'; text: string };
+type Status =
+  | { kind: 'idle' }
+  | { kind: 'busy'; label: string }
+  | { kind: 'done' | 'error'; text: string };
 
 /** file:// URI → SQLite ATTACH 可用的本地绝对路径 */
 function uriToPath(uri: string): string {

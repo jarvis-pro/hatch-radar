@@ -62,7 +62,9 @@ export default async function InsightDetailPage(props: { params: Promise<{ id: s
                   <IntensityBadge intensity={pain.intensity} />
                   <p className="pain-desc">{pain.description}</p>
                 </div>
-                {pain.evidence ? <blockquote className="evidence">{pain.evidence}</blockquote> : null}
+                {pain.evidence ? (
+                  <blockquote className="evidence">{pain.evidence}</blockquote>
+                ) : null}
               </li>
             ))}
           </ul>
