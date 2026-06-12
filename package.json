@@ -19,6 +19,8 @@
     "db:migrate": "pnpm --filter @hatch-radar/server db:migrate",
     "insights": "pnpm --filter @hatch-radar/server insights",
     "analyze": "pnpm --filter @hatch-radar/server analyze",
+    "serve": "pnpm --filter @hatch-radar/server serve",
+    "export:batch": "pnpm --filter @hatch-radar/server export:batch",
     "typecheck": "pnpm -r typecheck",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",

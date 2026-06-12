@@ -11,6 +11,8 @@
     "db:migrate": "tsx src/db/schema.ts",
     "insights": "tsx src/cli.ts",
     "analyze": "tsx src/analyze-once.ts",
+    "serve": "tsx src/serve.ts",
+    "export:batch": "tsx src/export-batch.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

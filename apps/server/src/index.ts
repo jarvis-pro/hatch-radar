@@ -9,6 +9,7 @@ import { getStats } from './db/utils';
 import { closeDb, getDb } from './db/schema';
 import { logger } from './logger';
 import { startScheduler } from './scheduler';
+import { startHttpServer } from './server/http';
 
 async function main(): Promise<void> {
   const env = loadEnv();
@@ -43,8 +44,12 @@ async function main(): Promise<void> {
     subreddits: reddit ? SUBREDDITS : [],
   });
 
+  // 局域网导出服务：供移动端拉取批次（只下行数据，密钥不经过此服务）
+  const httpServer = startHttpServer(env.http);
+
   const shutdown = (signal: string) => {
     logger.info(`收到 ${signal}，正在退出…`);
+    httpServer.close();
     closeDb();
     process.exit(0);
   };
