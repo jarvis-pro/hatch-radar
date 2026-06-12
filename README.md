@@ -25,6 +25,7 @@
 | AI 分析       | Anthropic（`@anthropic-ai/sdk`）/ DeepSeek（OpenAI 兼容），或导出本地文件（默认） |
 | 存储          | SQLite（WAL；server / web 用 better-sqlite3，移动端 expo-sqlite，文件格式互通）   |
 | Web 控制台    | Next.js（App Router，standalone 产物 + Docker）                                   |
+| PC 端 UI 库   | shadcn/ui + Tailwind CSS v4（`packages/ui` 共享，仅限 Web/PC 子项目）             |
 | 移动端        | React Native（Expo SDK 56 + expo-router + expo-sqlite）                           |
 
 ---
@@ -90,6 +91,8 @@ pnpm dev:web            # http://localhost:3000
 - 只读展示洞察 / 帖子 / 评论：来源 / 版块 / 强度 / 分析状态筛选 + 关键词搜索 + 分页，响应式自适应手机
 - better-sqlite3 只在服务端（Server Components），绝不进客户端 bundle；写操作统一走 server 进程
 - 数据文件路径由 `DATABASE_URL` 指定，默认 `../server/data/radar.db`
+- UI 组件来自 `@hatch-radar/ui`（shadcn/ui，见 `/ui-lab` 预览页）。新增组件在 `apps/web` 下执行
+  `pnpm dlx shadcn@latest add <component>`，CLI 会自动把组件写入 `packages/ui`，所有 PC 子项目共用
 
 Docker 部署（镜像基于 node:20-bookworm-slim，规格要求避开 Alpine/musl）：
 
@@ -221,7 +224,8 @@ hatch-radar/
 │       ├── app/                # expo-router：洞察列表 / 详情（含研判编辑）/ 工作台同步
 │       └── src/                # 本地库（共享 DDL + outbox/meta）、研判与导入合并、同步推送
 ├── packages/
-│   └── shared/                 # 跨端共享：DB DDL、行类型、洞察域类型、研判结构、导出与同步协议
+│   ├── shared/                 # 跨端共享：DB DDL、行类型、洞察域类型、研判结构、导出与同步协议
+│   └── ui/                     # PC 端共享 UI 库：shadcn/ui + Tailwind v4（组件经 CLI 落入此包，RN 勿引）
 ├── docs/
 │   └── multiplatform-refactor-spec.md  # 多端重构需求规格
 ├── docker-compose.yml          # web 控制台容器 + 本地数据卷
