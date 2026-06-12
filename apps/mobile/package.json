@@ -11,7 +11,6 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@expo/dom-webview": "~56.0.5",
     "@hatch-radar/shared": "workspace:*",
     "expo": "~56.0.11",
     "expo-constants": "~56.0.18",
