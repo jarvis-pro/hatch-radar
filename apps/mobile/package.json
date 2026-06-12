@@ -1,0 +1,32 @@
+{
+  "name": "@hatch-radar/mobile",
+  "version": "0.1.0",
+  "private": true,
+  "description": "RN 离线伴侣 App（Expo）：本地 SQLite + 导入批次 + 离线人工研判（无 AI、无密钥）",
+  "main": "expo-router/entry",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@hatch-radar/shared": "workspace:*",
+    "expo": "~56.0.11",
+    "expo-constants": "~56.0.18",
+    "expo-document-picker": "~56.0.4",
+    "expo-file-system": "~56.0.8",
+    "expo-linking": "~56.0.14",
+    "expo-router": "~56.2.10",
+    "expo-sqlite": "~56.0.5",
+    "expo-status-bar": "~56.0.4",
+    "react": "19.2.3",
+    "react-native": "0.85.3",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-screens": "4.25.2"
+  },
+  "devDependencies": {
+    "@types/react": "~19.2.2",
+    "typescript": "~6.0.3"
+  }
+}
