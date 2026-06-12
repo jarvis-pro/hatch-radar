@@ -8,9 +8,10 @@
 ## 功能概览
 
 - **工作台后端（apps/server）**：定时抓取 Reddit / HackerNews / RSS，令牌桶限速；帖子+评论组合上下文批量送 AI 分析（默认导出本地文件，可配 Anthropic / DeepSeek）；AI 密钥只在此进程
-- **Web 控制台（apps/web）**：只读展示洞察 / 帖子 / 评论，筛选/搜索/分页，响应式，Docker 部署
+- **Web 控制台（apps/web）**：只读展示洞察 / 帖子 / 评论与同步回传的人工研判，筛选/搜索/分页，响应式，Docker 部署
 - **导出批次**：按条件筛「有效数据」，经局域网 HTTP 接口或 `.sqlite` / `.json` 文件（AirDrop）交付给移动端
-- **离线伴侣 App（apps/mobile）**：Expo + 本地 SQLite，导入批次后全程离线浏览（人工研判 UI 与回传同步在后续里程碑）
+- **离线伴侣 App（apps/mobile）**：Expo + 本地 SQLite，导入批次后全程离线人工研判（状态/评级/标签/笔记），操作记入本地 outbox
+- **同步回传**：回到局域网后 App 提示待同步数，用户确认推送；工作台按 opId 幂等应用（重发不重复生效）
 
 ---
 
@@ -108,15 +109,16 @@ docker run -p 3000:3000 -v ./apps/server/data:/data hatch-radar-web
 
 「有效数据」基线：洞察须有实质信号（痛点或机会非空），可叠加 `since / 强度 / 版块 / 条数` 筛选。
 
-**局域网 HTTP**（随 `pnpm dev / start` 自动启动；只想开导出服务用 `pnpm serve`）：
+**局域网 HTTP**（随 `pnpm dev / start` 自动启动；只想开导出/同步服务用 `pnpm serve`）：
 
-| 端点                        | 说明                                            |
-| --------------------------- | ----------------------------------------------- |
-| `GET /api/health`           | 健康检查 + 数据概览（不鉴权，App 探测工作台用） |
-| `GET /api/export/batch`     | JSON 批次；参数 `since / minIntensity / subreddit / limit` |
-| `GET /api/export/batch.sqlite` | 同条件的独立 `.sqlite` 文件下载              |
+| 端点                           | 说明                                                       |
+| ------------------------------ | ---------------------------------------------------------- |
+| `GET /api/health`              | 健康检查 + 数据概览（不鉴权，App 探测工作台用）            |
+| `GET /api/export/batch`        | JSON 批次；参数 `since / minIntensity / subreddit / limit` |
+| `GET /api/export/batch.sqlite` | 同条件的独立 `.sqlite` 文件下载                            |
+| `POST /api/sync/push`          | 接收移动端研判操作，按 `opId` 幂等应用（写 triage 表）     |
 
-端口 `HTTP_PORT`（默认 8787），设 `EXPORT_TOKEN` 后导出接口要求 `Authorization: Bearer <token>`。
+端口 `HTTP_PORT`（默认 8787），设 `API_TOKEN` 后导出与同步接口要求 `Authorization: Bearer <token>`。
 
 **文件导出**（产物可 AirDrop 给手机）：
 
@@ -135,10 +137,14 @@ pnpm mobile     # 启动 Expo dev server，用 Expo Go 扫码（iOS 真机）
 ```
 
 - 本地 SQLite 与服务器同文件格式；导入批次两种方式：
-  1. **局域网拉取**：在 App「导入批次」页填工作台地址（server 启动日志会打印局域网 IP）
+  1. **局域网拉取**：在「工作台同步」页填工作台地址（server 启动日志会打印局域网 IP）
   2. **文件导入**：选择 AirDrop / 文件 App 里的 `.sqlite` / `.json` 批次
 - 导入为幂等合并，重复导入不产生重复数据；全程离线可用，App 内无 AI、无密钥
-- 离线研判 UI（标签/评级/笔记）与「确认后回传工作台」按规格里程碑 5/6 推进
+- **离线研判**：洞察详情页设置状态（待研判/已入选/已归档）、1-5 星评级、研判标签、笔记；
+  列表页可按强度与研判状态筛选。每次变更先写本地表，同时记入 outbox 操作日志
+- **同步回传**：首页横幅提示「有 N 条研判待同步」→ 同步页确认推送 → 工作台按 `opId`
+  幂等应用并留痕（`sync_ops`），重复推送返回 duplicate 不重复生效；同步结果可在
+  Web 控制台洞察详情页查看。当前方向仅 App → 工作台（规格 §D）
 
 ---
 
@@ -196,7 +202,8 @@ hatch-radar/
 │   │   │   ├── analyzer/       # prompt、Anthropic / DeepSeek 调用、文件导出、批处理
 │   │   │   ├── db/             # SQLite 连接管理与各表存取（DDL 来自 shared）
 │   │   │   ├── export/batch.ts # 导出批次：筛选有效数据 → JSON / .sqlite
-│   │   │   ├── server/http.ts  # 局域网导出 HTTP 服务（health / batch / batch.sqlite）
+│   │   │   ├── server/http.ts  # 局域网 HTTP 服务（health / 导出批次 / 同步接收）
+│   │   │   ├── sync/apply.ts   # 同步操作校验与幂等应用（op_id 去重 + sync_ops 留痕）
 │   │   │   ├── scheduler.ts    # 定时任务调度
 │   │   │   ├── cli.ts          # 洞察检索 CLI（pnpm insights）
 │   │   │   ├── analyze-once.ts # 手动触发一轮分析（pnpm analyze）
@@ -211,10 +218,10 @@ hatch-radar/
 │   │   ├── src/components/     # 徽标/卡片/分页/评论树
 │   │   └── Dockerfile          # 多阶段构建（node:20-bookworm-slim + standalone）
 │   └── mobile/                 # Expo 离线伴侣 App
-│       ├── app/                # expo-router：洞察列表 / 详情 / 导入批次
-│       └── src/                # 本地库（共享 DDL + triage/outbox/meta）、导入合并、工作台客户端
+│       ├── app/                # expo-router：洞察列表 / 详情（含研判编辑）/ 工作台同步
+│       └── src/                # 本地库（共享 DDL + outbox/meta）、研判与导入合并、同步推送
 ├── packages/
-│   └── shared/                 # 跨端共享：DB DDL、行类型、洞察域类型、导出批次与同步协议
+│   └── shared/                 # 跨端共享：DB DDL、行类型、洞察域类型、研判结构、导出与同步协议
 ├── docs/
 │   └── multiplatform-refactor-spec.md  # 多端重构需求规格
 ├── docker-compose.yml          # web 控制台容器 + 本地数据卷
