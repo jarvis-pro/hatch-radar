@@ -1,4 +1,5 @@
 import type { CommentRow } from '@hatch-radar/shared';
+import { ArrowUp } from 'lucide-react';
 import { timeAgo } from '@/lib/format';
 
 interface CommentNode {
@@ -24,15 +25,20 @@ function buildTree(rows: CommentRow[]): CommentNode[] {
 function CommentItem({ node }: { node: CommentNode }) {
   const { row, children } = node;
   return (
-    <li className="comment">
-      <div className="comment-meta">
-        <span className="comment-author">{row.author ?? '[已删除]'}</span>
-        {row.score > 0 ? <span>▲ {row.score}</span> : null}
+    <li>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+        <span className="font-medium text-foreground">{row.author ?? '[已删除]'}</span>
+        {row.score > 0 ? (
+          <span className="inline-flex items-center gap-0.5 tabular-nums">
+            <ArrowUp className="size-3" />
+            {row.score}
+          </span>
+        ) : null}
         <time>{timeAgo(row.created_utc)}</time>
       </div>
-      <p className="comment-body">{row.body}</p>
+      <p className="mt-1 text-sm whitespace-pre-wrap break-words">{row.body}</p>
       {children.length > 0 ? (
-        <ul className="comment-children">
+        <ul className="mt-3 space-y-3 border-l pl-4">
           {children.map((child) => (
             <CommentItem key={child.row.id} node={child} />
           ))}
@@ -45,10 +51,14 @@ function CommentItem({ node }: { node: CommentNode }) {
 /** 嵌套评论树（评论为空时渲染占位文案） */
 export function CommentTree({ comments }: { comments: CommentRow[] }) {
   if (comments.length === 0) {
-    return <p className="muted">暂无评论（评论在发帖 6h / 12h 后由 server 回捞）。</p>;
+    return (
+      <p className="text-sm text-muted-foreground">
+        暂无评论（评论在发帖 6h / 12h 后由 server 回捞）。
+      </p>
+    );
   }
   return (
-    <ul className="comment-list">
+    <ul className="space-y-3">
       {buildTree(comments).map((node) => (
         <CommentItem key={node.row.id} node={node} />
       ))}

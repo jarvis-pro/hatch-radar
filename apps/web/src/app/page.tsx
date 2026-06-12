@@ -1,4 +1,6 @@
+import { Card } from '@hatch-radar/ui/components/card';
 import { DbSetupNotice, EmptyState } from '@/components/empty';
+import { FilterBar } from '@/components/filter-bar';
 import { InsightCard } from '@/components/insight-card';
 import { Pagination } from '@/components/pagination';
 import { tryGetDb } from '@/lib/db';
@@ -35,65 +37,53 @@ export default async function InsightsPage(props: { searchParams: Promise<Search
   const result = listInsights(db, filter);
   const hasFilter = Boolean(filter.source || filter.subreddit || filter.intensity || filter.q);
 
+  const statItems = [
+    { label: '洞察', value: stats.insights },
+    { label: '帖子', value: stats.posts },
+    { label: '评论', value: stats.comments },
+    { label: '待分析', value: stats.pendingAnalysis },
+  ];
+
   return (
     <>
-      <section className="stats">
-        <div className="stat">
-          <span className="stat-num">{stats.insights}</span>
-          <span className="stat-label">洞察</span>
-        </div>
-        <div className="stat">
-          <span className="stat-num">{stats.posts}</span>
-          <span className="stat-label">帖子</span>
-        </div>
-        <div className="stat">
-          <span className="stat-num">{stats.comments}</span>
-          <span className="stat-label">评论</span>
-        </div>
-        <div className="stat">
-          <span className="stat-num">{stats.pendingAnalysis}</span>
-          <span className="stat-label">待分析</span>
-        </div>
+      <section className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {statItems.map((s) => (
+          <Card key={s.label} className="gap-1 p-4">
+            <span className="text-2xl font-semibold tabular-nums">{s.value}</span>
+            <span className="text-sm text-muted-foreground">{s.label}</span>
+          </Card>
+        ))}
       </section>
 
-      <form className="filter-bar" method="get" action="/">
-        <select name="source" defaultValue={filter.source ?? ''}>
-          <option value="">全部来源</option>
-          {options.sources.map((s) => (
-            <option key={s} value={s}>
-              {sourceLabel(s)}
-            </option>
-          ))}
-        </select>
-        <select name="subreddit" defaultValue={filter.subreddit ?? ''}>
-          <option value="">全部版块</option>
-          {options.subreddits.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
-        <select name="intensity" defaultValue={intensity ?? ''}>
-          <option value="">全部强度</option>
-          {(['HIGH', 'MEDIUM', 'LOW'] as const).map((level) => (
-            <option key={level} value={level}>
-              {INTENSITY_LABELS[level]}强度
-            </option>
-          ))}
-        </select>
-        <input
-          type="search"
-          name="q"
-          placeholder="搜索标题 / 标签 / 痛点 / 机会"
-          defaultValue={q ?? ''}
-        />
-        <button type="submit">筛选</button>
-        {hasFilter ? (
-          <a className="filter-reset" href="/">
-            重置
-          </a>
-        ) : null}
-      </form>
+      <FilterBar
+        basePath="/"
+        hasFilter={hasFilter}
+        searchValue={q}
+        searchPlaceholder="搜索标题 / 标签 / 痛点 / 机会"
+        selects={[
+          {
+            name: 'source',
+            placeholder: '全部来源',
+            value: filter.source ?? '',
+            options: options.sources.map((s) => ({ value: s, label: sourceLabel(s) })),
+          },
+          {
+            name: 'subreddit',
+            placeholder: '全部版块',
+            value: filter.subreddit ?? '',
+            options: options.subreddits.map((s) => ({ value: s, label: s })),
+          },
+          {
+            name: 'intensity',
+            placeholder: '全部强度',
+            value: intensity ?? '',
+            options: (['HIGH', 'MEDIUM', 'LOW'] as const).map((level) => ({
+              value: level,
+              label: `${INTENSITY_LABELS[level]}强度`,
+            })),
+          },
+        ]}
+      />
 
       {result.items.length === 0 ? (
         <EmptyState
@@ -105,7 +95,7 @@ export default async function InsightsPage(props: { searchParams: Promise<Search
           }
         />
       ) : (
-        <section className="card-list">
+        <section className="grid gap-3">
           {result.items.map((insight) => (
             <InsightCard key={insight.id} insight={insight} />
           ))}

@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { Button } from '@hatch-radar/ui/components/button';
 
 /**
  * 链接式分页条：保留当前筛选参数，仅替换 page。
@@ -29,19 +31,35 @@ export function Pagination({
     return s ? `${basePath}?${s}` : basePath;
   };
   return (
-    <nav className="pagination" aria-label="分页">
+    <nav className="mt-6 flex items-center justify-center gap-3 text-sm" aria-label="分页">
       {page > 1 ? (
-        <Link href={href(page - 1)}>← 上一页</Link>
+        <Button asChild variant="outline" size="sm">
+          <Link href={href(page - 1)}>
+            <ChevronLeft />
+            上一页
+          </Link>
+        </Button>
       ) : (
-        <span className="page-disabled">← 上一页</span>
+        <Button variant="outline" size="sm" disabled>
+          <ChevronLeft />
+          上一页
+        </Button>
       )}
-      <span className="page-info">
+      <span className="text-muted-foreground tabular-nums">
         第 {page} / {pageCount} 页 · 共 {total} 条
       </span>
       {page < pageCount ? (
-        <Link href={href(page + 1)}>下一页 →</Link>
+        <Button asChild variant="outline" size="sm">
+          <Link href={href(page + 1)}>
+            下一页
+            <ChevronRight />
+          </Link>
+        </Button>
       ) : (
-        <span className="page-disabled">下一页 →</span>
+        <Button variant="outline" size="sm" disabled>
+          下一页
+          <ChevronRight />
+        </Button>
       )}
     </nav>
   );
