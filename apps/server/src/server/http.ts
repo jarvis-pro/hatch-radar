@@ -85,7 +85,7 @@ function handleRequest(req: IncomingMessage, res: ServerResponse, cfg: HttpConfi
 
   if (url.pathname === '/api/export/batch' || url.pathname === '/api/export/batch.sqlite') {
     if (!authorized(req, cfg.token)) {
-      sendJson(res, 401, { error: 'unauthorized：请携带 Authorization: Bearer <EXPORT_TOKEN>' });
+      sendJson(res, 401, { error: 'unauthorized：请携带 Authorization: Bearer <API_TOKEN>' });
       return;
     }
     const filter = parseExportFilter(url);

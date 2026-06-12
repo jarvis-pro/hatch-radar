@@ -54,7 +54,7 @@ const envSchema = z
     /** 导出 HTTP 服务监听端口，默认 8787；绑定 0.0.0.0 */
     HTTP_PORT: z.coerce.number().int().min(1).max(65535).default(8787),
     /** 可选访问令牌；设置后导出接口要求 Authorization: Bearer <token> */
-    EXPORT_TOKEN: z.string().trim().min(1).optional(),
+    API_TOKEN: z.string().trim().min(1).optional(),
   })
   .superRefine((data, ctx) => {
     // CLIENT_ID + CLIENT_SECRET 存在即视为启用 Reddit，其余 3 个字段变为必填
@@ -99,7 +99,7 @@ const envSchema = z
     analysis: resolveAnalysis(env),
     analyzeBatchSize: env.ANALYZE_BATCH_SIZE,
     databasePath: env.DATABASE_URL,
-    http: { port: env.HTTP_PORT, token: env.EXPORT_TOKEN } satisfies HttpConfig,
+    http: { port: env.HTTP_PORT, token: env.API_TOKEN } satisfies HttpConfig,
   }));
 
 /** resolveAnalysis 关心的字段子集（transform 的 env 结构化兼容此形状） */

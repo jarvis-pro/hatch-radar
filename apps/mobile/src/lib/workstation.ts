@@ -5,7 +5,7 @@ import { getMeta, setMeta } from '../db/schema';
 export interface WorkstationConfig {
   /** 形如 http://192.168.0.95:8787，不带尾斜杠 */
   baseUrl: string;
-  /** 工作台设置了 EXPORT_TOKEN 时必填 */
+  /** 工作台设置了 API_TOKEN 时必填 */
   token?: string;
 }
 
@@ -47,7 +47,7 @@ async function getJson<T>(cfg: WorkstationConfig, path: string): Promise<T> {
       signal: controller.signal,
       headers: cfg.token ? { authorization: `Bearer ${cfg.token}` } : undefined,
     });
-    if (res.status === 401) throw new Error('鉴权失败：请检查访问令牌（EXPORT_TOKEN）');
+    if (res.status === 401) throw new Error('鉴权失败：请检查访问令牌（API_TOKEN）');
     if (!res.ok) throw new Error(`工作台返回 ${res.status}`);
     return (await res.json()) as T;
   } catch (err) {

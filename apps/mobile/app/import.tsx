@@ -117,7 +117,7 @@ export default function ImportScreen() {
         />
         <TextInput
           style={styles.input}
-          placeholder="访问令牌（工作台未设 EXPORT_TOKEN 则留空）"
+          placeholder="访问令牌（工作台未设 API_TOKEN 则留空）"
           placeholderTextColor="#9aa3b2"
           autoCapitalize="none"
           autoCorrect={false}
