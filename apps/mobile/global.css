@@ -34,7 +34,7 @@
     --radius: 0.75rem;
   }
 
-  .dark:root {
+  .dark {
     --background: 220 24% 9%;
     --foreground: 220 22% 92%;
     --card: 217 21% 12%;
