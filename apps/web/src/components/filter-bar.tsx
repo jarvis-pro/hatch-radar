@@ -79,7 +79,7 @@ export function FilterBar({
           value={s.value || ALL}
           onValueChange={(v) => router.push(hrefWith({ [s.name]: v === ALL ? '' : v }))}
         >
-          <SelectTrigger className="w-full sm:w-auto sm:min-w-[8.5rem]" aria-label={s.placeholder}>
+          <SelectTrigger className="w-full sm:w-auto sm:min-w-34" aria-label={s.placeholder}>
             <SelectValue placeholder={s.placeholder} />
           </SelectTrigger>
           <SelectContent>
@@ -93,7 +93,7 @@ export function FilterBar({
         </Select>
       ))}
 
-      <div className="relative min-w-0 flex-1 sm:min-w-[12rem]">
+      <div className="relative min-w-0 flex-1 sm:min-w-48">
         <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           type="search"
