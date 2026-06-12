@@ -24,7 +24,24 @@ export interface FilterSelectConfig {
   placeholder: string;
   /** 当前选中值（''=全部） */
   value: string;
+  /** 可选项列表：value 为查询参数值，label 为展示文案 */
   options: { value: string; label: string }[];
+}
+
+/** FilterBar 组件 props */
+export interface FilterBarProps {
+  /** 列表页路径，作为跳转目标与「重置」目标 */
+  basePath: string;
+  /** 下拉筛选项配置列表，按顺序渲染 */
+  selects: FilterSelectConfig[];
+  /** 搜索框对应的查询参数名，默认 'q' */
+  searchName?: string;
+  /** 当前已提交的搜索值（来自 URL），用于初始化与同步搜索框 */
+  searchValue?: string;
+  /** 搜索框占位文案 */
+  searchPlaceholder: string;
+  /** 当前是否有任意筛选生效，决定是否显示「重置」按钮 */
+  hasFilter: boolean;
 }
 
 /**
@@ -38,19 +55,12 @@ export function FilterBar({
   searchValue,
   searchPlaceholder,
   hasFilter,
-}: {
-  /** 列表页路径，作为跳转目标与「重置」目标 */
-  basePath: string;
-  selects: FilterSelectConfig[];
-  searchName?: string;
-  searchValue?: string;
-  searchPlaceholder: string;
-  hasFilter: boolean;
-}) {
+}: FilterBarProps) {
   const router = useRouter();
-  const [q, setQ] = useState(searchValue ?? '');
+  // 用户正在输入、尚未提交的搜索草稿（已提交值在 URL 上，即 searchValue）
+  const [searchDraft, setSearchDraft] = useState(searchValue ?? '');
   // 外部导航（如点击标签 /?q=xxx）后，把搜索框同步到 URL 的最新值
-  useEffect(() => setQ(searchValue ?? ''), [searchValue]);
+  useEffect(() => setSearchDraft(searchValue ?? ''), [searchValue]);
 
   /** 以当前各筛选值为基础，叠加 overrides，构造目标 URL（空值忽略，不带 page → 回到第 1 页） */
   function hrefWith(overrides: Record<string, string>): string {
@@ -59,7 +69,7 @@ export function FilterBar({
       const v = s.name in overrides ? overrides[s.name] : s.value;
       if (v) params.set(s.name, v);
     }
-    const qv = searchName in overrides ? overrides[searchName] : q;
+    const qv = searchName in overrides ? overrides[searchName] : searchDraft;
     if (qv) params.set(searchName, qv);
     const qs = params.toString();
     return qs ? `${basePath}?${qs}` : basePath;
@@ -69,7 +79,7 @@ export function FilterBar({
     <form
       onSubmit={(e) => {
         e.preventDefault();
-        router.push(hrefWith({ [searchName]: q.trim() }));
+        router.push(hrefWith({ [searchName]: searchDraft.trim() }));
       }}
       className="mb-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center"
     >
@@ -98,8 +108,8 @@ export function FilterBar({
         <Input
           type="search"
           name={searchName}
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
+          value={searchDraft}
+          onChange={(e) => setSearchDraft(e.target.value)}
           placeholder={searchPlaceholder}
           className="pl-8"
         />
@@ -112,7 +122,7 @@ export function FilterBar({
             type="button"
             variant="ghost"
             onClick={() => {
-              setQ('');
+              setSearchDraft('');
               router.push(basePath);
             }}
           >

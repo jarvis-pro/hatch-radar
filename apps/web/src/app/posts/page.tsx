@@ -19,11 +19,17 @@ export const dynamic = 'force-dynamic';
 
 export const metadata = { title: '帖子' };
 
+/** 帖子列表页的 URL 查询参数（全部可选，缺省即不过滤） */
 interface SearchParams {
+  /** 来源平台筛选 */
   source?: string;
+  /** subreddit 筛选 */
   subreddit?: string;
+  /** 研判状态筛选 */
   status?: string;
+  /** 关键词搜索 */
   q?: string;
+  /** 页码（从 1 开始，字符串形式） */
   page?: string;
 }
 
@@ -49,7 +55,8 @@ export default async function PostsPage(props: { searchParams: Promise<SearchPar
   return (
     <>
       <h1 className="mb-4 text-lg font-semibold tracking-tight">
-        帖子 <span className="text-sm font-normal text-muted-foreground">原始数据，30 天后归档</span>
+        帖子{' '}
+        <span className="text-sm font-normal text-muted-foreground">原始数据，30 天后归档</span>
       </h1>
 
       <FilterBar

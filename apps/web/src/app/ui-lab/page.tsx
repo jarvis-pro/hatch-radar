@@ -21,8 +21,10 @@ import {
 } from '@hatch-radar/ui/components/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@hatch-radar/ui/components/tabs';
 
+/** 页面元数据：内部预览页，禁止搜索引擎索引 */
 export const metadata: Metadata = {
   title: 'UI Lab',
+  /** robots.index=false：不被搜索引擎收录 */
   robots: { index: false },
 };
 

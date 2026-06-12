@@ -14,6 +14,7 @@ import { IntensityBadge, SourceBadge } from './badges';
 /** 洞察列表卡片：标题 + 首个痛点摘要 + 标签；整卡可点击进入详情 */
 export function InsightCard({ insight }: { insight: Insight }) {
   const firstPain = insight.painPoints[0];
+
   return (
     <Card className="relative gap-3 py-4 transition-colors hover:bg-accent/40">
       <CardHeader className="px-4">

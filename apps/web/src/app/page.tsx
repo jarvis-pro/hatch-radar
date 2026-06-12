@@ -10,11 +10,17 @@ import { getStats, insightFilterOptions, listInsights } from '@/lib/queries';
 // 每次请求都读最新数据；构建机上没有数据库，禁止任何预渲染
 export const dynamic = 'force-dynamic';
 
+/** 洞察首页的 URL 查询参数（全部可选，缺省即不过滤） */
 interface SearchParams {
+  /** 来源平台筛选 */
   source?: string;
+  /** subreddit 筛选 */
   subreddit?: string;
+  /** 强度筛选 */
   intensity?: string;
+  /** 关键词搜索 */
   q?: string;
+  /** 页码（从 1 开始，字符串形式） */
   page?: string;
 }
 

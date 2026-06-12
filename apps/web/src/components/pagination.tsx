@@ -2,25 +2,26 @@ import Link from 'next/link';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@hatch-radar/ui/components/button';
 
+interface PaginationProps {
+  /** 当前页码（从 1 开始） */
+  page: number;
+  /** 总页数 */
+  pageCount: number;
+  /** 总条数，用于展示"共 N 条" */
+  total: number;
+  /** 分页链接的基础路径（不含 query） */
+  basePath: string;
+  /** 需要随翻页保留的筛选参数（空值自动忽略） */
+  query: Record<string, string | undefined>;
+}
+
 /**
  * 链接式分页条：保留当前筛选参数，仅替换 page。
  * 纯 GET 导航，无客户端 JS。
  */
-export function Pagination({
-  page,
-  pageCount,
-  total,
-  basePath,
-  query,
-}: {
-  page: number;
-  pageCount: number;
-  total: number;
-  basePath: string;
-  /** 需要随翻页保留的筛选参数（空值自动忽略） */
-  query: Record<string, string | undefined>;
-}) {
+export function Pagination({ page, pageCount, total, basePath, query }: PaginationProps) {
   if (pageCount <= 1) return null;
+
   const href = (p: number): string => {
     const qs = new URLSearchParams();
     for (const [key, value] of Object.entries(query)) {
@@ -30,6 +31,7 @@ export function Pagination({
     const s = qs.toString();
     return s ? `${basePath}?${s}` : basePath;
   };
+
   return (
     <nav className="mt-6 flex items-center justify-center gap-3 text-sm" aria-label="分页">
       {page > 1 ? (

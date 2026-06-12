@@ -12,8 +12,15 @@ import { dbFilePath } from '@/lib/db';
 /** 行内 code 样式（沿用主题 muted 底色，避免自定义 CSS） */
 const code = 'rounded bg-muted px-1.5 py-0.5 font-mono text-[0.85em]';
 
+interface EmptyStateProps {
+  /** 占位主标题，描述当前为空的内容 */
+  title: string;
+  /** 可选的辅助说明，提示用户后续操作 */
+  hint?: string;
+}
+
 /** 列表为空时的占位提示 */
-export function EmptyState({ title, hint }: { title: string; hint?: string }) {
+export function EmptyState({ title, hint }: EmptyStateProps) {
   return (
     <Empty className="border">
       <EmptyHeader>

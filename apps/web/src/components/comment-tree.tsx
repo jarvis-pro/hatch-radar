@@ -2,8 +2,11 @@ import type { CommentRow } from '@hatch-radar/shared';
 import { ArrowUp } from 'lucide-react';
 import { timeAgo } from '@/lib/format';
 
+/** 评论树节点：包装一条评论及其按 parent_id 关联的子回复。 */
 interface CommentNode {
+  /** 当前评论数据 */
   row: CommentRow;
+  /** 直接子回复（递归构成多层嵌套） */
   children: CommentNode[];
 }
 
