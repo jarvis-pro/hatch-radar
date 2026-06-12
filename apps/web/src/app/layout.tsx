@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+// ui 主题（Tailwind + shadcn 变量）在前，控制台手写样式在后（后者未分层，覆盖优先）
+import '@hatch-radar/ui/globals.css';
 import './globals.css';
 
 export const metadata: Metadata = {
