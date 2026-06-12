@@ -1,18 +1,33 @@
-import { useCallback, useMemo, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { IntensityBadge } from '@/components/intensity-badge';
+import { TriageEditor } from '@/components/triage-editor';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
+import { Icon } from '@/components/ui/icon';
+import { Text } from '@/components/ui/text';
+import { getComments, getInsight, getPost } from '@/db/queries';
+import { getTriage } from '@/db/triage';
+import { channelLabel, fmtDate, timeAgo } from '@/lib/format';
+import { cn } from '@/lib/utils';
+import type { CommentRow, Intensity } from '@hatch-radar/shared';
 import { useLocalSearchParams } from 'expo-router';
-import type { CommentRow } from '@hatch-radar/shared';
-import { TriageEditor } from '../../src/components/triage-editor';
-import { getComments, getInsight, getPost } from '../../src/db/queries';
-import { getTriage } from '../../src/db/triage';
 import {
-  channelLabel,
-  fmtDate,
-  INTENSITY_BG,
-  INTENSITY_COLORS,
-  INTENSITY_LABELS,
-  timeAgo,
-} from '../../src/lib/format';
+  ArrowBigUp,
+  FileText,
+  Flame,
+  Lightbulb,
+  MessagesSquare,
+  SearchX,
+  type LucideIcon,
+} from 'lucide-react-native';
+import { useCallback, useMemo, useState } from 'react';
+import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
+
+/** 强度 → 痛点卡左缘强调条颜色 */
+const ACCENT_CLASS: Record<Intensity, string> = {
+  HIGH: 'border-l-destructive',
+  MEDIUM: 'border-l-warning',
+  LOW: 'border-l-success',
+};
 
 export default function InsightDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -32,8 +47,11 @@ export default function InsightDetailScreen() {
 
   if (!data) {
     return (
-      <View style={styles.center}>
-        <Text style={styles.muted}>洞察不存在（可能尚未导入对应批次）。</Text>
+      <View className="flex-1 items-center justify-center gap-3 p-6">
+        <View className="h-14 w-14 items-center justify-center rounded-full bg-muted">
+          <Icon as={SearchX} size={24} className="text-muted-foreground" />
+        </View>
+        <Text className="text-sm text-muted-foreground">洞察不存在（可能尚未导入对应批次）。</Text>
       </View>
     );
   }
@@ -41,169 +59,154 @@ export default function InsightDetailScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={styles.flex}
+      className="flex-1"
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <View style={styles.metaRow}>
-          <View style={[styles.badge, { backgroundColor: INTENSITY_BG[insight.intensity] }]}>
-            <Text style={[styles.badgeText, { color: INTENSITY_COLORS[insight.intensity] }]}>
-              {INTENSITY_LABELS[insight.intensity]}强度
+      <ScrollView contentContainerClassName="gap-4 p-4 pb-10" keyboardShouldPersistTaps="handled">
+        {/* 标题区 */}
+        <View className="gap-2">
+          <View className="flex-row flex-wrap items-center gap-2">
+            <IntensityBadge intensity={insight.intensity} />
+            <Text className="text-xs text-muted-foreground">
+              {channelLabel(insight.source, insight.subreddit)}
             </Text>
+            <Text className="text-xs text-muted-foreground">{fmtDate(insight.createdAt)}</Text>
           </View>
-          <Text style={styles.muted}>{channelLabel(insight.source, insight.subreddit)}</Text>
-          <Text style={styles.muted}>{fmtDate(insight.createdAt)}</Text>
+          <Text className="text-xl font-bold leading-snug">{insight.postTitle}</Text>
+          {insight.tags.length > 0 ? (
+            <View className="flex-row flex-wrap gap-1.5">
+              {insight.tags.map((tag) => (
+                <Badge key={tag} variant="secondary">
+                  <Text>{tag}</Text>
+                </Badge>
+              ))}
+            </View>
+          ) : null}
         </View>
-        <Text style={styles.title}>{insight.postTitle}</Text>
-        {insight.tags.length > 0 ? (
-          <View style={styles.tagRow}>
-            {insight.tags.map((tag) => (
-              <Text key={tag} style={styles.tag}>
-                {tag}
-              </Text>
-            ))}
-          </View>
-        ) : null}
 
         <TriageEditor triage={triage} onChanged={refreshTriage} />
 
-        <Text style={styles.sectionTitle}>痛点（{insight.painPoints.length}）</Text>
-        {insight.painPoints.length === 0 ? (
-          <Text style={styles.muted}>本帖未提炼出实质痛点信号。</Text>
-        ) : (
-          insight.painPoints.map((pain, idx) => (
-            <View
-              key={idx}
-              style={[styles.painCard, { borderLeftColor: INTENSITY_COLORS[pain.intensity] }]}
-            >
-              <Text style={styles.painDesc}>{pain.description}</Text>
-              {pain.evidence ? <Text style={styles.evidence}>“{pain.evidence}”</Text> : null}
-            </View>
-          ))
-        )}
+        <Section icon={Flame} title="痛点" count={insight.painPoints.length}>
+          {insight.painPoints.length === 0 ? (
+            <Text className="text-sm text-muted-foreground">本帖未提炼出实质痛点信号。</Text>
+          ) : (
+            insight.painPoints.map((pain, idx) => (
+              <Card
+                key={idx}
+                className={cn('gap-0 border-l-4 py-3.5 shadow-none', ACCENT_CLASS[pain.intensity])}
+              >
+                <CardContent className="gap-1.5 px-4">
+                  <Text className="text-base font-medium leading-snug">{pain.description}</Text>
+                  {pain.evidence ? (
+                    <Text className="border-l-2 border-border pl-2.5 text-sm leading-5 text-muted-foreground">
+                      “{pain.evidence}”
+                    </Text>
+                  ) : null}
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </Section>
 
-        <Text style={styles.sectionTitle}>产品机会（{insight.opportunities.length}）</Text>
-        {insight.opportunities.length === 0 ? (
-          <Text style={styles.muted}>本帖未推导出可行的产品方向。</Text>
-        ) : (
-          insight.opportunities.map((opp, idx) => (
-            <View key={idx} style={styles.oppCard}>
-              <Text style={styles.oppTitle}>★ {opp.title}</Text>
-              <Text style={styles.oppDesc}>{opp.description}</Text>
-              {opp.target_user ? (
-                <Text style={styles.muted}>目标用户：{opp.target_user}</Text>
-              ) : null}
-            </View>
-          ))
-        )}
+        <Section icon={Lightbulb} title="产品机会" count={insight.opportunities.length}>
+          {insight.opportunities.length === 0 ? (
+            <Text className="text-sm text-muted-foreground">本帖未推导出可行的产品方向。</Text>
+          ) : (
+            insight.opportunities.map((opp, idx) => (
+              <Card key={idx} className="gap-0 py-3.5 shadow-none">
+                <CardContent className="gap-1.5 px-4">
+                  <Text className="text-base font-semibold leading-snug">{opp.title}</Text>
+                  <Text className="text-sm leading-5">{opp.description}</Text>
+                  {opp.target_user ? (
+                    <Text className="text-xs text-muted-foreground">
+                      目标用户:{opp.target_user}
+                    </Text>
+                  ) : null}
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </Section>
 
-        <Text style={styles.sectionTitle}>原帖{post ? '' : '（未随批次导入或已归档）'}</Text>
+        <Section icon={FileText} title={post ? '原帖' : '原帖（未随批次导入或已归档）'}>
+          {post ? (
+            <Card className="gap-0 border-0 bg-muted/60 py-3.5 shadow-none">
+              <CardContent className="gap-2 px-4">
+                {post.selftext ? (
+                  <Text className="text-sm leading-6">{post.selftext}</Text>
+                ) : (
+                  <Text className="text-sm text-muted-foreground">（外链帖，无正文）</Text>
+                )}
+                <View className="flex-row items-center gap-3">
+                  <View className="flex-row items-center gap-1">
+                    <Icon as={ArrowBigUp} size={14} className="text-muted-foreground" />
+                    <Text className="text-xs text-muted-foreground">{post.score}</Text>
+                  </View>
+                  <View className="flex-row items-center gap-1">
+                    <Icon as={MessagesSquare} size={14} className="text-muted-foreground" />
+                    <Text className="text-xs text-muted-foreground">{post.num_comments}</Text>
+                  </View>
+                  <Text className="text-xs text-muted-foreground">{fmtDate(post.created_utc)}</Text>
+                </View>
+              </CardContent>
+            </Card>
+          ) : null}
+        </Section>
+
         {post ? (
-          <View style={styles.postCard}>
-            {post.selftext ? (
-              <Text style={styles.postBody}>{post.selftext}</Text>
-            ) : (
-              <Text style={styles.muted}>（外链帖，无正文）</Text>
-            )}
-            <Text style={styles.postMeta}>
-              ▲ {post.score} · 评论 {post.num_comments} · {fmtDate(post.created_utc)}
-            </Text>
-          </View>
-        ) : null}
-
-        {post ? (
-          <>
-            <Text style={styles.sectionTitle}>评论（{comments.length}）</Text>
+          <Section icon={MessagesSquare} title="评论" count={comments.length}>
             {comments.length === 0 ? (
-              <Text style={styles.muted}>批次中没有该帖的评论。</Text>
+              <Text className="text-sm text-muted-foreground">批次中没有该帖的评论。</Text>
             ) : (
               comments.map((c) => <CommentItem key={c.id} comment={c} />)
             )}
-          </>
+          </Section>
         ) : null}
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
-function CommentItem({ comment }: { comment: CommentRow }) {
+/** 分区：图标 + 标题 + 计数徽标 */
+function Section({
+  icon,
+  title,
+  count,
+  children,
+}: {
+  icon: LucideIcon;
+  title: string;
+  count?: number;
+  children: React.ReactNode;
+}) {
   return (
-    <View style={[styles.comment, { marginLeft: Math.min(comment.depth, 4) * 14 }]}>
-      <Text style={styles.commentMeta}>
-        {comment.author ?? '[已删除]'}
-        {comment.score > 0 ? ` · ▲ ${comment.score}` : ''} · {timeAgo(comment.created_utc)}
-      </Text>
-      <Text style={styles.commentBody}>{comment.body}</Text>
+    <View className="gap-2.5">
+      <View className="mt-1 flex-row items-center gap-2">
+        <Icon as={icon} size={16} className="text-muted-foreground" />
+        <Text className="text-base font-semibold">{title}</Text>
+        {count != null ? (
+          <Badge variant="secondary">
+            <Text>{count}</Text>
+          </Badge>
+        ) : null}
+      </View>
+      {children}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  flex: { flex: 1 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  content: { padding: 16, paddingBottom: 40, gap: 8 },
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
-  badge: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 1 },
-  badgeText: { fontSize: 11.5 },
-  muted: { fontSize: 12.5, color: '#6b7585' },
-  title: { fontSize: 18, fontWeight: '700', color: '#1c2330', lineHeight: 25 },
-  tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  tag: {
-    backgroundColor: '#eef1f5',
-    color: '#1c2330',
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 1,
-    fontSize: 12,
-    overflow: 'hidden',
-  },
-  sectionTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#1c2330',
-    marginTop: 14,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#e3e7ee',
-  },
-  painCard: {
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#e3e7ee',
-    borderLeftWidth: 3,
-    padding: 12,
-    gap: 6,
-  },
-  painDesc: { fontSize: 14, color: '#1c2330', fontWeight: '500', lineHeight: 20 },
-  evidence: { fontSize: 12.5, color: '#6b7585', lineHeight: 18 },
-  oppCard: {
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#e3e7ee',
-    padding: 12,
-    gap: 4,
-  },
-  oppTitle: { fontSize: 14.5, fontWeight: '600', color: '#1c2330' },
-  oppDesc: { fontSize: 13.5, color: '#1c2330', lineHeight: 19 },
-  postCard: {
-    backgroundColor: '#eef1f5',
-    borderRadius: 10,
-    padding: 12,
-    gap: 8,
-  },
-  postBody: { fontSize: 13.5, color: '#1c2330', lineHeight: 19 },
-  postMeta: { fontSize: 12, color: '#6b7585' },
-  comment: {
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#e3e7ee',
-    padding: 10,
-    gap: 3,
-    marginBottom: 8,
-  },
-  commentMeta: { fontSize: 12, color: '#6b7585' },
-  commentBody: { fontSize: 13.5, color: '#1c2330', lineHeight: 19 },
-});
+/** 评论：线程式缩进（最多 4 级），子级带引导线 */
+function CommentItem({ comment }: { comment: CommentRow }) {
+  return (
+    <View
+      className={cn('gap-1', comment.depth > 0 && 'border-l-2 border-border pl-3')}
+      style={{ marginLeft: Math.min(comment.depth, 4) * 12 }}
+    >
+      <Text className="text-xs text-muted-foreground">
+        <Text className="text-xs font-medium text-foreground">{comment.author ?? '[已删除]'}</Text>
+        {comment.score > 0 ? ` · ▲ ${comment.score}` : ''} · {timeAgo(comment.created_utc)}
+      </Text>
+      <Text className="text-sm leading-5">{comment.body}</Text>
+    </View>
+  );
+}

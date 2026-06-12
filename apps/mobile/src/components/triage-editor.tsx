@@ -1,8 +1,18 @@
-import { useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Icon } from '@/components/ui/icon';
+import { Input } from '@/components/ui/input';
+import { Text } from '@/components/ui/text';
+import { Textarea } from '@/components/ui/textarea';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { setNote, setRating, setStatus, setTags } from '@/db/triage';
+import { TRIAGE_STATUS_LABELS } from '@/lib/format';
+import { hapticSelect, hapticTap } from '@/lib/haptics';
 import { TRIAGE_STATUSES, type Triage, type TriageStatus } from '@hatch-radar/shared';
-import { setNote, setRating, setStatus, setTags } from '../db/triage';
-import { TRIAGE_STATUS_LABELS } from '../lib/format';
+import { Star, X } from 'lucide-react-native';
+import { useState } from 'react';
+import { Pressable, View } from 'react-native';
 
 /**
  * 离线人工研判编辑器：状态 / 评级 / 标签 / 笔记。
@@ -15,12 +25,14 @@ export function TriageEditor({ triage, onChanged }: { triage: Triage; onChanged:
   const [noteDraft, setNoteDraft] = useState(triage.note);
 
   const onStatus = (status: TriageStatus) => {
+    hapticSelect();
     setStatus(insightId, status);
     onChanged();
   };
 
   // 点已选中的星级 = 清除评级
   const onStar = (star: number) => {
+    hapticTap();
     setRating(insightId, star === triage.rating ? null : star);
     onChanged();
   };
@@ -31,12 +43,14 @@ export function TriageEditor({ triage, onChanged }: { triage: Triage; onChanged:
       setTagDraft('');
       return;
     }
+    hapticSelect();
     setTags(insightId, [...triage.tags, tag]);
     setTagDraft('');
     onChanged();
   };
 
   const onRemoveTag = (tag: string) => {
+    hapticSelect();
     setTags(
       insightId,
       triage.tags.filter((t) => t !== tag),
@@ -52,151 +66,108 @@ export function TriageEditor({ triage, onChanged }: { triage: Triage; onChanged:
   };
 
   return (
-    <View style={styles.box}>
-      <Text style={styles.heading}>人工研判（离线，确认后可同步回工作台）</Text>
-
-      <View style={styles.segmentRow}>
-        {TRIAGE_STATUSES.map((status) => {
-          const active = triage.status === status;
-          return (
-            <Pressable
+    <Card className="gap-4 border-primary/20 py-4 shadow-none">
+      <CardHeader className="gap-1 px-4">
+        <CardTitle className="text-primary">人工研判</CardTitle>
+        <CardDescription>离线编辑，回到工作台局域网后一键同步。</CardDescription>
+      </CardHeader>
+      <CardContent className="gap-4 px-4">
+        {/* 研判状态 */}
+        <ToggleGroup
+          type="single"
+          variant="outline"
+          value={triage.status}
+          onValueChange={(value) => {
+            if (value) onStatus(value as TriageStatus);
+          }}
+          className="w-full"
+        >
+          {TRIAGE_STATUSES.map((status, idx) => (
+            <ToggleGroupItem
               key={status}
-              style={[styles.segment, active && styles.segmentActive]}
-              onPress={() => onStatus(status)}
+              value={status}
+              isFirst={idx === 0}
+              isLast={idx === TRIAGE_STATUSES.length - 1}
+              className="flex-1"
             >
-              <Text style={[styles.segmentText, active && styles.segmentTextActive]}>
-                {TRIAGE_STATUS_LABELS[status]}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
+              <Text>{TRIAGE_STATUS_LABELS[status]}</Text>
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
 
-      <View style={styles.starRow}>
-        <Text style={styles.label}>评级</Text>
-        {[1, 2, 3, 4, 5].map((star) => (
-          <Pressable key={star} onPress={() => onStar(star)} hitSlop={6}>
-            <Text
-              style={[styles.star, triage.rating != null && star <= triage.rating && styles.starOn]}
-            >
-              {triage.rating != null && star <= triage.rating ? '★' : '☆'}
-            </Text>
-          </Pressable>
-        ))}
-        {triage.rating != null ? <Text style={styles.starHint}>（再点一次清除）</Text> : null}
-      </View>
+        {/* 评级 */}
+        <View className="flex-row items-center gap-1">
+          <Text className="mr-2 text-sm font-medium text-muted-foreground">评级</Text>
+          {[1, 2, 3, 4, 5].map((star) => {
+            const filled = triage.rating != null && star <= triage.rating;
+            return (
+              <Pressable
+                key={star}
+                className="h-10 w-10 items-center justify-center active:opacity-70"
+                onPress={() => onStar(star)}
+              >
+                <Icon
+                  as={Star}
+                  size={22}
+                  className={filled ? 'text-warning' : 'text-muted-foreground/40'}
+                  fill={filled ? 'currentColor' : 'transparent'}
+                />
+              </Pressable>
+            );
+          })}
+          {triage.rating != null ? (
+            <Text className="text-xs text-muted-foreground">再点一次清除</Text>
+          ) : null}
+        </View>
 
-      <View style={styles.tagWrap}>
-        <Text style={styles.label}>标签</Text>
-        {triage.tags.map((tag) => (
-          <Pressable key={tag} style={styles.tagChip} onPress={() => onRemoveTag(tag)}>
-            <Text style={styles.tagChipText}>{tag} ✕</Text>
-          </Pressable>
-        ))}
-      </View>
-      <View style={styles.tagInputRow}>
-        <TextInput
-          style={styles.tagInput}
-          placeholder="添加研判标签…"
-          placeholderTextColor="#9aa3b2"
-          value={tagDraft}
-          onChangeText={setTagDraft}
-          onSubmitEditing={onAddTag}
-          returnKeyType="done"
-        />
-        <Pressable style={styles.tagAddBtn} onPress={onAddTag}>
-          <Text style={styles.tagAddText}>添加</Text>
-        </Pressable>
-      </View>
+        {/* 标签 */}
+        <View className="gap-2.5">
+          <View className="flex-row flex-wrap items-center gap-1.5">
+            <Text className="mr-0.5 text-sm font-medium text-muted-foreground">标签</Text>
+            {triage.tags.length === 0 ? (
+              <Text className="text-xs text-muted-foreground">还没有标签</Text>
+            ) : (
+              triage.tags.map((tag) => (
+                <Pressable key={tag} className="active:opacity-70" onPress={() => onRemoveTag(tag)}>
+                  <Badge variant="secondary" className="gap-1 pr-1.5">
+                    <Text>{tag}</Text>
+                    <Icon as={X} size={12} className="text-muted-foreground" />
+                  </Badge>
+                </Pressable>
+              ))
+            )}
+          </View>
+          <View className="flex-row gap-2">
+            <Input
+              className="flex-1"
+              placeholder="添加研判标签…"
+              value={tagDraft}
+              onChangeText={setTagDraft}
+              onSubmitEditing={onAddTag}
+              returnKeyType="done"
+            />
+            <Button variant="secondary" onPress={onAddTag} disabled={tagDraft.trim().length === 0}>
+              <Text>添加</Text>
+            </Button>
+          </View>
+        </View>
 
-      <Text style={styles.label}>笔记</Text>
-      <TextInput
-        style={styles.noteInput}
-        placeholder="记录研判想法（仅保存在本机，同步后回传工作台）"
-        placeholderTextColor="#9aa3b2"
-        value={noteDraft}
-        onChangeText={setNoteDraft}
-        multiline
-      />
-      {noteDirty ? (
-        <Pressable style={styles.noteSaveBtn} onPress={onSaveNote}>
-          <Text style={styles.noteSaveText}>保存笔记</Text>
-        </Pressable>
-      ) : null}
-    </View>
+        {/* 笔记 */}
+        <View className="gap-2">
+          <Textarea
+            placeholder="记录研判想法（仅保存在本机，同步后回传工作台）"
+            value={noteDraft}
+            onChangeText={setNoteDraft}
+            numberOfLines={4}
+            className="min-h-24"
+          />
+          {noteDirty ? (
+            <Button onPress={onSaveNote}>
+              <Text>保存笔记</Text>
+            </Button>
+          ) : null}
+        </View>
+      </CardContent>
+    </Card>
   );
 }
-
-const styles = StyleSheet.create({
-  box: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#dbe2ec',
-    padding: 12,
-    gap: 10,
-  },
-  heading: { fontSize: 13, fontWeight: '600', color: '#2563eb' },
-  segmentRow: {
-    flexDirection: 'row',
-    backgroundColor: '#eef1f5',
-    borderRadius: 9,
-    padding: 3,
-    gap: 3,
-  },
-  segment: { flex: 1, borderRadius: 7, paddingVertical: 7, alignItems: 'center' },
-  segmentActive: { backgroundColor: '#2563eb' },
-  segmentText: { fontSize: 13.5, color: '#1c2330' },
-  segmentTextActive: { color: '#fff', fontWeight: '600' },
-  label: { fontSize: 13, color: '#6b7585' },
-  starRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  star: { fontSize: 24, color: '#c4ccd8', lineHeight: 28 },
-  starOn: { color: '#d97706' },
-  starHint: { fontSize: 11.5, color: '#9aa3b2' },
-  tagWrap: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
-  tagChip: {
-    backgroundColor: '#eaf1fe',
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-  },
-  tagChipText: { fontSize: 12.5, color: '#2563eb' },
-  tagInputRow: { flexDirection: 'row', gap: 8 },
-  tagInput: {
-    flex: 1,
-    backgroundColor: '#f6f7f9',
-    borderWidth: 1,
-    borderColor: '#e3e7ee',
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    fontSize: 13.5,
-    color: '#1c2330',
-  },
-  tagAddBtn: {
-    backgroundColor: '#eef1f5',
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    justifyContent: 'center',
-  },
-  tagAddText: { fontSize: 13.5, color: '#1c2330' },
-  noteInput: {
-    backgroundColor: '#f6f7f9',
-    borderWidth: 1,
-    borderColor: '#e3e7ee',
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    fontSize: 13.5,
-    color: '#1c2330',
-    minHeight: 72,
-    textAlignVertical: 'top',
-  },
-  noteSaveBtn: {
-    backgroundColor: '#2563eb',
-    borderRadius: 8,
-    paddingVertical: 9,
-    alignItems: 'center',
-  },
-  noteSaveText: { color: '#fff', fontSize: 13.5, fontWeight: '600' },
-});

@@ -28,30 +28,9 @@ export const INTENSITY_LABELS: Record<Intensity, string> = {
   LOW: '低',
 };
 
-/** 强度 → 主色（徽标文字/边框用） */
-export const INTENSITY_COLORS: Record<Intensity, string> = {
-  HIGH: '#dc2626',
-  MEDIUM: '#d97706',
-  LOW: '#059669',
-};
-
-/** 强度 → 底色（徽标背景用） */
-export const INTENSITY_BG: Record<Intensity, string> = {
-  HIGH: '#fdecec',
-  MEDIUM: '#fdf3e3',
-  LOW: '#e7f6f0',
-};
-
-/** 研判状态 → 中文展示名 */
+/** 研判状态 → 中文展示名（色值见 src/theme.ts 的 intensity / triage 槽位） */
 export const TRIAGE_STATUS_LABELS: Record<TriageStatus, string> = {
   pending: '待研判',
   shortlisted: '已入选',
   archived: '已归档',
-};
-
-/** 研判状态 → 主色 */
-export const TRIAGE_STATUS_COLORS: Record<TriageStatus, string> = {
-  pending: '#6b7585',
-  shortlisted: '#2563eb',
-  archived: '#9aa3b2',
 };

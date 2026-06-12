@@ -1,29 +1,33 @@
-import { useCallback, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Link, useFocusEffect, useRouter } from 'expo-router';
-import type { Intensity, TriageStatus } from '@hatch-radar/shared';
+import { IntensityBadge } from '@/components/intensity-badge';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Icon } from '@/components/ui/icon';
+import { Separator } from '@/components/ui/separator';
+import { Text } from '@/components/ui/text';
 import {
   getLocalStats,
   listInsights,
   type InsightListItem,
   type ListFilter,
   type LocalStats,
-} from '../src/db/queries';
-import {
-  channelLabel,
-  INTENSITY_BG,
-  INTENSITY_COLORS,
-  INTENSITY_LABELS,
-  timeAgo,
-  TRIAGE_STATUS_COLORS,
-  TRIAGE_STATUS_LABELS,
-} from '../src/lib/format';
+} from '@/db/queries';
+import { channelLabel, timeAgo, TRIAGE_STATUS_LABELS } from '@/lib/format';
+import { hapticSelect } from '@/lib/haptics';
+import { THEME } from '@/lib/theme';
+import { cn } from '@/lib/utils';
+import type { Intensity, TriageStatus } from '@hatch-radar/shared';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { ChevronRight, FolderSync, Inbox, TriangleAlert } from 'lucide-react-native';
+import { useColorScheme } from 'nativewind';
+import { useCallback, useState } from 'react';
+import { FlatList, Pressable, RefreshControl, ScrollView, View } from 'react-native';
 
-const INTENSITY_FILTERS: { label: string; value: Intensity | undefined }[] = [
+const INTENSITY_FILTERS: { label: string; value: Intensity | undefined; dot?: string }[] = [
   { label: '全部', value: undefined },
-  { label: '高强度', value: 'HIGH' },
-  { label: '中强度', value: 'MEDIUM' },
-  { label: '低强度', value: 'LOW' },
+  { label: '高强度', value: 'HIGH', dot: 'bg-destructive' },
+  { label: '中强度', value: 'MEDIUM', dot: 'bg-warning' },
+  { label: '低强度', value: 'LOW', dot: 'bg-success' },
 ];
 
 const STATUS_FILTERS: { label: string; value: TriageStatus | undefined }[] = [
@@ -33,12 +37,22 @@ const STATUS_FILTERS: { label: string; value: TriageStatus | undefined }[] = [
   { label: '已归档', value: 'archived' },
 ];
 
+/** 研判状态 → 列表徽标样式（仅非 pending 展示） */
+const TRIAGE_BADGE: Record<TriageStatus, { box: string; text: string }> = {
+  pending: { box: 'border-border', text: 'text-muted-foreground' },
+  shortlisted: { box: 'border-primary/30 bg-primary/10', text: 'text-primary' },
+  archived: { box: 'border-border bg-muted', text: 'text-muted-foreground' },
+};
+
 export default function HomeScreen() {
   const router = useRouter();
+  const { colorScheme } = useColorScheme();
+  const theme = THEME[colorScheme === 'dark' ? 'dark' : 'light'];
   const [stats, setStats] = useState<LocalStats | null>(null);
   const [intensity, setIntensity] = useState<Intensity | undefined>(undefined);
   const [status, setStatus] = useState<TriageStatus | undefined>(undefined);
   const [items, setItems] = useState<InsightListItem[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
 
   const reload = useCallback((filter: ListFilter) => {
     setStats(getLocalStats());
@@ -52,196 +66,243 @@ export default function HomeScreen() {
     }, [reload, intensity, status]),
   );
 
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    reload({ intensity, status });
+    setRefreshing(false);
+  }, [reload, intensity, status]);
+
   const empty = stats !== null && stats.insights === 0;
+  const filtered = intensity !== undefined || status !== undefined;
 
   return (
-    <View style={styles.screen}>
-      <View style={styles.header}>
-        <View style={styles.statsRow}>
-          <Stat label="洞察" value={stats?.insights ?? 0} />
-          <Stat label="帖子" value={stats?.posts ?? 0} />
-          <Stat label="评论" value={stats?.comments ?? 0} />
-        </View>
-        <Text style={styles.lastImport}>
-          {stats?.lastImportAt ? `最近导入：${timeAgo(stats.lastImportAt)}` : '尚未导入任何批次'}
-        </Text>
-        <Link href="/sync" asChild>
-          <Pressable style={styles.importBtn}>
-            <Text style={styles.importBtnText}>工作台同步（导入批次 / 推送研判）</Text>
-          </Pressable>
-        </Link>
-        {stats && stats.pendingSync > 0 ? (
-          <Link href="/sync" asChild>
-            <Pressable style={styles.syncBanner}>
-              <Text style={styles.syncBannerText}>
-                有 {stats.pendingSync} 条研判待同步，回到工作台局域网后点此推送 →
+    <View className="flex-1">
+      <View className="gap-3 px-4 pt-3">
+        {/* 本地数据概览 */}
+        <Card className="gap-0 py-3 shadow-none">
+          <CardContent className="flex-row items-center px-0">
+            <StatCell label="洞察" value={stats?.insights ?? 0} />
+            <Separator orientation="vertical" className="h-8" />
+            <StatCell label="帖子" value={stats?.posts ?? 0} />
+            <Separator orientation="vertical" className="h-8" />
+            <StatCell label="评论" value={stats?.comments ?? 0} />
+          </CardContent>
+        </Card>
+
+        {/* 同步入口（设置行样式） */}
+        <Card className="gap-0 py-0 shadow-none">
+          <Pressable
+            className="flex-row items-center gap-3 px-4 py-3 active:opacity-70"
+            onPress={() => router.push('/sync')}
+          >
+            <View className="h-9 w-9 items-center justify-center rounded-full bg-primary/10">
+              <Icon as={FolderSync} size={18} className="text-primary" />
+            </View>
+            <View className="flex-1 gap-0.5">
+              <Text className="text-sm font-semibold">工作台同步</Text>
+              <Text className="text-xs text-muted-foreground">
+                {stats?.lastImportAt
+                  ? `最近导入：${timeAgo(stats.lastImportAt)}`
+                  : '尚未导入任何批次'}
               </Text>
-            </Pressable>
-          </Link>
+            </View>
+            <Icon as={ChevronRight} size={16} className="text-muted-foreground" />
+          </Pressable>
+        </Card>
+
+        {/* 待同步提醒 */}
+        {stats && stats.pendingSync > 0 ? (
+          <Pressable
+            className="flex-row items-center gap-2.5 rounded-xl border border-warning/30 bg-warning/10 px-4 py-3 active:opacity-70"
+            onPress={() => router.push('/sync')}
+          >
+            <Icon as={TriangleAlert} size={16} className="text-warning" />
+            <Text className="flex-1 text-sm font-medium leading-5 text-warning">
+              有 {stats.pendingSync} 条研判待同步，回到工作台局域网后点此推送
+            </Text>
+            <Icon as={ChevronRight} size={16} className="text-warning" />
+          </Pressable>
         ) : null}
-        <View style={styles.filterRow}>
-          {INTENSITY_FILTERS.map((f) => {
-            const active = intensity === f.value;
-            return (
-              <Pressable
-                key={f.label}
-                style={[styles.chip, active && styles.chipActive]}
-                onPress={() => {
-                  setIntensity(f.value);
-                  reload({ intensity: f.value, status });
-                }}
-              >
-                <Text style={[styles.chipText, active && styles.chipTextActive]}>{f.label}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
-        <View style={styles.filterRow}>
-          {STATUS_FILTERS.map((f) => {
-            const active = status === f.value;
-            return (
-              <Pressable
-                key={f.label}
-                style={[styles.chip, active && styles.chipActive]}
-                onPress={() => {
-                  setStatus(f.value);
-                  reload({ intensity, status: f.value });
-                }}
-              >
-                <Text style={[styles.chipText, active && styles.chipTextActive]}>{f.label}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
+
+        {/* 筛选条（横向滚动） */}
+        <FilterRow>
+          {INTENSITY_FILTERS.map((f) => (
+            <FilterChip
+              key={f.label}
+              label={f.label}
+              dot={f.dot}
+              active={intensity === f.value}
+              onPress={() => {
+                setIntensity(f.value);
+                reload({ intensity: f.value, status });
+              }}
+            />
+          ))}
+        </FilterRow>
+        <FilterRow>
+          {STATUS_FILTERS.map((f) => (
+            <FilterChip
+              key={f.label}
+              label={f.label}
+              active={status === f.value}
+              onPress={() => {
+                setStatus(f.value);
+                reload({ intensity, status: f.value });
+              }}
+            />
+          ))}
+        </FilterRow>
       </View>
 
       <FlatList
         data={items}
         keyExtractor={(item) => String(item.insight.id)}
-        contentContainerStyle={styles.listContent}
+        contentContainerClassName="gap-2.5 p-4"
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={theme.mutedForeground}
+          />
+        }
         ListEmptyComponent={
-          <View style={styles.empty}>
-            <Text style={styles.emptyTitle}>{empty ? '本地还没有洞察' : '没有符合筛选的洞察'}</Text>
-            <Text style={styles.emptyHint}>
+          <View className="items-center gap-3 py-16">
+            <View className="h-14 w-14 items-center justify-center rounded-full bg-muted">
+              <Icon as={Inbox} size={24} className="text-muted-foreground" />
+            </View>
+            <Text className="font-semibold">{empty ? '本地还没有洞察' : '没有符合筛选的洞察'}</Text>
+            <Text className="px-8 text-center text-sm leading-5 text-muted-foreground">
               {empty
                 ? '回到工作台局域网拉取批次，或导入 AirDrop 来的批次文件。'
                 : '试试切换强度或研判状态筛选。'}
             </Text>
+            {empty ? (
+              <Button size="sm" onPress={() => router.push('/sync')}>
+                <Text>去同步数据</Text>
+              </Button>
+            ) : filtered ? (
+              <Button
+                size="sm"
+                variant="outline"
+                onPress={() => {
+                  setIntensity(undefined);
+                  setStatus(undefined);
+                  reload({});
+                }}
+              >
+                <Text>清除筛选</Text>
+              </Button>
+            ) : null}
           </View>
         }
-        renderItem={({ item }) => {
-          const insight = item.insight;
-          return (
-            <Pressable style={styles.card} onPress={() => router.push(`/insight/${insight.id}`)}>
-              <View style={styles.cardMeta}>
-                <View style={[styles.badge, { backgroundColor: INTENSITY_BG[insight.intensity] }]}>
-                  <Text style={[styles.badgeText, { color: INTENSITY_COLORS[insight.intensity] }]}>
-                    {INTENSITY_LABELS[insight.intensity]}强度
-                  </Text>
-                </View>
-                {item.status !== 'pending' ? (
-                  <Text style={[styles.triageText, { color: TRIAGE_STATUS_COLORS[item.status] }]}>
-                    {TRIAGE_STATUS_LABELS[item.status]}
-                  </Text>
-                ) : null}
-                {item.rating != null ? <Text style={styles.ratingText}>★{item.rating}</Text> : null}
-                <Text style={styles.metaText}>
-                  {channelLabel(insight.source, insight.subreddit)}
-                </Text>
-                <Text style={styles.metaText}>{timeAgo(insight.createdAt)}</Text>
-              </View>
-              <Text style={styles.cardTitle} numberOfLines={2}>
-                {insight.postTitle}
-              </Text>
-              {insight.painPoints[0] ? (
-                <Text style={styles.cardExcerpt} numberOfLines={2}>
-                  {insight.painPoints[0].description}
-                </Text>
-              ) : null}
-              <Text style={styles.cardCounts}>
-                痛点 {insight.painPoints.length} · 机会 {insight.opportunities.length}
-                {insight.tags.length > 0 ? ` · ${insight.tags.join(' / ')}` : ''}
-              </Text>
-            </Pressable>
-          );
-        }}
+        renderItem={({ item }) => (
+          <InsightCard item={item} onPress={() => router.push(`/insight/${item.insight.id}`)} />
+        )}
       />
     </View>
   );
 }
 
-function Stat({ label, value }: { label: string; value: number }) {
+function StatCell({ label, value }: { label: string; value: number }) {
   return (
-    <View style={styles.stat}>
-      <Text style={styles.statNum}>{value}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
+    <View className="flex-1 items-center gap-0.5">
+      <Text className="text-xl font-bold tabular-nums">{value}</Text>
+      <Text className="text-xs text-muted-foreground">{label}</Text>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  screen: { flex: 1 },
-  header: { paddingHorizontal: 16, paddingTop: 12, gap: 10 },
-  statsRow: { flexDirection: 'row', gap: 10 },
-  stat: {
-    flex: 1,
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#e3e7ee',
-    paddingVertical: 8,
-    alignItems: 'center',
-  },
-  statNum: { fontSize: 20, fontWeight: '700', color: '#1c2330' },
-  statLabel: { fontSize: 12, color: '#6b7585' },
-  lastImport: { fontSize: 12, color: '#6b7585' },
-  importBtn: {
-    backgroundColor: '#2563eb',
-    borderRadius: 10,
-    paddingVertical: 11,
-    alignItems: 'center',
-  },
-  importBtnText: { color: '#fff', fontSize: 15, fontWeight: '600' },
-  syncBanner: {
-    backgroundColor: '#fdf3e3',
-    borderWidth: 1,
-    borderColor: '#f0d9ab',
-    borderRadius: 10,
-    paddingVertical: 9,
-    paddingHorizontal: 12,
-  },
-  syncBannerText: { color: '#d97706', fontSize: 13, fontWeight: '500' },
-  filterRow: { flexDirection: 'row', gap: 8 },
-  chip: {
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: '#e3e7ee',
-    backgroundColor: '#fff',
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-  },
-  chipActive: { backgroundColor: '#2563eb', borderColor: '#2563eb' },
-  chipText: { fontSize: 13, color: '#1c2330' },
-  chipTextActive: { color: '#fff' },
-  listContent: { padding: 16, gap: 10 },
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#e3e7ee',
-    padding: 14,
-    gap: 6,
-  },
-  cardMeta: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
-  badge: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 1 },
-  badgeText: { fontSize: 11.5 },
-  metaText: { fontSize: 12.5, color: '#6b7585' },
-  triageText: { fontSize: 12, fontWeight: '600' },
-  ratingText: { fontSize: 12, color: '#d97706', fontWeight: '600' },
-  cardTitle: { fontSize: 15.5, fontWeight: '600', color: '#1c2330', lineHeight: 21 },
-  cardExcerpt: { fontSize: 13.5, color: '#6b7585', lineHeight: 19 },
-  cardCounts: { fontSize: 12, color: '#6b7585' },
-  empty: { alignItems: 'center', paddingVertical: 48, gap: 6 },
-  emptyTitle: { fontSize: 15, fontWeight: '600', color: '#1c2330' },
-  emptyHint: { fontSize: 13, color: '#6b7585', textAlign: 'center', paddingHorizontal: 24 },
-});
+function FilterRow({ children }: { children: React.ReactNode }) {
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      className="-mx-4"
+      contentContainerClassName="gap-2 px-4"
+    >
+      {children}
+    </ScrollView>
+  );
+}
+
+function FilterChip({
+  label,
+  dot,
+  active,
+  onPress,
+}: {
+  label: string;
+  dot?: string;
+  active: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      className={cn(
+        'h-8 flex-row items-center gap-1.5 rounded-full border px-3 active:opacity-70',
+        active ? 'border-primary bg-primary' : 'border-border bg-card',
+      )}
+      onPress={() => {
+        hapticSelect();
+        onPress();
+      }}
+    >
+      {dot ? (
+        <View className={cn('h-2 w-2 rounded-full', active ? 'bg-primary-foreground' : dot)} />
+      ) : null}
+      <Text
+        className={cn(
+          'text-sm font-medium',
+          active ? 'text-primary-foreground' : 'text-foreground',
+        )}
+      >
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
+function InsightCard({ item, onPress }: { item: InsightListItem; onPress: () => void }) {
+  const insight = item.insight;
+  const triageBadge = TRIAGE_BADGE[item.status];
+
+  return (
+    <Pressable className="active:opacity-70" onPress={onPress}>
+      <Card className="gap-0 py-4 shadow-none">
+        <CardContent className="gap-2 px-4">
+          <View className="flex-row flex-wrap items-center gap-2">
+            <IntensityBadge intensity={insight.intensity} />
+            {item.status !== 'pending' ? (
+              <Badge variant="outline" className={triageBadge.box}>
+                <Text className={cn('text-xs font-medium', triageBadge.text)}>
+                  {TRIAGE_STATUS_LABELS[item.status]}
+                </Text>
+              </Badge>
+            ) : null}
+            {item.rating != null ? (
+              <Text className="text-xs font-semibold text-warning">★ {item.rating}</Text>
+            ) : null}
+            <View className="flex-1" />
+            <Text className="text-xs text-muted-foreground">{timeAgo(insight.createdAt)}</Text>
+          </View>
+
+          <Text className="text-base font-semibold leading-snug" numberOfLines={2}>
+            {insight.postTitle}
+          </Text>
+
+          {insight.painPoints[0] ? (
+            <Text className="text-sm leading-5 text-muted-foreground" numberOfLines={2}>
+              {insight.painPoints[0].description}
+            </Text>
+          ) : null}
+
+          <Text className="text-xs text-muted-foreground" numberOfLines={1}>
+            {channelLabel(insight.source, insight.subreddit)} · 痛点 {insight.painPoints.length} ·
+            机会 {insight.opportunities.length}
+            {insight.tags.length > 0 ? ` · ${insight.tags.join(' / ')}` : ''}
+          </Text>
+        </CardContent>
+      </Card>
+    </Pressable>
+  );
+}
