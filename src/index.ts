@@ -26,7 +26,10 @@ async function main(): Promise<void> {
   if (reddit) sources.push(`Reddit (${SUBREDDITS.map((s) => `r/${s}`).join(', ')})`);
   sources.push(`HackerNews (${HN_SECTIONS.map((s) => s.channel).join(', ')})`);
   sources.push(`RSS (${RSS_FEEDS.map((f) => f.name).join(', ')})`);
-  logger.info(`监控来源: ${sources.join(' | ')}`);
+  logger.info(`监控来源 (${sources.length}):`);
+  for (const src of sources) {
+    logger.info(`  · ${src}`);
+  }
   logger.info(`分析模型: ${env.anthropicModel} | 每轮分析上限: ${env.analyzeBatchSize}`);
   logger.info(
     `当前数据: 帖子 ${stats.posts} / 评论 ${stats.comments} / 待分析 ${stats.pendingAnalysis} / 洞察 ${stats.insights}`,
