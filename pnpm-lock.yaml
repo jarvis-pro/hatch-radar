@@ -29,6 +29,9 @@ importers:
 
   apps/mobile:
     dependencies:
+      '@expo/dom-webview':
+        specifier: ~56.0.5
+        version: 56.0.5(expo@56.0.11)(react-native@0.85.3(@babel/core@7.29.7)(@react-native/metro-config@0.86.0(@babel/core@7.29.7))(@types/react@19.2.17)(react@19.2.3))(react@19.2.3)
       '@hatch-radar/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -73,7 +76,7 @@ importers:
         version: 4.25.2(react-native@0.85.3(@babel/core@7.29.7)(@react-native/metro-config@0.86.0(@babel/core@7.29.7))(@types/react@19.2.17)(react@19.2.3))(react@19.2.3)
     devDependencies:
       '@types/react':
-        specifier: ~19.2.2
+        specifier: ~19.2.17
         version: 19.2.17
       typescript:
         specifier: ~6.0.3
