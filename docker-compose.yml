@@ -1,0 +1,19 @@
+# 仅 Web 控制台容器化；server（爬取 + AI 分析 + 密钥）按规格仍跑在工作台宿主机上。
+#
+# SQLite WAL 注意事项（docs/multiplatform-refactor-spec.md §5）：
+# - WAL 只支持本地文件系统，数据卷必须是本地卷 / 绑定挂载，不可用 NFS 等网络盘
+# - Linux 宿主机：绑定挂载与宿主同文件系统，宿主机 server 写 + 容器 web 读，锁语义正常
+# - macOS（Docker Desktop）：容器经 VirtioFS 访问宿主文件，宿主进程并发写库时锁不可靠；
+#   开发期直接 `pnpm dev:web` 读本地文件，Docker 部署放到 Linux 主机
+services:
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    ports:
+      - '3000:3000'
+    environment:
+      DATABASE_URL: /data/radar.db
+    volumes:
+      - ./apps/server/data:/data
+    restart: unless-stopped

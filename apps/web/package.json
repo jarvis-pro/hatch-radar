@@ -1,0 +1,27 @@
+{
+  "name": "@hatch-radar/web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Web 控制台：只读展示洞察 / 帖子 / 评论（better-sqlite3 仅在服务端，写操作统一走 server 进程）",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@hatch-radar/shared": "workspace:*",
+    "better-sqlite3": "^12.10.0",
+    "next": "^16.2.9",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "server-only": "^0.0.1"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^25.9.2",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "typescript": "^6.0.3"
+  }
+}
