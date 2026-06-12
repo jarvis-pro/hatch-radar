@@ -13,6 +13,7 @@
     ],
     "ios": {
       "supportsTablet": true,
+      "minimumOsVersion": "16.4",
       "infoPlist": {
         "NSAppTransportSecurity": {
           "NSAllowsLocalNetworking": true
