@@ -16,14 +16,14 @@
 
 ## 技术栈
 
-| 层级          | 技术                                                                   |
-| ------------- | ---------------------------------------------------------------------- |
-| 运行时        | Node.js + TypeScript                                                   |
-| 调度          | node-cron                                                              |
-| Reddit 数据源 | Reddit REST API（OAuth）                                               |
+| 层级          | 技术                                                                              |
+| ------------- | --------------------------------------------------------------------------------- |
+| 运行时        | Node.js + TypeScript                                                              |
+| 调度          | node-cron                                                                         |
+| Reddit 数据源 | Reddit REST API（OAuth）                                                          |
 | AI 分析       | Anthropic（`@anthropic-ai/sdk`）/ DeepSeek（OpenAI 兼容），或导出本地文件（默认） |
-| 存储          | SQLite（可替换为 PostgreSQL）                                          |
-| 包管理        | pnpm                                                                   |
+| 存储          | SQLite（可替换为 PostgreSQL）                                                     |
+| 包管理        | pnpm                                                                              |
 
 ---
 
@@ -40,10 +40,10 @@ pnpm install
 ### 2. 配置环境变量
 
 ```bash
-cp .env.example .env
+cp apps/server/.env.example apps/server/.env
 ```
 
-编辑 `.env`：
+编辑 `apps/server/.env`（密钥只属于 server，不会进入 web / mobile）：
 
 ```env
 # Reddit OAuth（在 https://www.reddit.com/prefs/apps 注册 script 类型应用）
@@ -86,11 +86,11 @@ pnpm build && pnpm start
 
 由 `AI_PROVIDER` 显式选择，默认 `file`：
 
-| AI_PROVIDER    | 启用条件                 | 说明                                                             |
-| -------------- | ------------------------ | ---------------------------------------------------------------- |
+| AI_PROVIDER    | 启用条件                 | 说明                                                              |
+| -------------- | ------------------------ | ----------------------------------------------------------------- |
 | `file`（默认） | 无需 key                 | 每篇帖子导出为自包含 `.md`，整篇粘贴给任意 AI 即可得到分析结果    |
 | `anthropic`    | 须填 `ANTHROPIC_API_KEY` | 调用 Anthropic（Claude 系列模型），结构化输出（JSON Schema 约束） |
-| `deepseek`     | 须填 `DEEPSEEK_API_KEY`  | 调用 DeepSeek（OpenAI 兼容接口），JSON 输出模式                  |
+| `deepseek`     | 须填 `DEEPSEEK_API_KEY`  | 调用 DeepSeek（OpenAI 兼容接口），JSON 输出模式                   |
 
 - 不设 `AI_PROVIDER` 时默认 `file`，无需任何 key 即可运行。
 - 要用模型分析，须显式设 `AI_PROVIDER=anthropic` 或 `deepseek`，并填写对应的 API Key（缺 key 会在启动校验时报错）。
@@ -100,7 +100,7 @@ pnpm build && pnpm start
 
 ## 配置目标版块
 
-编辑 `src/config/subreddits.ts`：
+编辑 `apps/server/src/config/subreddits.ts`：
 
 ```typescript
 export const SUBREDDITS = [
@@ -124,51 +124,63 @@ export const SUBREDDITS = [
 
 ## 项目结构
 
+pnpm workspace monorepo（多端规划见 `docs/multiplatform-refactor-spec.md`）。根目录的 `pnpm dev / build / insights / analyze` 等脚本统一代理到对应子包，用法不变。
+
 ```
 hatch-radar/
-├── src/
-│   ├── config/
-│   │   ├── env.ts              # 环境变量加载、校验与分析方式推导
-│   │   ├── subreddits.ts       # 目标版块配置
-│   │   └── feeds.ts            # HackerNews 频道与 RSS 源配置
-│   ├── crawler/
-│   │   ├── queue.ts            # 令牌桶请求队列
-│   │   ├── reddit.ts           # Reddit API 封装
-│   │   ├── hackernews.ts       # HackerNews API 封装
-│   │   ├── rss.ts              # RSS 订阅抓取
-│   │   └── context.ts          # 帖子+评论上下文构建
-│   ├── analyzer/
-│   │   ├── prompt.ts           # 分析 prompt、输出 schema 与结果归一化
-│   │   ├── anthropic.ts        # Anthropic（Claude 模型）调用
-│   │   ├── deepseek.ts         # DeepSeek（OpenAI 兼容）调用
-│   │   ├── export.ts           # 本地文件导出（默认方式）
-│   │   └── analyze.ts          # 处理器抽象、工厂与批处理调度
-│   ├── db/
-│   │   ├── schema.ts           # 数据库 schema（兼作迁移脚本）
-│   │   ├── posts.ts            # 帖子存取
-│   │   ├── comments.ts         # 评论存取
-│   │   ├── insights.ts         # 洞察存取
-│   │   └── utils.ts            # 通用工具
-│   ├── scheduler.ts            # 定时任务调度
-│   ├── cli.ts                  # 洞察检索 CLI（pnpm insights）
-│   ├── logger.ts               # 日志工具
-│   └── index.ts                # 入口
-├── data/                       # SQLite 数据文件（gitignore）
-├── .env.example
-├── package.json
-└── tsconfig.json
+├── apps/
+│   └── server/                 # 工作台后端：爬取 + AI 分析 + 调度
+│       ├── src/
+│       │   ├── config/
+│       │   │   ├── env.ts      # 环境变量加载、校验与分析方式推导
+│       │   │   ├── subreddits.ts  # 目标版块配置
+│       │   │   └── feeds.ts    # HackerNews 频道与 RSS 源配置
+│       │   ├── crawler/
+│       │   │   ├── queue.ts    # 令牌桶请求队列
+│       │   │   ├── reddit.ts   # Reddit API 封装
+│       │   │   ├── hackernews.ts  # HackerNews API 封装
+│       │   │   ├── rss.ts      # RSS 订阅抓取
+│       │   │   └── context.ts  # 帖子+评论上下文构建
+│       │   ├── analyzer/
+│       │   │   ├── prompt.ts   # 分析 prompt、输出 schema 与结果归一化
+│       │   │   ├── anthropic.ts   # Anthropic（Claude 模型）调用
+│       │   │   ├── deepseek.ts # DeepSeek（OpenAI 兼容）调用
+│       │   │   ├── export.ts   # 本地文件导出（默认方式）
+│       │   │   └── analyze.ts  # 处理器抽象、工厂与批处理调度
+│       │   ├── db/
+│       │   │   ├── schema.ts   # SQLite 连接管理（兼作迁移脚本，DDL 来自 shared）
+│       │   │   ├── posts.ts    # 帖子存取
+│       │   │   ├── comments.ts # 评论存取
+│       │   │   ├── insights.ts # 洞察存取
+│       │   │   └── utils.ts    # 通用工具
+│       │   ├── scheduler.ts    # 定时任务调度
+│       │   ├── cli.ts          # 洞察检索 CLI（pnpm insights）
+│       │   ├── analyze-once.ts # 手动触发一轮分析（pnpm analyze）
+│       │   ├── logger.ts       # 日志工具
+│       │   └── index.ts        # 入口
+│       ├── data/               # SQLite 数据文件（gitignore）
+│       ├── logs/               # 运行日志（gitignore）
+│       └── .env.example
+├── packages/
+│   └── shared/                 # 跨端共享：DB DDL、行类型、洞察域类型、同步协议类型
+│       └── src/
+├── docs/
+│   └── multiplatform-refactor-spec.md  # 多端重构需求规格
+├── pnpm-workspace.yaml
+├── tsconfig.base.json
+└── package.json                # 根脚本统一代理到子包
 ```
 
 ---
 
 ## 调度策略
 
-| 任务         | 频率           | 说明                                             |
-| ------------ | -------------- | ------------------------------------------------ |
-| 热门帖子扫描 | 每 30 分钟     | 抓取各版块 hot/new，写入待分析队列               |
-| 评论补全     | 发帖后 6h、12h | 对新帖回捞评论，评论越多信号越强                 |
+| 任务         | 频率           | 说明                                                |
+| ------------ | -------------- | --------------------------------------------------- |
+| 热门帖子扫描 | 每 30 分钟     | 抓取各版块 hot/new，写入待分析队列                  |
+| 评论补全     | 发帖后 6h、12h | 对新帖回捞评论，评论越多信号越强                    |
 | AI 批量分析  | 每小时         | 取未分析帖子送 Anthropic / DeepSeek，或导出本地文件 |
-| 历史归档     | 每天凌晨       | 清理 30 天前原始数据，保留洞察结果               |
+| 历史归档     | 每天凌晨       | 清理 30 天前原始数据，保留洞察结果                  |
 
 ---
 
