@@ -1,0 +1,60 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * 全 App 唯一的色值来源（shadcn/RNR token 体系，与 Web 端同构）。
+ * 品牌蓝 #2563eb（blue-600）；success/warning 为业务语义色：
+ * 强度 HIGH→destructive / MEDIUM→warning / LOW→success。
+ * 改色时同步 src/lib/theme.ts 的 THEME（导航头与原生控件用）。
+ */
+@layer base {
+  :root {
+    --background: 220 20% 97%;
+    --foreground: 219 26% 15%;
+    --card: 0 0% 100%;
+    --card-foreground: 219 26% 15%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 219 26% 15%;
+    --primary: 221 83% 53%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 216 24% 95%;
+    --secondary-foreground: 219 26% 15%;
+    --muted: 216 24% 95%;
+    --muted-foreground: 217 11% 47%;
+    --accent: 216 24% 95%;
+    --accent-foreground: 219 26% 15%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+    --success: 161 94% 30%;
+    --warning: 32 95% 44%;
+    --border: 218 24% 91%;
+    --input: 218 24% 91%;
+    --ring: 221 83% 53%;
+    --radius: 0.75rem;
+  }
+
+  .dark:root {
+    --background: 220 24% 9%;
+    --foreground: 220 22% 92%;
+    --card: 217 21% 12%;
+    --card-foreground: 220 22% 92%;
+    --popover: 217 21% 12%;
+    --popover-foreground: 220 22% 92%;
+    --primary: 213 94% 68%;
+    --primary-foreground: 226 57% 21%;
+    --secondary: 218 20% 18%;
+    --secondary-foreground: 220 22% 92%;
+    --muted: 218 20% 18%;
+    --muted-foreground: 217 14% 65%;
+    --accent: 218 20% 18%;
+    --accent-foreground: 220 22% 92%;
+    --destructive: 0 72% 60%;
+    --destructive-foreground: 0 0% 98%;
+    --success: 158 64% 52%;
+    --warning: 43 96% 56%;
+    --border: 219 20% 22%;
+    --input: 219 20% 22%;
+    --ring: 213 94% 68%;
+  }
+}

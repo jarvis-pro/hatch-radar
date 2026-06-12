@@ -17,3 +17,8 @@ packageExtensions:
     peerDependenciesMeta:
       '@types/react':
         optional: true
+
+# 整个 workspace 只允许一份 @types/react，避免 RN 自动装入旧 19.1.x
+# 形成双类型身份（JSX 组件类型校验会互不相容）
+overrides:
+  '@types/react': ~19.2.17

@@ -14,9 +14,9 @@ export default tseslint.config(
     },
   },
   {
-    // Expo config plugins are CommonJS (apps/mobile has no "type": "module")
-    // and are loaded via require() by the Expo CLI during prebuild.
-    files: ['apps/mobile/plugins/**/*.js'],
+    // Expo config plugins & 构建链配置（babel/metro/tailwind）是 CommonJS
+    // （apps/mobile 无 "type": "module"），由 Expo CLI / Metro 以 require() 加载。
+    files: ['apps/mobile/plugins/**/*.js', 'apps/mobile/*.config.js'],
     languageOptions: {
       sourceType: 'commonjs',
       globals: {
