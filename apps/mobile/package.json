@@ -13,6 +13,7 @@
   "dependencies": {
     "@hatch-radar/shared": "workspace:*",
     "expo": "~56.0.11",
+    "expo-build-properties": "~56.0.18",
     "expo-constants": "~56.0.18",
     "expo-crypto": "~56.0.4",
     "expo-document-picker": "~56.0.4",
