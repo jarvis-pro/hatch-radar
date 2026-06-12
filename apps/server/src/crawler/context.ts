@@ -1,5 +1,4 @@
-import type { CommentRow } from '../db/comments';
-import type { PostRow } from '../db/posts';
+import type { CommentRow, PostRow } from '@hatch-radar/shared';
 
 const MAX_TOP_COMMENTS = 20;
 const MAX_REPLIES_PER_COMMENT = 3;

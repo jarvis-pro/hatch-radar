@@ -1,8 +1,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import type { CommentRow, PostRow } from '@hatch-radar/shared';
 import { buildContext } from '../crawler/context';
-import type { CommentRow } from '../db/comments';
-import type { PostRow } from '../db/posts';
 import { INSIGHT_JSON_EXAMPLE, SYSTEM_PROMPT } from './prompt';
 
 /** 将帖子 ID 中可能的非法字符替换为下划线，作为安全文件名 */

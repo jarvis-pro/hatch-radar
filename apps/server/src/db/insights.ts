@@ -1,57 +1,13 @@
-import type { InsightResult, Intensity, Opportunity, PainPoint } from '../analyzer/prompt';
-import type { PostRow } from './posts';
+import {
+  rowToInsight,
+  type Insight,
+  type InsightFilter,
+  type InsightResult,
+  type InsightRow,
+  type Intensity,
+  type PostRow,
+} from '@hatch-radar/shared';
 import { getDb } from './schema';
-
-interface InsightRow {
-  id: number;
-  post_id: string;
-  source: string;
-  subreddit: string;
-  post_title: string;
-  permalink: string | null;
-  model: string;
-  intensity: Intensity;
-  pain_points: string;
-  opportunities: string;
-  tags: string;
-  created_at: number;
-}
-
-/** searchInsights() 返回的洞察记录（camelCase 视图） */
-export interface Insight {
-  id: number;
-  /** 对应帖子的 ID */
-  postId: string;
-  /** 数据来源标识：`'reddit'` | `'hackernews'` | `'rss'` */
-  source: string;
-  /** 版块/频道名称 */
-  subreddit: string;
-  /** 帖子标题快照（原帖删除后仍可读） */
-  postTitle: string;
-  /** 帖子链接；Reddit 为相对路径，HN/RSS 为完整 URL */
-  permalink: string | null;
-  /** 用于生成该洞察的模型 ID */
-  model: string;
-  /** 本篇洞察中最高强度的痛点等级，用作索引强度 */
-  intensity: Intensity;
-  painPoints: PainPoint[];
-  opportunities: Opportunity[];
-  tags: string[];
-  /** 洞察写入 Unix 时间戳（秒） */
-  createdAt: number;
-}
-
-/** searchInsights() 的过滤条件，所有字段可选，多字段以 AND 组合 */
-export interface InsightFilter {
-  /** 按版块/频道名称精确匹配（大小写不敏感） */
-  subreddit?: string;
-  /** 按标签模糊匹配（contains） */
-  tag?: string;
-  /** 按强度等级精确匹配，传入时自动转大写 */
-  intensity?: string;
-  /** 最多返回条数，默认 20 */
-  limit?: number;
-}
 
 /**
  * 将 AI 分析结果落库为洞察记录。
@@ -118,18 +74,5 @@ export function searchInsights(filter: InsightFilter): Insight[] {
   const rows = getDb()
     .prepare(`SELECT * FROM insights ${where} ORDER BY created_at DESC LIMIT ?`)
     .all(...params, filter.limit ?? 20) as InsightRow[];
-  return rows.map((row) => ({
-    id: row.id,
-    postId: row.post_id,
-    source: row.source,
-    subreddit: row.subreddit,
-    postTitle: row.post_title,
-    permalink: row.permalink,
-    model: row.model,
-    intensity: row.intensity,
-    painPoints: JSON.parse(row.pain_points) as PainPoint[],
-    opportunities: JSON.parse(row.opportunities) as Opportunity[],
-    tags: JSON.parse(row.tags) as string[],
-    createdAt: row.created_at,
-  }));
+  return rows.map(rowToInsight);
 }

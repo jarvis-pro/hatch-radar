@@ -1,14 +1,12 @@
+import type { CommentRow, InsightResult, PostRow } from '@hatch-radar/shared';
 import { getCommentsForPost } from '../db/comments';
 import { bumpAnalyzeAttempts, getPostsToAnalyze, markAnalyzed } from '../db/posts';
-import type { CommentRow } from '../db/comments';
-import type { PostRow } from '../db/posts';
 import { saveInsight } from '../db/insights';
 import { nowSec } from '../db/utils';
 import { logger } from '../logger';
 import { analyzeWithAnthropic, createAnthropicClient } from './anthropic';
 import { analyzeWithDeepSeek } from './deepseek';
 import { writeManualAnalysisDoc } from './export';
-import type { InsightResult } from './prompt';
 
 /**
  * 已解析的分析方式配置，由 env 根据 AI_PROVIDER 推导（缺对应 key 会在校验阶段报错）。

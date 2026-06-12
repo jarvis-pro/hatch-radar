@@ -1,35 +1,4 @@
-/** 痛点强度等级：综合情绪激烈程度、附和评论数与点赞数综合判断 */
-export type Intensity = 'HIGH' | 'MEDIUM' | 'LOW';
-
-/** 从社区内容中提炼出的用户痛点 */
-export interface PainPoint {
-  /** 痛点的中文概括描述 */
-  description: string;
-  /** 原文中支撑该痛点的引用片段，保留原语言，不得改写 */
-  evidence: string;
-  /** 该痛点的强度等级 */
-  intensity: Intensity;
-}
-
-/** 由痛点推导出的可行产品方向 */
-export interface Opportunity {
-  /** 机会名称（中文） */
-  title: string;
-  /** 产品形态与核心价值描述（中文） */
-  description: string;
-  /** 目标用户画像（中文） */
-  target_user: string;
-}
-
-/** 单篇帖子的 AI 分析结果，作为模型结构化输出的顶层对象 */
-export interface InsightResult {
-  /** 识别出的痛点清单；无实质信号时为空数组 */
-  pain_points: PainPoint[];
-  /** 由痛点推导出的产品机会；无实质信号时为空数组 */
-  opportunities: Opportunity[];
-  /** 3-6 个中文主题标签，便于后续检索 */
-  tags: string[];
-}
+import type { InsightResult, Intensity } from '@hatch-radar/shared';
 
 /** 分析任务的系统 prompt，要求模型从社区内容中提炼痛点与产品机会 */
 export const SYSTEM_PROMPT = `你是一名资深市场研究分析师，专注于从社区讨论中挖掘真实的用户痛点与产品机会。
@@ -117,7 +86,7 @@ export function normalizeInsight(raw: unknown): InsightResult {
 /**
  * 传给 Anthropic API `output_config.format` 的 JSON Schema。
  * - 与 README 洞察输出格式及 InsightResult 类型定义保持一致
- * - 修改此 schema 时需同步更新 InsightResult 接口
+ * - 修改此 schema 时需同步更新 @hatch-radar/shared 中的 InsightResult 接口
  */
 export const INSIGHT_SCHEMA = {
   type: 'object',

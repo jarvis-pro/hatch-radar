@@ -1,11 +1,9 @@
-import { mkdirSync, readFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { pathToFileURL } from 'node:url';
 import Database from 'better-sqlite3';
+import { DDL } from '@hatch-radar/shared';
 import { databasePath } from '../config/env';
-
-/** 全量建表 DDL（含索引），从 schema.sql 读取，幂等可重复执行 */
-export const DDL = readFileSync(fileURLToPath(new URL('./schema.sql', import.meta.url)), 'utf8');
 
 let db: Database.Database | null = null;
 

@@ -1,13 +1,6 @@
+import type { CommentRow, InsightResult, PostRow } from '@hatch-radar/shared';
 import { buildContext } from '../crawler/context';
-import type { CommentRow } from '../db/comments';
-import type { PostRow } from '../db/posts';
-import {
-  JSON_OUTPUT_DIRECTIVE,
-  SYSTEM_PROMPT,
-  buildUserPrompt,
-  normalizeInsight,
-  type InsightResult,
-} from './prompt';
+import { JSON_OUTPUT_DIRECTIVE, SYSTEM_PROMPT, buildUserPrompt, normalizeInsight } from './prompt';
 
 /** DeepSeek（OpenAI 兼容接口）调用所需配置 */
 export interface DeepSeekConfig {
