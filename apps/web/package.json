@@ -12,18 +12,18 @@
   "dependencies": {
     "@hatch-radar/shared": "workspace:*",
     "@hatch-radar/ui": "workspace:*",
-    "better-sqlite3": "^12.10.0",
-    "lucide-react": "^1.17.0",
+    "better-sqlite3": "catalog:",
+    "lucide-react": "catalog:",
     "next": "^16.2.9",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "server-only": "^0.0.1"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "^7.6.13",
-    "@types/node": "^25.9.2",
-    "@types/react": "^19.2.0",
-    "@types/react-dom": "^19.2.0",
-    "typescript": "^6.0.3"
+    "@types/better-sqlite3": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "typescript": "catalog:"
   }
 }

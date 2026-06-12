@@ -2,6 +2,27 @@ packages:
   - apps/*
   - packages/*
 
+# 跨包共享依赖的版本集中在此（pnpm catalog），各 package.json 用 "catalog:" 引用。
+# 只收录被 2+ 个包使用、且应当保持同步的依赖；单包独占的依赖仍写在各自 package.json。
+# react / react-dom / tailwindcss 虽跨包但版本有意不同（Expo 精确锁定运行时、mobile 用 Tailwind v3
+# 而 web/ui 用 v4），无法合并成单一条目，故保持 inline。
+catalog:
+  # 工具链 / 类型
+  typescript: ^6.0.3
+  '@types/node': ^25.9.2
+  '@types/react': ~19.2.17 # 与下方 overrides 保持一致：整个 workspace 只允许一份
+  '@types/react-dom': ^19.2.0
+  # 数据库（server 读写、web 只读）
+  better-sqlite3: ^12.10.0
+  '@types/better-sqlite3': ^7.6.13
+  # 运行时校验
+  zod: ^4.4.3
+  # UI 工具（ui 库与 mobile 共用同款）
+  class-variance-authority: ^0.7.1
+  clsx: ^2.1.1
+  tailwind-merge: ^3.6.0
+  lucide-react: ^1.17.0
+
 # better-sqlite3 / esbuild / @tailwindcss/oxide 需要运行原生模块安装脚本
 onlyBuiltDependencies:
   - '@tailwindcss/oxide'
