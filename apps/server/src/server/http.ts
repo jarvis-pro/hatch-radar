@@ -3,6 +3,10 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { networkInterfaces, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { ExportFilter, Intensity } from '@hatch-radar/shared';
+import { buildManualAnalysisDoc } from '../analyzer/export';
+import { importManualResult } from '../analyzer/import';
+import { getCommentsForPost } from '../db/comments';
+import { getPostById } from '../db/posts';
 import { getStats, nowSec } from '../db/utils';
 import { collectExportBatch, defaultExportName, writeBatchSqlite } from '../export/batch';
 import { applySyncPush, pushEnvelopeSchema } from '../sync/apply';
@@ -126,6 +130,61 @@ async function handleSyncPush(req: IncomingMessage, res: ServerResponse): Promis
   sendJson(res, 200, applySyncPush(envelope.data.deviceId, envelope.data.ops));
 }
 
+/**
+ * POST /api/insights/import —— 回灌手动 AI 分析结果（AI_PROVIDER=file 模式闭环的收料步）。
+ * 体 `{ postId, resultText }`；按 post_id 幂等落库，outcome 映射为状态码。
+ */
+async function handleInsightImport(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  let body: string;
+  try {
+    body = await readBody(req, MAX_SYNC_BODY_BYTES);
+  } catch (err) {
+    if (err instanceof BodyTooLargeError) {
+      sendJson(res, 413, { error: `请求体超过 ${MAX_SYNC_BODY_BYTES} 字节` });
+      return;
+    }
+    throw err;
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(body);
+  } catch {
+    sendJson(res, 400, { error: '请求体不是合法 JSON' });
+    return;
+  }
+  const { postId, resultText } = (parsed ?? {}) as { postId?: unknown; resultText?: unknown };
+  if (
+    typeof postId !== 'string' ||
+    postId.length === 0 ||
+    typeof resultText !== 'string' ||
+    resultText.trim().length === 0
+  ) {
+    sendJson(res, 400, { error: '请求结构非法：需要 { postId, resultText }' });
+    return;
+  }
+  const result = importManualResult(postId, resultText);
+  const status = result.outcome === 'imported' ? 200 : result.outcome === 'not_found' ? 404 : 400;
+  sendJson(res, status, result);
+}
+
+/**
+ * GET /api/posts/<id>/doc —— 返回单篇帖子的待分析 Markdown 文档，
+ * 供 web 闭环工作台一键复制后粘贴给外部 AI。
+ */
+function handlePostDoc(res: ServerResponse, postId: string): void {
+  const post = getPostById(postId);
+  if (!post) {
+    sendJson(res, 404, { error: '帖子不存在或已归档' });
+    return;
+  }
+  const doc = buildManualAnalysisDoc(post, getCommentsForPost(post.id));
+  res.writeHead(200, {
+    'content-type': 'text/markdown; charset=utf-8',
+    'cache-control': 'no-store',
+  });
+  res.end(doc);
+}
+
 async function handleRequest(
   req: IncomingMessage,
   res: ServerResponse,
@@ -178,6 +237,33 @@ async function handleRequest(
     return;
   }
 
+  if (url.pathname === '/api/insights/import') {
+    if (req.method !== 'POST') {
+      sendJson(res, 405, { error: 'method not allowed' });
+      return;
+    }
+    if (!authorized(req, cfg.token)) {
+      sendJson(res, 401, { error: 'unauthorized：请携带 Authorization: Bearer <API_TOKEN>' });
+      return;
+    }
+    await handleInsightImport(req, res);
+    return;
+  }
+
+  const docMatch = url.pathname.match(/^\/api\/posts\/(.+)\/doc$/);
+  if (docMatch) {
+    if (req.method !== 'GET') {
+      sendJson(res, 405, { error: 'method not allowed' });
+      return;
+    }
+    if (!authorized(req, cfg.token)) {
+      sendJson(res, 401, { error: 'unauthorized：请携带 Authorization: Bearer <API_TOKEN>' });
+      return;
+    }
+    handlePostDoc(res, decodeURIComponent(docMatch[1]));
+    return;
+  }
+
   sendJson(res, 404, { error: 'not found' });
 }
 
@@ -200,9 +286,11 @@ function lanAddresses(): string[] {
  * - GET  /api/export/batch          JSON 批次；查询参数 since / minIntensity / subreddit / limit
  * - GET  /api/export/batch.sqlite   同条件的独立 .sqlite 文件下载
  * - POST /api/sync/push             接收移动端研判操作，按 op_id 幂等应用
+ * - POST /api/insights/import       回灌手动 AI 分析结果（file 模式闭环收料）
+ * - GET  /api/posts/<id>/doc        单篇帖子的待分析 Markdown 文档
  *
- * 数据下行（导出批次）+ 研判操作上行（同步）；AI 密钥不经过此服务，
- * 同步写入仅限 triage / sync_ops 两表，不触碰爬取与分析数据。
+ * 数据下行（导出批次 / 待分析文档）+ 研判操作上行（同步）+ 洞察回灌；
+ * AI 密钥不经过此服务。
  */
 export function startHttpServer(cfg: HttpConfig): Server {
   const server = createServer((req, res) => {

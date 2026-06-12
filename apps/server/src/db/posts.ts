@@ -100,6 +100,16 @@ export function getPostsToAnalyze(limit: number): PostRow[] {
 }
 
 /**
+ * 按 ID 取单篇帖子。
+ * - 回灌手动分析结果时需要 source / subreddit / title / permalink 等字段
+ * @param id 帖子 ID
+ * @returns 帖子行；不存在（含 30 天归档后已删除）时返回 undefined
+ */
+export function getPostById(id: string): PostRow | undefined {
+  return getDb().prepare(`SELECT * FROM posts WHERE id = ?`).get(id) as PostRow | undefined;
+}
+
+/**
  * 将帖子标记为已完成 AI 分析。
  * @param postId 目标帖子 ID
  * @param analyzedAt 分析完成 Unix 时间戳（秒）

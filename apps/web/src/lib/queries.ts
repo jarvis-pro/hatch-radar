@@ -145,6 +145,29 @@ export function listPosts(db: Db, filter: PostListFilter): Paged<PostRow> {
   return { items, total, page, pageCount };
 }
 
+/**
+ * 待回填洞察的帖子（file 模式闭环）：已导出待分析文档（analyzed_at 已设）、
+ * 但尚未回灌洞察（insights 无对应行）。按热度（score + 评论数）降序分页。
+ */
+export function listAwaitingManualResult(db: Db, page: number): Paged<PostRow> {
+  const where = `WHERE analyzed_at IS NOT NULL AND id NOT IN (SELECT post_id FROM insights)`;
+  const total = (db.prepare(`SELECT COUNT(*) n FROM posts ${where}`).get() as { n: number }).n;
+  const { page: p, pageCount } = clampPage(total, page);
+  const items = db
+    .prepare(
+      `SELECT * FROM posts ${where} ORDER BY (score + num_comments) DESC, id LIMIT ? OFFSET ?`,
+    )
+    .all(PAGE_SIZE, (p - 1) * PAGE_SIZE) as PostRow[];
+  return { items, total, page: p, pageCount };
+}
+
+/** 已回填（人工导入，model='manual'）洞察数 */
+export function countManualInsights(db: Db): number {
+  return (
+    db.prepare(`SELECT COUNT(*) n FROM insights WHERE model = 'manual'`).get() as { n: number }
+  ).n;
+}
+
 /** 按 id 取单篇帖子（30 天归档后返回 null，洞察仍可见） */
 export function getPost(db: Db, id: string): PostRow | null {
   const row = db.prepare(`SELECT * FROM posts WHERE id = ?`).get(id) as PostRow | undefined;

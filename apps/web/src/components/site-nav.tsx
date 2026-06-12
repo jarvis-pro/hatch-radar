@@ -8,6 +8,7 @@ import { Button } from '@hatch-radar/ui/components/button';
 const LINKS = [
   { href: '/', label: '洞察', match: (p: string) => p === '/' || p.startsWith('/insights') },
   { href: '/posts', label: '帖子', match: (p: string) => p.startsWith('/posts') },
+  { href: '/analyze', label: '回填', match: (p: string) => p.startsWith('/analyze') },
 ];
 
 /** 顶部导航：高亮当前所在区段 */

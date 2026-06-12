@@ -91,6 +91,7 @@ pnpm dev:web            # http://localhost:3000
 - 只读展示洞察 / 帖子 / 评论：来源 / 版块 / 强度 / 分析状态筛选 + 关键词搜索 + 分页，响应式自适应手机
 - better-sqlite3 只在服务端（Server Components），绝不进客户端 bundle；写操作统一走 server 进程
 - 数据文件路径由 `DATABASE_URL` 指定，默认 `../server/data/radar.db`
+- 「回填」页（`/analyze`）展示 file 模式下「已导出待分析、尚未回灌洞察」的帖子；其写操作经 web 代理转发到 server 进程（`SERVER_API_URL`，默认 `http://localhost:8787`），server 设了 `API_TOKEN` 时 web 也需配同值——web 自身仍只读库
 - UI 组件来自 `@hatch-radar/ui`（shadcn/ui，见 `/ui-lab` 预览页）。新增组件在 `apps/web` 下执行
   `pnpm dlx shadcn@latest add <component>`，CLI 会自动把组件写入 `packages/ui`，所有 PC 子项目共用
 
@@ -120,6 +121,8 @@ docker run -p 3000:3000 -v ./apps/server/data:/data hatch-radar-web
 | `GET /api/export/batch`        | JSON 批次；参数 `since / minIntensity / subreddit / limit` |
 | `GET /api/export/batch.sqlite` | 同条件的独立 `.sqlite` 文件下载                            |
 | `POST /api/sync/push`          | 接收移动端研判操作，按 `opId` 幂等应用（写 triage 表）     |
+| `POST /api/insights/import`    | 回灌手动 AI 分析结果（file 模式闭环收料，按 `post_id` 幂等）|
+| `GET /api/posts/<id>/doc`      | 单篇帖子的待分析 Markdown 文档（web 复制后粘贴给外部 AI）   |
 
 端口 `HTTP_PORT`（默认 8787），设 `API_TOKEN` 后导出与同步接口要求 `Authorization: Bearer <token>`。
 
@@ -164,6 +167,7 @@ pnpm mobile     # 启动 Expo dev server，用 Expo Go 扫码（iOS 真机）
 - 不设 `AI_PROVIDER` 时默认 `file`，无需任何 key 即可运行。
 - 要用模型分析，须显式设 `AI_PROVIDER=anthropic` 或 `deepseek`，并填写对应的 API Key（缺 key 会在启动校验时报错）。
 - `file` 模式导出目录默认 `./data/manual-analysis`（可由 `MANUAL_ANALYSIS_DIR` 覆盖）；导出文件含分析指令、期望的 JSON 输出格式与帖子+评论上下文。
+- **闭环回填**：拿到外部 AI 返回的 JSON 后，在 Web 控制台「回填」页（`/analyze`）选对应帖子，一键复制待分析文档 → 粘贴给 AI → 把 JSON 贴回提交，即落库为洞察（`model=manual`，按 `post_id` 幂等）。回填后该帖从「待回填」列表消失，洞察随即出现在洞察页与导出批次中。`file` 模式不闭环回填则洞察表恒为空，下游展示 / 导出 / 移动端漏斗均无数据。
 
 ---
 
