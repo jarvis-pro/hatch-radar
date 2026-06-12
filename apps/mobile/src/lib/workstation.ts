@@ -38,14 +38,18 @@ export function normalizeBaseUrl(input: string): string {
   return url.replace(/\/+$/, '');
 }
 
-/** 带超时的 GET（局域网请求 15s 足够；离线/地址错误时快速失败） */
-async function getJson<T>(cfg: WorkstationConfig, path: string): Promise<T> {
+/** 带超时的请求（局域网 15s 足够；离线/地址错误时快速失败），统一鉴权与错误文案 */
+async function request<T>(cfg: WorkstationConfig, path: string, init?: RequestInit): Promise<T> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 15_000);
   try {
     const res = await fetch(`${cfg.baseUrl}${path}`, {
+      ...init,
       signal: controller.signal,
-      headers: cfg.token ? { authorization: `Bearer ${cfg.token}` } : undefined,
+      headers: {
+        ...(init?.headers as Record<string, string> | undefined),
+        ...(cfg.token ? { authorization: `Bearer ${cfg.token}` } : undefined),
+      },
     });
     if (res.status === 401) throw new Error('鉴权失败：请检查访问令牌（API_TOKEN）');
     if (!res.ok) throw new Error(`工作台返回 ${res.status}`);
@@ -60,6 +64,19 @@ async function getJson<T>(cfg: WorkstationConfig, path: string): Promise<T> {
   } finally {
     clearTimeout(timer);
   }
+}
+
+function getJson<T>(cfg: WorkstationConfig, path: string): Promise<T> {
+  return request<T>(cfg, path);
+}
+
+/** POST JSON（同步推送用） */
+export function postJson<T>(cfg: WorkstationConfig, path: string, body: unknown): Promise<T> {
+  return request<T>(cfg, path, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
 }
 
 /** 探测工作台是否可达（不鉴权端点） */

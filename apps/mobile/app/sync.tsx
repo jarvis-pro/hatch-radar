@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -12,8 +12,10 @@ import {
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import { File } from 'expo-file-system';
+import { useFocusEffect } from 'expo-router';
 import type { ExportBatch } from '@hatch-radar/shared';
 import { importBatch, importSqliteFile, type ImportResult } from '../src/db/import';
+import { pendingSyncCount, pushOutbox } from '../src/lib/sync';
 import {
   fetchBatch,
   fetchHealth,
@@ -36,11 +38,19 @@ function describeResult(r: ImportResult): string {
   return `导入完成：洞察新增 ${r.added}、更新 ${r.updated}；帖子 ${r.posts}、评论 ${r.comments}`;
 }
 
-export default function ImportScreen() {
+export default function SyncScreen() {
   const saved = loadWorkstationConfig();
   const [baseUrl, setBaseUrl] = useState(saved?.baseUrl ?? '');
   const [token, setToken] = useState(saved?.token ?? '');
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
+  const [pending, setPending] = useState(0);
+
+  // 进入页面时刷新待同步计数（检测 → 提示，规格 §D）
+  useFocusEffect(
+    useCallback(() => {
+      setPending(pendingSyncCount());
+    }, []),
+  );
 
   const busy = status.kind === 'busy';
 
@@ -74,6 +84,22 @@ export default function ImportScreen() {
       return describeResult(importBatch(batch));
     });
 
+  // 用户点击即视为确认推送（检测 → 提示 → 确认 → push，规格 §D）
+  const onPush = () =>
+    run('正在推送研判…', async () => {
+      const summary = await pushOutbox(cfgFromInputs());
+      setPending(pendingSyncCount());
+      if (summary.total === 0) return '没有待同步的研判操作。';
+      const parts = [`同步完成：共 ${summary.total} 条，应用 ${summary.applied}`];
+      if (summary.duplicate > 0) parts.push(`重复跳过 ${summary.duplicate}`);
+      if (summary.rejected > 0) {
+        parts.push(
+          `拒绝 ${summary.rejected}（${summary.firstRejectReason ?? '原因见工作台日志'}）`,
+        );
+      }
+      return parts.join('，');
+    });
+
   const onPickFile = () =>
     run('正在导入文件…', async () => {
       const picked = await DocumentPicker.getDocumentAsync({
@@ -100,7 +126,7 @@ export default function ImportScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <Text style={styles.sectionTitle}>局域网拉取</Text>
+        <Text style={styles.sectionTitle}>工作台连接</Text>
         <Text style={styles.hint}>
           回到工作台所在局域网（或连工作台热点），地址见 server 启动日志「局域网地址」。
         </Text>
@@ -133,6 +159,22 @@ export default function ImportScreen() {
             <Text style={styles.btnPrimaryText}>拉取批次并导入</Text>
           </Pressable>
         </View>
+
+        <Text style={styles.sectionTitle}>推送研判（App → 工作台）</Text>
+        <Text style={styles.hint}>
+          {pending > 0
+            ? `有 ${pending} 条研判操作待同步。确认后按发生顺序推送，工作台按 opId 幂等去重，重复推送不会重复应用。`
+            : '所有研判操作均已同步。离线期间的状态/评级/标签/笔记变更会自动记入待同步队列。'}
+        </Text>
+        <Pressable
+          style={[styles.btn, pending > 0 ? styles.btnPrimary : styles.btnGhost]}
+          onPress={onPush}
+          disabled={busy || pending === 0}
+        >
+          <Text style={pending > 0 ? styles.btnPrimaryText : styles.btnGhostText}>
+            {pending > 0 ? `确认推送 ${pending} 条研判` : '无待同步操作'}
+          </Text>
+        </Pressable>
 
         <Text style={styles.sectionTitle}>文件导入</Text>
         <Text style={styles.hint}>

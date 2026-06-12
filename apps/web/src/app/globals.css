@@ -454,6 +454,43 @@ main.container {
   padding: 10px 12px;
 }
 
+/* 人工研判（移动端同步回传） */
+
+.triage-box {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.triage-pending {
+  background: var(--code-bg);
+  color: var(--muted);
+}
+
+.triage-shortlisted {
+  background: var(--accent-weak);
+  color: var(--accent);
+}
+
+.triage-archived {
+  background: var(--code-bg);
+  color: var(--muted);
+}
+
+.triage-rating {
+  color: var(--medium);
+  letter-spacing: 1px;
+}
+
+.triage-note {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 14px;
+}
+
 .opportunity h3 {
   margin: 0 0 4px;
   font-size: 15px;

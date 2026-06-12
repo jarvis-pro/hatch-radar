@@ -14,7 +14,7 @@ export default function RootLayout() {
       >
         <Stack.Screen name="index" options={{ title: '洞察' }} />
         <Stack.Screen name="insight/[id]" options={{ title: '洞察详情' }} />
-        <Stack.Screen name="import" options={{ title: '导入批次', presentation: 'modal' }} />
+        <Stack.Screen name="sync" options={{ title: '工作台同步', presentation: 'modal' }} />
       </Stack>
     </>
   );

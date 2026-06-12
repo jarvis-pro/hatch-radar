@@ -1,4 +1,4 @@
-import type { Intensity } from '@hatch-radar/shared';
+import type { Intensity, TriageStatus } from '@hatch-radar/shared';
 
 /** Unix 秒 → 'YYYY-MM-DD HH:mm'（服务器本地时区） */
 export function fmtDate(unixSec: number): string {
@@ -43,6 +43,13 @@ export const INTENSITY_LABELS: Record<Intensity, string> = {
   HIGH: '高',
   MEDIUM: '中',
   LOW: '低',
+};
+
+/** 研判状态 → 中文展示名 */
+export const TRIAGE_STATUS_LABELS: Record<TriageStatus, string> = {
+  pending: '待研判',
+  shortlisted: '已入选',
+  archived: '已归档',
 };
 
 /** 解析查询串中的强度筛选；非法值视为未筛选 */

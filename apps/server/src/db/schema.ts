@@ -2,8 +2,23 @@ import { mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import Database from 'better-sqlite3';
-import { DDL } from '@hatch-radar/shared';
+import { DDL, TRIAGE_DDL } from '@hatch-radar/shared';
 import { databasePath } from '../config/env';
+
+/**
+ * 服务端专属表：已应用的同步操作日志（规格 §D 幂等去重依据）。
+ * 每条移动端操作应用成功后在此留痕；重复推送命中 op_id 即跳过（duplicate）。
+ */
+const SYNC_OPS_DDL = `-- 已应用的移动端同步操作（幂等去重 + 审计）
+CREATE TABLE IF NOT EXISTS sync_ops (
+  op_id      TEXT PRIMARY KEY,            -- 客户端生成的 UUID
+  device_id  TEXT NOT NULL,               -- 推送设备标识
+  type       TEXT NOT NULL,
+  target_id  INTEGER NOT NULL,            -- 对应 insights.id
+  payload    TEXT NOT NULL,               -- JSON 字符串
+  created_at INTEGER NOT NULL,            -- 操作在设备上发生的时间，Unix 秒
+  applied_at INTEGER NOT NULL             -- 服务端应用时间，Unix 秒
+);`;
 
 let db: Database.Database | null = null;
 
@@ -22,6 +37,8 @@ export function getDb(): Database.Database {
   db.pragma('foreign_keys = ON');
   db.pragma('busy_timeout = 5000');
   db.exec(DDL);
+  db.exec(TRIAGE_DDL);
+  db.exec(SYNC_OPS_DDL);
   return db;
 }
 

@@ -65,11 +65,20 @@ export default function HomeScreen() {
         <Text style={styles.lastImport}>
           {stats?.lastImportAt ? `最近导入：${timeAgo(stats.lastImportAt)}` : '尚未导入任何批次'}
         </Text>
-        <Link href="/import" asChild>
+        <Link href="/sync" asChild>
           <Pressable style={styles.importBtn}>
-            <Text style={styles.importBtnText}>导入批次（局域网 / 文件）</Text>
+            <Text style={styles.importBtnText}>工作台同步（导入批次 / 推送研判）</Text>
           </Pressable>
         </Link>
+        {stats && stats.pendingSync > 0 ? (
+          <Link href="/sync" asChild>
+            <Pressable style={styles.syncBanner}>
+              <Text style={styles.syncBannerText}>
+                有 {stats.pendingSync} 条研判待同步，回到工作台局域网后点此推送 →
+              </Text>
+            </Pressable>
+          </Link>
+        ) : null}
         <View style={styles.filterRow}>
           {INTENSITY_FILTERS.map((f) => {
             const active = intensity === f.value;
@@ -193,6 +202,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   importBtnText: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  syncBanner: {
+    backgroundColor: '#fdf3e3',
+    borderWidth: 1,
+    borderColor: '#f0d9ab',
+    borderRadius: 10,
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+  },
+  syncBannerText: { color: '#d97706', fontSize: 13, fontWeight: '500' },
   filterRow: { flexDirection: 'row', gap: 8 },
   chip: {
     borderRadius: 999,

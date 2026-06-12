@@ -3,8 +3,8 @@ import { notFound } from 'next/navigation';
 import { AnalyzedBadge, IntensityBadge, SourceBadge } from '@/components/badges';
 import { DbSetupNotice } from '@/components/empty';
 import { tryGetDb } from '@/lib/db';
-import { channelLabel, fmtDate, permalinkUrl } from '@/lib/format';
-import { getInsight, getPost } from '@/lib/queries';
+import { channelLabel, fmtDate, permalinkUrl, TRIAGE_STATUS_LABELS } from '@/lib/format';
+import { getInsight, getPost, getTriageForInsight } from '@/lib/queries';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,6 +19,8 @@ export default async function InsightDetailPage(props: { params: Promise<{ id: s
   if (!insight) notFound();
   // 30 天归档后原始帖子可能已删除，洞察永久保留（post 为软引用）
   const post = getPost(db, insight.postId);
+  // 移动端离线研判后同步回传的结果；未同步过为 null
+  const triage = getTriageForInsight(db, numericId);
 
   return (
     <article className="detail">
@@ -48,6 +50,36 @@ export default async function InsightDetailPage(props: { params: Promise<{ id: s
             </Link>
           ))}
         </div>
+      ) : null}
+
+      {triage ? (
+        <section>
+          <h2 className="section-title">人工研判（移动端同步）</h2>
+          <div className="triage-box">
+            <div className="card-meta">
+              <span className={`badge triage-${triage.status}`}>
+                {TRIAGE_STATUS_LABELS[triage.status]}
+              </span>
+              {triage.rating != null ? (
+                <span className="triage-rating">
+                  {'★'.repeat(triage.rating)}
+                  {'☆'.repeat(5 - triage.rating)}
+                </span>
+              ) : null}
+              <span className="muted">更新于 {fmtDate(triage.updatedAt)}</span>
+            </div>
+            {triage.tags.length > 0 ? (
+              <div className="tag-row">
+                {triage.tags.map((tag) => (
+                  <span className="tag" key={tag}>
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+            {triage.note ? <p className="triage-note">{triage.note}</p> : null}
+          </div>
+        </section>
       ) : null}
 
       <section>

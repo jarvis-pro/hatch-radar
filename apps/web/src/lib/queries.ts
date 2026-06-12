@@ -1,10 +1,13 @@
 import {
   rowToInsight,
+  rowToTriage,
   type CommentRow,
   type Insight,
   type InsightRow,
   type Intensity,
   type PostRow,
+  type Triage,
+  type TriageRow,
 } from '@hatch-radar/shared';
 import type Database from 'better-sqlite3';
 
@@ -87,6 +90,21 @@ export function listInsights(db: Db, filter: InsightListFilter): Paged<Insight> 
 export function getInsight(db: Db, id: number): Insight | null {
   const row = db.prepare(`SELECT * FROM insights WHERE id = ?`).get(id) as InsightRow | undefined;
   return row ? rowToInsight(row) : null;
+}
+
+/**
+ * 取洞察的人工研判结果（移动端同步回传，里程碑 6 起存在）。
+ * 旧库可能还没有 triage 表（server 升级后首次运行才建表），先探表再查。
+ */
+export function getTriageForInsight(db: Db, insightId: number): Triage | null {
+  const hasTable = db
+    .prepare(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'triage'`)
+    .get();
+  if (!hasTable) return null;
+  const row = db.prepare(`SELECT * FROM triage WHERE insight_id = ?`).get(insightId) as
+    | TriageRow
+    | undefined;
+  return row ? rowToTriage(row) : null;
 }
 
 /** 取帖子对应的洞察（帖子详情页交叉跳转用） */
