@@ -1,5 +1,3 @@
-import Anthropic from '@anthropic-ai/sdk';
-import { buildContext } from '../crawler/context';
 import { getCommentsForPost } from '../db/comments';
 import { bumpAnalyzeAttempts, getPostsToAnalyze, markAnalyzed } from '../db/posts';
 import type { CommentRow } from '../db/comments';
@@ -7,136 +5,140 @@ import type { PostRow } from '../db/posts';
 import { saveInsight } from '../db/insights';
 import { nowSec } from '../db/utils';
 import { logger } from '../logger';
-import {
-  INSIGHT_SCHEMA,
-  SYSTEM_PROMPT,
-  buildUserPrompt,
-  type InsightResult,
-  type Intensity,
-} from './prompt';
+import { analyzeWithAnthropic, createAnthropicClient } from './anthropic';
+import { analyzeWithDeepSeek } from './deepseek';
+import { writeManualAnalysisDoc } from './export';
+import type { InsightResult } from './prompt';
 
 /**
- * 创建 Anthropic SDK 客户端实例。
- * - 内置 429 / 5xx 指数退避重试，最多 3 次
- * @param apiKey Anthropic API 密钥
- * @returns 配置好重试策略的客户端实例
+ * 已解析的分析方式配置，由 env 根据 AI_PROVIDER 推导（缺对应 key 会在校验阶段报错）。
+ * - `anthropic`：调用 Anthropic（Claude 系列模型）
+ * - `deepseek`：调用 DeepSeek（OpenAI 兼容接口）
+ * - `file`（默认）：将待分析内容导出为本地文件，供手动喂给 AI
  */
-export function createAnthropicClient(apiKey: string): Anthropic {
-  return new Anthropic({ apiKey, maxRetries: 3 });
+export type AnalysisConfig =
+  | { provider: 'anthropic'; apiKey: string; model: string }
+  | { provider: 'deepseek'; apiKey: string; baseUrl: string; model: string }
+  | { provider: 'file'; dir: string };
+
+/**
+ * 单篇帖子的处理器：屏蔽 Anthropic / DeepSeek / 本地导出三种方式的差异，
+ * 由 runAnalysisBatch 统一调度。
+ */
+export interface PostProcessor {
+  /** 启动日志与批次日志展示用的处理器名称，如 `Anthropic (claude-opus-4-8)` */
+  readonly label: string;
+  /**
+   * 处理单篇帖子（分析并落库，或导出为文件）。失败时抛出，由批处理循环计入失败并重试。
+   * @returns saved 是否产出并落库了洞察；本地导出模式恒为 false
+   */
+  process(post: PostRow, comments: CommentRow[]): Promise<{ saved: boolean }>;
 }
 
-function normalizeIntensity(value: unknown): Intensity {
-  const upper = String(value).toUpperCase();
-  return upper === 'HIGH' || upper === 'LOW' ? upper : 'MEDIUM';
-}
+/** 单篇帖子 → 结构化分析结果的函数签名，Anthropic 与 DeepSeek 各自实现 */
+type AnalyzeFn = (post: PostRow, comments: CommentRow[]) => Promise<InsightResult>;
 
-/** 结构化输出已由 schema 约束，这里再做一层兜底归一化 */
-function normalizeInsight(raw: unknown): InsightResult {
-  const data = (raw ?? {}) as Record<string, unknown>;
-  const painPoints = Array.isArray(data.pain_points) ? data.pain_points : [];
-  const opportunities = Array.isArray(data.opportunities) ? data.opportunities : [];
-  const tags = Array.isArray(data.tags) ? data.tags : [];
+/**
+ * 构造「调用模型分析并落库」的处理器（Anthropic / DeepSeek 共用）。
+ * - pain_points 与 opportunities 均为空时视为无信号，不落库，saved 为 false
+ * @param label 处理器展示名
+ * @param model 写入洞察记录的模型 ID
+ * @param analyze 实际的单篇分析函数
+ */
+function createModelProcessor(label: string, model: string, analyze: AnalyzeFn): PostProcessor {
   return {
-    pain_points: painPoints
-      .map((p: Record<string, unknown>) => ({
-        description: String(p?.description ?? '').trim(),
-        evidence: String(p?.evidence ?? '').trim(),
-        intensity: normalizeIntensity(p?.intensity),
-      }))
-      .filter((p) => p.description.length > 0),
-    opportunities: opportunities
-      .map((o: Record<string, unknown>) => ({
-        title: String(o?.title ?? '').trim(),
-        description: String(o?.description ?? '').trim(),
-        target_user: String(o?.target_user ?? '').trim(),
-      }))
-      .filter((o) => o.title.length > 0),
-    tags: tags.map((t) => String(t).trim()).filter((t) => t.length > 0),
+    label,
+    async process(post, comments) {
+      const insight = await analyze(post, comments);
+      if (insight.pain_points.length === 0 && insight.opportunities.length === 0) {
+        return { saved: false };
+      }
+      saveInsight(post, model, insight, nowSec());
+      logger.info(
+        `  ✓ r/${post.subreddit}「${post.title.slice(0, 48)}」→ 痛点 ${insight.pain_points.length} / 机会 ${insight.opportunities.length}`,
+      );
+      return { saved: true };
+    },
   };
 }
 
 /**
- * 对单篇帖子调用 Claude 进行结构化分析，返回痛点与产品机会。
- * - 使用 adaptive thinking 与 JSON schema 约束输出格式
- * - 网络错误由 SDK 内置重试处理；业务异常直接上抛
- * @param client Anthropic SDK 实例
- * @param model 使用的模型 ID
- * @param post 目标帖子行
- * @param comments 该帖子的全部评论
- * @returns 归一化后的分析结果；pain_points / opportunities 可能为空数组
+ * 构造「本地文件导出」处理器（AI_PROVIDER=file，默认方式）。
+ * - 将待分析内容写入 `{dir}/{post.id}.md`，供用户手动喂给 AI
+ * - 不产出洞察，saved 恒为 false；导出后由批处理循环标记为已分析以推进队列
+ * @param dir 导出目录
  */
-export async function analyzePost(
-  client: Anthropic,
-  model: string,
-  post: PostRow,
-  comments: CommentRow[],
-): Promise<InsightResult> {
-  const response = await client.messages.create({
-    model,
-    max_tokens: 16000,
-    thinking: { type: 'adaptive' },
-    system: SYSTEM_PROMPT,
-    messages: [{ role: 'user', content: buildUserPrompt(buildContext(post, comments)) }],
-    output_config: {
-      format: { type: 'json_schema', schema: INSIGHT_SCHEMA as unknown as Record<string, unknown> },
+function createFileExportProcessor(dir: string): PostProcessor {
+  return {
+    label: `本地文件导出 (${dir})`,
+    async process(post, comments) {
+      const file = writeManualAnalysisDoc(dir, post, comments);
+      logger.info(`  ✓ 已导出 r/${post.subreddit}「${post.title.slice(0, 48)}」→ ${file}`);
+      return { saved: false };
     },
-  });
-  const textBlock = response.content.find(
-    (block): block is Anthropic.TextBlock => block.type === 'text',
-  );
-  if (!textBlock) {
-    throw new Error(`模型未返回文本内容 (stop_reason=${response.stop_reason})`);
+  };
+}
+
+/**
+ * 按已解析的分析配置创建对应的处理器。
+ * @param cfg env 推导出的分析方式配置
+ * @returns 对应 provider 的 PostProcessor
+ */
+export function createProcessor(cfg: AnalysisConfig): PostProcessor {
+  switch (cfg.provider) {
+    case 'anthropic': {
+      const client = createAnthropicClient(cfg.apiKey);
+      return createModelProcessor(`Anthropic (${cfg.model})`, cfg.model, (post, comments) =>
+        analyzeWithAnthropic(client, cfg.model, post, comments),
+      );
+    }
+    case 'deepseek':
+      return createModelProcessor(`DeepSeek (${cfg.model})`, cfg.model, (post, comments) =>
+        analyzeWithDeepSeek(cfg, post, comments),
+      );
+    case 'file':
+      return createFileExportProcessor(cfg.dir);
   }
-  return normalizeInsight(JSON.parse(textBlock.text));
 }
 
 /** runAnalysisBatch() 的批次执行统计 */
 export interface AnalysisStats {
-  /** 本批次成功完成分析的帖子数（含无洞察产出的帖子） */
+  /** 本批次成功处理的帖子数（含无洞察产出 / 仅导出的帖子） */
   analyzed: number;
-  /** 产出并写入洞察记录的帖子数 */
+  /** 产出并写入洞察记录的帖子数（本地导出模式恒为 0） */
   saved: number;
-  /** 分析过程中抛出异常的帖子数 */
+  /** 处理过程中抛出异常的帖子数 */
   failed: number;
 }
 
 /**
- * 取一批待分析帖子逐条送入 Claude，将有效洞察落库。
- * - 分析失败时递增 analyze_attempts，不影响后续帖子的处理
- * - pain_points 与 opportunities 均为空时不写入洞察（视为无信号），但仍标记为已分析
- * @param client Anthropic SDK 实例
- * @param model 使用的模型 ID
- * @param batchSize 本批次最多分析的帖子数
+ * 取一批待分析帖子逐条交给处理器，处理失败不影响后续帖子。
+ * - 失败时递增 analyze_attempts（达 3 次后不再重试），成功后标记为已分析
+ * - 具体「分析并落库」还是「导出文件」由传入的 processor 决定
+ * @param processor 单篇处理器（Anthropic / DeepSeek / 本地导出）
+ * @param batchSize 本批次最多处理的帖子数
  * @returns 本批次的执行统计
  */
 export async function runAnalysisBatch(
-  client: Anthropic,
-  model: string,
+  processor: PostProcessor,
   batchSize: number,
 ): Promise<AnalysisStats> {
   const posts = getPostsToAnalyze(batchSize);
   const stats: AnalysisStats = { analyzed: 0, saved: 0, failed: 0 };
   if (posts.length === 0) return stats;
 
-  logger.info(`本轮待分析帖子 ${posts.length} 篇（模型: ${model}）`);
+  logger.info(`本轮待处理帖子 ${posts.length} 篇（${processor.label}）`);
   for (const post of posts) {
     const comments = getCommentsForPost(post.id);
     try {
-      const insight = await analyzePost(client, model, post, comments);
-      const now = nowSec();
-      if (insight.pain_points.length > 0 || insight.opportunities.length > 0) {
-        saveInsight(post, model, insight, now);
-        stats.saved++;
-        logger.info(
-          `  ✓ r/${post.subreddit}「${post.title.slice(0, 48)}」→ 痛点 ${insight.pain_points.length} / 机会 ${insight.opportunities.length}`,
-        );
-      }
-      markAnalyzed(post.id, now);
+      const { saved } = await processor.process(post, comments);
+      if (saved) stats.saved++;
+      markAnalyzed(post.id, nowSec());
       stats.analyzed++;
     } catch (err) {
       stats.failed++;
       bumpAnalyzeAttempts(post.id);
-      logger.error(`  ✗ 分析失败 ${post.id}: ${err instanceof Error ? err.message : String(err)}`);
+      logger.error(`  ✗ 处理失败 ${post.id}: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
   return stats;

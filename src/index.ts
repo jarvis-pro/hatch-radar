@@ -1,4 +1,4 @@
-import { createAnthropicClient } from './analyzer/analyze';
+import { createProcessor } from './analyzer/analyze';
 import { HN_SECTIONS, RSS_FEEDS } from './config/feeds';
 import { loadEnv } from './config/env';
 import { SUBREDDITS } from './config/subreddits';
@@ -17,7 +17,7 @@ async function main(): Promise<void> {
   const queue = new TokenBucketQueue();
   const reddit = env.reddit ? new RedditClient(queue, env.reddit) : undefined;
   const hackernews = new HackerNewsClient();
-  const anthropic = createAnthropicClient(env.anthropicApiKey);
+  const processor = createProcessor(env.analysis);
 
   const stats = getStats();
   logger.info(`hatch-radar 启动`);
@@ -30,7 +30,7 @@ async function main(): Promise<void> {
   for (const src of sources) {
     logger.info(`  · ${src}`);
   }
-  logger.info(`分析模型: ${env.anthropicModel} | 每轮分析上限: ${env.analyzeBatchSize}`);
+  logger.info(`分析方式: ${processor.label} | 每轮分析上限: ${env.analyzeBatchSize}`);
   logger.info(
     `当前数据: 帖子 ${stats.posts} / 评论 ${stats.comments} / 待分析 ${stats.pendingAnalysis} / 洞察 ${stats.insights}`,
   );
@@ -38,8 +38,7 @@ async function main(): Promise<void> {
   const jobs = startScheduler({
     reddit,
     hackernews,
-    anthropic,
-    model: env.anthropicModel,
+    processor,
     analyzeBatchSize: env.analyzeBatchSize,
     subreddits: reddit ? SUBREDDITS : [],
   });

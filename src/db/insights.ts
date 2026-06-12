@@ -30,7 +30,7 @@ export interface Insight {
   postTitle: string;
   /** 帖子链接；Reddit 为相对路径，HN/RSS 为完整 URL */
   permalink: string | null;
-  /** 用于生成该洞察的 Claude 模型 ID */
+  /** 用于生成该洞察的模型 ID */
   model: string;
   /** 本篇洞察中最高强度的痛点等级，用作索引强度 */
   intensity: Intensity;
@@ -58,7 +58,7 @@ export interface InsightFilter {
  * - intensity 取所有 pain_points 中最高强度，作为整条洞察的索引强度
  * - 同一 post_id 重复写入时覆盖（INSERT OR REPLACE）
  * @param post 来源帖子行（提供 id / source / subreddit / title / permalink）
- * @param model 用于分析的 Claude 模型 ID
+ * @param model 用于分析的模型 ID
  * @param insight AI 返回的结构化结果
  * @param createdAt 写入 Unix 时间戳（秒）
  */

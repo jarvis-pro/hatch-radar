@@ -18,7 +18,7 @@ function truncate(text: string, max: number): string {
  * - Reddit 频道显示为 `r/{name}`，其他来源直接显示频道标识符
  * @param post 目标帖子行
  * @param comments 该帖子的全部评论（所有深度）
- * @returns 多行文本，可直接作为用户消息发送给 Claude
+ * @returns 多行文本，可直接作为用户消息发送给模型
  */
 export function buildContext(post: PostRow, comments: CommentRow[]): string {
   const channel = post.source === 'reddit' ? `r/${post.subreddit}` : post.subreddit;

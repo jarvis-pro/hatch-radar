@@ -54,7 +54,7 @@ CREATE TABLE IF NOT EXISTS insights (
   subreddit     TEXT NOT NULL,
   post_title    TEXT NOT NULL,
   permalink     TEXT,
-  model         TEXT NOT NULL,                    -- 分析所用 Claude 模型 ID
+  model         TEXT NOT NULL,                    -- 分析所用模型 ID
   intensity     TEXT NOT NULL CHECK (intensity IN ('HIGH', 'MEDIUM', 'LOW')),
   pain_points   TEXT NOT NULL,                    -- JSON 数组，结构见 PainPoint 接口
   opportunities TEXT NOT NULL,                    -- JSON 数组，结构见 Opportunity 接口

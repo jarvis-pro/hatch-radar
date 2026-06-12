@@ -1,6 +1,6 @@
-import type Anthropic from '@anthropic-ai/sdk';
 import cron from 'node-cron';
 import { runAnalysisBatch } from './analyzer/analyze';
+import type { PostProcessor } from './analyzer/analyze';
 import { HN_SECTIONS, RSS_FEEDS } from './config/feeds';
 import type { HackerNewsClient } from './crawler/hackernews';
 import type { RedditComment } from './crawler/reddit';
@@ -20,9 +20,8 @@ export interface SchedulerDeps {
   reddit?: RedditClient;
   /** HackerNews 客户端；未提供时跳过 HN 抓取与评论回捞 */
   hackernews?: HackerNewsClient;
-  anthropic: Anthropic;
-  /** 使用的 Claude 模型 ID */
-  model: string;
+  /** 单篇帖子处理器：Anthropic / DeepSeek 分析或本地文件导出 */
+  processor: PostProcessor;
   /** 每轮 AI 分析的帖子批次上限 */
   analyzeBatchSize: number;
   /** 要监控的 Reddit 版块名称列表；reddit 为 undefined 时忽略 */
@@ -128,9 +127,9 @@ export function createJobs(deps: SchedulerDeps): Jobs {
   });
 
   const analyze = guard('AI 分析', async () => {
-    const stats = await runAnalysisBatch(deps.anthropic, deps.model, deps.analyzeBatchSize);
+    const stats = await runAnalysisBatch(deps.processor, deps.analyzeBatchSize);
     logger.info(
-      `[AI 分析] 分析 ${stats.analyzed} 篇，产出洞察 ${stats.saved} 条，失败 ${stats.failed} 篇`,
+      `[AI 分析] 处理 ${stats.analyzed} 篇，产出洞察 ${stats.saved} 条，失败 ${stats.failed} 篇`,
     );
   });
 
