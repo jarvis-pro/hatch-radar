@@ -1,5 +1,9 @@
+# 依赖与构建产物
 dist/
 node_modules/
 *.lock
+
+# Expo 生成的原生工程与缓存（CNG 产物，勿格式化）
 apps/mobile/ios/
 apps/mobile/android/
+apps/mobile/.expo/

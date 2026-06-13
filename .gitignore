@@ -1,7 +1,12 @@
+# 依赖与构建产物
 node_modules/
 dist/
+
+# 运行时生成
 data/
 logs/
+
+# 环境变量与系统文件
 .env
 .DS_Store
 
