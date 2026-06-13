@@ -21,15 +21,22 @@ const envSchema = z
 
     // ── AI 分析方式 ───────────────────────────────────────────────────
     // 默认 file（导出本地文件，无需任何 key）。要用模型须显式设
-    // AI_PROVIDER=anthropic / deepseek 并填写对应 API Key（缺 key 校验阶段报错）。
+    // AI_PROVIDER=anthropic / openai / deepseek 并填写对应 API Key（缺 key 校验阶段报错）。
 
-    /** 分析方式，默认 file（导出本地文件）；用模型须显式设为 anthropic / deepseek */
-    AI_PROVIDER: z.enum(['anthropic', 'deepseek', 'file']).default('file'),
+    /** 分析方式，默认 file（导出本地文件）；用模型须显式设为 anthropic / openai / deepseek */
+    AI_PROVIDER: z.enum(['anthropic', 'openai', 'deepseek', 'file']).default('file'),
 
     /** Anthropic API 密钥，可选；填写后可启用 Anthropic 分析 */
     ANTHROPIC_API_KEY: z.string().trim().min(1).optional(),
     /** 使用的 Anthropic 模型 ID，默认 claude-opus-4-8 */
     ANTHROPIC_MODEL: z.string().trim().default('claude-opus-4-8'),
+
+    /** OpenAI API 密钥，可选；填写后可启用 OpenAI（ChatGPT）分析 */
+    OPENAI_API_KEY: z.string().trim().min(1).optional(),
+    /** 使用的 OpenAI 模型 ID，默认 gpt-4o（支持 json_schema strict 结构化输出） */
+    OPENAI_MODEL: z.string().trim().default('gpt-4o'),
+    /** OpenAI API 基地址，默认 https://api.openai.com/v1 */
+    OPENAI_BASE_URL: z.string().trim().default('https://api.openai.com/v1'),
 
     /** DeepSeek API 密钥，可选；填写后可启用 DeepSeek 分析 */
     DEEPSEEK_API_KEY: z.string().trim().min(1).optional(),
@@ -43,6 +50,9 @@ const envSchema = z
 
     /** 每轮 AI 分析的帖子批次上限，默认 20，最小 1 */
     ANALYZE_BATCH_SIZE: z.coerce.number().int().min(1).default(20),
+
+    /** 模型密钥加密入库的主密钥；在设置页配置模型须先设置它（建议 openssl rand -hex 32） */
+    SETTINGS_SECRET: z.string().trim().min(1).optional(),
 
     // ── 存储 ─────────────────────────────────────────────────────────
 
@@ -77,6 +87,13 @@ const envSchema = z
         path: ['ANTHROPIC_API_KEY'],
       });
     }
+    if (data.AI_PROVIDER === 'openai' && !data.OPENAI_API_KEY) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'AI_PROVIDER=openai 时必填',
+        path: ['OPENAI_API_KEY'],
+      });
+    }
     if (data.AI_PROVIDER === 'deepseek' && !data.DEEPSEEK_API_KEY) {
       ctx.addIssue({
         code: 'custom',
@@ -104,9 +121,12 @@ const envSchema = z
 
 /** resolveAnalysis 关心的字段子集（transform 的 env 结构化兼容此形状） */
 interface AnalysisEnv {
-  AI_PROVIDER: 'anthropic' | 'deepseek' | 'file';
+  AI_PROVIDER: 'anthropic' | 'openai' | 'deepseek' | 'file';
   ANTHROPIC_API_KEY?: string;
   ANTHROPIC_MODEL: string;
+  OPENAI_API_KEY?: string;
+  OPENAI_MODEL: string;
+  OPENAI_BASE_URL: string;
   DEEPSEEK_API_KEY?: string;
   DEEPSEEK_MODEL: string;
   DEEPSEEK_BASE_URL: string;
@@ -115,13 +135,20 @@ interface AnalysisEnv {
 
 /**
  * 根据 AI_PROVIDER 推导最终的分析方式（缺对应 API Key 已在 superRefine 拦截）。
- * - anthropic / deepseek：调用对应模型
+ * - anthropic / openai / deepseek：调用对应模型
  * - file（默认）：导出本地文件，供手动喂给 AI
  */
 function resolveAnalysis(env: AnalysisEnv): AnalysisConfig {
   switch (env.AI_PROVIDER) {
     case 'anthropic':
       return { provider: 'anthropic', apiKey: env.ANTHROPIC_API_KEY!, model: env.ANTHROPIC_MODEL };
+    case 'openai':
+      return {
+        provider: 'openai',
+        apiKey: env.OPENAI_API_KEY!,
+        baseUrl: env.OPENAI_BASE_URL,
+        model: env.OPENAI_MODEL,
+      };
     case 'deepseek':
       return {
         provider: 'deepseek',

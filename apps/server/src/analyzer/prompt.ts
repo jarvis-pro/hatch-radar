@@ -19,7 +19,7 @@ export function buildUserPrompt(context: string): string {
 /**
  * InsightResult 的 JSON 示例骨架（人类与模型均可读）。
  * - DeepSeek JSON 模式的格式约束、以及本地文件导出的「输出格式」段落共用此常量
- * - 字段含义与 {@link InsightResult} / {@link INSIGHT_SCHEMA} 保持一致
+ * - 字段含义与 {@link InsightResult} 保持一致（结构化 schema 见 insight-schema.ts）
  */
 export const INSIGHT_JSON_EXAMPLE = `{
   "pain_points": [
@@ -69,46 +69,3 @@ export function normalizeInsight(raw: unknown): InsightResult {
     tags: tags.map((t) => String(t).trim()).filter((t) => t.length > 0),
   };
 }
-
-/**
- * 传给 Anthropic API `output_config.format` 的 JSON Schema。
- * - 与 README 洞察输出格式及 InsightResult 类型定义保持一致
- * - 修改此 schema 时需同步更新 @hatch-radar/shared 中的 InsightResult 接口
- */
-export const INSIGHT_SCHEMA = {
-  type: 'object',
-  properties: {
-    pain_points: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          description: { type: 'string' },
-          evidence: { type: 'string' },
-          intensity: { type: 'string', enum: ['HIGH', 'MEDIUM', 'LOW'] },
-        },
-        required: ['description', 'evidence', 'intensity'],
-        additionalProperties: false,
-      },
-    },
-    opportunities: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          title: { type: 'string' },
-          description: { type: 'string' },
-          target_user: { type: 'string' },
-        },
-        required: ['title', 'description', 'target_user'],
-        additionalProperties: false,
-      },
-    },
-    tags: {
-      type: 'array',
-      items: { type: 'string' },
-    },
-  },
-  required: ['pain_points', 'opportunities', 'tags'],
-  additionalProperties: false,
-} as const;

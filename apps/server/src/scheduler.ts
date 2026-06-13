@@ -1,6 +1,5 @@
 import cron from 'node-cron';
-import { runAnalysisBatch } from './analyzer/analyze';
-import type { PostProcessor } from './analyzer/analyze';
+import { enqueueAutoAnalysisRound } from './analysis-config';
 import { HN_SECTIONS, RSS_FEEDS } from './config/feeds';
 import type { HackerNewsClient } from './crawler/hackernews';
 import type { RedditComment } from './crawler/reddit';
@@ -22,14 +21,10 @@ export interface SchedulerDeps {
   reddit?: RedditClient;
   /** HackerNews 客户端；未提供时跳过 HN 抓取与评论回捞 */
   hackernews?: HackerNewsClient;
-  /** 单篇帖子处理器：Anthropic / DeepSeek 分析或本地文件导出 */
-  processor: PostProcessor;
-  /** 每轮 AI 分析的帖子批次上限 */
+  /** 每轮自动分析入队的帖子批次上限 */
   analyzeBatchSize: number;
   /** 要监控的 Reddit 版块名称列表；reddit 为 undefined 时忽略 */
   subreddits: string[];
-  /** 是否自动跑 AI 分析；file 模式为 false（洞察改由 web 工作台按需导出 + 人工回灌） */
-  autoAnalyze: boolean;
 }
 
 /** createJobs() 返回的四个调度任务句柄 */
@@ -38,7 +33,7 @@ export interface Jobs {
   scan: () => Promise<void>;
   /** 抓取/刷新需要评论的帖子（从未抓过优先 + 有界 refresh；RSS 与冻结帖除外） */
   comments: () => Promise<void>;
-  /** 批量 AI 分析待处理帖子并落库洞察 */
+  /** 把待分析帖子入队（auto），交由 worker 池消费落库 */
   analyze: () => Promise<void>;
   /** 清理 30 天前的原始帖子与评论数据 */
   archive: () => Promise<void>;
@@ -145,7 +140,9 @@ export function createJobs(deps: SchedulerDeps): Jobs {
       try {
         const posts = await fetchFeed(feed, 20);
         const { added, updated } = upsertPosts(posts, 'rss', nowSec(), 2);
-        logger.info(`[扫描] RSS/${feed.name}: 抓取 ${posts.length}，新增 ${added}，更新 ${updated}`);
+        logger.info(
+          `[扫描] RSS/${feed.name}: 抓取 ${posts.length}，新增 ${added}，更新 ${updated}`,
+        );
       } catch (err) {
         logger.warn(
           `[扫描] RSS/${feed.name} 失败: ${err instanceof Error ? err.message : String(err)}`,
@@ -169,7 +166,11 @@ export function createJobs(deps: SchedulerDeps): Jobs {
     logger.info(`[评论补全] ${due.length} 篇待抓/刷新评论`);
     for (const post of due) {
       try {
-        await fetchAndStoreComments({ id: post.id, source: post.source, subreddit: post.subreddit });
+        await fetchAndStoreComments({
+          id: post.id,
+          source: post.source,
+          subreddit: post.subreddit,
+        });
       } catch (err) {
         logger.error(
           `[评论补全] ${post.id} 失败: ${err instanceof Error ? err.message : String(err)}`,
@@ -178,10 +179,14 @@ export function createJobs(deps: SchedulerDeps): Jobs {
     }
   });
 
-  const analyze = guard('AI 分析', async () => {
-    const stats = await runAnalysisBatch(deps.processor, deps.analyzeBatchSize);
+  const analyze = guard('AI 分析入队', async () => {
+    const { active, enqueued, pending } = enqueueAutoAnalysisRound(deps.analyzeBatchSize);
+    if (!active) {
+      logger.info('[AI 分析] 未配置 active 模型，跳过自动入队（可在设置页配置）');
+      return;
+    }
     logger.info(
-      `[AI 分析] 处理 ${stats.analyzed} 篇，产出洞察 ${stats.saved} 条，失败 ${stats.failed} 篇`,
+      `[AI 分析] 入队 ${enqueued} 篇（${pending} 待分析，模型 ${active.label}），交由 worker 处理`,
     );
   });
 
@@ -200,7 +205,7 @@ export function createJobs(deps: SchedulerDeps): Jobs {
  * 创建调度任务并注册 cron 计划，立即返回任务句柄供启动时调用。
  * - 扫描（Reddit hot/new + HN + RSS）：每 30 分钟；新帖触发后台即时评论抓取
  * - 评论补全（Reddit + HN，RSS 跳过）：每 30 分钟，抓未抓过的 + 有界 refresh
- * - AI 批量分析：每小时（仅 autoAnalyze=true，即 anthropic/deepseek；file 模式不自动跑）
+ * - AI 分析入队：每小时；仅当已选用 active 模型时入队，否则跳过（无 active = 不自动分析）
  * - 历史归档：每天凌晨 3:30
  * @param deps 运行时依赖
  * @returns 注册成功的任务句柄（可在启动时手动执行初始轮次）
@@ -209,8 +214,8 @@ export function startScheduler(deps: SchedulerDeps): Jobs {
   const jobs = createJobs(deps);
   cron.schedule('0,30 * * * *', jobs.scan);
   cron.schedule('10,40 * * * *', jobs.comments);
-  // file 模式不自动分析：洞察改由 web 工作台按需导出 + 人工回灌；仅 anthropic/deepseek 自动跑
-  if (deps.autoAnalyze) cron.schedule('20 * * * *', jobs.analyze);
+  // 总是注册；analyze 任务内部按是否已选用 active 模型决定入队或跳过
+  cron.schedule('20 * * * *', jobs.analyze);
   cron.schedule('30 3 * * *', jobs.archive);
   return jobs;
 }

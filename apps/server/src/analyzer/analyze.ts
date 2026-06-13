@@ -5,18 +5,18 @@ import { saveInsight } from '../db/insights';
 import { nowSec } from '../db/utils';
 import { logger } from '../logger';
 import { analyzeWithAnthropic, createAnthropicClient } from './anthropic';
-import { analyzeWithDeepSeek } from './deepseek';
+import { analyzeWithOpenAICompatible, type OpenAICompatibleConfig } from './openai-compatible';
 import { writeManualAnalysisDoc } from './export';
 
 /**
  * 已解析的分析方式配置，由 env 根据 AI_PROVIDER 推导（缺对应 key 会在校验阶段报错）。
  * - `anthropic`：调用 Anthropic（Claude 系列模型）
- * - `deepseek`：调用 DeepSeek（OpenAI 兼容接口）
+ * - `openai` / `deepseek`：调用 OpenAI 兼容接口（openai 用 json_schema strict，deepseek 用 json_object）
  * - `file`（默认）：将待分析内容导出为本地文件，供手动喂给 AI
  */
 export type AnalysisConfig =
   | { provider: 'anthropic'; apiKey: string; model: string }
-  | { provider: 'deepseek'; apiKey: string; baseUrl: string; model: string }
+  | OpenAICompatibleConfig
   | { provider: 'file'; dir: string };
 
 /**
@@ -90,10 +90,13 @@ export function createProcessor(cfg: AnalysisConfig): PostProcessor {
         analyzeWithAnthropic(client, cfg.model, post, comments),
       );
     }
-    case 'deepseek':
-      return createModelProcessor(`DeepSeek (${cfg.model})`, cfg.model, (post, comments) =>
-        analyzeWithDeepSeek(cfg, post, comments),
+    case 'openai':
+    case 'deepseek': {
+      const label = cfg.provider === 'openai' ? 'OpenAI' : 'DeepSeek';
+      return createModelProcessor(`${label} (${cfg.model})`, cfg.model, (post, comments) =>
+        analyzeWithOpenAICompatible(cfg, post, comments),
       );
+    }
     case 'file':
       return createFileExportProcessor(cfg.dir);
   }

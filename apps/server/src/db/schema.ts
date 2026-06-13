@@ -20,8 +20,58 @@ CREATE TABLE IF NOT EXISTS sync_ops (
   applied_at INTEGER NOT NULL             -- 服务端应用时间，Unix 秒
 );`;
 
+/**
+ * 服务端专属表（analyzer 重构 M1）：模型清单 + 全局配置 + 持久化分析任务队列。
+ * - `model_providers`：可配多家、多条模型（密钥加密入库，见 settings 加解密层）
+ * - `app_settings`：键值配置，如 active_provider_id / worker_concurrency / job_timeout_ms
+ * - `analysis_jobs`：分析任务队列；auto（定时）与 manual（管理员手动）入队，Worker 池消费
+ *
+ * 三表均为服务端独有：web 配置读写一律经 server HTTP API（不直读密钥），移动端不涉及。
+ */
+const ANALYZER_DDL = `-- 模型清单：可配多家、多条，选其一为 active 供自动分析使用
+CREATE TABLE IF NOT EXISTS model_providers (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  provider   TEXT NOT NULL,                       -- 'anthropic' | 'openai' | 'deepseek'
+  label      TEXT NOT NULL,                       -- 用户起名，如 "GPT-4o 生产"
+  api_key    TEXT NOT NULL,                       -- 加密入库（AES-256-GCM），API 层脱敏
+  base_url   TEXT,                                -- openai/deepseek 可自定义网关，可空
+  model      TEXT NOT NULL,                       -- 模型 ID，如 gpt-4o / claude-opus-4-8
+  enabled    INTEGER NOT NULL DEFAULT 1,          -- 是否可被选用
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
+-- 全局键值配置（active_provider_id / worker_concurrency / job_timeout_ms…）
+CREATE TABLE IF NOT EXISTS app_settings (
+  key   TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+
+-- 持久化分析任务队列：进程重启可续跑，支持取消与僵死回收
+CREATE TABLE IF NOT EXISTS analysis_jobs (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  post_id      TEXT NOT NULL,
+  provider_id  INTEGER,                            -- 用哪条 model_providers（软引用）
+  model        TEXT NOT NULL,                      -- 快照，落库到 insights.model
+  trigger      TEXT NOT NULL,                      -- 'auto' | 'manual'
+  status       TEXT NOT NULL,                      -- 'queued'|'running'|'succeeded'|'failed'|'canceled'
+  attempts     INTEGER NOT NULL DEFAULT 0,
+  max_attempts INTEGER NOT NULL DEFAULT 3,
+  error        TEXT,
+  enqueued_at  INTEGER NOT NULL,
+  started_at   INTEGER,
+  finished_at  INTEGER,
+  heartbeat_at INTEGER                             -- running 心跳；超阈值视为僵死，回收重排
+);
+
+-- Worker 认领下一条任务（按入队顺序取最老的 queued）
+CREATE INDEX IF NOT EXISTS idx_jobs_status ON analysis_jobs (status, enqueued_at);
+-- 按帖子查任务（避免重复入队 / 展示帖子分析状态）
+CREATE INDEX IF NOT EXISTS idx_jobs_post   ON analysis_jobs (post_id);
+`;
+
 /** 当前 schema 版本（写入 PRAGMA user_version，为后续迁移留锚点） */
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 /**
  * 对已存在的库补充新增列（`CREATE TABLE IF NOT EXISTS` 不会给旧表加列）。
@@ -60,6 +110,7 @@ export function getDb(): Database.Database {
   db.exec(DDL);
   db.exec(TRIAGE_DDL);
   db.exec(SYNC_OPS_DDL);
+  db.exec(ANALYZER_DDL);
   migrate(db);
   return db;
 }

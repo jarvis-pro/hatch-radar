@@ -1,4 +1,8 @@
-import { createProcessor } from './analyzer/analyze';
+import {
+  getActiveProvider,
+  getProcessorForProvider,
+  seedProvidersFromEnvIfEmpty,
+} from './analysis-config';
 import { HN_SECTIONS, RSS_FEEDS } from './config/feeds';
 import { loadEnv } from './config/env';
 import { SUBREDDITS } from './config/subreddits';
@@ -10,6 +14,7 @@ import { closeDb, getDb } from './db/schema';
 import { logger } from './logger';
 import { startScheduler } from './scheduler';
 import { startHttpServer } from './server/http';
+import { startWorkerPool, type WorkerPool } from './worker';
 
 async function main(): Promise<void> {
   const env = loadEnv();
@@ -18,7 +23,9 @@ async function main(): Promise<void> {
   const queue = new TokenBucketQueue();
   const reddit = env.reddit ? new RedditClient(queue, env.reddit) : undefined;
   const hackernews = new HackerNewsClient();
-  const processor = createProcessor(env.analysis);
+
+  // 一次性迁移：库中尚无模型配置但 env 指定了模型时，把 env 密钥加密入库并设为 active
+  seedProvidersFromEnvIfEmpty(env.analysis);
 
   const stats = getStats();
   logger.info(`hatch-radar 启动`);
@@ -31,37 +38,45 @@ async function main(): Promise<void> {
   for (const src of sources) {
     logger.info(`  · ${src}`);
   }
-  logger.info(`分析方式: ${processor.label} | 每轮分析上限: ${env.analyzeBatchSize}`);
+  const active = getActiveProvider();
+  logger.info(
+    `分析模型: ${active ? active.label : '未配置（在设置页选用后即自动分析）'} | 每轮分析上限: ${env.analyzeBatchSize}`,
+  );
   logger.info(
     `当前数据: 帖子 ${stats.posts} / 评论 ${stats.comments} / 待分析 ${stats.pendingAnalysis} / 洞察 ${stats.insights}`,
   );
 
-  const autoAnalyze = env.analysis.provider !== 'file';
   const jobs = startScheduler({
     reddit,
     hackernews,
-    processor,
     analyzeBatchSize: env.analyzeBatchSize,
     subreddits: reddit ? SUBREDDITS : [],
-    autoAnalyze,
+  });
+
+  // worker 池常驻：按 job.provider_id 从库解析处理器，消费自动/手动入队的分析任务。
+  // 队列空时空转；在设置页配置并选用模型后，新任务即被消费（保存即生效，无需重启）。
+  const worker: WorkerPool = startWorkerPool({
+    resolveProcessor: (job) =>
+      job.provider_id != null ? getProcessorForProvider(job.provider_id) : null,
   });
 
   // 局域网导出服务：供移动端拉取批次（只下行数据，密钥不经过此服务）
   const httpServer = startHttpServer(env.http);
 
-  const shutdown = (signal: string) => {
+  const shutdown = async (signal: string) => {
     logger.info(`收到 ${signal}，正在退出…`);
+    await worker.stop();
     httpServer.close();
     closeDb();
     process.exit(0);
   };
-  process.on('SIGINT', () => shutdown('SIGINT'));
-  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => void shutdown('SIGINT'));
+  process.on('SIGTERM', () => void shutdown('SIGTERM'));
 
-  logger.info(`启动初始化轮次：扫描 → 评论补全${autoAnalyze ? ' → AI 分析' : ''}`);
+  logger.info('启动初始化轮次：扫描 → 评论补全 → AI 分析入队');
   await jobs.scan();
   await jobs.comments();
-  if (autoAnalyze) await jobs.analyze();
+  await jobs.analyze();
   logger.info('初始化轮次完成，进入定时调度（查看洞察: pnpm insights）');
 }
 

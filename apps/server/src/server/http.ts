@@ -10,6 +10,8 @@ import { getPostById, lockExportForPosts } from '../db/posts';
 import { getStats, nowSec } from '../db/utils';
 import { collectExportBatch, defaultExportName, writeBatchSqlite } from '../export/batch';
 import { applySyncPush, pushEnvelopeSchema } from '../sync/apply';
+import { handleAnalysisRoute } from './analysis-routes';
+import { handleSettingsRoute } from './settings-routes';
 import { logger } from '../logger';
 
 /** HTTP 服务配置（env 推导） */
@@ -230,6 +232,28 @@ async function handleRequest(
     return;
   }
 
+  // 设置：模型清单 CRUD / 选用 active（密钥不下发，仅脱敏；写操作即时热重载）
+  if (url.pathname.startsWith('/api/settings')) {
+    if (!authorized(req, cfg.token)) {
+      sendJson(res, 401, { error: 'unauthorized：请携带 Authorization: Bearer <API_TOKEN>' });
+      return;
+    }
+    const handled = await handleSettingsRoute(req, res, url);
+    if (!handled) sendJson(res, 404, { error: 'not found' });
+    return;
+  }
+
+  // 分析：手动运行入队 + 队列看板
+  if (url.pathname.startsWith('/api/analysis')) {
+    if (!authorized(req, cfg.token)) {
+      sendJson(res, 401, { error: 'unauthorized：请携带 Authorization: Bearer <API_TOKEN>' });
+      return;
+    }
+    const handled = await handleAnalysisRoute(req, res, url);
+    if (!handled) sendJson(res, 404, { error: 'not found' });
+    return;
+  }
+
   if (url.pathname === '/api/export/batch' || url.pathname === '/api/export/batch.sqlite') {
     if (req.method !== 'GET') {
       sendJson(res, 405, { error: 'method not allowed' });
@@ -330,9 +354,10 @@ function lanAddresses(): string[] {
  * - POST /api/insights/import       回灌手动 AI 分析结果（file 模式闭环收料）
  * - POST /api/export/lock           标记选中帖子为已导出冻结（暂停评论 refresh）
  * - GET  /api/posts/<id>/doc        单篇帖子的待分析 Markdown 文档
+ * - *    /api/settings/*            模型清单 CRUD + 选用 active（密钥加密入库，仅脱敏外发）
  *
- * 数据下行（导出批次 / 待分析文档）+ 研判操作上行（同步）+ 洞察回灌；
- * AI 密钥不经过此服务。
+ * 数据下行（导出批次 / 待分析文档）+ 研判操作上行（同步）+ 洞察回灌 + 模型配置；
+ * AI 密钥加密存于库，API 仅返回脱敏视图，绝不下发明文。
  */
 export function startHttpServer(cfg: HttpConfig): Server {
   const server = createServer((req, res) => {

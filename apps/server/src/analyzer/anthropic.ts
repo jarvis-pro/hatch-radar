@@ -1,16 +1,21 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { CommentRow, InsightResult, PostRow } from '@hatch-radar/shared';
 import { buildContext } from '../crawler/context';
-import { INSIGHT_SCHEMA, SYSTEM_PROMPT, buildUserPrompt, normalizeInsight } from './prompt';
+import { INSIGHT_JSON_SCHEMA } from './insight-schema';
+import { SYSTEM_PROMPT, buildUserPrompt, normalizeInsight } from './prompt';
+
+/** 单次请求超时（毫秒）：避免某次调用挂死后拖住整个分析队列 */
+const REQUEST_TIMEOUT_MS = 120_000;
 
 /**
  * 创建 Anthropic SDK 客户端实例。
  * - 内置 429 / 5xx 指数退避重试，最多 3 次
+ * - 单次请求超时 {@link REQUEST_TIMEOUT_MS}，超时即中止（不让慢调用永久挂起）
  * @param apiKey Anthropic API 密钥
- * @returns 配置好重试策略的客户端实例
+ * @returns 配置好重试与超时策略的客户端实例
  */
 export function createAnthropicClient(apiKey: string): Anthropic {
-  return new Anthropic({ apiKey, maxRetries: 3 });
+  return new Anthropic({ apiKey, maxRetries: 3, timeout: REQUEST_TIMEOUT_MS });
 }
 
 /**
@@ -36,7 +41,7 @@ export async function analyzeWithAnthropic(
     system: SYSTEM_PROMPT,
     messages: [{ role: 'user', content: buildUserPrompt(buildContext(post, comments)) }],
     output_config: {
-      format: { type: 'json_schema', schema: INSIGHT_SCHEMA as unknown as Record<string, unknown> },
+      format: { type: 'json_schema', schema: INSIGHT_JSON_SCHEMA },
     },
   });
   const textBlock = response.content.find(
@@ -46,4 +51,19 @@ export async function analyzeWithAnthropic(
     throw new Error(`模型未返回文本内容 (stop_reason=${response.stop_reason})`);
   }
   return normalizeInsight(JSON.parse(textBlock.text));
+}
+
+/**
+ * 连通性测试：发一次极小请求验证密钥/模型可用。
+ * - 不重试、短超时，便于设置页快速反馈；失败（如 401）直接抛出
+ * @param apiKey Anthropic API 密钥
+ * @param model 模型 ID
+ */
+export async function testAnthropic(apiKey: string, model: string): Promise<void> {
+  const client = new Anthropic({ apiKey, maxRetries: 0, timeout: 15_000 });
+  await client.messages.create({
+    model,
+    max_tokens: 1,
+    messages: [{ role: 'user', content: 'ping' }],
+  });
 }
