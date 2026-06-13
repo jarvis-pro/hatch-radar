@@ -1,5 +1,4 @@
 import 'server-only';
-import { sql } from 'drizzle-orm';
 import { createDb, type AppDatabase, type DbHandle } from '@hatch-radar/db';
 import { webEnv } from './env';
 
@@ -23,21 +22,21 @@ const globalForDb = globalThis as unknown as { __radarDb?: DbHandle };
 
 function handle(): DbHandle {
   if (!globalForDb.__radarDb) {
-    // 只读连接：连接级 default_transaction_read_only=on——控制台绝不写库，
-    // 写入（爬取 / 分析 / 同步应用）统一由 server 进程执行（纵深防御）。
-    globalForDb.__radarDb = createDb(databaseUrl(), { readonly: true });
+    // web 直连 PG 读写：简单 CRUD 直接落库、不绕 server；
+    // 仅触发后台任务（爬取 / 分析队列等）才转交 server 进程执行。
+    globalForDb.__radarDb = createDb(databaseUrl());
   }
   return globalForDb.__radarDb;
 }
 
 /**
- * 取只读 PG 连接；连接不可用（PG 未启动 / DATABASE_URL 错误 / 未迁移）时返回 null，
+ * 取 PG 连接；连接不可用（PG 未启动 / DATABASE_URL 错误 / 未迁移）时返回 null，
  * 页面据此渲染 DbSetupNotice。
  */
 export async function tryGetDb(): Promise<AppDatabase | null> {
   try {
     const { db } = handle();
-    await db.execute(sql`select 1`);
+    await db.$queryRaw`select 1`;
     return db;
   } catch {
     return null;
