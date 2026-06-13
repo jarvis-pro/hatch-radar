@@ -1,0 +1,240 @@
+// Prisma 7 客户端生成器：输出到 src/generated/prisma，ESM + Node 运行时。
+// 生成的是 prisma-client（新生成器），导入需带 .ts 扩展名。
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  importFileExtension = "ts"
+  moduleFormat        = "esm"
+  runtime             = "nodejs"
+}
+
+// 数据源固定为 PostgreSQL。连接 url 不在此声明，
+// 改由 prisma.config.ts + @prisma/adapter-pg(driver adapter) 在运行时注入。
+datasource db {
+  provider = "postgresql"
+}
+
+/// 分析任务队列：把帖子的 AI 分析步骤异步化。
+/// 调度依赖 status + enqueued_at 取队首；attempts/max_attempts 做重试，
+/// heartbeat_at 做僵死任务回收（running 但心跳超时即可重新入队）。
+model analysis_jobs {
+  id           Int         @id @default(autoincrement())
+  /// 目标帖子 id（posts.id），未建外键，软引用。
+  post_id      String
+  /// 使用的模型提供方（model_providers.id）；为空表示用默认/内置 provider。
+  provider_id  Int?
+  /// 实际调用的模型名快照，便于排查与计费对账。
+  model        String
+  /// 入队来源：auto=自动调度，manual=人工触发。
+  trigger      job_trigger
+  /// 任务状态机：queued→running→succeeded/failed/canceled。
+  status       job_status
+  /// 已尝试次数；达到 max_attempts 后置为 failed 不再重试。
+  attempts     Int         @default(0)
+  max_attempts Int         @default(3)
+  /// 最近一次失败的错误信息，成功时为空。
+  error        String?
+  /// 入队时间戳（epoch 毫秒，下同），与 status 组成调度索引。
+  enqueued_at  BigInt
+  /// 开始执行时间戳。
+  started_at   BigInt?
+  /// 结束（成功/失败/取消）时间戳。
+  finished_at  BigInt?
+  /// 心跳时间戳；worker 周期性刷新，用于检测并回收僵死任务。
+  heartbeat_at BigInt?
+
+  @@index([post_id], map: "idx_jobs_post")
+  @@index([status, enqueued_at], map: "idx_jobs_status")
+}
+
+/// 应用配置键值表：存放运行期可调设置（如默认模型、抓取参数）。
+model app_settings {
+  key   String @id
+  value String
+}
+
+/// Reddit 评论：随帖子一起抓取，按 parent_id/depth 还原楼层树。
+/// 帖子删除时级联清理（onDelete: Cascade）。
+model comments {
+  id          String  @id
+  /// 所属帖子 id。
+  post_id     String
+  /// 父评论 id；为空表示一级评论（直接回复帖子）。
+  parent_id   String?
+  /// 评论作者用户名；账号注销/删除时为空。
+  author      String?
+  /// 评论正文。
+  body        String
+  /// Reddit 点赞净分。
+  score       Int     @default(0)
+  /// 楼层深度，0 为一级评论。
+  depth       Int     @default(0)
+  /// Reddit 原始发布时间（epoch 秒）。
+  created_utc BigInt
+  /// 本地抓取时间戳（epoch 毫秒）。
+  fetched_at  BigInt
+  posts       posts   @relation(fields: [post_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "comments_post_id_posts_id_fk")
+
+  @@index([post_id], map: "idx_comments_post")
+}
+
+/// 洞察：AI 对单个帖子分析后的结构化产出，是「闭环」阶段的核心数据。
+/// 每个帖子至多一条（post_id 唯一）。
+model insights {
+  id            Int       @id @default(autoincrement())
+  /// 对应帖子 id，唯一约束保证一帖一洞察。
+  post_id       String    @unique(map: "idx_insights_post")
+  /// 数据来源平台，目前固定 reddit。
+  source        String    @default("reddit")
+  /// 冗余的 subreddit，便于按社区聚合查询而无需联表。
+  subreddit     String
+  /// 冗余的帖子标题快照。
+  post_title    String
+  /// 帖子永久链接。
+  permalink     String?
+  /// 产出该洞察所用的模型名。
+  model         String
+  /// 需求强度评级：HIGH/MEDIUM/LOW。
+  intensity     intensity
+  /// 痛点列表（JSON 数组）。
+  pain_points   Json
+  /// 机会点列表（JSON 数组）。
+  opportunities Json
+  /// 标签列表（JSON 数组）。
+  tags          Json
+  /// 洞察生成时间戳（epoch 毫秒）。
+  created_at    BigInt
+
+  @@index([intensity], map: "idx_insights_intensity")
+  @@index([subreddit], map: "idx_insights_subreddit")
+}
+
+/// 模型提供方配置：用户在设置页配置的多模型接入点（含密钥）。
+model model_providers {
+  id         Int           @id @default(autoincrement())
+  /// 提供方类型：anthropic/openai/deepseek。
+  provider   provider_kind
+  /// 展示名称，供 UI 区分同类多个配置。
+  label      String
+  /// API 密钥（敏感，入库前应加密）。
+  api_key    String
+  /// 自定义 API base url；为空用提供方默认地址。
+  base_url   String?
+  /// 默认调用的模型名。
+  model      String
+  /// 是否启用，停用后不参与调度。
+  enabled    Boolean       @default(true)
+  created_at BigInt
+  updated_at BigInt
+}
+
+/// 帖子：抓取流水线的「原始」数据，承载后续评论抓取与 AI 分析的进度状态。
+model posts {
+  id                  String     @id
+  /// 数据来源平台，目前固定 reddit。
+  source              String     @default("reddit")
+  subreddit           String
+  title               String
+  /// 作者用户名；账号注销/删除时为空。
+  author              String?
+  /// 帖子正文（self post）；链接帖为空串。
+  selftext            String     @default("")
+  /// 外链帖的目标 url。
+  url                 String?
+  permalink           String?
+  /// Reddit 点赞净分。
+  score               Int        @default(0)
+  /// Reddit 评论计数（帖子元数据，非本地已抓取数）。
+  num_comments        Int        @default(0)
+  /// Reddit 原始发布时间（epoch 秒）。
+  created_utc         BigInt
+  /// 本地首次抓取时间戳（epoch 毫秒，下同）。
+  fetched_at          BigInt
+  /// 评论抓取轮次；用于增量分多轮拉取评论。
+  comment_pass        Int        @default(0)
+  /// 最近一次评论抓取时间。
+  comments_fetched_at BigInt?
+  /// 评论内容发生变化的时间，用于判断是否需要重新分析。
+  comments_changed_at BigInt?
+  /// 导出锁定时间；非空表示已被导出流程锁定，避免并发改动。
+  export_locked_at    BigInt?
+  /// 完成 AI 分析的时间；为空表示尚未分析。
+  analyzed_at         BigInt?
+  /// 分析尝试次数。
+  analyze_attempts    Int        @default(0)
+  comments            comments[]
+
+  @@index([created_utc], map: "idx_posts_created")
+  @@index([analyzed_at, comment_pass], map: "idx_posts_pending")
+  @@index([subreddit], map: "idx_posts_subreddit")
+}
+
+/// 同步操作日志：记录各端（如 mobile）下发的写操作，用于离线同步对账与回放。
+model sync_ops {
+  /// 操作唯一 id，做幂等去重。
+  op_id      String @id
+  /// 发起操作的设备标识。
+  device_id  String
+  /// 操作类型。
+  type       String
+  /// 操作目标记录 id。
+  target_id  Int
+  /// 操作载荷（JSON）。
+  payload    Json
+  /// 操作产生时间。
+  created_at BigInt
+  /// 操作被服务端应用的时间。
+  applied_at BigInt
+}
+
+/// 人工筛选：「闭环工作台」对洞察的人工评审结果，与 insights 一对一。
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model triage {
+  /// 对应洞察 id（insights.id），同时作主键。
+  insight_id Int           @id
+  /// 筛选状态：pending/shortlisted/archived。
+  status     triage_status @default(pending)
+  /// 人工评分（受 check 约束限定范围）。
+  rating     Int?
+  /// 人工标签（JSON 数组）。
+  tags       Json          @default("[]")
+  /// 备注。
+  note       String        @default("")
+  updated_at BigInt
+}
+
+/// 需求强度评级。
+enum intensity {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+/// 分析任务状态机。
+enum job_status {
+  queued
+  running
+  succeeded
+  failed
+  canceled
+}
+
+/// 任务触发来源。
+enum job_trigger {
+  auto
+  manual
+}
+
+/// 模型提供方类型。
+enum provider_kind {
+  anthropic
+  openai
+  deepseek
+}
+
+/// 人工筛选状态。
+enum triage_status {
+  pending
+  shortlisted
+  archived
+}

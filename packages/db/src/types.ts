@@ -1,53 +1,63 @@
 /**
- * 由 Drizzle schema 推导的行类型。
+ * 行类型：Prisma 生成的模型类型（原始）与对外域类型（bigint→number）的桥接。
  *
- * posts / comments 的列 key 与 `@hatch-radar/shared` 行类型逐字段对齐，
- * 故 `$inferSelect` 直接 === PostRow / CommentRow（文件末尾有编译期断言兜底）。
- * 含 jsonb 的表（insights / triage / sync_ops）推导类型携带「已解析」的对象，
- * 与 shared 中「JSON 为字符串」的 *Row 类型不同——经 mappers 转换。
+ * Prisma 把 PG `bigint`（Unix 秒）映射成 JS `bigint`、`jsonb` 映射成 `JsonValue`，
+ * 与 `@hatch-radar/shared` 的「数字时间戳 / 已解析对象」行类型不同——差异收敛到 mappers。
+ *
+ * posts / comments 的列名与 shared 行类型逐字段对齐：文件末尾用编译期断言锁定
+ * 「Prisma 模型（bigint→number、去关系字段）=== PostRow / CommentRow」，任一侧漂移即 tsc 报错。
  */
 import type { CommentRow, PostRow } from '@hatch-radar/shared';
 import type {
-  analysisJobs,
-  appSettings,
-  comments,
-  insights,
-  modelProviders,
-  posts,
-  syncOps,
-  triage,
-} from './schema';
+  analysis_jobsModel,
+  app_settingsModel,
+  commentsModel,
+  insightsModel,
+  model_providersModel,
+  postsModel,
+  sync_opsModel,
+  triageModel,
+} from './generated/prisma/models';
 
 // 便利再导出：让 server 数据层从 @hatch-radar/db 单点取行类型（与表/映射同源）
 export type { CommentRow, InsightRow, PostRow } from '@hatch-radar/shared';
 
-/** posts 行（=== PostRow） */
-export type PostSelect = typeof posts.$inferSelect;
-/** comments 行（=== CommentRow） */
-export type CommentSelect = typeof comments.$inferSelect;
-/** 插入 posts 时的输入形状 */
-export type PostInsert = typeof posts.$inferInsert;
-/** 插入 comments 时的输入形状 */
-export type CommentInsert = typeof comments.$inferInsert;
+/** 把 bigint 列在域类型里折回 number（含可空），其余字段透传 */
+type BigIntToNumber<T> = {
+  [K in keyof T]: [T[K]] extends [bigint]
+    ? number
+    : [T[K]] extends [bigint | null]
+      ? number | null
+      : T[K];
+};
 
-/** insights 行（jsonb 字段已是对象/数组，非 JSON 字符串） */
-export type InsightPgRow = typeof insights.$inferSelect;
-/** triage 行（tags 已是 string[]，非 JSON 字符串） */
-export type TriagePgRow = typeof triage.$inferSelect;
-/** sync_ops 行 */
-export type SyncOpPgRow = typeof syncOps.$inferSelect;
+// ─── 原始 Prisma 行（时间戳 bigint、jsonb 为 JsonValue）——仅作 mapper 输入 ───────────
+export type PostPg = postsModel;
+export type CommentPg = commentsModel;
+export type InsightPgRow = insightsModel;
+export type TriagePgRow = triageModel;
+export type SyncOpPgRow = sync_opsModel;
+export type JobPg = analysis_jobsModel;
+export type ProviderPg = model_providersModel;
 
-/** model_providers 行（api_key 为密文；enabled 为 boolean） */
-export type ProviderRow = typeof modelProviders.$inferSelect;
-/** app_settings 行 */
-export type AppSettingRow = typeof appSettings.$inferSelect;
-/** analysis_jobs 行 */
-export type JobRow = typeof analysisJobs.$inferSelect;
+// ─── 域行类型（bigint→number）：无 shared 对应物的表在此定义 ──────────────────────────
+/** analysis_jobs 行（status / trigger 为枚举，时间戳为 number） */
+export type JobRow = BigIntToNumber<analysis_jobsModel>;
+/** model_providers 行（api_key 为密文；enabled 为 boolean；时间戳为 number） */
+export type ProviderRow = BigIntToNumber<model_providersModel>;
+/** app_settings 行（无时间戳列） */
+export type AppSettingRow = app_settingsModel;
 
-// ─── 编译期断言：posts/comments 推导类型与 shared 行类型互相可赋值 ────────────────
+// ─── 编译期断言：posts/comments 推导类型与 shared 行类型互相可赋值 ────────────────────
 // 任一侧字段漂移（改名 / 改可空 / 改类型）都会在此处 tsc 报错，挡住静默契约破坏。
 type AssertAssignable<A, B> = [A] extends [B] ? ([B] extends [A] ? true : never) : never;
-const _postRowMatches: AssertAssignable<PostSelect, PostRow> = true;
-const _commentRowMatches: AssertAssignable<CommentSelect, CommentRow> = true;
+const _postRowMatches: AssertAssignable<
+  BigIntToNumber<Omit<postsModel, 'comments'>>,
+  PostRow
+> = true;
+const _commentRowMatches: AssertAssignable<
+  BigIntToNumber<Omit<commentsModel, 'posts'>>,
+  CommentRow
+> = true;
 void _postRowMatches;
 void _commentRowMatches;

@@ -2,35 +2,34 @@
   "name": "@hatch-radar/db",
   "version": "0.1.0",
   "private": true,
-  "description": "PostgreSQL 主存储层：Drizzle schema + 连接工厂 + PG⇄域类型映射（server 读写、web 只读共用；不进 mobile）",
+  "description": "PostgreSQL 主存储层：Prisma schema + 连接工厂（@prisma/adapter-pg）+ PG⇄域类型映射（server 读写、web 只读共用；不进 mobile）",
   "type": "module",
   "exports": {
     ".": {
       "types": "./src/index.ts",
       "default": "./src/index.ts"
-    },
-    "./schema": {
-      "types": "./src/schema.ts",
-      "default": "./src/schema.ts"
     }
   },
   "scripts": {
-    "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
-    "db:push": "drizzle-kit push",
-    "db:studio": "drizzle-kit studio",
+    "postinstall": "prisma generate",
+    "db:generate": "prisma generate",
+    "db:pull": "prisma db pull",
+    "db:migrate": "prisma migrate deploy",
+    "db:migrate:dev": "prisma migrate dev",
+    "db:studio": "prisma studio",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@hatch-radar/config": "workspace:*",
     "@hatch-radar/shared": "workspace:*",
-    "drizzle-orm": "catalog:",
+    "@prisma/adapter-pg": "^7.8.0",
+    "@prisma/client": "^7.8.0",
     "pg": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",
     "@types/pg": "catalog:",
-    "drizzle-kit": "catalog:",
+    "prisma": "^7.8.0",
     "typescript": "catalog:"
   }
 }

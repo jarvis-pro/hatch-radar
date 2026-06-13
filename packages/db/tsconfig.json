@@ -1,4 +1,7 @@
 {
   "extends": "@hatch-radar/config/tsconfig.base.json",
-  "include": ["src", "drizzle.config.ts"]
+  "compilerOptions": {
+    "allowImportingTsExtensions": true
+  },
+  "include": ["src", "prisma.config.ts"]
 }

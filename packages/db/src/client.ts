@@ -1,18 +1,19 @@
 /**
- * PostgreSQL 连接工厂（node-postgres + Drizzle）与迁移执行器。
+ * PostgreSQL 连接工厂（@prisma/adapter-pg + Prisma Client）。
  *
  * server 取读写句柄；web 取 `readonly` 句柄（连接级 default_transaction_read_only，
  * 即便误写也被 PG 拒绝——纵深防御，对应规格「web 绝不写库」）。
+ *
+ * Prisma 7 运行期不读 schema.prisma 的 url，连接由 driver adapter 直供：adapter 底层就是
+ * `pg.Pool`，故沿用原 Drizzle 版的 `readonly` / `max` 控制（PoolConfig.options / max）。
+ * 迁移不再在进程内执行（原 runMigrations 已移除），改由 CLI `prisma migrate deploy`。
  */
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { migrate } from 'drizzle-orm/node-postgres/migrator';
-import { Pool, type PoolConfig } from 'pg';
-import * as schema from './schema';
+import { PrismaPg } from '@prisma/adapter-pg';
+import type { PoolConfig } from 'pg';
+import { PrismaClient } from './generated/prisma/client';
 
-/** 应用使用的 Drizzle 数据库类型（带全表 schema，供关系查询与类型推导） */
-export type AppDatabase = NodePgDatabase<typeof schema>;
+/** 应用使用的 Prisma 数据库类型 */
+export type AppDatabase = PrismaClient;
 
 /** createDb 选项 */
 export interface CreateDbOptions {
@@ -22,11 +23,10 @@ export interface CreateDbOptions {
   max?: number;
 }
 
-/** 数据库句柄：drizzle 实例 + 底层连接池 + 关闭函数 */
+/** 数据库句柄：Prisma 实例 + 关闭函数（adapter 自管底层连接池，$disconnect 释放） */
 export interface DbHandle {
   db: AppDatabase;
-  pool: Pool;
-  /** 关闭连接池（进程退出 / 测试清理） */
+  /** 断开连接（进程退出 / 测试清理） */
   close(): Promise<void>;
 }
 
@@ -36,25 +36,11 @@ export interface DbHandle {
  * @param opts 只读 / 池大小
  */
 export function createDb(connectionString: string, opts: CreateDbOptions = {}): DbHandle {
-  const config: PoolConfig = { connectionString };
-  if (opts.max != null) config.max = opts.max;
-  if (opts.readonly) config.options = '-c default_transaction_read_only=on';
-  const pool = new Pool(config);
-  const db = drizzle(pool, { schema });
-  return { db, pool, close: () => pool.end() };
-}
-
-/** drizzle-kit 生成的迁移目录（.sql + journal），相对本文件解析，随包可移植 */
-export const MIGRATIONS_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '../drizzle');
-
-/**
- * 应用全部未执行的迁移（幂等：drizzle 在 __drizzle_migrations 记录已执行版本）。
- * @param db 数据库实例
- * @param migrationsFolder 迁移目录，默认 {@link MIGRATIONS_DIR}
- */
-export async function runMigrations(
-  db: AppDatabase,
-  migrationsFolder = MIGRATIONS_DIR,
-): Promise<void> {
-  await migrate(db, { migrationsFolder });
+  const poolConfig: PoolConfig = { connectionString };
+  if (opts.max != null) poolConfig.max = opts.max;
+  // 连接级只读：libpq 启动参数，对该连接所有事务生效（web 纵深防御）
+  if (opts.readonly) poolConfig.options = '-c default_transaction_read_only=on';
+  const adapter = new PrismaPg(poolConfig);
+  const db = new PrismaClient({ adapter });
+  return { db, close: () => db.$disconnect() };
 }

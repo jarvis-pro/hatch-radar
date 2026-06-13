@@ -1,61 +1,117 @@
 /**
- * PG 行 ⇄ 域类型映射。
+ * Prisma 行 ⇄ 域类型映射（单点收敛 bigint→number 与 jsonb 解析/序列化）。
  *
- * jsonb 字段在 PG 侧读出来已是对象/数组，故：
- * - 面向 web/检索的 `Insight`（camelCase，已解析）→ 直接搬字段，无需 JSON.parse；
- * - 面向导出/同步契约的 `InsightRow`（snake_case，JSON 为字符串）→ 把 jsonb `stringify`
- *   回 TEXT，保 mobile `ATTACH` 合并与 HTTP JSON 批次的字节级兼容。
+ * - Prisma 读出的 jsonb 已是对象/数组（JsonValue），故面向 web/检索的 camelCase 视图直接搬字段；
+ * - 面向导出/同步契约的 `*Row`（snake_case、JSON 为字符串）→ 把 jsonb `stringify` 回 TEXT，
+ *   保 mobile `ATTACH` 合并与 HTTP JSON 批次的字节级兼容；
+ * - 所有 Unix 秒时间戳列由 bigint 折回 number（域类型口径）。
  */
-import type { Insight, InsightRow, Triage } from '@hatch-radar/shared';
-import type { InsightPgRow, TriagePgRow } from './types';
+import type {
+  CommentRow,
+  Insight,
+  InsightRow,
+  Opportunity,
+  PainPoint,
+  PostRow,
+  Triage,
+} from '@hatch-radar/shared';
+import type {
+  CommentPg,
+  InsightPgRow,
+  JobPg,
+  JobRow,
+  PostPg,
+  ProviderPg,
+  ProviderRow,
+  TriagePgRow,
+} from './types';
 
-/** PG insights 行 → camelCase 视图（jsonb 已解析；web / 检索用） */
-export function toInsight(row: InsightPgRow): Insight {
+/** bigint Unix 秒 → number */
+const n = (v: bigint): number => Number(v);
+/** 可空 bigint Unix 秒 → number | null */
+const nOpt = (v: bigint | null): number | null => (v === null ? null : Number(v));
+
+/** Prisma posts 行 → 域 PostRow（时间戳 bigint→number；关系字段不参与） */
+export function toPostRow(m: PostPg): PostRow {
   return {
-    id: row.id,
-    postId: row.post_id,
-    source: row.source,
-    subreddit: row.subreddit,
-    postTitle: row.post_title,
-    permalink: row.permalink,
-    model: row.model,
-    intensity: row.intensity,
-    painPoints: row.pain_points,
-    opportunities: row.opportunities,
-    tags: row.tags,
-    createdAt: row.created_at,
+    ...m,
+    created_utc: n(m.created_utc),
+    fetched_at: n(m.fetched_at),
+    comments_fetched_at: nOpt(m.comments_fetched_at),
+    comments_changed_at: nOpt(m.comments_changed_at),
+    export_locked_at: nOpt(m.export_locked_at),
+    analyzed_at: nOpt(m.analyzed_at),
+  };
+}
+
+/** Prisma comments 行 → 域 CommentRow（时间戳 bigint→number） */
+export function toCommentRow(m: CommentPg): CommentRow {
+  return { ...m, created_utc: n(m.created_utc), fetched_at: n(m.fetched_at) };
+}
+
+/** Prisma analysis_jobs 行 → 域 JobRow（时间戳 bigint→number） */
+export function toJobRow(m: JobPg): JobRow {
+  return {
+    ...m,
+    enqueued_at: n(m.enqueued_at),
+    started_at: nOpt(m.started_at),
+    finished_at: nOpt(m.finished_at),
+    heartbeat_at: nOpt(m.heartbeat_at),
+  };
+}
+
+/** Prisma model_providers 行 → 域 ProviderRow（时间戳 bigint→number） */
+export function toProviderRow(m: ProviderPg): ProviderRow {
+  return { ...m, created_at: n(m.created_at), updated_at: n(m.updated_at) };
+}
+
+/** Prisma insights 行 → camelCase 视图（jsonb 已解析；web / 检索用） */
+export function toInsight(m: InsightPgRow): Insight {
+  return {
+    id: m.id,
+    postId: m.post_id,
+    source: m.source,
+    subreddit: m.subreddit,
+    postTitle: m.post_title,
+    permalink: m.permalink,
+    model: m.model,
+    intensity: m.intensity,
+    painPoints: m.pain_points as unknown as PainPoint[],
+    opportunities: m.opportunities as unknown as Opportunity[],
+    tags: m.tags as string[],
+    createdAt: n(m.created_at),
   };
 }
 
 /**
- * PG insights 行 → 导出行结构（jsonb stringify 回 TEXT）。
+ * Prisma insights 行 → 导出行结构（jsonb stringify 回 TEXT）。
  * 导出 .sqlite 与 HTTP JSON 批次都按此结构（mobile 落库 TEXT 列）。
  */
-export function toInsightRow(row: InsightPgRow): InsightRow {
+export function toInsightRow(m: InsightPgRow): InsightRow {
   return {
-    id: row.id,
-    post_id: row.post_id,
-    source: row.source,
-    subreddit: row.subreddit,
-    post_title: row.post_title,
-    permalink: row.permalink,
-    model: row.model,
-    intensity: row.intensity,
-    pain_points: JSON.stringify(row.pain_points),
-    opportunities: JSON.stringify(row.opportunities),
-    tags: JSON.stringify(row.tags),
-    created_at: row.created_at,
+    id: m.id,
+    post_id: m.post_id,
+    source: m.source,
+    subreddit: m.subreddit,
+    post_title: m.post_title,
+    permalink: m.permalink,
+    model: m.model,
+    intensity: m.intensity,
+    pain_points: JSON.stringify(m.pain_points),
+    opportunities: JSON.stringify(m.opportunities),
+    tags: JSON.stringify(m.tags),
+    created_at: n(m.created_at),
   };
 }
 
-/** PG triage 行 → camelCase 视图（tags 已是数组） */
-export function toTriage(row: TriagePgRow): Triage {
+/** Prisma triage 行 → camelCase 视图（tags 已是数组） */
+export function toTriage(m: TriagePgRow): Triage {
   return {
-    insightId: row.insight_id,
-    status: row.status,
-    rating: row.rating,
-    tags: row.tags,
-    note: row.note,
-    updatedAt: row.updated_at,
+    insightId: m.insight_id,
+    status: m.status,
+    rating: m.rating,
+    tags: m.tags as string[],
+    note: m.note,
+    updatedAt: n(m.updated_at),
   };
 }
