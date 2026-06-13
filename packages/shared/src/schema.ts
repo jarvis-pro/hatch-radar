@@ -1,9 +1,10 @@
 /**
- * hatch-radar 数据库 schema（全量建表 DDL，含索引）。
+ * hatch-radar 的 **SQLite** 建表 DDL（全量，含索引）。
  *
- * - `CREATE TABLE IF NOT EXISTS` 保证幂等，可在每次建立连接时重复执行
- * - 以 TS 常量内嵌而非 .sql 文件：server / web（better-sqlite3）与移动端
- *   （expo-sqlite / op-sqlite）共用同一份 DDL，无需运行时读文件
+ * 主存储已迁至 PostgreSQL（见 `@hatch-radar/db`），本 DDL 现仅用于两处 SQLite 场景：
+ * - 移动端 expo-sqlite 离线本地库建表；
+ * - server 导出 `.sqlite` 批次（better-sqlite3 写出，供 mobile ATTACH 合并）。
+ * - `CREATE TABLE IF NOT EXISTS` 保证幂等，可重复执行；以 TS 常量内嵌而非 .sql 文件，免运行时读文件。
  */
 export const DDL = `-- hatch-radar 数据库 schema
 -- CREATE TABLE IF NOT EXISTS 保证幂等，可重复执行
