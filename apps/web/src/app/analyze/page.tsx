@@ -1,4 +1,4 @@
-import { AnalyzeRow } from '@/components/analyze-row';
+import { AnalyzeWorkbench, type WorkbenchItem } from '@/components/analyze-workbench';
 import { DbSetupNotice, EmptyState } from '@/components/empty';
 import { Pagination } from '@/components/pagination';
 import { tryGetDb } from '@/lib/db';
@@ -22,6 +22,13 @@ export default async function AnalyzePage(props: { searchParams: Promise<SearchP
 
   const result = listAwaitingManualResult(db, parsePage(sp.page));
   const filled = countManualInsights(db);
+  const items: WorkbenchItem[] = result.items.map((p) => ({
+    id: p.id,
+    title: p.title,
+    channel: channelLabel(p.source, p.subreddit),
+    kind: p.kind,
+    exportLocked: p.export_locked_at != null,
+  }));
 
   return (
     <>
@@ -32,26 +39,17 @@ export default async function AnalyzePage(props: { searchParams: Promise<SearchP
         </span>
       </h1>
       <p className="mb-4 text-sm text-muted-foreground">
-        待回填 <span className="font-medium text-foreground tabular-nums">{result.total}</span> · 已回填{' '}
+        待处理 <span className="font-medium text-foreground tabular-nums">{result.total}</span> · 已回填{' '}
         <span className="font-medium text-foreground tabular-nums">{filled}</span>
       </p>
 
       {result.items.length === 0 ? (
         <EmptyState
-          title="没有待回填的帖子"
-          hint="启动 server（file 模式）抓取并导出待分析文档后，这里会列出等待回填 AI 结果的帖子。"
+          title="没有待处理的帖子"
+          hint="启动 server（file 模式）抓取并补全评论后，这里会列出已具备评论、等待导出分析的帖子。"
         />
       ) : (
-        <div className="space-y-2">
-          {result.items.map((post) => (
-            <AnalyzeRow
-              key={post.id}
-              postId={post.id}
-              title={post.title}
-              channel={channelLabel(post.source, post.subreddit)}
-            />
-          ))}
-        </div>
+        <AnalyzeWorkbench items={items} />
       )}
 
       <Pagination

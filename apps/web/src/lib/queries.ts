@@ -145,20 +145,38 @@ export function listPosts(db: Db, filter: PostListFilter): Paged<PostRow> {
   return { items, total, page, pageCount };
 }
 
+/** 工作台「待处理」帖子的状态：pending=未回灌；restale=已回灌但之后评论又变（建议重判） */
+export type AwaitingKind = 'pending' | 'restale';
+
+/** 待处理帖子行：帖子字段 + 工作台状态（kind） */
+export interface AwaitingPost extends PostRow {
+  kind: AwaitingKind;
+}
+
 /**
- * 待回填洞察的帖子（file 模式闭环）：已导出待分析文档（analyzed_at 已设）、
- * 但尚未回灌洞察（insights 无对应行）。按热度（score + 评论数）降序分页。
+ * 工作台「待处理」列表（file 模式闭环）：已抓过评论（comments_fetched_at 非空）、
+ * 且 未回灌洞察（pending）或 已回灌但评论在分析后又变（restale，comments_changed_at > insight.created_at）。
+ * pending 排在前，再按热度（score + 评论数）降序分页。
  */
-export function listAwaitingManualResult(db: Db, page: number): Paged<PostRow> {
-  const where = `WHERE analyzed_at IS NOT NULL AND id NOT IN (SELECT post_id FROM insights)`;
-  const total = (db.prepare(`SELECT COUNT(*) n FROM posts ${where}`).get() as { n: number }).n;
-  const { page: p, pageCount } = clampPage(total, page);
+export function listAwaitingManualResult(db: Db, page: number): Paged<AwaitingPost> {
+  const where = `WHERE p.comments_fetched_at IS NOT NULL
+      AND (i.post_id IS NULL OR p.comments_changed_at > i.created_at)`;
+  const total = (
+    db
+      .prepare(`SELECT COUNT(*) n FROM posts p LEFT JOIN insights i ON i.post_id = p.id ${where}`)
+      .get() as { n: number }
+  ).n;
+  const { page: pageNum, pageCount } = clampPage(total, page);
   const items = db
     .prepare(
-      `SELECT * FROM posts ${where} ORDER BY (score + num_comments) DESC, id LIMIT ? OFFSET ?`,
+      `SELECT p.*, CASE WHEN i.post_id IS NULL THEN 'pending' ELSE 'restale' END AS kind
+       FROM posts p LEFT JOIN insights i ON i.post_id = p.id
+       ${where}
+       ORDER BY (i.post_id IS NULL) DESC, (p.score + p.num_comments) DESC, p.id
+       LIMIT ? OFFSET ?`,
     )
-    .all(PAGE_SIZE, (p - 1) * PAGE_SIZE) as PostRow[];
-  return { items, total, page: p, pageCount };
+    .all(PAGE_SIZE, (pageNum - 1) * PAGE_SIZE) as AwaitingPost[];
+  return { items, total, page: pageNum, pageCount };
 }
 
 /** 已回填（人工导入，model='manual'）洞察数 */

@@ -6,7 +6,7 @@ import type { ExportFilter, Intensity } from '@hatch-radar/shared';
 import { buildManualAnalysisDoc } from '../analyzer/export';
 import { importManualResult } from '../analyzer/import';
 import { getCommentsForPost } from '../db/comments';
-import { getPostById } from '../db/posts';
+import { getPostById, lockExportForPosts } from '../db/posts';
 import { getStats, nowSec } from '../db/utils';
 import { collectExportBatch, defaultExportName, writeBatchSqlite } from '../export/batch';
 import { applySyncPush, pushEnvelopeSchema } from '../sync/apply';
@@ -167,6 +167,34 @@ async function handleInsightImport(req: IncomingMessage, res: ServerResponse): P
   sendJson(res, status, result);
 }
 
+/** POST /api/export/lock —— 把选中帖子标记为「已导出冻结」，暂停评论 refresh 直至回灌解冻 */
+async function handleExportLock(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  let body: string;
+  try {
+    body = await readBody(req, MAX_SYNC_BODY_BYTES);
+  } catch (err) {
+    if (err instanceof BodyTooLargeError) {
+      sendJson(res, 413, { error: `请求体超过 ${MAX_SYNC_BODY_BYTES} 字节` });
+      return;
+    }
+    throw err;
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(body);
+  } catch {
+    sendJson(res, 400, { error: '请求体不是合法 JSON' });
+    return;
+  }
+  const postIds = (parsed as { postIds?: unknown }).postIds;
+  if (!Array.isArray(postIds) || postIds.some((x) => typeof x !== 'string')) {
+    sendJson(res, 400, { error: '请求结构非法：需要 { postIds: string[] }' });
+    return;
+  }
+  const locked = lockExportForPosts(postIds as string[], nowSec());
+  sendJson(res, 200, { locked });
+}
+
 /**
  * GET /api/posts/<id>/doc —— 返回单篇帖子的待分析 Markdown 文档，
  * 供 web 闭环工作台一键复制后粘贴给外部 AI。
@@ -250,6 +278,19 @@ async function handleRequest(
     return;
   }
 
+  if (url.pathname === '/api/export/lock') {
+    if (req.method !== 'POST') {
+      sendJson(res, 405, { error: 'method not allowed' });
+      return;
+    }
+    if (!authorized(req, cfg.token)) {
+      sendJson(res, 401, { error: 'unauthorized：请携带 Authorization: Bearer <API_TOKEN>' });
+      return;
+    }
+    await handleExportLock(req, res);
+    return;
+  }
+
   const docMatch = url.pathname.match(/^\/api\/posts\/(.+)\/doc$/);
   if (docMatch) {
     if (req.method !== 'GET') {
@@ -287,6 +328,7 @@ function lanAddresses(): string[] {
  * - GET  /api/export/batch.sqlite   同条件的独立 .sqlite 文件下载
  * - POST /api/sync/push             接收移动端研判操作，按 op_id 幂等应用
  * - POST /api/insights/import       回灌手动 AI 分析结果（file 模式闭环收料）
+ * - POST /api/export/lock           标记选中帖子为已导出冻结（暂停评论 refresh）
  * - GET  /api/posts/<id>/doc        单篇帖子的待分析 Markdown 文档
  *
  * 数据下行（导出批次 / 待分析文档）+ 研判操作上行（同步）+ 洞察回灌；

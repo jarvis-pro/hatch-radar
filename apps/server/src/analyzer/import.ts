@@ -1,5 +1,5 @@
 import { saveInsight } from '../db/insights';
-import { getPostById } from '../db/posts';
+import { clearExportLock, getPostById } from '../db/posts';
 import { nowSec } from '../db/utils';
 import { logger } from '../logger';
 import { normalizeInsight } from './prompt';
@@ -59,6 +59,7 @@ export function importManualResult(postId: string, resultText: string): ImportOu
 
   const insight = normalizeInsight(parsed);
   saveInsight(post, 'manual', insight, nowSec());
+  clearExportLock(post.id); // 回灌即解冻，让评论 refresh 恢复跟踪该帖
   const painPoints = insight.pain_points.length;
   const opportunities = insight.opportunities.length;
   logger.info(

@@ -2,7 +2,9 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Badge } from '@hatch-radar/ui/components/badge';
 import { Button } from '@hatch-radar/ui/components/button';
+import { Checkbox } from '@hatch-radar/ui/components/checkbox';
 import { Textarea } from '@hatch-radar/ui/components/textarea';
 
 /** AnalyzeRow 组件 props */
@@ -13,6 +15,14 @@ export interface AnalyzeRowProps {
   title: string;
   /** 频道展示名（如 r/SaaS） */
   channel: string;
+  /** pending=未回灌；restale=已回灌但评论又变（建议重判） */
+  kind: 'pending' | 'restale';
+  /** 是否处于导出冻结（已导出待回灌） */
+  exportLocked: boolean;
+  /** 多选是否选中 */
+  selected: boolean;
+  /** 切换选中 */
+  onToggle: () => void;
 }
 
 interface Msg {
@@ -29,10 +39,18 @@ interface ImportResponse {
 }
 
 /**
- * 单条待回填帖子的操作行（客户端）：复制待分析文档 + 粘贴回灌外部 AI 结果。
+ * 单条待处理帖子的操作行（客户端）：多选 + 复制待分析文档 + 粘贴回灌外部 AI 结果。
  * 复制与回灌均经 web 的代理 route handler 转发到 server 进程——web 不直接写库。
  */
-export function AnalyzeRow({ postId, title, channel }: AnalyzeRowProps) {
+export function AnalyzeRow({
+  postId,
+  title,
+  channel,
+  kind,
+  exportLocked,
+  selected,
+  onToggle,
+}: AnalyzeRowProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('');
@@ -86,10 +104,20 @@ export function AnalyzeRow({ postId, title, channel }: AnalyzeRowProps) {
 
   return (
     <div className="rounded-lg border p-3">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
+      <div className="flex items-start gap-3">
+        <Checkbox
+          checked={selected}
+          onCheckedChange={() => onToggle()}
+          aria-label="选择此帖以批量导出"
+          className="mt-1"
+        />
+        <div className="min-w-0 flex-1">
           <p className="line-clamp-2 text-sm font-medium">{title}</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">{channel}</p>
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            <span>{channel}</span>
+            {kind === 'restale' ? <Badge variant="secondary">评论已更新 · 建议重判</Badge> : null}
+            {exportLocked ? <Badge variant="outline">已导出</Badge> : null}
+          </div>
         </div>
         <div className="flex shrink-0 gap-2">
           <Button variant="outline" size="sm" onClick={copyDoc}>
@@ -121,7 +149,11 @@ export function AnalyzeRow({ postId, title, channel }: AnalyzeRowProps) {
       ) : null}
 
       {msg ? (
-        <p className={msg.kind === 'ok' ? 'mt-2 text-xs text-foreground' : 'mt-2 text-xs text-destructive'}>
+        <p
+          className={
+            msg.kind === 'ok' ? 'mt-2 text-xs text-foreground' : 'mt-2 text-xs text-destructive'
+          }
+        >
           {msg.text}
         </p>
       ) : null}
