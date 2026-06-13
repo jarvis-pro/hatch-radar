@@ -1,8 +1,14 @@
-import 'dotenv/config';
 import { z } from 'zod';
 import type { AnalysisConfig } from '../analyzer/analyze';
 import type { RedditConfig } from '../crawler/reddit';
-import type { HttpConfig } from '../server/http';
+
+/** 局域网导出/同步 HTTP 服务配置（env 推导） */
+export interface HttpConfig {
+  /** 监听端口；绑定 0.0.0.0 供局域网内的移动端访问 */
+  port: number;
+  /** 可选访问令牌；设置后导出与同步接口要求 `Authorization: Bearer <token>` */
+  token?: string;
+}
 
 const envSchema = z
   .object({
@@ -53,8 +59,8 @@ const envSchema = z
 
     // ── 存储 ─────────────────────────────────────────────────────────
 
-    /** SQLite 数据库文件路径，默认 ./data/radar.db */
-    DATABASE_URL: z.string().trim().default('./data/radar.db'),
+    /** PostgreSQL 连接串，默认指向本地 docker-compose 的 PG */
+    DATABASE_URL: z.string().trim().default('postgres://radar:radar@localhost:5432/hatch_radar'),
 
     // ── 导出服务（局域网 HTTP，供移动端拉取批次）──────────────────────
 
@@ -112,7 +118,7 @@ const envSchema = z
         : undefined,
     analysis: resolveAnalysis(env),
     analyzeBatchSize: env.ANALYZE_BATCH_SIZE,
-    databasePath: env.DATABASE_URL,
+    databaseUrl: env.DATABASE_URL,
     http: { port: env.HTTP_PORT, token: env.API_TOKEN } satisfies HttpConfig,
   }));
 
@@ -160,15 +166,15 @@ function resolveAnalysis(env: AnalysisEnv): AnalysisConfig | null {
 /** 应用运行时所需的全量配置，由 envSchema 自动派生 */
 export type AppEnv = z.infer<typeof envSchema>;
 
-/** 数据库路径单独暴露：cli / db:migrate 不需要 Reddit 与模型凭据 */
-export function databasePath(): string {
-  return process.env.DATABASE_URL?.trim() || './data/radar.db';
+/** PostgreSQL 连接串单独暴露：CLI / 迁移脚本不需要 Reddit 与模型凭据 */
+export function databaseUrl(): string {
+  return process.env.DATABASE_URL?.trim() || 'postgres://radar:radar@localhost:5432/hatch_radar';
 }
 
 /**
  * 从环境变量加载并校验应用配置。
  * - `REDDIT_CLIENT_ID` 与 `REDDIT_CLIENT_SECRET` 均存在时启用 Reddit，否则 `reddit` 为 undefined
- * - 分析方式由 `AI_PROVIDER` 决定（默认 file），详见 {@link resolveAnalysis}
+ * - 分析方式由 `AI_PROVIDER` 决定（不设则不从 env 派生模型）
  * - 校验失败时一次性报告所有缺失/非法字段
  * @returns 校验通过的应用配置对象
  */

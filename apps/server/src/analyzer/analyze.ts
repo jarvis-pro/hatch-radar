@@ -1,9 +1,4 @@
 import type { CommentRow, InsightResult, PostRow } from '@hatch-radar/shared';
-import { getCommentsForPost } from '../db/comments';
-import { bumpAnalyzeAttempts, getPostsToAnalyze, markAnalyzed } from '../db/posts';
-import { saveInsight } from '../db/insights';
-import { nowSec } from '../db/utils';
-import { logger } from '../logger';
 import { analyzeWithAnthropic, createAnthropicClient } from './anthropic';
 import { analyzeWithOpenAICompatible, type OpenAICompatibleConfig } from './openai-compatible';
 
@@ -17,43 +12,18 @@ export type AnalysisConfig =
   | OpenAICompatibleConfig;
 
 /**
- * 单篇帖子的处理器：屏蔽 Anthropic / OpenAI / DeepSeek 的差异，由 worker / 批处理统一调度。
+ * 单篇帖子的处理器：屏蔽 Anthropic / OpenAI / DeepSeek 的差异，**只负责产出结构化结果**。
+ *
+ * 落库/标记/计失败由调用方（AnalysisService / WorkerService）完成——处理器保持无副作用、
+ * 不依赖数据库，便于在任意进程构造与测试。
  */
 export interface PostProcessor {
   /** 启动日志与批次日志展示用的处理器名称，如 `Anthropic (claude-opus-4-8)` */
   readonly label: string;
-  /**
-   * 处理单篇帖子（分析并落库）。失败时抛出，由调用方计入失败并重试。
-   * @returns saved 是否产出并落库了洞察（无信号时为 false）
-   */
-  process(post: PostRow, comments: CommentRow[]): Promise<{ saved: boolean }>;
-}
-
-/** 单篇帖子 → 结构化分析结果的函数签名，各 provider 各自实现 */
-type AnalyzeFn = (post: PostRow, comments: CommentRow[]) => Promise<InsightResult>;
-
-/**
- * 构造「调用模型分析并落库」的处理器（Anthropic / DeepSeek 共用）。
- * - pain_points 与 opportunities 均为空时视为无信号，不落库，saved 为 false
- * @param label 处理器展示名
- * @param model 写入洞察记录的模型 ID
- * @param analyze 实际的单篇分析函数
- */
-function createModelProcessor(label: string, model: string, analyze: AnalyzeFn): PostProcessor {
-  return {
-    label,
-    async process(post, comments) {
-      const insight = await analyze(post, comments);
-      if (insight.pain_points.length === 0 && insight.opportunities.length === 0) {
-        return { saved: false };
-      }
-      saveInsight(post, model, insight, nowSec());
-      logger.info(
-        `  ✓ r/${post.subreddit}「${post.title.slice(0, 48)}」→ 痛点 ${insight.pain_points.length} / 机会 ${insight.opportunities.length}`,
-      );
-      return { saved: true };
-    },
-  };
+  /** 写入洞察记录的模型 ID 快照 */
+  readonly model: string;
+  /** 分析单篇帖子，返回结构化结果（失败时抛出，由调用方计入失败并重试） */
+  analyze(post: PostRow, comments: CommentRow[]): Promise<InsightResult>;
 }
 
 /**
@@ -65,59 +35,30 @@ export function createProcessor(cfg: AnalysisConfig): PostProcessor {
   switch (cfg.provider) {
     case 'anthropic': {
       const client = createAnthropicClient(cfg.apiKey);
-      return createModelProcessor(`Anthropic (${cfg.model})`, cfg.model, (post, comments) =>
-        analyzeWithAnthropic(client, cfg.model, post, comments),
-      );
+      return {
+        label: `Anthropic (${cfg.model})`,
+        model: cfg.model,
+        analyze: (post, comments) => analyzeWithAnthropic(client, cfg.model, post, comments),
+      };
     }
     case 'openai':
     case 'deepseek': {
       const label = cfg.provider === 'openai' ? 'OpenAI' : 'DeepSeek';
-      return createModelProcessor(`${label} (${cfg.model})`, cfg.model, (post, comments) =>
-        analyzeWithOpenAICompatible(cfg, post, comments),
-      );
+      return {
+        label: `${label} (${cfg.model})`,
+        model: cfg.model,
+        analyze: (post, comments) => analyzeWithOpenAICompatible(cfg, post, comments),
+      };
     }
   }
 }
 
-/** runAnalysisBatch() 的批次执行统计 */
+/** runBatch() 的批次执行统计 */
 export interface AnalysisStats {
-  /** 本批次成功处理的帖子数（含无洞察产出 / 仅导出的帖子） */
+  /** 本批次成功处理的帖子数（含无洞察产出的帖子） */
   analyzed: number;
-  /** 产出并写入洞察记录的帖子数（本地导出模式恒为 0） */
+  /** 产出并写入洞察记录的帖子数 */
   saved: number;
   /** 处理过程中抛出异常的帖子数 */
   failed: number;
-}
-
-/**
- * 取一批待分析帖子逐条交给处理器，处理失败不影响后续帖子。
- * - 失败时递增 analyze_attempts（达 3 次后不再重试），成功后标记为已分析
- * - 具体「分析并落库」还是「导出文件」由传入的 processor 决定
- * @param processor 单篇处理器（Anthropic / DeepSeek / 本地导出）
- * @param batchSize 本批次最多处理的帖子数
- * @returns 本批次的执行统计
- */
-export async function runAnalysisBatch(
-  processor: PostProcessor,
-  batchSize: number,
-): Promise<AnalysisStats> {
-  const posts = getPostsToAnalyze(batchSize);
-  const stats: AnalysisStats = { analyzed: 0, saved: 0, failed: 0 };
-  if (posts.length === 0) return stats;
-
-  logger.info(`本轮待处理帖子 ${posts.length} 篇（${processor.label}）`);
-  for (const post of posts) {
-    const comments = getCommentsForPost(post.id);
-    try {
-      const { saved } = await processor.process(post, comments);
-      if (saved) stats.saved++;
-      markAnalyzed(post.id, nowSec());
-      stats.analyzed++;
-    } catch (err) {
-      stats.failed++;
-      bumpAnalyzeAttempts(post.id);
-      logger.error(`  ✗ 处理失败 ${post.id}: ${err instanceof Error ? err.message : String(err)}`);
-    }
-  }
-  return stats;
 }
