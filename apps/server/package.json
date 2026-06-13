@@ -9,9 +9,6 @@
     "start": "node --import @swc-node/register/esm-register src/main.ts",
     "worker": "node --import @swc-node/register/esm-register src/worker-main.ts",
     "cli": "node --import @swc-node/register/esm-register src/cli/main.ts",
-    "build": "tsc --noEmit",
-    "db:generate": "pnpm --filter @hatch-radar/db db:generate",
-    "db:migrate": "pnpm --filter @hatch-radar/db db:migrate",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"

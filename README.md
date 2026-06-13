@@ -17,16 +17,16 @@
 
 ## 技术栈
 
-| 层级          | 技术                                                                              |
-| ------------- | --------------------------------------------------------------------------------- |
-| 运行时        | NestJS + TypeScript（pnpm workspace monorepo；swc-node ESM 运行）                 |
-| 调度          | `@nestjs/schedule`（`@Cron`）                                                     |
-| Reddit 数据源 | Reddit REST API（OAuth）                                                          |
+| 层级          | 技术                                                                                                                        |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| 运行时        | NestJS + TypeScript（pnpm workspace monorepo；swc-node ESM 运行）                                                           |
+| 调度          | `@nestjs/schedule`（`@Cron`）                                                                                               |
+| Reddit 数据源 | Reddit REST API（OAuth）                                                                                                    |
 | AI 分析       | 多模型可配：Anthropic（`@anthropic-ai/sdk`）/ OpenAI / DeepSeek；PostgreSQL 任务队列（`FOR UPDATE SKIP LOCKED`）+ Worker 池 |
-| 存储          | PostgreSQL（Drizzle ORM；server 读写 / web 只读直查）；导出 `.sqlite` 与移动端 expo-sqlite 互通 |
-| Web 控制台    | Next.js（App Router，standalone 产物 + Docker）                                   |
-| PC 端 UI 库   | shadcn/ui + Tailwind CSS v4（`packages/ui` 共享，仅限 Web/PC 子项目）             |
-| 移动端        | React Native（Expo SDK 56 + expo-router + expo-sqlite）                           |
+| 存储          | PostgreSQL（Drizzle ORM；server 读写 / web 只读直查）；导出 `.sqlite` 与移动端 expo-sqlite 互通                             |
+| Web 控制台    | Next.js（App Router，standalone 产物 + Docker）                                                                             |
+| PC 端 UI 库   | shadcn/ui + Tailwind CSS v4（`packages/ui` 共享，仅限 Web/PC 子项目）                                                       |
+| 移动端        | React Native（Expo SDK 56 + expo-router + expo-sqlite）                                                                     |
 
 ---
 
@@ -124,15 +124,15 @@ pnpm dev:web
 
 **局域网 HTTP**（随 `pnpm dev / start` 自动启动）：
 
-| 端点                           | 说明                                                       |
-| ------------------------------ | ---------------------------------------------------------- |
-| `GET /api/health`              | 健康检查 + 数据概览（不鉴权，App 探测工作台用）            |
-| `GET /api/export/batch`        | JSON 批次；参数 `since / minIntensity / subreddit / limit` |
-| `GET /api/export/batch.sqlite` | 同条件的独立 `.sqlite` 文件下载                            |
-| `POST /api/sync/push`          | 接收移动端研判操作，按 `opId` 幂等应用（写 triage 表）     |
+| 端点                           | 说明                                                                 |
+| ------------------------------ | -------------------------------------------------------------------- |
+| `GET /api/health`              | 健康检查 + 数据概览（不鉴权，App 探测工作台用）                      |
+| `GET /api/export/batch`        | JSON 批次；参数 `since / minIntensity / subreddit / limit`           |
+| `GET /api/export/batch.sqlite` | 同条件的独立 `.sqlite` 文件下载                                      |
+| `POST /api/sync/push`          | 接收移动端研判操作，按 `opId` 幂等应用（写 triage 表）               |
 | `* /api/settings/*`            | 模型清单 CRUD + 选用 active + 连通性测试（密钥加密入库，仅脱敏外发） |
-| `POST /api/analysis/run`       | 手动运行：选中帖子按指定模型入队（trigger=manual）         |
-| `GET /api/analysis/jobs`       | 分析队列看板（状态汇总 + 最近任务）                        |
+| `POST /api/analysis/run`       | 手动运行：选中帖子按指定模型入队（trigger=manual）                   |
+| `GET /api/analysis/jobs`       | 分析队列看板（状态汇总 + 最近任务）                                  |
 
 端口 `HTTP_PORT`（默认 8787），设 `API_TOKEN` 后导出与同步接口要求 `Authorization: Bearer <token>`。
 
@@ -149,7 +149,7 @@ pnpm cli export -- -f json -o /tmp/b.json
 ## 移动端（离线伴侣 App）
 
 ```bash
-pnpm mobile     # 启动 Expo dev server，用 Expo Go 扫码（iOS 真机）
+pnpm dev:mobile   # 启动 Expo dev server，用 Expo Go 扫码（iOS 真机）
 ```
 
 - 本地 SQLite 与服务器同文件格式；导入批次两种方式：
@@ -168,11 +168,11 @@ pnpm mobile     # 启动 Expo dev server，用 Expo Go 扫码（iOS 真机）
 
 模型在 **Web 设置页（`/settings`）** 配置：可添加多条 Anthropic / OpenAI / DeepSeek 模型，密钥经 `SETTINGS_SECRET`（AES-256-GCM）**加密入库**，API 仅返回脱敏视图、绝不下发明文。
 
-| 厂商      | 结构化输出                                              |
-| --------- | ------------------------------------------------------- |
-| Anthropic | Claude 系列，`messages` + JSON Schema 约束              |
-| OpenAI    | ChatGPT 系列，`response_format: json_schema`（strict）  |
-| DeepSeek  | OpenAI 兼容接口，`response_format: json_object`         |
+| 厂商      | 结构化输出                                             |
+| --------- | ------------------------------------------------------ |
+| Anthropic | Claude 系列，`messages` + JSON Schema 约束             |
+| OpenAI    | ChatGPT 系列，`response_format: json_schema`（strict） |
+| DeepSeek  | OpenAI 兼容接口，`response_format: json_object`        |
 
 **自动 vs 手动**（核心状态机）：
 
@@ -212,7 +212,7 @@ export const SUBREDDITS = [
 
 ## 项目结构
 
-pnpm workspace monorepo（多端规划见 `docs/multiplatform-refactor-spec.md`，本次重构见 `docs/server-nest-postgres-refactor-plan.md`）。根目录的 `pnpm dev / build / worker / cli / db:migrate` 等脚本统一代理到对应子包。
+pnpm workspace monorepo（多端规划见 `docs/multiplatform-refactor-spec.md`，本次重构见 `docs/server-nest-postgres-refactor-plan.md`）。根目录脚本约定：**裸命令（`dev` / `start` / `worker` / `cli` / `test`）= 主后端 server，其它端用 `:app` 后缀（`dev:web` / `build:web` / `start:web` / `dev:mobile`）**，`db:*` 代理到 `@hatch-radar/db`。
 
 ```
 hatch-radar/
@@ -264,12 +264,12 @@ hatch-radar/
 
 ## 调度策略
 
-| 任务         | 频率           | 说明                                                |
-| ------------ | -------------- | --------------------------------------------------- |
-| 热门帖子扫描 | 每 30 分钟     | 抓取各版块 hot/new 入库，并触发新帖即时抓评论       |
-| 评论补全     | 每 30 分钟     | 新帖即时抓；活跃帖按帖龄有界 refresh，内容变更才记一笔 |
-| AI 分析入队  | 每小时         | 选用 active 模型时把待分析帖子入队、由 Worker 池消费；未选用则跳过 |
-| 历史归档     | 每天凌晨       | 清理 30 天前原始数据，保留洞察结果                  |
+| 任务         | 频率       | 说明                                                               |
+| ------------ | ---------- | ------------------------------------------------------------------ |
+| 热门帖子扫描 | 每 30 分钟 | 抓取各版块 hot/new 入库，并触发新帖即时抓评论                      |
+| 评论补全     | 每 30 分钟 | 新帖即时抓；活跃帖按帖龄有界 refresh，内容变更才记一笔             |
+| AI 分析入队  | 每小时     | 选用 active 模型时把待分析帖子入队、由 Worker 池消费；未选用则跳过 |
+| 历史归档     | 每天凌晨   | 清理 30 天前原始数据，保留洞察结果                                 |
 
 ---
 
