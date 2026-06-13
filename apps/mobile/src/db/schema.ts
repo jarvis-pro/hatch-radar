@@ -24,6 +24,22 @@ CREATE TABLE IF NOT EXISTS meta (
 );
 `;
 
+/**
+ * 给已存在的本地库补充新增列（CREATE TABLE IF NOT EXISTS 不会给旧表加列）。
+ * 与服务端 schema 对齐，使导入批次的 `INSERT … SELECT *` 列数一致。幂等。
+ */
+function migrate(database: SQLite.SQLiteDatabase): void {
+  const cols = new Set(
+    database.getAllSync<{ name: string }>(`PRAGMA table_info(posts)`).map((c) => c.name),
+  );
+  if (!cols.has('comments_changed_at')) {
+    database.execSync(`ALTER TABLE posts ADD COLUMN comments_changed_at INTEGER`);
+  }
+  if (!cols.has('export_locked_at')) {
+    database.execSync(`ALTER TABLE posts ADD COLUMN export_locked_at INTEGER`);
+  }
+}
+
 let db: SQLite.SQLiteDatabase | null = null;
 
 /**
@@ -38,6 +54,7 @@ export function getDb(): SQLite.SQLiteDatabase {
   db.execSync(DDL);
   db.execSync(TRIAGE_DDL);
   db.execSync(MOBILE_DDL);
+  migrate(db);
   return db;
 }
 

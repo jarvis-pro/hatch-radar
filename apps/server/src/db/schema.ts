@@ -20,6 +20,27 @@ CREATE TABLE IF NOT EXISTS sync_ops (
   applied_at INTEGER NOT NULL             -- 服务端应用时间，Unix 秒
 );`;
 
+/** 当前 schema 版本（写入 PRAGMA user_version，为后续迁移留锚点） */
+const SCHEMA_VERSION = 1;
+
+/**
+ * 对已存在的库补充新增列（`CREATE TABLE IF NOT EXISTS` 不会给旧表加列）。
+ * - 按列存在性判断，幂等、与 user_version 无关，可重复执行
+ * - 新增列：comments_changed_at（评论变更时间）、export_locked_at（导出冻结）
+ */
+function migrate(database: Database.Database): void {
+  const cols = new Set(
+    (database.pragma('table_info(posts)') as { name: string }[]).map((c) => c.name),
+  );
+  if (!cols.has('comments_changed_at')) {
+    database.exec(`ALTER TABLE posts ADD COLUMN comments_changed_at INTEGER`);
+  }
+  if (!cols.has('export_locked_at')) {
+    database.exec(`ALTER TABLE posts ADD COLUMN export_locked_at INTEGER`);
+  }
+  database.pragma(`user_version = ${SCHEMA_VERSION}`);
+}
+
 let db: Database.Database | null = null;
 
 /**
@@ -39,6 +60,7 @@ export function getDb(): Database.Database {
   db.exec(DDL);
   db.exec(TRIAGE_DDL);
   db.exec(SYNC_OPS_DDL);
+  migrate(db);
   return db;
 }
 

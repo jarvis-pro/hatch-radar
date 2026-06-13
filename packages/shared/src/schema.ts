@@ -25,8 +25,10 @@ CREATE TABLE IF NOT EXISTS posts (
   -- 评论回捞进度：0=未抓 1=6h已抓 2=完成（RSS 帖子直接写 2，跳过评论阶段）
   comment_pass        INTEGER NOT NULL DEFAULT 0,
   comments_fetched_at INTEGER,                    -- 最近一次评论抓取时间，Unix 秒
-  analyzed_at         INTEGER,                    -- AI 分析完成时间，Unix 秒；NULL 表示待分析
-  analyze_attempts    INTEGER NOT NULL DEFAULT 0  -- 连续失败次数；超过阈值将跳过该帖子
+  analyzed_at         INTEGER,                    -- AI 分析完成时间，Unix 秒；NULL 表示待分析（仅 anthropic/deepseek 自动模式使用）
+  analyze_attempts    INTEGER NOT NULL DEFAULT 0, -- 连续失败次数；超过阈值将跳过该帖子
+  comments_changed_at INTEGER,                    -- 评论快照内容最近变更时间，Unix 秒（diff 得出；驱动"反馈后又变"重列）
+  export_locked_at    INTEGER                     -- 导出冻结时间戳，Unix 秒；NULL=未冻结，置位时暂停评论 refresh
 );
 
 -- 按版块浏览

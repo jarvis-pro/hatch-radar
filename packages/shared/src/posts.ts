@@ -22,11 +22,15 @@ export interface PostRow {
   created_utc: number;
   /** 最近一次抓取 Unix 时间戳（秒） */
   fetched_at: number;
-  /** 评论回捞阶段：0=未回捞，1=已完成 6h 回捞，2=已完成 12h 回捞；RSS 帖子直接为 2 */
+  /** 评论回捞标记：0=未抓评论，≥1=已抓过（即时抓取后置位；RSS 帖子直接为 2 表示无需评论） */
   comment_pass: number;
   /** 最近一次评论回捞 Unix 时间戳（秒）；从未回捞时为 null */
   comments_fetched_at: number | null;
-  /** AI 分析完成 Unix 时间戳（秒）；尚未分析时为 null */
+  /** 评论快照内容最近变更 Unix 时间戳（秒）；diff 得出，从未变更/未抓时为 null */
+  comments_changed_at: number | null;
+  /** 导出冻结 Unix 时间戳（秒）；置位时暂停评论 refresh，NULL=未冻结 */
+  export_locked_at: number | null;
+  /** AI 分析完成 Unix 时间戳（秒）；尚未分析时为 null（仅 anthropic/deepseek 自动模式使用） */
   analyzed_at: number | null;
   /** 已尝试 AI 分析的次数；达到 3 次后不再重试 */
   analyze_attempts: number;
