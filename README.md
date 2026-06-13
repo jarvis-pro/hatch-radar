@@ -122,6 +122,7 @@ docker run -p 3000:3000 -v ./apps/server/data:/data hatch-radar-web
 | `GET /api/export/batch.sqlite` | 同条件的独立 `.sqlite` 文件下载                            |
 | `POST /api/sync/push`          | 接收移动端研判操作，按 `opId` 幂等应用（写 triage 表）     |
 | `POST /api/insights/import`    | 回灌手动 AI 分析结果（file 模式闭环收料，按 `post_id` 幂等）|
+| `POST /api/export/lock`        | 标记选中帖为已导出冻结，暂停其评论 refresh 直至回灌解冻     |
 | `GET /api/posts/<id>/doc`      | 单篇帖子的待分析 Markdown 文档（web 复制后粘贴给外部 AI）   |
 
 端口 `HTTP_PORT`（默认 8787），设 `API_TOKEN` 后导出与同步接口要求 `Authorization: Bearer <token>`。
@@ -166,8 +167,8 @@ pnpm mobile     # 启动 Expo dev server，用 Expo Go 扫码（iOS 真机）
 
 - 不设 `AI_PROVIDER` 时默认 `file`，无需任何 key 即可运行。
 - 要用模型分析，须显式设 `AI_PROVIDER=anthropic` 或 `deepseek`，并填写对应的 API Key（缺 key 会在启动校验时报错）。
-- `file` 模式导出目录默认 `./data/manual-analysis`（可由 `MANUAL_ANALYSIS_DIR` 覆盖）；导出文件含分析指令、期望的 JSON 输出格式与帖子+评论上下文。
-- **闭环回填**：拿到外部 AI 返回的 JSON 后，在 Web 控制台「回填」页（`/analyze`）选对应帖子，一键复制待分析文档 → 粘贴给 AI → 把 JSON 贴回提交，即落库为洞察（`model=manual`，按 `post_id` 幂等）。回填后该帖从「待回填」列表消失，洞察随即出现在洞察页与导出批次中。`file` 模式不闭环回填则洞察表恒为空，下游展示 / 导出 / 移动端漏斗均无数据。
+- `file` 模式下待分析文档**不再预生成到磁盘**，改由 Web 工作台按需生成（含分析指令、期望 JSON 格式与帖子+评论上下文）。
+- **闭环回填**：Web 控制台「回填」页（`/analyze`）列出已具备评论、待处理的帖子（未回灌；或已回灌但评论又更新→「建议重判」）。多选「导出选中」一键生成 `.md` 并冻结这些帖的评论 refresh；把外部 AI 返回的 JSON 贴回提交即落库为洞察（`model=manual`，按 `post_id` 幂等）并自动解冻。`file` 模式不回灌则洞察表恒为空，下游展示 / 导出 / 移动端漏斗均无数据。
 
 ---
 
@@ -244,9 +245,9 @@ hatch-radar/
 
 | 任务         | 频率           | 说明                                                |
 | ------------ | -------------- | --------------------------------------------------- |
-| 热门帖子扫描 | 每 30 分钟     | 抓取各版块 hot/new，写入待分析队列                  |
-| 评论补全     | 发帖后 6h、12h | 对新帖回捞评论，评论越多信号越强                    |
-| AI 批量分析  | 每小时         | 取未分析帖子送 Anthropic / DeepSeek，或导出本地文件 |
+| 热门帖子扫描 | 每 30 分钟     | 抓取各版块 hot/new 入库，并触发新帖即时抓评论       |
+| 评论补全     | 每 30 分钟     | 新帖即时抓；活跃帖按帖龄有界 refresh，内容变更才记一笔 |
+| AI 批量分析  | 每小时         | 取未分析帖子送 Anthropic / DeepSeek（file 模式不自动跑，改 web 工作台按需导出） |
 | 历史归档     | 每天凌晨       | 清理 30 天前原始数据，保留洞察结果                  |
 
 ---
