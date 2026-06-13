@@ -1,5 +1,4 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import {
   TRIAGE_STATUSES,
@@ -7,12 +6,12 @@ import {
   type SyncOperation,
   type SyncPushResponse,
 } from '@hatch-radar/shared';
-import { insights, syncOps, triage, type AppDatabase } from '@hatch-radar/db';
-import { DRIZZLE } from '../common/tokens';
+import { Prisma, type AppDatabase } from '@hatch-radar/db';
+import { PRISMA } from '../common/tokens';
 import { nowSec } from '../common/time';
 
-/** Drizzle 事务句柄类型（transaction 回调的 tx 参数） */
-type Tx = Parameters<Parameters<AppDatabase['transaction']>[0]>[0];
+/** Prisma 交互式事务句柄类型 */
+type Tx = Prisma.TransactionClient;
 
 /** 请求信封：deviceId + 待应用操作数组（单条操作的合法性在逐条校验时判定） */
 export const pushEnvelopeSchema = z.object({
@@ -71,46 +70,40 @@ function extractOpId(raw: unknown, index: number): string {
 @Injectable()
 export class SyncService {
   private readonly logger = new Logger('Sync');
-  constructor(@Inject(DRIZZLE) private readonly db: AppDatabase) {}
+  constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
 
   /** 按操作类型把变更落到服务端 triage 表（updated_at 取操作在设备上的发生时间） */
   private async applyTriageOp(tx: Tx, op: SyncOperation): Promise<void> {
+    const insight_id = op.targetId;
+    const updated_at = BigInt(op.createdAt);
     switch (op.type) {
       case 'set_status':
-        await tx
-          .insert(triage)
-          .values({ insight_id: op.targetId, status: op.payload.status, updated_at: op.createdAt })
-          .onConflictDoUpdate({
-            target: triage.insight_id,
-            set: { status: sql`excluded.status`, updated_at: sql`excluded.updated_at` },
-          });
+        await tx.triage.upsert({
+          where: { insight_id },
+          create: { insight_id, status: op.payload.status, updated_at },
+          update: { status: op.payload.status, updated_at },
+        });
         break;
       case 'set_rating':
-        await tx
-          .insert(triage)
-          .values({ insight_id: op.targetId, rating: op.payload.rating, updated_at: op.createdAt })
-          .onConflictDoUpdate({
-            target: triage.insight_id,
-            set: { rating: sql`excluded.rating`, updated_at: sql`excluded.updated_at` },
-          });
+        await tx.triage.upsert({
+          where: { insight_id },
+          create: { insight_id, rating: op.payload.rating, updated_at },
+          update: { rating: op.payload.rating, updated_at },
+        });
         break;
       case 'set_tags':
-        await tx
-          .insert(triage)
-          .values({ insight_id: op.targetId, tags: op.payload.tags, updated_at: op.createdAt })
-          .onConflictDoUpdate({
-            target: triage.insight_id,
-            set: { tags: sql`excluded.tags`, updated_at: sql`excluded.updated_at` },
-          });
+        await tx.triage.upsert({
+          where: { insight_id },
+          create: { insight_id, tags: op.payload.tags, updated_at },
+          update: { tags: op.payload.tags, updated_at },
+        });
         break;
       case 'set_note':
-        await tx
-          .insert(triage)
-          .values({ insight_id: op.targetId, note: op.payload.note, updated_at: op.createdAt })
-          .onConflictDoUpdate({
-            target: triage.insight_id,
-            set: { note: sql`excluded.note`, updated_at: sql`excluded.updated_at` },
-          });
+        await tx.triage.upsert({
+          where: { insight_id },
+          create: { insight_id, note: op.payload.note, updated_at },
+          update: { note: op.payload.note, updated_at },
+        });
         break;
     }
   }
@@ -133,31 +126,31 @@ export class SyncService {
     }
     const op = parsed.data as SyncOperation;
 
-    const dup = await tx
-      .select({ x: sql`1` })
-      .from(syncOps)
-      .where(eq(syncOps.op_id, op.opId))
-      .limit(1);
-    if (dup.length > 0) return { opId: op.opId, outcome: 'duplicate' };
+    const dup = await tx.sync_ops.findUnique({
+      where: { op_id: op.opId },
+      select: { op_id: true },
+    });
+    if (dup) return { opId: op.opId, outcome: 'duplicate' };
 
-    const target = await tx
-      .select({ x: sql`1` })
-      .from(insights)
-      .where(eq(insights.id, op.targetId))
-      .limit(1);
-    if (target.length === 0) {
+    const target = await tx.insights.findUnique({
+      where: { id: op.targetId },
+      select: { id: true },
+    });
+    if (!target) {
       return { opId: op.opId, outcome: 'rejected', reason: `目标洞察不存在: ${op.targetId}` };
     }
 
     await this.applyTriageOp(tx, op);
-    await tx.insert(syncOps).values({
-      op_id: op.opId,
-      device_id: deviceId,
-      type: op.type,
-      target_id: op.targetId,
-      payload: op.payload,
-      created_at: op.createdAt,
-      applied_at: nowSec(),
+    await tx.sync_ops.create({
+      data: {
+        op_id: op.opId,
+        device_id: deviceId,
+        type: op.type,
+        target_id: op.targetId,
+        payload: op.payload as unknown as Prisma.InputJsonValue,
+        created_at: BigInt(op.createdAt),
+        applied_at: BigInt(nowSec()),
+      },
     });
     return { opId: op.opId, outcome: 'applied' };
   }
@@ -168,7 +161,7 @@ export class SyncService {
    * @param rawOps 未经校验的操作数组（来自请求体）
    */
   async applySyncPush(deviceId: string, rawOps: unknown[]): Promise<SyncPushResponse> {
-    const results = await this.db.transaction(async (tx) => {
+    const results = await this.db.$transaction(async (tx) => {
       const acc: SyncOpResult[] = [];
       for (let i = 0; i < rawOps.length; i++) {
         acc.push(await this.applyOne(tx, deviceId, rawOps[i], i));

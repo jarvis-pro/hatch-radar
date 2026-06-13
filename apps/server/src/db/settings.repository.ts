@@ -1,39 +1,35 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { eq, sql } from 'drizzle-orm';
-import { appSettings, type AppDatabase } from '@hatch-radar/db';
-import { DRIZZLE } from '../common/tokens';
+import type { AppDatabase } from '@hatch-radar/db';
+import { PRISMA } from '../common/tokens';
 
 /** app_settings 中「当前使用的模型配置 ID」键 */
 const ACTIVE_PROVIDER_KEY = 'active_provider_id';
 
 /**
- * 全局键值配置数据访问（异步 Drizzle / PostgreSQL）。
+ * 全局键值配置数据访问（Prisma / PostgreSQL）。
  */
 @Injectable()
 export class SettingsRepository {
-  constructor(@Inject(DRIZZLE) private readonly db: AppDatabase) {}
+  constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
 
   /** 读取一个全局配置项 */
   async getSetting(key: string): Promise<string | undefined> {
-    const rows = await this.db
-      .select({ value: appSettings.value })
-      .from(appSettings)
-      .where(eq(appSettings.key, key))
-      .limit(1);
-    return rows[0]?.value;
+    const row = await this.db.app_settings.findUnique({ where: { key }, select: { value: true } });
+    return row?.value;
   }
 
   /** 写入（或覆盖）一个全局配置项 */
   async setSetting(key: string, value: string): Promise<void> {
-    await this.db
-      .insert(appSettings)
-      .values({ key, value })
-      .onConflictDoUpdate({ target: appSettings.key, set: { value: sql`excluded.value` } });
+    await this.db.app_settings.upsert({
+      where: { key },
+      create: { key, value },
+      update: { value },
+    });
   }
 
   /** 删除一个全局配置项 */
   async deleteSetting(key: string): Promise<void> {
-    await this.db.delete(appSettings).where(eq(appSettings.key, key));
+    await this.db.app_settings.deleteMany({ where: { key } });
   }
 
   /**

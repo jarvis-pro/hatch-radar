@@ -1,8 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { asc, eq } from 'drizzle-orm';
-import { modelProviders, type AppDatabase, type ProviderRow } from '@hatch-radar/db';
+import { Prisma, toProviderRow, type AppDatabase, type ProviderRow } from '@hatch-radar/db';
 import { decryptSecret, encryptSecret } from '../crypto';
-import { DRIZZLE } from '../common/tokens';
+import { PRISMA } from '../common/tokens';
 
 /** 支持的模型厂商 */
 export type ProviderKind = ProviderRow['provider'];
@@ -64,26 +63,23 @@ export function toProviderDTO(row: ProviderRow): ProviderDTO {
 }
 
 /**
- * 模型清单数据访问（异步 Drizzle / PostgreSQL）。
+ * 模型清单数据访问（Prisma / PostgreSQL）。
  * api_key 始终以密文存取；脱敏由 {@link toProviderDTO} 在边界完成。
  */
 @Injectable()
 export class ProvidersRepository {
-  constructor(@Inject(DRIZZLE) private readonly db: AppDatabase) {}
+  constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
 
   /** 列出全部模型配置（含密文，仅服务端内部使用） */
-  listProviders(): Promise<ProviderRow[]> {
-    return this.db.select().from(modelProviders).orderBy(asc(modelProviders.id));
+  async listProviders(): Promise<ProviderRow[]> {
+    const rows = await this.db.model_providers.findMany({ orderBy: { id: 'asc' } });
+    return rows.map(toProviderRow);
   }
 
   /** 按 ID 取单条模型配置 */
   async getProvider(id: number): Promise<ProviderRow | undefined> {
-    const rows = await this.db
-      .select()
-      .from(modelProviders)
-      .where(eq(modelProviders.id, id))
-      .limit(1);
-    return rows[0];
+    const row = await this.db.model_providers.findUnique({ where: { id } });
+    return row ? toProviderRow(row) : undefined;
   }
 
   /**
@@ -93,19 +89,19 @@ export class ProvidersRepository {
    * @returns 新建记录的自增 ID
    */
   async createProvider(input: ProviderInput, now: number): Promise<number> {
-    const [row] = await this.db
-      .insert(modelProviders)
-      .values({
+    const row = await this.db.model_providers.create({
+      data: {
         provider: input.provider,
         label: input.label,
         api_key: encryptSecret(input.apiKey),
         base_url: input.baseUrl ?? null,
         model: input.model,
         enabled: input.enabled !== false,
-        created_at: now,
-        updated_at: now,
-      })
-      .returning({ id: modelProviders.id });
+        created_at: BigInt(now),
+        updated_at: BigInt(now),
+      },
+      select: { id: true },
+    });
     return row.id;
   }
 
@@ -118,30 +114,23 @@ export class ProvidersRepository {
    * @returns 是否有记录被更新
    */
   async updateProvider(id: number, fields: Partial<ProviderInput>, now: number): Promise<boolean> {
-    const set: Partial<typeof modelProviders.$inferInsert> = {};
-    if (fields.provider !== undefined) set.provider = fields.provider;
-    if (fields.label !== undefined) set.label = fields.label;
+    const data: Prisma.model_providersUpdateManyMutationInput = {};
+    if (fields.provider !== undefined) data.provider = fields.provider;
+    if (fields.label !== undefined) data.label = fields.label;
     if (fields.apiKey !== undefined && fields.apiKey !== '')
-      set.api_key = encryptSecret(fields.apiKey);
-    if (fields.baseUrl !== undefined) set.base_url = fields.baseUrl ?? null;
-    if (fields.model !== undefined) set.model = fields.model;
-    if (fields.enabled !== undefined) set.enabled = fields.enabled;
-    if (Object.keys(set).length === 0) return false;
-    set.updated_at = now;
-    const res = await this.db
-      .update(modelProviders)
-      .set(set)
-      .where(eq(modelProviders.id, id))
-      .returning({ id: modelProviders.id });
-    return res.length > 0;
+      data.api_key = encryptSecret(fields.apiKey);
+    if (fields.baseUrl !== undefined) data.base_url = fields.baseUrl ?? null;
+    if (fields.model !== undefined) data.model = fields.model;
+    if (fields.enabled !== undefined) data.enabled = fields.enabled;
+    if (Object.keys(data).length === 0) return false;
+    data.updated_at = BigInt(now);
+    const res = await this.db.model_providers.updateMany({ where: { id }, data });
+    return res.count > 0;
   }
 
   /** 删除模型配置 */
   async deleteProvider(id: number): Promise<boolean> {
-    const res = await this.db
-      .delete(modelProviders)
-      .where(eq(modelProviders.id, id))
-      .returning({ id: modelProviders.id });
-    return res.length > 0;
+    const res = await this.db.model_providers.deleteMany({ where: { id } });
+    return res.count > 0;
   }
 }

@@ -8,5 +8,5 @@
 /** 整份校验后的应用配置（AppEnv），由 AppConfigModule 提供 */
 export const APP_ENV = Symbol('APP_ENV');
 
-/** Drizzle 数据库实例（AppDatabase），由 DatabaseModule 提供 */
-export const DRIZZLE = Symbol('DRIZZLE');
+/** Prisma 数据库实例（AppDatabase），由 DatabaseModule 提供 */
+export const PRISMA = Symbol('PRISMA');

@@ -8,7 +8,7 @@ import { SettingsRepository } from './settings.repository';
 import { StatsRepository } from './stats.repository';
 
 /**
- * 仓储模块：聚合全部异步 Drizzle repository（注入 DRIZZLE，由全局 DatabaseModule 提供）。
+ * 仓储模块：聚合全部 Prisma repository（注入 PRISMA，由全局 DatabaseModule 提供）。
  * 各功能模块 import 本模块即可注入所需 repository。
  */
 const REPOSITORIES = [

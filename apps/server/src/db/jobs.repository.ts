@@ -1,7 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
-import { analysisJobs, posts, type AppDatabase, type JobRow } from '@hatch-radar/db';
-import { DRIZZLE } from '../common/tokens';
+import { toJobRow, type AppDatabase, type JobPg, type JobRow, type Prisma } from '@hatch-radar/db';
+import { PRISMA } from '../common/tokens';
 
 /** 任务触发来源：auto=定时调度入队，manual=管理员在工作台手动入队 */
 export type JobTrigger = JobRow['trigger'];
@@ -29,15 +28,22 @@ export interface JobView {
   finished_at: number | null;
 }
 
+/** listRecentJobs 的原始行（时间戳为 bigint，待折回 number） */
+type JobViewRaw = Omit<JobView, 'enqueued_at' | 'started_at' | 'finished_at'> & {
+  enqueued_at: bigint;
+  started_at: bigint | null;
+  finished_at: bigint | null;
+};
+
 /**
- * 分析任务队列数据访问（异步 Drizzle / PostgreSQL）。
+ * 分析任务队列数据访问（Prisma / PostgreSQL）。
  *
- * 认领改用 `FOR UPDATE SKIP LOCKED`：多 worker / 多进程并发认领互不冲突、不重不漏，
- * 同时解锁「worker 独立成进程」。心跳 / 僵死回收 / max_attempts 逻辑原样保留。
+ * 认领用 `FOR UPDATE SKIP LOCKED`（Prisma 无一等 API → $queryRaw）：多 worker / 多进程并发
+ * 认领互不冲突、不重不漏，同时解锁「worker 独立成进程」。心跳 / 僵死回收 / max_attempts 原样保留。
  */
 @Injectable()
 export class JobsRepository {
-  constructor(@Inject(DRIZZLE) private readonly db: AppDatabase) {}
+  constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
 
   /**
    * 批量入队分析任务。
@@ -59,21 +65,16 @@ export class JobsRepository {
   ): Promise<number> {
     const unique = [...new Set(postIds)];
     if (unique.length === 0) return 0;
-    return this.db.transaction(async (tx) => {
-      const active = await tx
-        .select({ post_id: analysisJobs.post_id })
-        .from(analysisJobs)
-        .where(
-          and(
-            inArray(analysisJobs.post_id, unique),
-            inArray(analysisJobs.status, ['queued', 'running']),
-          ),
-        );
+    return this.db.$transaction(async (tx) => {
+      const active = await tx.analysis_jobs.findMany({
+        where: { post_id: { in: unique }, status: { in: ['queued', 'running'] } },
+        select: { post_id: true },
+      });
       const activeSet = new Set(active.map((r) => r.post_id));
       const toInsert = unique.filter((id) => !activeSet.has(id));
       if (toInsert.length === 0) return 0;
-      await tx.insert(analysisJobs).values(
-        toInsert.map((post_id) => ({
+      await tx.analysis_jobs.createMany({
+        data: toInsert.map((post_id) => ({
           post_id,
           provider_id: providerId,
           model,
@@ -81,9 +82,9 @@ export class JobsRepository {
           status: 'queued' as const,
           attempts: 0,
           max_attempts: DEFAULT_MAX_ATTEMPTS,
-          enqueued_at: now,
+          enqueued_at: BigInt(now),
         })),
-      );
+      });
       return toInsert.length;
     });
   }
@@ -95,32 +96,32 @@ export class JobsRepository {
    * @returns 认领到的任务（已更新为 running）；队列为空时返回 null
    */
   async claimNextJob(now: number): Promise<JobRow | null> {
-    return this.db.transaction(async (tx) => {
-      const picked = await tx
-        .select()
-        .from(analysisJobs)
-        .where(eq(analysisJobs.status, 'queued'))
-        .orderBy(asc(analysisJobs.enqueued_at), asc(analysisJobs.id))
-        .limit(1)
-        .for('update', { skipLocked: true });
+    return this.db.$transaction(async (tx) => {
+      const picked = await tx.$queryRaw<JobPg[]>`
+        SELECT * FROM analysis_jobs
+        WHERE status = 'queued'
+        ORDER BY enqueued_at ASC, id ASC
+        LIMIT 1
+        FOR UPDATE SKIP LOCKED
+      `;
       const job = picked[0];
       if (!job) return null;
-      await tx
-        .update(analysisJobs)
-        .set({
+      await tx.analysis_jobs.update({
+        where: { id: job.id },
+        data: {
           status: 'running',
-          started_at: now,
-          heartbeat_at: now,
-          attempts: sql`${analysisJobs.attempts} + 1`,
-        })
-        .where(eq(analysisJobs.id, job.id));
-      return {
+          started_at: BigInt(now),
+          heartbeat_at: BigInt(now),
+          attempts: { increment: 1 },
+        },
+      });
+      return toJobRow({
         ...job,
-        status: 'running' as const,
-        started_at: now,
-        heartbeat_at: now,
+        status: 'running',
+        started_at: BigInt(now),
+        heartbeat_at: BigInt(now),
         attempts: job.attempts + 1,
-      };
+      });
     });
   }
 
@@ -130,10 +131,10 @@ export class JobsRepository {
    * @param now 当前 Unix 时间戳（秒）
    */
   async touchHeartbeat(jobId: number, now: number): Promise<void> {
-    await this.db
-      .update(analysisJobs)
-      .set({ heartbeat_at: now })
-      .where(and(eq(analysisJobs.id, jobId), eq(analysisJobs.status, 'running')));
+    await this.db.analysis_jobs.updateMany({
+      where: { id: jobId, status: 'running' },
+      data: { heartbeat_at: BigInt(now) },
+    });
   }
 
   /**
@@ -142,10 +143,10 @@ export class JobsRepository {
    * @param now 完成 Unix 时间戳（秒）
    */
   async succeedJob(jobId: number, now: number): Promise<void> {
-    await this.db
-      .update(analysisJobs)
-      .set({ status: 'succeeded', finished_at: now, error: null })
-      .where(eq(analysisJobs.id, jobId));
+    await this.db.analysis_jobs.update({
+      where: { id: jobId },
+      data: { status: 'succeeded', finished_at: BigInt(now), error: null },
+    });
   }
 
   /**
@@ -155,10 +156,10 @@ export class JobsRepository {
    * @param now 完成 Unix 时间戳（秒）
    */
   async failJob(jobId: number, error: string, now: number): Promise<void> {
-    await this.db
-      .update(analysisJobs)
-      .set({ status: 'failed', finished_at: now, error: error.slice(0, MAX_ERROR_CHARS) })
-      .where(eq(analysisJobs.id, jobId));
+    await this.db.analysis_jobs.update({
+      where: { id: jobId },
+      data: { status: 'failed', finished_at: BigInt(now), error: error.slice(0, MAX_ERROR_CHARS) },
+    });
   }
 
   /**
@@ -169,31 +170,34 @@ export class JobsRepository {
    * @returns 被回收的任务数
    */
   async reclaimRunningJobs(now: number, staleSeconds: number | null): Promise<number> {
-    const staleCond =
+    const where: Prisma.analysis_jobsWhereInput =
       staleSeconds === null
-        ? sql`${analysisJobs.status} = 'running'`
-        : sql`${analysisJobs.status} = 'running' AND (${analysisJobs.heartbeat_at} IS NULL OR ${analysisJobs.heartbeat_at} < ${now - staleSeconds})`;
-    return this.db.transaction(async (tx) => {
-      const rows = await tx
-        .select({
-          id: analysisJobs.id,
-          attempts: analysisJobs.attempts,
-          max_attempts: analysisJobs.max_attempts,
-        })
-        .from(analysisJobs)
-        .where(staleCond);
+        ? { status: 'running' }
+        : {
+            status: 'running',
+            OR: [{ heartbeat_at: null }, { heartbeat_at: { lt: BigInt(now - staleSeconds) } }],
+          };
+    return this.db.$transaction(async (tx) => {
+      const rows = await tx.analysis_jobs.findMany({
+        where,
+        select: { id: true, attempts: true, max_attempts: true },
+      });
       if (rows.length === 0) return 0;
       for (const r of rows) {
         if (r.attempts >= r.max_attempts) {
-          await tx
-            .update(analysisJobs)
-            .set({ status: 'failed', finished_at: now, error: '僵死回收：超过最大尝试次数' })
-            .where(eq(analysisJobs.id, r.id));
+          await tx.analysis_jobs.update({
+            where: { id: r.id },
+            data: {
+              status: 'failed',
+              finished_at: BigInt(now),
+              error: '僵死回收：超过最大尝试次数',
+            },
+          });
         } else {
-          await tx
-            .update(analysisJobs)
-            .set({ status: 'queued', started_at: null, heartbeat_at: null })
-            .where(eq(analysisJobs.id, r.id));
+          await tx.analysis_jobs.update({
+            where: { id: r.id },
+            data: { status: 'queued', started_at: null, heartbeat_at: null },
+          });
         }
       }
       return rows.length;
@@ -202,10 +206,7 @@ export class JobsRepository {
 
   /** 各状态任务数汇总，用于启动 / worker 日志与队列看板 */
   async getJobStats(): Promise<Record<JobStatus, number>> {
-    const rows = await this.db
-      .select({ status: analysisJobs.status, n: sql<number>`count(*)::int` })
-      .from(analysisJobs)
-      .groupBy(analysisJobs.status);
+    const rows = await this.db.analysis_jobs.groupBy({ by: ['status'], _count: { _all: true } });
     const stats: Record<JobStatus, number> = {
       queued: 0,
       running: 0,
@@ -213,29 +214,25 @@ export class JobsRepository {
       failed: 0,
       canceled: 0,
     };
-    for (const r of rows) stats[r.status] = r.n;
+    for (const r of rows) stats[r.status] = r._count._all;
     return stats;
   }
 
   /** 取最近的任务（按 id 倒序），供 web 队列看板轮询展示 */
-  listRecentJobs(limit: number): Promise<JobView[]> {
-    return this.db
-      .select({
-        id: analysisJobs.id,
-        post_id: analysisJobs.post_id,
-        post_title: posts.title,
-        model: analysisJobs.model,
-        trigger: analysisJobs.trigger,
-        status: analysisJobs.status,
-        attempts: analysisJobs.attempts,
-        error: analysisJobs.error,
-        enqueued_at: analysisJobs.enqueued_at,
-        started_at: analysisJobs.started_at,
-        finished_at: analysisJobs.finished_at,
-      })
-      .from(analysisJobs)
-      .leftJoin(posts, eq(posts.id, analysisJobs.post_id))
-      .orderBy(desc(analysisJobs.id))
-      .limit(limit);
+  async listRecentJobs(limit: number): Promise<JobView[]> {
+    const rows = await this.db.$queryRaw<JobViewRaw[]>`
+      SELECT j.id, j.post_id, p.title AS post_title, j.model, j.trigger, j.status,
+             j.attempts, j.error, j.enqueued_at, j.started_at, j.finished_at
+      FROM analysis_jobs j
+      LEFT JOIN posts p ON p.id = j.post_id
+      ORDER BY j.id DESC
+      LIMIT ${limit}
+    `;
+    return rows.map((r) => ({
+      ...r,
+      enqueued_at: Number(r.enqueued_at),
+      started_at: r.started_at === null ? null : Number(r.started_at),
+      finished_at: r.finished_at === null ? null : Number(r.finished_at),
+    }));
   }
 }

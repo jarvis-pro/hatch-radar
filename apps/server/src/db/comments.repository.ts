@@ -1,8 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { asc, desc, eq, sql } from 'drizzle-orm';
-import { comments, posts, type AppDatabase, type CommentRow } from '@hatch-radar/db';
+import { Prisma, toCommentRow, type AppDatabase, type CommentRow } from '@hatch-radar/db';
 import type { RedditComment } from '../crawler/reddit';
-import { DRIZZLE } from '../common/tokens';
+import { PRISMA } from '../common/tokens';
 
 /**
  * 评论快照指纹（id+score+body，排序后拼接），用于判断本次抓取是否带来内容变化。
@@ -16,16 +15,16 @@ function commentsFingerprint(rows: { id: string; score: number; body: string }[]
 }
 
 /**
- * 评论表数据访问（异步 Drizzle / PostgreSQL）。
+ * 评论表数据访问（Prisma / PostgreSQL）。
  */
 @Injectable()
 export class CommentsRepository {
-  constructor(@Inject(DRIZZLE) private readonly db: AppDatabase) {}
+  constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
 
   /**
    * 整体替换帖子的评论快照并推进回捞阶段计数。
    * - 先删除原有评论再批量插入，保证快照与 API 返回一致
-   * - `comment_pass` 取当前值与 pass 的较大值，防止意外回退
+   * - `comment_pass` 取当前值与 pass 的较大值（GREATEST），防止意外回退
    * - 评论内容（id/score/body）较上次快照有变化时，前移 `comments_changed_at`（驱动「反馈后又变」重列）
    * @param postId 目标帖子 ID
    * @param incoming 从 API 抓取的最新评论列表；传空数组时仅推进阶段计数
@@ -38,41 +37,39 @@ export class CommentsRepository {
     pass: number,
     fetchedAt: number,
   ): Promise<void> {
-    await this.db.transaction(async (tx) => {
-      const prev = await tx
-        .select({ id: comments.id, score: comments.score, body: comments.body })
-        .from(comments)
-        .where(eq(comments.post_id, postId));
+    await this.db.$transaction(async (tx) => {
+      const prev = await tx.comments.findMany({
+        where: { post_id: postId },
+        select: { id: true, score: true, body: true },
+      });
       const changed = commentsFingerprint(prev) !== commentsFingerprint(incoming);
 
-      await tx.delete(comments).where(eq(comments.post_id, postId));
+      await tx.comments.deleteMany({ where: { post_id: postId } });
       if (incoming.length > 0) {
-        await tx
-          .insert(comments)
-          .values(
-            incoming.map((c) => ({
-              id: c.id,
-              post_id: postId,
-              parent_id: c.parentId,
-              author: c.author,
-              body: c.body,
-              score: c.score,
-              depth: c.depth,
-              created_utc: c.createdUtc,
-              fetched_at: fetchedAt,
-            })),
-          )
-          .onConflictDoNothing();
+        await tx.comments.createMany({
+          data: incoming.map((c) => ({
+            id: c.id,
+            post_id: postId,
+            parent_id: c.parentId,
+            author: c.author,
+            body: c.body,
+            score: c.score,
+            depth: c.depth,
+            created_utc: BigInt(c.createdUtc),
+            fetched_at: BigInt(fetchedAt),
+          })),
+          skipDuplicates: true,
+        });
       }
 
-      await tx
-        .update(posts)
-        .set({
-          comment_pass: sql`GREATEST(${posts.comment_pass}, ${pass})`,
-          comments_fetched_at: fetchedAt,
-          comments_changed_at: changed ? fetchedAt : sql`${posts.comments_changed_at}`,
-        })
-        .where(eq(posts.id, postId));
+      // GREATEST / 条件保留旧值无法用 Prisma update 表达 → $executeRaw（仍在同一事务内）
+      await tx.$executeRaw`
+        UPDATE posts SET
+          comment_pass = GREATEST(comment_pass, ${pass}),
+          comments_fetched_at = ${BigInt(fetchedAt)},
+          comments_changed_at = ${changed ? Prisma.sql`${BigInt(fetchedAt)}` : Prisma.sql`comments_changed_at`}
+        WHERE id = ${postId}
+      `;
     });
   }
 
@@ -80,11 +77,11 @@ export class CommentsRepository {
    * 取出指定帖子的全部评论，按深度升序、分数降序排列。
    * @param postId 目标帖子 ID
    */
-  getCommentsForPost(postId: string): Promise<CommentRow[]> {
-    return this.db
-      .select()
-      .from(comments)
-      .where(eq(comments.post_id, postId))
-      .orderBy(asc(comments.depth), desc(comments.score));
+  async getCommentsForPost(postId: string): Promise<CommentRow[]> {
+    const rows = await this.db.comments.findMany({
+      where: { post_id: postId },
+      orderBy: [{ depth: 'asc' }, { score: 'desc' }],
+    });
+    return rows.map(toCommentRow);
   }
 }

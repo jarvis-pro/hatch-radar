@@ -1,8 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, desc, eq, gte, inArray, isNull, lt, ne, sql } from 'drizzle-orm';
-import { posts, comments, type AppDatabase, type PostRow } from '@hatch-radar/db';
+import { Prisma, toPostRow, type AppDatabase, type PostPg, type PostRow } from '@hatch-radar/db';
 import type { RedditPost } from '../crawler/reddit';
-import { DRIZZLE } from '../common/tokens';
+import { PRISMA } from '../common/tokens';
 
 /** 评论 refresh 节奏与冻结策略（秒） */
 const REFRESH = {
@@ -15,15 +14,16 @@ const REFRESH = {
 };
 
 /**
- * 帖子表数据访问（异步 Drizzle / PostgreSQL）。
+ * 帖子表数据访问（Prisma / PostgreSQL）。
  */
 @Injectable()
 export class PostsRepository {
-  constructor(@Inject(DRIZZLE) private readonly db: AppDatabase) {}
+  constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
 
   /**
    * 写入帖子列表，已存在的帖子仅刷新动态字段（分数、评论数、标题、正文、抓取时间）。
    * - source 与 subreddit 字段在冲突更新时不会变更
+   * - 批量 `INSERT … ON CONFLICT DO UPDATE`（单语句，走 $executeRaw：Prisma 无批量 upsert）
    * @param items 待写入的帖子列表
    * @param source 数据来源标识，如 `'reddit'` / `'hackernews'` / `'rss'`
    * @param fetchedAt 本次抓取 Unix 时间戳（秒）
@@ -37,46 +37,33 @@ export class PostsRepository {
     initialCommentPass = 0,
   ): Promise<{ added: number; updated: number; newPosts: { id: string; subreddit: string }[] }> {
     if (items.length === 0) return { added: 0, updated: 0, newPosts: [] };
-    return this.db.transaction(async (tx) => {
+    return this.db.$transaction(async (tx) => {
       const ids = items.map((p) => p.id);
-      const existingRows = await tx
-        .select({ id: posts.id })
-        .from(posts)
-        .where(inArray(posts.id, ids));
+      const existingRows = await tx.posts.findMany({
+        where: { id: { in: ids } },
+        select: { id: true },
+      });
       const existing = new Set(existingRows.map((r) => r.id));
       const newPosts = items
         .filter((p) => !existing.has(p.id))
         .map((p) => ({ id: p.id, subreddit: p.subreddit }));
 
-      await tx
-        .insert(posts)
-        .values(
-          items.map((p) => ({
-            id: p.id,
-            source,
-            subreddit: p.subreddit,
-            title: p.title,
-            author: p.author,
-            selftext: p.selftext,
-            url: p.url,
-            permalink: p.permalink,
-            score: p.score,
-            num_comments: p.numComments,
-            created_utc: p.createdUtc,
-            fetched_at: fetchedAt,
-            comment_pass: initialCommentPass,
-          })),
-        )
-        .onConflictDoUpdate({
-          target: posts.id,
-          set: {
-            title: sql`excluded.title`,
-            selftext: sql`excluded.selftext`,
-            score: sql`excluded.score`,
-            num_comments: sql`excluded.num_comments`,
-            fetched_at: sql`excluded.fetched_at`,
-          },
-        });
+      const values = Prisma.join(
+        items.map(
+          (p) =>
+            Prisma.sql`(${p.id}, ${source}, ${p.subreddit}, ${p.title}, ${p.author ?? null}, ${p.selftext}, ${p.url ?? null}, ${p.permalink ?? null}, ${p.score}, ${p.numComments}, ${p.createdUtc}, ${fetchedAt}, ${initialCommentPass})`,
+        ),
+      );
+      await tx.$executeRaw`
+        INSERT INTO posts (id, source, subreddit, title, author, selftext, url, permalink, score, num_comments, created_utc, fetched_at, comment_pass)
+        VALUES ${values}
+        ON CONFLICT (id) DO UPDATE SET
+          title = excluded.title,
+          selftext = excluded.selftext,
+          score = excluded.score,
+          num_comments = excluded.num_comments,
+          fetched_at = excluded.fetched_at
+      `;
 
       return { added: newPosts.length, updated: items.length - newPosts.length, newPosts };
     });
@@ -89,22 +76,19 @@ export class PostsRepository {
    * @param now 当前 Unix 时间戳（秒）
    * @param limit 最多返回条数
    */
-  getPostsNeedingCommentRefresh(now: number, limit: number): Promise<PostRow[]> {
-    return this.db
-      .select()
-      .from(posts)
-      .where(
-        and(
-          ne(posts.source, 'rss'),
-          sql`(
-            ${posts.comments_fetched_at} IS NULL
-            OR (${posts.created_utc} > ${now - REFRESH.youngAge} AND ${posts.comments_fetched_at} < ${now - REFRESH.youngInterval})
-            OR (${posts.created_utc} > ${now - REFRESH.maxAge} AND ${posts.comments_fetched_at} < ${now - REFRESH.midInterval})
-          )`,
-        ),
-      )
-      .orderBy(sql`(${posts.comments_fetched_at} IS NOT NULL)`, desc(posts.created_utc))
-      .limit(limit);
+  async getPostsNeedingCommentRefresh(now: number, limit: number): Promise<PostRow[]> {
+    const rows = await this.db.$queryRaw<PostPg[]>`
+      SELECT * FROM posts
+      WHERE source <> 'rss'
+        AND (
+          comments_fetched_at IS NULL
+          OR (created_utc > ${now - REFRESH.youngAge} AND comments_fetched_at < ${now - REFRESH.youngInterval})
+          OR (created_utc > ${now - REFRESH.maxAge} AND comments_fetched_at < ${now - REFRESH.midInterval})
+        )
+      ORDER BY (comments_fetched_at IS NOT NULL), created_utc DESC
+      LIMIT ${limit}
+    `;
+    return rows.map(toPostRow);
   }
 
   /**
@@ -112,15 +96,14 @@ export class PostsRepository {
    * - 按 `(score + num_comments)` 降序排列，优先处理热度高的帖子
    * @param limit 最多返回条数
    */
-  getPostsToAnalyze(limit: number): Promise<PostRow[]> {
-    return this.db
-      .select()
-      .from(posts)
-      .where(
-        and(isNull(posts.analyzed_at), gte(posts.comment_pass, 1), lt(posts.analyze_attempts, 3)),
-      )
-      .orderBy(sql`(${posts.score} + ${posts.num_comments}) desc`)
-      .limit(limit);
+  async getPostsToAnalyze(limit: number): Promise<PostRow[]> {
+    const rows = await this.db.$queryRaw<PostPg[]>`
+      SELECT * FROM posts
+      WHERE analyzed_at IS NULL AND comment_pass >= 1 AND analyze_attempts < 3
+      ORDER BY (score + num_comments) DESC
+      LIMIT ${limit}
+    `;
+    return rows.map(toPostRow);
   }
 
   /**
@@ -129,8 +112,8 @@ export class PostsRepository {
    * @returns 帖子行；不存在（含 30 天归档后已删除）时返回 undefined
    */
   async getPostById(id: string): Promise<PostRow | undefined> {
-    const rows = await this.db.select().from(posts).where(eq(posts.id, id)).limit(1);
-    return rows[0];
+    const row = await this.db.posts.findUnique({ where: { id } });
+    return row ? toPostRow(row) : undefined;
   }
 
   /**
@@ -139,7 +122,10 @@ export class PostsRepository {
    * @param analyzedAt 分析完成 Unix 时间戳（秒）
    */
   async markAnalyzed(postId: string, analyzedAt: number): Promise<void> {
-    await this.db.update(posts).set({ analyzed_at: analyzedAt }).where(eq(posts.id, postId));
+    await this.db.posts.update({
+      where: { id: postId },
+      data: { analyzed_at: BigInt(analyzedAt) },
+    });
   }
 
   /**
@@ -148,33 +134,31 @@ export class PostsRepository {
    * @param postId 目标帖子 ID
    */
   async bumpAnalyzeAttempts(postId: string): Promise<void> {
-    await this.db
-      .update(posts)
-      .set({ analyze_attempts: sql`${posts.analyze_attempts} + 1` })
-      .where(eq(posts.id, postId));
+    await this.db.posts.update({
+      where: { id: postId },
+      data: { analyze_attempts: { increment: 1 } },
+    });
   }
 
   /**
    * 清理早于 cutoff 时间戳的帖子与关联评论，洞察结果永久保留。
-   * - 先删评论再删帖子，返回实际删除条数
+   * - 先删评论（取得删除数）再删帖子，返回实际删除条数
    * @param cutoff Unix 时间戳（秒），早于此时间的帖子将被删除
    * @returns 被删除的帖子数与评论数
    */
   async archiveOldData(cutoff: number): Promise<{ posts: number; comments: number }> {
-    return this.db.transaction(async (tx) => {
-      const oldPostIds = tx
-        .select({ id: posts.id })
-        .from(posts)
-        .where(lt(posts.created_utc, cutoff));
-      const deletedComments = await tx
-        .delete(comments)
-        .where(inArray(comments.post_id, oldPostIds))
-        .returning({ id: comments.id });
-      const deletedPosts = await tx
-        .delete(posts)
-        .where(lt(posts.created_utc, cutoff))
-        .returning({ id: posts.id });
-      return { posts: deletedPosts.length, comments: deletedComments.length };
+    return this.db.$transaction(async (tx) => {
+      const old = await tx.posts.findMany({
+        where: { created_utc: { lt: BigInt(cutoff) } },
+        select: { id: true },
+      });
+      if (old.length === 0) return { posts: 0, comments: 0 };
+      const ids = old.map((p) => p.id);
+      const deletedComments = await tx.comments.deleteMany({ where: { post_id: { in: ids } } });
+      const deletedPosts = await tx.posts.deleteMany({
+        where: { created_utc: { lt: BigInt(cutoff) } },
+      });
+      return { posts: deletedPosts.count, comments: deletedComments.count };
     });
   }
 }

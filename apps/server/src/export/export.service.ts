@@ -1,6 +1,12 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, desc, eq, sql, type SQL } from 'drizzle-orm';
-import { comments, insights, posts, toInsightRow, type AppDatabase } from '@hatch-radar/db';
+import {
+  Prisma,
+  toCommentRow,
+  toInsightRow,
+  toPostRow,
+  type AppDatabase,
+  type InsightPgRow,
+} from '@hatch-radar/db';
 import {
   EXPORT_FORMAT_VERSION,
   type CommentRow,
@@ -8,7 +14,7 @@ import {
   type ExportFilter,
   type PostRow,
 } from '@hatch-radar/shared';
-import { DRIZZLE } from '../common/tokens';
+import { PRISMA } from '../common/tokens';
 import { nowSec } from '../common/time';
 
 /**
@@ -20,47 +26,44 @@ import { nowSec } from '../common/time';
  */
 @Injectable()
 export class ExportService {
-  constructor(@Inject(DRIZZLE) private readonly db: AppDatabase) {}
+  constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
 
   /**
    * 按条件从主库筛出一个导出批次。
    * @param filter 批次筛选条件
    */
   async collectBatch(filter: ExportFilter): Promise<ExportBatch> {
-    const conds: SQL[] = [
-      sql`(jsonb_array_length(${insights.pain_points}) > 0 OR jsonb_array_length(${insights.opportunities}) > 0)`,
+    const conds: Prisma.Sql[] = [
+      Prisma.sql`(jsonb_array_length(pain_points) > 0 OR jsonb_array_length(opportunities) > 0)`,
     ];
-    if (filter.since) conds.push(sql`${insights.created_at} > ${filter.since}`);
-    if (filter.minIntensity === 'HIGH') conds.push(sql`${insights.intensity}::text = 'HIGH'`);
+    if (filter.since) conds.push(Prisma.sql`created_at > ${BigInt(filter.since)}`);
+    if (filter.minIntensity === 'HIGH') conds.push(Prisma.sql`intensity::text = 'HIGH'`);
     if (filter.minIntensity === 'MEDIUM') {
-      conds.push(sql`${insights.intensity}::text IN ('HIGH', 'MEDIUM')`);
+      conds.push(Prisma.sql`intensity::text IN ('HIGH', 'MEDIUM')`);
     }
-    if (filter.subreddit)
-      conds.push(sql`lower(${insights.subreddit}) = lower(${filter.subreddit})`);
-
-    let query = this.db
-      .select()
-      .from(insights)
-      .where(and(...conds))
-      .orderBy(desc(insights.created_at), desc(insights.id))
-      .$dynamic();
-    if (filter.limit) query = query.limit(filter.limit);
-    const insightRows = await query;
+    if (filter.subreddit) {
+      conds.push(Prisma.sql`lower(subreddit) = lower(${filter.subreddit})`);
+    }
+    const where = Prisma.join(conds, ' AND ');
+    const limit = filter.limit ? Prisma.sql`LIMIT ${filter.limit}` : Prisma.empty;
+    const insightRows = await this.db.$queryRaw<InsightPgRow[]>`
+      SELECT * FROM insights
+      WHERE ${where}
+      ORDER BY created_at DESC, id DESC
+      ${limit}
+    `;
 
     const postRows: PostRow[] = [];
     const commentRows: CommentRow[] = [];
     for (const ins of insightRows) {
-      const post = (
-        await this.db.select().from(posts).where(eq(posts.id, ins.post_id)).limit(1)
-      )[0];
+      const post = await this.db.posts.findUnique({ where: { id: ins.post_id } });
       if (!post) continue;
-      postRows.push(post);
-      const cs = await this.db
-        .select()
-        .from(comments)
-        .where(eq(comments.post_id, post.id))
-        .orderBy(asc(comments.created_utc), asc(comments.id));
-      commentRows.push(...cs);
+      postRows.push(toPostRow(post));
+      const cs = await this.db.comments.findMany({
+        where: { post_id: post.id },
+        orderBy: [{ created_utc: 'asc' }, { id: 'asc' }],
+      });
+      for (const c of cs) commentRows.push(toCommentRow(c));
     }
 
     return {

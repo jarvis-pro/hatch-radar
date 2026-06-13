@@ -15,7 +15,7 @@ function workerInProcess(): boolean {
 /**
  * 主进程根模块：HTTP（导出/同步/设置/分析/健康）+ 定时调度 + （默认）同进程 worker。
  *
- * 全局模块 AppConfigModule（APP_ENV）/ DatabaseModule（DRIZZLE）一次导入处处可注入；
+ * 全局模块 AppConfigModule（APP_ENV）/ DatabaseModule（PRISMA）一次导入处处可注入；
  * 各功能模块自行 import 所需 RepositoriesModule / AnalysisModule 等。
  * nestjs-pino 复用既有 pino 实例，框架日志与业务 `logger.*` 同路输出。
  */
