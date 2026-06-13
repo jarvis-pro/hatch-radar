@@ -39,7 +39,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6">{children}</main>
           <footer className="border-t">
             <div className="mx-auto w-full max-w-5xl px-4 py-6 text-sm text-muted-foreground">
-              只读控制台 · 数据由工作台 server 进程（爬取 + AI 分析）产出
+              控制台 · 数据由工作台 server 进程（爬取 + AI 分析）产出
             </div>
           </footer>
         </ThemeProvider>
