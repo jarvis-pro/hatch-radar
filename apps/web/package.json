@@ -14,7 +14,6 @@
     "@hatch-radar/db": "workspace:*",
     "@hatch-radar/shared": "workspace:*",
     "@hatch-radar/ui": "workspace:*",
-    "drizzle-orm": "catalog:",
     "lucide-react": "catalog:",
     "next": "^16.2.9",
     "pg": "catalog:",
