@@ -1,15 +1,13 @@
-import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { insights, syncOps, triage, type AppDatabase, type DbHandle } from '@hatch-radar/db';
+import { Prisma, type AppDatabase, type DbHandle } from '@hatch-radar/db';
 import { SyncService } from '../src/sync/sync.service';
 import { nowSec } from '../src/common/time';
 import { setupTestDb, truncateAll } from './helpers';
 
 /** 插入一条洞察并返回其 id（作为同步操作的 targetId） */
 async function seedInsight(db: AppDatabase): Promise<number> {
-  const [row] = await db
-    .insert(insights)
-    .values({
+  const row = await db.insights.create({
+    data: {
       post_id: `p-${Math.floor(nowSec())}-${Math.round(performance.now())}`,
       source: 'reddit',
       subreddit: 'SaaS',
@@ -17,12 +15,15 @@ async function seedInsight(db: AppDatabase): Promise<number> {
       permalink: null,
       model: 'm',
       intensity: 'HIGH',
-      pain_points: [{ description: 'd', evidence: 'e', intensity: 'HIGH' }],
-      opportunities: [],
-      tags: ['x'],
-      created_at: nowSec(),
-    })
-    .returning({ id: insights.id });
+      pain_points: [
+        { description: 'd', evidence: 'e', intensity: 'HIGH' },
+      ] as Prisma.InputJsonValue,
+      opportunities: [] as Prisma.InputJsonValue,
+      tags: ['x'] as Prisma.InputJsonValue,
+      created_at: BigInt(nowSec()),
+    },
+    select: { id: true },
+  });
   return row.id;
 }
 
@@ -36,7 +37,7 @@ describe('SyncService（按 op_id 幂等应用）', () => {
   let sync: SyncService;
 
   beforeAll(async () => {
-    handle = await setupTestDb();
+    handle = setupTestDb();
     db = handle.db;
     sync = new SyncService(db);
   });
@@ -63,10 +64,10 @@ describe('SyncService（按 op_id 幂等应用）', () => {
     const r2 = await sync.applySyncPush('device-aaaa', [op]);
     expect(r2.results[0].outcome).toBe('duplicate');
 
-    const rows = await db.select().from(triage).where(eq(triage.insight_id, targetId));
-    expect(rows[0]?.status).toBe('shortlisted');
+    const row = await db.triage.findUnique({ where: { insight_id: targetId } });
+    expect(row?.status).toBe('shortlisted');
     // sync_ops 仅一条留痕
-    const ops = await db.select().from(syncOps);
+    const ops = await db.sync_ops.findMany();
     expect(ops).toHaveLength(1);
   });
 
@@ -91,8 +92,8 @@ describe('SyncService（按 op_id 幂等应用）', () => {
     expect(res.results[0].outcome).toBe('applied');
     expect(res.results[1].outcome).toBe('rejected');
 
-    const rows = await db.select().from(triage).where(eq(triage.insight_id, targetId));
-    expect(rows[0]?.rating).toBe(4);
+    const row = await db.triage.findUnique({ where: { insight_id: targetId } });
+    expect(row?.rating).toBe(4);
   });
 
   it('set_tags 覆盖写入 jsonb 数组', async () => {
@@ -106,8 +107,8 @@ describe('SyncService（按 op_id 幂等应用）', () => {
         createdAt: nowSec(),
       },
     ]);
-    const rows = await db.select().from(triage).where(eq(triage.insight_id, targetId));
-    expect(rows[0]?.tags).toEqual(['效率', '协作']);
+    const row = await db.triage.findUnique({ where: { insight_id: targetId } });
+    expect(row?.tags).toEqual(['效率', '协作']);
   });
 
   it('payload 非法 → rejected（协议校验）', async () => {
