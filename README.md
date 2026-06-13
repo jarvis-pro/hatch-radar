@@ -7,7 +7,7 @@
 
 ## 功能概览
 
-- **工作台后端（apps/server）**：定时抓取 Reddit / HackerNews / RSS，令牌桶限速；帖子+评论组合上下文批量送 AI 分析（默认导出本地文件，可配 Anthropic / DeepSeek）；AI 密钥只在此进程
+- **工作台后端（apps/server）**：定时抓取 Reddit / HackerNews / RSS，令牌桶限速；帖子+评论组合上下文送 AI 分析（在 Web 设置页配置 Anthropic / OpenAI / DeepSeek，SQLite 持久化队列 + Worker 池驱动）；AI 密钥加密入库、只在此进程
 - **Web 控制台（apps/web）**：只读展示洞察 / 帖子 / 评论与同步回传的人工研判，筛选/搜索/分页，响应式，Docker 部署
 - **导出批次**：按条件筛「有效数据」，经局域网 HTTP 接口或 `.sqlite` / `.json` 文件（AirDrop）交付给移动端
 - **离线伴侣 App（apps/mobile）**：Expo + 本地 SQLite，导入批次后全程离线人工研判（状态/评级/标签/笔记），操作记入本地 outbox
@@ -22,7 +22,7 @@
 | 运行时        | Node.js + TypeScript（pnpm workspace monorepo）                                   |
 | 调度          | node-cron                                                                         |
 | Reddit 数据源 | Reddit REST API（OAuth）                                                          |
-| AI 分析       | Anthropic（`@anthropic-ai/sdk`）/ DeepSeek（OpenAI 兼容），或导出本地文件（默认） |
+| AI 分析       | 多模型可配：Anthropic（`@anthropic-ai/sdk`）/ OpenAI / DeepSeek；SQLite 任务队列 + Worker 池 |
 | 存储          | SQLite（WAL；server / web 用 better-sqlite3，移动端 expo-sqlite，文件格式互通）   |
 | Web 控制台    | Next.js（App Router，standalone 产物 + Docker）                                   |
 | PC 端 UI 库   | shadcn/ui + Tailwind CSS v4（`packages/ui` 共享，仅限 Web/PC 子项目）             |
@@ -56,16 +56,20 @@ REDDIT_USERNAME=your_reddit_username
 REDDIT_PASSWORD=your_reddit_password
 REDDIT_USER_AGENT=your-app-name/1.0 (by /u/your_reddit_username)
 
-# AI 分析：默认导出本地文件；要用模型须设 AI_PROVIDER 并填对应 key
-# AI_PROVIDER=anthropic        # 或 deepseek / file（默认 file）
+# AI 分析：推荐在 Web 设置页（/settings）配置模型（多模型、密钥加密入库）。
+# 模型密钥加密主密钥（设置页配置模型必需）：
+# SETTINGS_SECRET=                 # openssl rand -hex 32
+# 也可用 env 作启动兜底（设了会在启动时迁移入库并设为 active）：
+# AI_PROVIDER=anthropic            # 或 openai / deepseek
 # ANTHROPIC_API_KEY=your_anthropic_api_key
+# OPENAI_API_KEY=your_openai_api_key
 # DEEPSEEK_API_KEY=your_deepseek_api_key
 
 # 数据库
 DATABASE_URL=./data/radar.db
 ```
 
-分析方式选择（`AI_PROVIDER`）、模型、DeepSeek 接口、导出目录、每轮分析上限等可选配置见 `.env.example` 注释。
+模型默认 ID、各厂商接口地址、`SETTINGS_SECRET`、每轮分析上限等见 `.env.example` 注释；模型推荐在 Web 设置页配置。
 
 ### 3. 初始化数据库
 
@@ -91,7 +95,7 @@ pnpm dev:web            # http://localhost:3000
 - 只读展示洞察 / 帖子 / 评论：来源 / 版块 / 强度 / 分析状态筛选 + 关键词搜索 + 分页，响应式自适应手机
 - better-sqlite3 只在服务端（Server Components），绝不进客户端 bundle；写操作统一走 server 进程
 - 数据文件路径由 `DATABASE_URL` 指定，默认 `../server/data/radar.db`
-- 「回填」页（`/analyze`）展示 file 模式下「已导出待分析、尚未回灌洞察」的帖子；其写操作经 web 代理转发到 server 进程（`SERVER_API_URL`，默认 `http://localhost:8787`），server 设了 `API_TOKEN` 时 web 也需配同值——web 自身仍只读库
+- 「设置」页（`/settings`）管理模型（增删改、选用 active、连通性测试，密钥仅脱敏展示）；「分析」页（`/analyze`）多选帖子 + 选模型运行，并实时轮询队列进度。写操作经 web 代理转发到 server 进程（`SERVER_API_URL`，默认 `http://localhost:8787`），server 设了 `API_TOKEN` 时 web 也需配同值——web 自身仍只读库
 - UI 组件来自 `@hatch-radar/ui`（shadcn/ui，见 `/ui-lab` 预览页）。新增组件在 `apps/web` 下执行
   `pnpm dlx shadcn@latest add <component>`，CLI 会自动把组件写入 `packages/ui`，所有 PC 子项目共用
 
@@ -121,9 +125,9 @@ docker run -p 3000:3000 -v ./apps/server/data:/data hatch-radar-web
 | `GET /api/export/batch`        | JSON 批次；参数 `since / minIntensity / subreddit / limit` |
 | `GET /api/export/batch.sqlite` | 同条件的独立 `.sqlite` 文件下载                            |
 | `POST /api/sync/push`          | 接收移动端研判操作，按 `opId` 幂等应用（写 triage 表）     |
-| `POST /api/insights/import`    | 回灌手动 AI 分析结果（file 模式闭环收料，按 `post_id` 幂等）|
-| `POST /api/export/lock`        | 标记选中帖为已导出冻结，暂停其评论 refresh 直至回灌解冻     |
-| `GET /api/posts/<id>/doc`      | 单篇帖子的待分析 Markdown 文档（web 复制后粘贴给外部 AI）   |
+| `* /api/settings/*`            | 模型清单 CRUD + 选用 active + 连通性测试（密钥加密入库，仅脱敏外发） |
+| `POST /api/analysis/run`       | 手动运行：选中帖子按指定模型入队（trigger=manual）         |
+| `GET /api/analysis/jobs`       | 分析队列看板（状态汇总 + 最近任务）                        |
 
 端口 `HTTP_PORT`（默认 8787），设 `API_TOKEN` 后导出与同步接口要求 `Authorization: Bearer <token>`。
 
@@ -157,18 +161,23 @@ pnpm mobile     # 启动 Expo dev server，用 Expo Go 扫码（iOS 真机）
 
 ## AI 分析方式
 
-由 `AI_PROVIDER` 显式选择，默认 `file`：
+模型在 **Web 设置页（`/settings`）** 配置：可添加多条 Anthropic / OpenAI / DeepSeek 模型，密钥经 `SETTINGS_SECRET`（AES-256-GCM）**加密入库**，API 仅返回脱敏视图、绝不下发明文。
 
-| AI_PROVIDER    | 启用条件                 | 说明                                                              |
-| -------------- | ------------------------ | ----------------------------------------------------------------- |
-| `file`（默认） | 无需 key                 | 每篇帖子导出为自包含 `.md`，整篇粘贴给任意 AI 即可得到分析结果    |
-| `anthropic`    | 须填 `ANTHROPIC_API_KEY` | 调用 Anthropic（Claude 系列模型），结构化输出（JSON Schema 约束） |
-| `deepseek`     | 须填 `DEEPSEEK_API_KEY`  | 调用 DeepSeek（OpenAI 兼容接口），JSON 输出模式                   |
+| 厂商      | 结构化输出                                              |
+| --------- | ------------------------------------------------------- |
+| Anthropic | Claude 系列，`messages` + JSON Schema 约束              |
+| OpenAI    | ChatGPT 系列，`response_format: json_schema`（strict）  |
+| DeepSeek  | OpenAI 兼容接口，`response_format: json_object`         |
 
-- 不设 `AI_PROVIDER` 时默认 `file`，无需任何 key 即可运行。
-- 要用模型分析，须显式设 `AI_PROVIDER=anthropic` 或 `deepseek`，并填写对应的 API Key（缺 key 会在启动校验时报错）。
-- `file` 模式下待分析文档**不再预生成到磁盘**，改由 Web 工作台按需生成（含分析指令、期望 JSON 格式与帖子+评论上下文）。
-- **闭环回填**：Web 控制台「回填」页（`/analyze`）列出已具备评论、待处理的帖子（未回灌；或已回灌但评论又更新→「建议重判」）。多选「导出选中」一键生成 `.md` 并冻结这些帖的评论 refresh；把外部 AI 返回的 JSON 贴回提交即落库为洞察（`model=manual`，按 `post_id` 幂等）并自动解冻。`file` 模式不回灌则洞察表恒为空，下游展示 / 导出 / 移动端漏斗均无数据。
+**自动 vs 手动**（核心状态机）：
+
+- **选用了 active 模型** → 定时调度（每小时）+ 选用时即时入队，自动分析待处理帖子。
+- **未选用 active** → 不自动分析；在「分析」页多选帖子 + 选一个模型 → 手动运行入队。
+- **一条模型都没配** → 先去设置页加一个（无密钥无法调用模型）。
+
+**队列驱动**：定时与手动运行都只是把帖子写入 SQLite 持久化任务队列（`analysis_jobs`），由常驻 Worker 池消费——并发、单任务超时、失败重试、僵死/孤儿回收，进程重启自动续跑，单个慢调用不会卡住整批。改密钥/模型/选用即热重载，无需重启进程。洞察按 `post_id` 幂等落库（`model` 记真实模型 ID），重分析覆盖且保住研判。
+
+> 启动兜底：若在 `.env` 设了 `AI_PROVIDER` + 对应 KEY + `SETTINGS_SECRET`，启动时会把它一次性迁移入库并设为 active（老配置无感升级）。
 
 ---
 
@@ -207,10 +216,13 @@ hatch-radar/
 │   │   ├── src/
 │   │   │   ├── config/         # env 校验、目标版块、HN/RSS 源
 │   │   │   ├── crawler/        # 令牌桶队列 + Reddit / HN / RSS 抓取 + 上下文构建
-│   │   │   ├── analyzer/       # prompt、Anthropic / DeepSeek 调用、文件导出、批处理
-│   │   │   ├── db/             # SQLite 连接管理与各表存取（DDL 来自 shared）
+│   │   │   ├── analyzer/       # prompt、Zod schema、Anthropic / OpenAI / DeepSeek 调用
+│   │   │   ├── analysis-config.ts # 模型解析 + 热重载 + 手动/自动入队（DB 配置驱动）
+│   │   │   ├── worker.ts       # 分析任务队列 Worker 池（超时 / 重试 / 僵死回收）
+│   │   │   ├── crypto.ts       # 模型密钥 AES-256-GCM 加解密
+│   │   │   ├── db/             # SQLite 连接与各表存取（含 providers / settings / jobs）
 │   │   │   ├── export/batch.ts # 导出批次：筛选有效数据 → JSON / .sqlite
-│   │   │   ├── server/http.ts  # 局域网 HTTP 服务（health / 导出批次 / 同步接收）
+│   │   │   ├── server/http.ts  # 局域网 HTTP（health / 导出 / 同步 / 设置 / 分析运行）
 │   │   │   ├── sync/apply.ts   # 同步操作校验与幂等应用（op_id 去重 + sync_ops 留痕）
 │   │   │   ├── scheduler.ts    # 定时任务调度
 │   │   │   ├── cli.ts          # 洞察检索 CLI（pnpm insights）
@@ -247,7 +259,7 @@ hatch-radar/
 | ------------ | -------------- | --------------------------------------------------- |
 | 热门帖子扫描 | 每 30 分钟     | 抓取各版块 hot/new 入库，并触发新帖即时抓评论       |
 | 评论补全     | 每 30 分钟     | 新帖即时抓；活跃帖按帖龄有界 refresh，内容变更才记一笔 |
-| AI 批量分析  | 每小时         | 取未分析帖子送 Anthropic / DeepSeek（file 模式不自动跑，改 web 工作台按需导出） |
+| AI 分析入队  | 每小时         | 选用 active 模型时把待分析帖子入队、由 Worker 池消费；未选用则跳过 |
 | 历史归档     | 每天凌晨       | 清理 30 天前原始数据，保留洞察结果                  |
 
 ---
