@@ -6,34 +6,30 @@ import { nowSec } from '../db/utils';
 import { logger } from '../logger';
 import { analyzeWithAnthropic, createAnthropicClient } from './anthropic';
 import { analyzeWithOpenAICompatible, type OpenAICompatibleConfig } from './openai-compatible';
-import { writeManualAnalysisDoc } from './export';
 
 /**
- * 已解析的分析方式配置，由 env 根据 AI_PROVIDER 推导（缺对应 key 会在校验阶段报错）。
+ * 已解析的分析方式配置（按一条 model_providers 记录或 env 推导）。
  * - `anthropic`：调用 Anthropic（Claude 系列模型）
  * - `openai` / `deepseek`：调用 OpenAI 兼容接口（openai 用 json_schema strict，deepseek 用 json_object）
- * - `file`（默认）：将待分析内容导出为本地文件，供手动喂给 AI
  */
 export type AnalysisConfig =
   | { provider: 'anthropic'; apiKey: string; model: string }
-  | OpenAICompatibleConfig
-  | { provider: 'file'; dir: string };
+  | OpenAICompatibleConfig;
 
 /**
- * 单篇帖子的处理器：屏蔽 Anthropic / DeepSeek / 本地导出三种方式的差异，
- * 由 runAnalysisBatch 统一调度。
+ * 单篇帖子的处理器：屏蔽 Anthropic / OpenAI / DeepSeek 的差异，由 worker / 批处理统一调度。
  */
 export interface PostProcessor {
   /** 启动日志与批次日志展示用的处理器名称，如 `Anthropic (claude-opus-4-8)` */
   readonly label: string;
   /**
-   * 处理单篇帖子（分析并落库，或导出为文件）。失败时抛出，由批处理循环计入失败并重试。
-   * @returns saved 是否产出并落库了洞察；本地导出模式恒为 false
+   * 处理单篇帖子（分析并落库）。失败时抛出，由调用方计入失败并重试。
+   * @returns saved 是否产出并落库了洞察（无信号时为 false）
    */
   process(post: PostRow, comments: CommentRow[]): Promise<{ saved: boolean }>;
 }
 
-/** 单篇帖子 → 结构化分析结果的函数签名，Anthropic 与 DeepSeek 各自实现 */
+/** 单篇帖子 → 结构化分析结果的函数签名，各 provider 各自实现 */
 type AnalyzeFn = (post: PostRow, comments: CommentRow[]) => Promise<InsightResult>;
 
 /**
@@ -61,25 +57,8 @@ function createModelProcessor(label: string, model: string, analyze: AnalyzeFn):
 }
 
 /**
- * 构造「本地文件导出」处理器（AI_PROVIDER=file，默认方式）。
- * - 将待分析内容写入 `{dir}/{post.id}.md`，供用户手动喂给 AI
- * - 不产出洞察，saved 恒为 false；导出后由批处理循环标记为已分析以推进队列
- * @param dir 导出目录
- */
-function createFileExportProcessor(dir: string): PostProcessor {
-  return {
-    label: `本地文件导出 (${dir})`,
-    async process(post, comments) {
-      const file = writeManualAnalysisDoc(dir, post, comments);
-      logger.info(`  ✓ 已导出 r/${post.subreddit}「${post.title.slice(0, 48)}」→ ${file}`);
-      return { saved: false };
-    },
-  };
-}
-
-/**
  * 按已解析的分析配置创建对应的处理器。
- * @param cfg env 推导出的分析方式配置
+ * @param cfg 分析方式配置（anthropic / openai / deepseek）
  * @returns 对应 provider 的 PostProcessor
  */
 export function createProcessor(cfg: AnalysisConfig): PostProcessor {
@@ -97,8 +76,6 @@ export function createProcessor(cfg: AnalysisConfig): PostProcessor {
         analyzeWithOpenAICompatible(cfg, post, comments),
       );
     }
-    case 'file':
-      return createFileExportProcessor(cfg.dir);
   }
 }
 

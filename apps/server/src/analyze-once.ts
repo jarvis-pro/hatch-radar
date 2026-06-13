@@ -13,6 +13,12 @@ import { logger } from './logger';
 async function main(): Promise<void> {
   const env = loadEnv();
   getDb();
+  if (!env.analysis) {
+    logger.error(
+      '未配置模型：请在 .env 设 AI_PROVIDER + 对应 KEY，或在 web 设置页配置后于「分析」页运行',
+    );
+    process.exit(1);
+  }
   const processor = createProcessor(env.analysis);
   logger.info(`手动分析一轮（${processor.label}）`);
   const stats = await runAnalysisBatch(processor, env.analyzeBatchSize);

@@ -128,12 +128,12 @@ export function enqueueAutoAnalysisRound(batchSize: number = DEFAULT_BATCH_SIZE)
  * 启动时一次性迁移：库中尚无任何模型配置、且 env 指定了模型 provider 时，
  * 把 env 里的密钥加密入库并设为 active，保持既有行为不中断。
  * - 库中已有配置则跳过（DB 为权威来源）
- * - env 为 file 或未配密钥则跳过
- * @param analysis env 解析出的分析配置
+ * - env 未指定模型（analysis 为 null）或未配 SETTINGS_SECRET 则跳过
+ * @param analysis env 解析出的分析配置，可为 null
  */
-export function seedProvidersFromEnvIfEmpty(analysis: AnalysisConfig): void {
+export function seedProvidersFromEnvIfEmpty(analysis: AnalysisConfig | null): void {
+  if (!analysis) return;
   if (listProviders().length > 0) return;
-  if (analysis.provider === 'file') return;
   if (!isSecretConfigured()) {
     logger.warn('检测到 env 模型配置，但未设 SETTINGS_SECRET，跳过迁移入库（请在设置页重新配置）');
     return;

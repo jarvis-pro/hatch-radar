@@ -20,11 +20,11 @@ const envSchema = z
     REDDIT_USER_AGENT: z.string().trim().min(1).optional(),
 
     // ── AI 分析方式 ───────────────────────────────────────────────────
-    // 默认 file（导出本地文件，无需任何 key）。要用模型须显式设
-    // AI_PROVIDER=anthropic / openai / deepseek 并填写对应 API Key（缺 key 校验阶段报错）。
+    // 模型配置以「设置页入库」为权威来源；此处 env 仅作启动兜底：设了 AI_PROVIDER +
+    // 对应 KEY，启动时会一次性迁移入库并设为 active。不设则不从 env 派生模型。
 
-    /** 分析方式，默认 file（导出本地文件）；用模型须显式设为 anthropic / openai / deepseek */
-    AI_PROVIDER: z.enum(['anthropic', 'openai', 'deepseek', 'file']).default('file'),
+    /** 启动兜底用的分析方式（可选）；设置页配置后以库为准 */
+    AI_PROVIDER: z.enum(['anthropic', 'openai', 'deepseek']).optional(),
 
     /** Anthropic API 密钥，可选；填写后可启用 Anthropic 分析 */
     ANTHROPIC_API_KEY: z.string().trim().min(1).optional(),
@@ -44,9 +44,6 @@ const envSchema = z
     DEEPSEEK_MODEL: z.string().trim().default('deepseek-chat'),
     /** DeepSeek API 基地址，默认 https://api.deepseek.com */
     DEEPSEEK_BASE_URL: z.string().trim().default('https://api.deepseek.com'),
-
-    /** file 模式下待分析内容的导出目录，默认 ./data/manual-analysis */
-    MANUAL_ANALYSIS_DIR: z.string().trim().default('./data/manual-analysis'),
 
     /** 每轮 AI 分析的帖子批次上限，默认 20，最小 1 */
     ANALYZE_BATCH_SIZE: z.coerce.number().int().min(1).default(20),
@@ -121,7 +118,7 @@ const envSchema = z
 
 /** resolveAnalysis 关心的字段子集（transform 的 env 结构化兼容此形状） */
 interface AnalysisEnv {
-  AI_PROVIDER: 'anthropic' | 'openai' | 'deepseek' | 'file';
+  AI_PROVIDER?: 'anthropic' | 'openai' | 'deepseek';
   ANTHROPIC_API_KEY?: string;
   ANTHROPIC_MODEL: string;
   OPENAI_API_KEY?: string;
@@ -130,15 +127,14 @@ interface AnalysisEnv {
   DEEPSEEK_API_KEY?: string;
   DEEPSEEK_MODEL: string;
   DEEPSEEK_BASE_URL: string;
-  MANUAL_ANALYSIS_DIR: string;
 }
 
 /**
- * 根据 AI_PROVIDER 推导最终的分析方式（缺对应 API Key 已在 superRefine 拦截）。
+ * 根据 AI_PROVIDER 推导启动兜底的分析方式（缺对应 API Key 已在 superRefine 拦截）。
+ * - 未设 AI_PROVIDER：返回 null（不从 env 派生模型，配置以设置页入库为准）
  * - anthropic / openai / deepseek：调用对应模型
- * - file（默认）：导出本地文件，供手动喂给 AI
  */
-function resolveAnalysis(env: AnalysisEnv): AnalysisConfig {
+function resolveAnalysis(env: AnalysisEnv): AnalysisConfig | null {
   switch (env.AI_PROVIDER) {
     case 'anthropic':
       return { provider: 'anthropic', apiKey: env.ANTHROPIC_API_KEY!, model: env.ANTHROPIC_MODEL };
@@ -156,8 +152,8 @@ function resolveAnalysis(env: AnalysisEnv): AnalysisConfig {
         baseUrl: env.DEEPSEEK_BASE_URL,
         model: env.DEEPSEEK_MODEL,
       };
-    case 'file':
-      return { provider: 'file', dir: env.MANUAL_ANALYSIS_DIR };
+    default:
+      return null;
   }
 }
 

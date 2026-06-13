@@ -68,13 +68,11 @@ const REFRESH = {
   /** 7 天以上不再 refresh（但从未抓过的仍会被抓一次） */
   maxAge: 7 * 86400,
   midInterval: 24 * 3600,
-  /** 导出冻结超过此时长则忽略锁，避免「导出却从不反馈」永久冻结 */
-  lockTtl: 3 * 86400,
 };
 
 /**
  * 取需要（重新）抓取评论的帖子：从未抓过的优先，其余按帖龄衰减的节奏 refresh。
- * - 排除 RSS（无评论）与处于有效导出冻结（export_locked_at 未超 lockTtl）的帖子
+ * - 排除 RSS（无评论）
  * - <24h 热帖每轮回捞、24h–7d 帖每日回捞、>7d 不再 refresh
  * @param now 当前 Unix 时间戳（秒）
  * @param limit 最多返回条数
@@ -85,7 +83,6 @@ export function getPostsNeedingCommentRefresh(now: number, limit: number): PostR
     .prepare(
       `SELECT * FROM posts
        WHERE source != 'rss'
-         AND (export_locked_at IS NULL OR export_locked_at < ?)
          AND (
            comments_fetched_at IS NULL
            OR (created_utc > ? AND comments_fetched_at < ?)
@@ -95,7 +92,6 @@ export function getPostsNeedingCommentRefresh(now: number, limit: number): PostR
        LIMIT ?`,
     )
     .all(
-      now - REFRESH.lockTtl,
       now - REFRESH.youngAge,
       now - REFRESH.youngInterval,
       now - REFRESH.maxAge,
@@ -122,37 +118,12 @@ export function getPostsToAnalyze(limit: number): PostRow[] {
 
 /**
  * 按 ID 取单篇帖子。
- * - 回灌手动分析结果时需要 source / subreddit / title / permalink 等字段
+ * - worker 分析落库时需要 source / subreddit / title / permalink 等字段
  * @param id 帖子 ID
  * @returns 帖子行；不存在（含 30 天归档后已删除）时返回 undefined
  */
 export function getPostById(id: string): PostRow | undefined {
   return getDb().prepare(`SELECT * FROM posts WHERE id = ?`).get(id) as PostRow | undefined;
-}
-
-/**
- * 将一批帖子标记为「已导出冻结」：置 export_locked_at，暂停评论 refresh 直至回灌解冻。
- * @param postIds 目标帖子 ID 列表
- * @param at 冻结 Unix 时间戳（秒）
- * @returns 实际更新的行数
- */
-export function lockExportForPosts(postIds: string[], at: number): number {
-  if (postIds.length === 0) return 0;
-  const db = getDb();
-  const stmt = db.prepare(`UPDATE posts SET export_locked_at = ? WHERE id = ?`);
-  let n = 0;
-  db.transaction(() => {
-    for (const id of postIds) n += stmt.run(at, id).changes;
-  })();
-  return n;
-}
-
-/**
- * 解除帖子的导出冻结（回灌成功后调用），让评论 refresh 恢复跟踪。
- * @param postId 目标帖子 ID
- */
-export function clearExportLock(postId: string): void {
-  getDb().prepare(`UPDATE posts SET export_locked_at = NULL WHERE id = ?`).run(postId);
 }
 
 /**

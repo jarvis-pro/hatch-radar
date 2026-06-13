@@ -1,8 +1,8 @@
 import 'server-only';
 
 /**
- * 工作台 server 进程的 HTTP 地址。写操作（洞察回灌）与待分析文档读取经此转发——
- * web 自身只读库、绝不写库，写入统一发生在 server 进程（见 lib/db.ts）。
+ * 工作台 server 进程的 HTTP 地址。写操作（模型设置、分析运行）与配置读取经此转发——
+ * web 自身只读库、绝不写库，写入与密钥统一发生在 server 进程（见 lib/db.ts）。
  */
 const SERVER_API_URL = process.env.SERVER_API_URL?.trim() || 'http://localhost:8787';
 /** 可选访问令牌；server 设了 API_TOKEN 时，web 也须配同值。仅在服务端读取，不进客户端 bundle */
