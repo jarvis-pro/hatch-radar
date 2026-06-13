@@ -4,12 +4,13 @@
   "private": true,
   "description": "Web 控制台：只读展示洞察 / 帖子 / 评论（PG 只读直查，写操作统一走 server 进程）",
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 47080",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -p 47080",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@hatch-radar/config": "workspace:*",
     "@hatch-radar/db": "workspace:*",
     "@hatch-radar/shared": "workspace:*",
     "@hatch-radar/ui": "workspace:*",
@@ -19,7 +20,8 @@
     "pg": "catalog:",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
-    "server-only": "^0.0.1"
+    "server-only": "^0.0.1",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",

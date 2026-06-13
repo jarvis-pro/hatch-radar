@@ -4,7 +4,10 @@
 #   单机/局域网工具，数据卷用本地命名卷即可；生产换托管 PG 只需改 DATABASE_URL。
 # - web：Next.js 只读控制台；连同一个 PG（只读用法），写操作仍统一走 server 进程。
 #
-# server（爬取 + AI 分析 + 密钥）按规格仍跑在工作台宿主机上（直连本机 5432）。
+# server（爬取 + AI 分析 + 密钥）按规格仍跑在工作台宿主机上（直连本机 47432）。
+#
+# 端口映射用 47xxx 段避免与同机其它项目冲突；容器内部端口不变（PG 5432 / web 3000），
+# 仅主机侧映射改为 47432 / 47080。容器之间仍用服务名 + 内部端口（db:5432）互访。
 services:
   db:
     image: postgres:17-alpine
@@ -13,7 +16,7 @@ services:
       POSTGRES_PASSWORD: radar
       POSTGRES_DB: hatch_radar
     ports:
-      - '5432:5432'
+      - '47432:5432'
     volumes:
       - radar-pg:/var/lib/postgresql/data
     healthcheck:
@@ -28,9 +31,9 @@ services:
       context: .
       dockerfile: apps/web/Dockerfile
     ports:
-      - '3000:3000'
+      - '47080:3000'
     environment:
-      # web 直连 PG 只读；容器内用服务名 db 访问
+      # web 直连 PG 只读；容器内用服务名 db + 内部端口 5432 访问（与主机映射端口无关）
       DATABASE_URL: postgres://radar:radar@db:5432/hatch_radar
     depends_on:
       db:

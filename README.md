@@ -66,7 +66,7 @@ REDDIT_USER_AGENT=your-app-name/1.0 (by /u/your_reddit_username)
 # DEEPSEEK_API_KEY=your_deepseek_api_key
 
 # 数据库（PostgreSQL；本地用 docker-compose 起，生产换托管 PG 只改此串）
-DATABASE_URL=postgres://radar:radar@localhost:5432/hatch_radar
+DATABASE_URL=postgres://radar:radar@localhost:47432/hatch_radar
 ```
 
 模型默认 ID、各厂商接口地址、`SETTINGS_SECRET`、每轮分析上限等见 `.env.example` 注释；模型推荐在 Web 设置页配置。
@@ -74,7 +74,7 @@ DATABASE_URL=postgres://radar:radar@localhost:5432/hatch_radar
 ### 3. 起数据库并建表
 
 ```bash
-docker compose up -d db   # 本地 PostgreSQL（默认 radar/radar @ localhost:5432/hatch_radar）
+docker compose up -d db   # 本地 PostgreSQL（默认 radar/radar @ localhost:47432/hatch_radar）
 pnpm db:migrate           # drizzle-kit 应用迁移建出全部表
 ```
 
@@ -90,7 +90,7 @@ pnpm start              # 直接以 TS 源跑（swc-node）
 pnpm worker             # 可选：把分析 Worker 拆到独立进程（WORKER_IN_PROCESS=false 时）
 
 # Web 控制台（只读，直连同一个 PG）
-pnpm dev:web            # http://localhost:3000
+pnpm dev:web            # http://localhost:47080
 ```
 
 ---
@@ -100,7 +100,7 @@ pnpm dev:web            # http://localhost:3000
 - 只读展示洞察 / 帖子 / 评论：来源 / 版块 / 强度 / 分析状态筛选 + 关键词搜索 + 分页，响应式自适应手机
 - PG 只读直查（RSC 直接查库，连接级 `default_transaction_read_only=on`），`pg` 只在服务端、绝不进客户端 bundle；写操作统一走 server 进程
 - 连接串由 `DATABASE_URL` 指定，与 server 同一个库
-- 「设置」页（`/settings`）管理模型（增删改、选用 active、连通性测试，密钥仅脱敏展示）；「分析」页（`/analyze`）多选帖子 + 选模型运行，并实时轮询队列进度。写操作经 web 代理转发到 server 进程（`SERVER_API_URL`，默认 `http://localhost:8787`），server 设了 `API_TOKEN` 时 web 也需配同值——web 自身仍只读库
+- 「设置」页（`/settings`）管理模型（增删改、选用 active、连通性测试，密钥仅脱敏展示）；「分析」页（`/analyze`）多选帖子 + 选模型运行，并实时轮询队列进度。写操作经 web 代理转发到 server 进程（`SERVER_API_URL`，默认 `http://localhost:47878`），server 设了 `API_TOKEN` 时 web 也需配同值——web 自身仍只读库
 - UI 组件来自 `@hatch-radar/ui`（shadcn/ui，见 `/ui-lab` 预览页）。新增组件在 `apps/web` 下执行
   `pnpm dlx shadcn@latest add <component>`，CLI 会自动把组件写入 `packages/ui`，所有 PC 子项目共用
 
@@ -113,7 +113,7 @@ docker compose up -d db
 pnpm dev:web
 ```
 
-> server（爬取 + AI + 密钥）按规格仍跑在工作台宿主机上，直连本机 5432。并发瓶颈已交给 PG
+> server（爬取 + AI + 密钥）按规格仍跑在工作台宿主机上，直连本机 47432。并发瓶颈已交给 PG
 > 异步驱动 + 连接池：定时器写库与局域网多人操作真正并行，不再串行在单条事件循环上。
 
 ---
@@ -134,7 +134,7 @@ pnpm dev:web
 | `POST /api/analysis/run`       | 手动运行：选中帖子按指定模型入队（trigger=manual）                   |
 | `GET /api/analysis/jobs`       | 分析队列看板（状态汇总 + 最近任务）                                  |
 
-端口 `HTTP_PORT`（默认 8787），设 `API_TOKEN` 后导出与同步接口要求 `Authorization: Bearer <token>`。
+端口 `HTTP_PORT`（默认 47878），设 `API_TOKEN` 后导出与同步接口要求 `Authorization: Bearer <token>`。
 
 **文件导出**（产物可 AirDrop 给手机）：
 

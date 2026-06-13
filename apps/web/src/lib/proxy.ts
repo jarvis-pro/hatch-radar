@@ -26,7 +26,8 @@ export async function proxyToServer(req: Request, serverPath: string): Promise<N
   } catch {
     return NextResponse.json(
       {
-        error: '无法连接工作台 server 进程（默认 http://localhost:8787，可用 SERVER_API_URL 覆盖）',
+        error:
+          '无法连接工作台 server 进程（默认 http://localhost:47878，可用 SERVER_API_URL 覆盖）',
       },
       { status: 502 },
     );

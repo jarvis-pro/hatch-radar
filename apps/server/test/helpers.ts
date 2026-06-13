@@ -3,7 +3,7 @@ import { createDb, runMigrations, type AppDatabase, type DbHandle } from '@hatch
 
 /** 测试库连接串（与 dev 库隔离）；可用 TEST_DATABASE_URL 覆盖 */
 const TEST_DATABASE_URL =
-  process.env.TEST_DATABASE_URL ?? 'postgres://radar:radar@localhost:5432/hatch_radar_test';
+  process.env.TEST_DATABASE_URL ?? 'postgres://radar:radar@localhost:47432/hatch_radar_test';
 
 /** 打开测试库句柄并确保 schema 就绪（迁移幂等） */
 export async function setupTestDb(): Promise<DbHandle> {

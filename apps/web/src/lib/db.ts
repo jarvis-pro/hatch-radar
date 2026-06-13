@@ -1,13 +1,11 @@
 import 'server-only';
 import { sql } from 'drizzle-orm';
 import { createDb, type AppDatabase, type DbHandle } from '@hatch-radar/db';
+import { webEnv } from './env';
 
-/** 默认连接本地 docker-compose 的 PG；部署时用 DATABASE_URL 覆盖 */
-const DEFAULT_DATABASE_URL = 'postgres://radar:radar@localhost:5432/hatch_radar';
-
-/** 当前 PG 连接串 */
+/** 当前 PG 连接串（经校验的 web env 切片，默认值来自 @hatch-radar/config） */
 export function databaseUrl(): string {
-  return process.env.DATABASE_URL?.trim() || DEFAULT_DATABASE_URL;
+  return webEnv().databaseUrl;
 }
 
 /** 脱敏连接目标（host/db，不含口令），仅用于「未就绪」提示展示 */

@@ -14,6 +14,7 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
+    "@hatch-radar/config": "workspace:*",
     "typescript": "catalog:"
   }
 }

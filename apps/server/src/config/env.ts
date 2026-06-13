@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { DEFAULT_DATABASE_URL, DEFAULT_HTTP_PORT } from '@hatch-radar/config';
 import type { AnalysisConfig } from '../analyzer/analyze';
 import type { RedditConfig } from '../crawler/reddit';
 
@@ -60,12 +61,12 @@ const envSchema = z
     // ── 存储 ─────────────────────────────────────────────────────────
 
     /** PostgreSQL 连接串，默认指向本地 docker-compose 的 PG */
-    DATABASE_URL: z.string().trim().default('postgres://radar:radar@localhost:5432/hatch_radar'),
+    DATABASE_URL: z.string().trim().default(DEFAULT_DATABASE_URL),
 
     // ── 导出服务（局域网 HTTP，供移动端拉取批次）──────────────────────
 
     /** 导出 HTTP 服务监听端口，默认 8787；绑定 0.0.0.0 */
-    HTTP_PORT: z.coerce.number().int().min(1).max(65535).default(8787),
+    HTTP_PORT: z.coerce.number().int().min(1).max(65535).default(DEFAULT_HTTP_PORT),
     /** 可选访问令牌；设置后导出接口要求 Authorization: Bearer <token> */
     API_TOKEN: z.string().trim().min(1).optional(),
   })
@@ -168,7 +169,7 @@ export type AppEnv = z.infer<typeof envSchema>;
 
 /** PostgreSQL 连接串单独暴露：CLI / 迁移脚本不需要 Reddit 与模型凭据 */
 export function databaseUrl(): string {
-  return process.env.DATABASE_URL?.trim() || 'postgres://radar:radar@localhost:5432/hatch_radar';
+  return process.env.DATABASE_URL?.trim() || DEFAULT_DATABASE_URL;
 }
 
 /**

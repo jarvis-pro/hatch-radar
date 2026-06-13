@@ -22,6 +22,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@hatch-radar/config": "workspace:*",
     "@hatch-radar/shared": "workspace:*",
     "drizzle-orm": "catalog:",
     "pg": "catalog:"

@@ -1,8 +1,4 @@
 {
-  "extends": "../../tsconfig.base.json",
-  "compilerOptions": {
-    "experimentalDecorators": true,
-    "emitDecoratorMetadata": true
-  },
+  "extends": "@hatch-radar/config/tsconfig.nest.json",
   "include": ["src", "test"]
 }

@@ -1,3 +1,4 @@
+import { DEFAULT_DATABASE_URL } from '@hatch-radar/config';
 import { defineConfig } from 'drizzle-kit';
 
 /**
@@ -11,6 +12,6 @@ export default defineConfig({
   out: './drizzle',
   dialect: 'postgresql',
   dbCredentials: {
-    url: process.env.DATABASE_URL ?? 'postgres://radar:radar@localhost:5432/hatch_radar',
+    url: process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL,
   },
 });

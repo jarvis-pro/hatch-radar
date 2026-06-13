@@ -6,7 +6,7 @@
 # ── 构建阶段 ─────────────────────────────────────────────────────────────────
 FROM node:20-bookworm-slim AS builder
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
-    NEXT_TELEMETRY_DISABLED=1
+  NEXT_TELEMETRY_DISABLED=1
 # better-sqlite3 预编译二进制下载失败时回退源码编译所需的工具链
 RUN apt-get update \
   && apt-get install -y --no-install-recommends python3 make g++ \
@@ -16,7 +16,7 @@ RUN apt-get update \
 WORKDIR /repo
 
 # 先只拷贝清单，让依赖安装层最大化命中缓存
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc tsconfig.base.json ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY apps/web/package.json apps/web/
 COPY packages/shared/package.json packages/shared/
 RUN pnpm install --frozen-lockfile --filter @hatch-radar/web...
@@ -28,10 +28,10 @@ RUN pnpm --filter @hatch-radar/web build
 # ── 运行阶段 ─────────────────────────────────────────────────────────────────
 FROM node:20-bookworm-slim AS runner
 ENV NODE_ENV=production \
-    NEXT_TELEMETRY_DISABLED=1 \
-    PORT=3000 \
-    HOSTNAME=0.0.0.0 \
-    DATABASE_URL=/data/radar.db
+  NEXT_TELEMETRY_DISABLED=1 \
+  PORT=3000 \
+  HOSTNAME=0.0.0.0 \
+  DATABASE_URL=/data/radar.db
 
 WORKDIR /app
 

@@ -13,6 +13,7 @@ import { resolve } from 'node:path';
 import Database from 'better-sqlite3';
 import { sql, type SQL } from 'drizzle-orm';
 import type { PgTable } from 'drizzle-orm/pg-core';
+import { DEFAULT_DATABASE_URL } from '@hatch-radar/config';
 import {
   appSettings,
   comments,
@@ -25,8 +26,7 @@ import {
 } from '@hatch-radar/db';
 
 const SQLITE_PATH = resolve(process.argv[2] ?? './data/radar.db');
-const PG_URL =
-  process.env.DATABASE_URL?.trim() || 'postgres://radar:radar@localhost:5432/hatch_radar';
+const PG_URL = process.env.DATABASE_URL?.trim() || DEFAULT_DATABASE_URL;
 const CHUNK = 500;
 
 type Row = Record<string, unknown>;

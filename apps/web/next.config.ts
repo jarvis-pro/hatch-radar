@@ -7,7 +7,12 @@ const nextConfig: NextConfig = {
   // monorepo：以仓库根为依赖追踪根，standalone 才会带上 workspace 依赖的 node_modules
   outputFileTracingRoot: join(__dirname, '../..'),
   // shared / db / ui 以 TS 源码形态发布（exports 指向 .ts/.tsx），需要随构建转译
-  transpilePackages: ['@hatch-radar/shared', '@hatch-radar/db', '@hatch-radar/ui'],
+  transpilePackages: [
+    '@hatch-radar/config',
+    '@hatch-radar/shared',
+    '@hatch-radar/db',
+    '@hatch-radar/ui',
+  ],
   // pg 是服务端数据库驱动：保持 external，仅存在于服务端运行时，绝不进客户端 bundle
   serverExternalPackages: ['pg'],
 };
