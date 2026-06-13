@@ -40,17 +40,19 @@ function RatingStars({ value }: { value: number }) {
 
 export default async function InsightDetailPage(props: { params: Promise<{ id: string }> }) {
   const { id } = await props.params;
-  const db = tryGetDb();
+  const db = await tryGetDb();
   if (!db) return <DbSetupNotice />;
 
   const numericId = Number(id);
   if (!Number.isInteger(numericId) || numericId <= 0) notFound();
-  const insight = getInsight(db, numericId);
+  const insight = await getInsight(db, numericId);
   if (!insight) notFound();
-  // 30 天归档后原始帖子可能已删除，洞察永久保留（post 为软引用）
-  const post = getPost(db, insight.postId);
-  // 移动端离线研判后同步回传的结果；未同步过为 null
-  const triage = getTriageForInsight(db, numericId);
+  // 30 天归档后原始帖子可能已删除，洞察永久保留（post 为软引用）；
+  // 移动端离线研判后同步回传的结果，未同步过为 null
+  const [post, triage] = await Promise.all([
+    getPost(db, insight.postId),
+    getTriageForInsight(db, numericId),
+  ]);
 
   return (
     <Card className="gap-0 p-4 sm:p-6">

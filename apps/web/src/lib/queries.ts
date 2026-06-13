@@ -1,20 +1,22 @@
+import { and, asc, desc, eq, getTableColumns, isNotNull, isNull, sql, type SQL } from 'drizzle-orm';
 import {
-  rowToInsight,
-  rowToTriage,
-  type CommentRow,
-  type Insight,
-  type InsightRow,
-  type Intensity,
-  type PostRow,
-  type Triage,
-  type TriageRow,
-} from '@hatch-radar/shared';
-import type Database from 'better-sqlite3';
+  comments,
+  insights,
+  posts,
+  toInsight,
+  toTriage,
+  triage,
+  type AppDatabase,
+} from '@hatch-radar/db';
+import type { CommentRow, Insight, Intensity, PostRow, Triage } from '@hatch-radar/shared';
 
-type Db = Database.Database;
+type Db = AppDatabase;
 
 /** 列表页统一分页大小 */
 export const PAGE_SIZE = 20;
+
+/** count(*) 表达式（::int 收敛为 number，避免 bigint 字符串） */
+const COUNT = sql<number>`count(*)::int`;
 
 /** 分页查询结果 */
 export interface Paged<T> {
@@ -53,95 +55,69 @@ function clampPage(total: number, page: number): { page: number; pageCount: numb
 }
 
 /** 按条件分页检索洞察，按生成时间倒序 */
-export function listInsights(db: Db, filter: InsightListFilter): Paged<Insight> {
-  const clauses: string[] = [];
-  const params: unknown[] = [];
-  if (filter.source) {
-    clauses.push('source = ?');
-    params.push(filter.source);
-  }
-  if (filter.subreddit) {
-    clauses.push('subreddit = ? COLLATE NOCASE');
-    params.push(filter.subreddit);
-  }
-  if (filter.intensity) {
-    clauses.push('intensity = ?');
-    params.push(filter.intensity);
-  }
+export async function listInsights(db: Db, filter: InsightListFilter): Promise<Paged<Insight>> {
+  const conds: SQL[] = [];
+  if (filter.source) conds.push(eq(insights.source, filter.source));
+  if (filter.subreddit) conds.push(sql`lower(${insights.subreddit}) = lower(${filter.subreddit})`);
+  if (filter.intensity) conds.push(sql`${insights.intensity}::text = ${filter.intensity}`);
   if (filter.q) {
-    clauses.push(
-      '(post_title LIKE ? OR tags LIKE ? OR pain_points LIKE ? OR opportunities LIKE ?)',
-    );
     const like = `%${filter.q}%`;
-    params.push(like, like, like, like);
+    conds.push(
+      sql`(${insights.post_title} ILIKE ${like} OR ${insights.tags}::text ILIKE ${like} OR ${insights.pain_points}::text ILIKE ${like} OR ${insights.opportunities}::text ILIKE ${like})`,
+    );
   }
-  const where = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
-  const total = (
-    db.prepare(`SELECT COUNT(*) n FROM insights ${where}`).get(...params) as { n: number }
-  ).n;
+  const where = conds.length > 0 ? and(...conds) : undefined;
+  const total = (await db.select({ n: COUNT }).from(insights).where(where))[0].n;
   const { page, pageCount } = clampPage(total, filter.page);
-  const rows = db
-    .prepare(`SELECT * FROM insights ${where} ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`)
-    .all(...params, PAGE_SIZE, (page - 1) * PAGE_SIZE) as InsightRow[];
-  return { items: rows.map(rowToInsight), total, page, pageCount };
+  const rows = await db
+    .select()
+    .from(insights)
+    .where(where)
+    .orderBy(desc(insights.created_at), desc(insights.id))
+    .limit(PAGE_SIZE)
+    .offset((page - 1) * PAGE_SIZE);
+  return { items: rows.map(toInsight), total, page, pageCount };
 }
 
 /** 按 id 取单条洞察 */
-export function getInsight(db: Db, id: number): Insight | null {
-  const row = db.prepare(`SELECT * FROM insights WHERE id = ?`).get(id) as InsightRow | undefined;
-  return row ? rowToInsight(row) : null;
+export async function getInsight(db: Db, id: number): Promise<Insight | null> {
+  const rows = await db.select().from(insights).where(eq(insights.id, id)).limit(1);
+  return rows[0] ? toInsight(rows[0]) : null;
 }
 
-/**
- * 取洞察的人工研判结果（移动端同步回传，里程碑 6 起存在）。
- * 旧库可能还没有 triage 表（server 升级后首次运行才建表），先探表再查。
- */
-export function getTriageForInsight(db: Db, insightId: number): Triage | null {
-  const hasTable = db
-    .prepare(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'triage'`)
-    .get();
-  if (!hasTable) return null;
-  const row = db.prepare(`SELECT * FROM triage WHERE insight_id = ?`).get(insightId) as
-    | TriageRow
-    | undefined;
-  return row ? rowToTriage(row) : null;
+/** 取洞察的人工研判结果（移动端同步回传）；无则返回 null */
+export async function getTriageForInsight(db: Db, insightId: number): Promise<Triage | null> {
+  const rows = await db.select().from(triage).where(eq(triage.insight_id, insightId)).limit(1);
+  return rows[0] ? toTriage(rows[0]) : null;
 }
 
 /** 取帖子对应的洞察（帖子详情页交叉跳转用） */
-export function getInsightForPost(db: Db, postId: string): Insight | null {
-  const row = db.prepare(`SELECT * FROM insights WHERE post_id = ?`).get(postId) as
-    | InsightRow
-    | undefined;
-  return row ? rowToInsight(row) : null;
+export async function getInsightForPost(db: Db, postId: string): Promise<Insight | null> {
+  const rows = await db.select().from(insights).where(eq(insights.post_id, postId)).limit(1);
+  return rows[0] ? toInsight(rows[0]) : null;
 }
 
 /** 按条件分页检索帖子，按发帖时间倒序 */
-export function listPosts(db: Db, filter: PostListFilter): Paged<PostRow> {
-  const clauses: string[] = [];
-  const params: unknown[] = [];
-  if (filter.source) {
-    clauses.push('source = ?');
-    params.push(filter.source);
-  }
-  if (filter.subreddit) {
-    clauses.push('subreddit = ? COLLATE NOCASE');
-    params.push(filter.subreddit);
-  }
-  if (filter.status === 'analyzed') clauses.push('analyzed_at IS NOT NULL');
-  if (filter.status === 'pending') clauses.push('analyzed_at IS NULL');
+export async function listPosts(db: Db, filter: PostListFilter): Promise<Paged<PostRow>> {
+  const conds: SQL[] = [];
+  if (filter.source) conds.push(eq(posts.source, filter.source));
+  if (filter.subreddit) conds.push(sql`lower(${posts.subreddit}) = lower(${filter.subreddit})`);
+  if (filter.status === 'analyzed') conds.push(isNotNull(posts.analyzed_at));
+  if (filter.status === 'pending') conds.push(isNull(posts.analyzed_at));
   if (filter.q) {
-    clauses.push('(title LIKE ? OR selftext LIKE ?)');
     const like = `%${filter.q}%`;
-    params.push(like, like);
+    conds.push(sql`(${posts.title} ILIKE ${like} OR ${posts.selftext} ILIKE ${like})`);
   }
-  const where = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
-  const total = (
-    db.prepare(`SELECT COUNT(*) n FROM posts ${where}`).get(...params) as { n: number }
-  ).n;
+  const where = conds.length > 0 ? and(...conds) : undefined;
+  const total = (await db.select({ n: COUNT }).from(posts).where(where))[0].n;
   const { page, pageCount } = clampPage(total, filter.page);
-  const items = db
-    .prepare(`SELECT * FROM posts ${where} ORDER BY created_utc DESC, id LIMIT ? OFFSET ?`)
-    .all(...params, PAGE_SIZE, (page - 1) * PAGE_SIZE) as PostRow[];
+  const items = await db
+    .select()
+    .from(posts)
+    .where(where)
+    .orderBy(desc(posts.created_utc), asc(posts.id))
+    .limit(PAGE_SIZE)
+    .offset((page - 1) * PAGE_SIZE);
   return { items, total, page, pageCount };
 }
 
@@ -158,55 +134,76 @@ export interface AwaitingPost extends PostRow {
  * 且 未产出洞察（pending）或 已分析但评论在分析后又变（restale，comments_changed_at > insight.created_at）。
  * pending 排在前，再按热度（score + 评论数）降序分页。
  */
-export function listAwaitingManualResult(db: Db, page: number): Paged<AwaitingPost> {
-  const where = `WHERE p.comments_fetched_at IS NOT NULL
-      AND (i.post_id IS NULL OR p.comments_changed_at > i.created_at)`;
+export async function listAwaitingManualResult(db: Db, page: number): Promise<Paged<AwaitingPost>> {
+  const where = sql`${posts.comments_fetched_at} IS NOT NULL AND (${insights.post_id} IS NULL OR ${posts.comments_changed_at} > ${insights.created_at})`;
   const total = (
-    db
-      .prepare(`SELECT COUNT(*) n FROM posts p LEFT JOIN insights i ON i.post_id = p.id ${where}`)
-      .get() as { n: number }
-  ).n;
+    await db
+      .select({ n: COUNT })
+      .from(posts)
+      .leftJoin(insights, eq(insights.post_id, posts.id))
+      .where(where)
+  )[0].n;
   const { page: pageNum, pageCount } = clampPage(total, page);
-  const items = db
-    .prepare(
-      `SELECT p.*, CASE WHEN i.post_id IS NULL THEN 'pending' ELSE 'restale' END AS kind
-       FROM posts p LEFT JOIN insights i ON i.post_id = p.id
-       ${where}
-       ORDER BY (i.post_id IS NULL) DESC, (p.score + p.num_comments) DESC, p.id
-       LIMIT ? OFFSET ?`,
+  const items = await db
+    .select({
+      ...getTableColumns(posts),
+      kind: sql<AwaitingKind>`CASE WHEN ${insights.post_id} IS NULL THEN 'pending' ELSE 'restale' END`,
+    })
+    .from(posts)
+    .leftJoin(insights, eq(insights.post_id, posts.id))
+    .where(where)
+    .orderBy(
+      sql`(${insights.post_id} IS NULL) DESC`,
+      sql`(${posts.score} + ${posts.num_comments}) DESC`,
+      asc(posts.id),
     )
-    .all(PAGE_SIZE, (pageNum - 1) * PAGE_SIZE) as AwaitingPost[];
+    .limit(PAGE_SIZE)
+    .offset((pageNum - 1) * PAGE_SIZE);
   return { items, total, page: pageNum, pageCount };
 }
 
 /** 按 id 取单篇帖子（30 天归档后返回 null，洞察仍可见） */
-export function getPost(db: Db, id: string): PostRow | null {
-  const row = db.prepare(`SELECT * FROM posts WHERE id = ?`).get(id) as PostRow | undefined;
-  return row ?? null;
+export async function getPost(db: Db, id: string): Promise<PostRow | null> {
+  const rows = await db.select().from(posts).where(eq(posts.id, id)).limit(1);
+  return rows[0] ?? null;
 }
 
 /** 取帖子全部评论，按发表时间升序（树结构由展示层组装） */
-export function getComments(db: Db, postId: string): CommentRow[] {
+export function getComments(db: Db, postId: string): Promise<CommentRow[]> {
   return db
-    .prepare(`SELECT * FROM comments WHERE post_id = ? ORDER BY created_utc ASC, id`)
-    .all(postId) as CommentRow[];
+    .select()
+    .from(comments)
+    .where(eq(comments.post_id, postId))
+    .orderBy(asc(comments.created_utc), asc(comments.id));
 }
 
 /** 概览计数（与 server 启动日志同口径） */
-export function getStats(db: Db): {
+export async function getStats(db: Db): Promise<{
   posts: number;
   comments: number;
   pendingAnalysis: number;
   insights: number;
-} {
-  const count = (sql: string): number => (db.prepare(sql).get() as { n: number }).n;
+}> {
+  const [postsN, commentsN, pendingN, insightsN] = await Promise.all([
+    db.select({ n: COUNT }).from(posts),
+    db.select({ n: COUNT }).from(comments),
+    db
+      .select({ n: COUNT })
+      .from(posts)
+      .where(
+        and(
+          isNull(posts.analyzed_at),
+          sql`${posts.comment_pass} >= 1`,
+          sql`${posts.analyze_attempts} < 3`,
+        ),
+      ),
+    db.select({ n: COUNT }).from(insights),
+  ]);
   return {
-    posts: count(`SELECT COUNT(*) n FROM posts`),
-    comments: count(`SELECT COUNT(*) n FROM comments`),
-    pendingAnalysis: count(
-      `SELECT COUNT(*) n FROM posts WHERE analyzed_at IS NULL AND comment_pass >= 1 AND analyze_attempts < 3`,
-    ),
-    insights: count(`SELECT COUNT(*) n FROM insights`),
+    posts: postsN[0].n,
+    comments: commentsN[0].n,
+    pendingAnalysis: pendingN[0].n,
+    insights: insightsN[0].n,
   };
 }
 
@@ -216,30 +213,31 @@ export interface FilterOptions {
   subreddits: string[];
 }
 
+/** 大小写不敏感排序（替代 SQLite 的 COLLATE NOCASE） */
+function sortCI(values: string[]): string[] {
+  return [...values].sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+}
+
 /** 洞察页筛选项：取自 insights 表（帖子归档后洞察仍在） */
-export function insightFilterOptions(db: Db): FilterOptions {
+export async function insightFilterOptions(db: Db): Promise<FilterOptions> {
+  const [sources, subreddits] = await Promise.all([
+    db.selectDistinct({ s: insights.source }).from(insights),
+    db.selectDistinct({ s: insights.subreddit }).from(insights),
+  ]);
   return {
-    sources: (
-      db.prepare(`SELECT DISTINCT source s FROM insights ORDER BY s`).all() as { s: string }[]
-    ).map((r) => r.s),
-    subreddits: (
-      db.prepare(`SELECT DISTINCT subreddit s FROM insights ORDER BY s COLLATE NOCASE`).all() as {
-        s: string;
-      }[]
-    ).map((r) => r.s),
+    sources: sources.map((r) => r.s).sort(),
+    subreddits: sortCI(subreddits.map((r) => r.s)),
   };
 }
 
 /** 帖子页筛选项：取自 posts 表 */
-export function postFilterOptions(db: Db): FilterOptions {
+export async function postFilterOptions(db: Db): Promise<FilterOptions> {
+  const [sources, subreddits] = await Promise.all([
+    db.selectDistinct({ s: posts.source }).from(posts),
+    db.selectDistinct({ s: posts.subreddit }).from(posts),
+  ]);
   return {
-    sources: (
-      db.prepare(`SELECT DISTINCT source s FROM posts ORDER BY s`).all() as { s: string }[]
-    ).map((r) => r.s),
-    subreddits: (
-      db.prepare(`SELECT DISTINCT subreddit s FROM posts ORDER BY s COLLATE NOCASE`).all() as {
-        s: string;
-      }[]
-    ).map((r) => r.s),
+    sources: sources.map((r) => r.s).sort(),
+    subreddits: sortCI(subreddits.map((r) => r.s)),
   };
 }

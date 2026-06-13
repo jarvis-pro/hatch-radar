@@ -26,11 +26,9 @@ interface SearchParams {
 
 export default async function InsightsPage(props: { searchParams: Promise<SearchParams> }) {
   const sp = await props.searchParams;
-  const db = tryGetDb();
+  const db = await tryGetDb();
   if (!db) return <DbSetupNotice />;
 
-  const stats = getStats(db);
-  const options = insightFilterOptions(db);
   const intensity = parseIntensity(sp.intensity);
   const q = sp.q?.trim() || undefined;
   const filter = {
@@ -40,7 +38,11 @@ export default async function InsightsPage(props: { searchParams: Promise<Search
     q,
     page: parsePage(sp.page),
   };
-  const result = listInsights(db, filter);
+  const [stats, options, result] = await Promise.all([
+    getStats(db),
+    insightFilterOptions(db),
+    listInsights(db, filter),
+  ]);
   const hasFilter = Boolean(filter.source || filter.subreddit || filter.intensity || filter.q);
 
   const statItems = [

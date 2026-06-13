@@ -50,11 +50,13 @@ async function loadProviders(): Promise<{
 
 export default async function AnalyzePage(props: { searchParams: Promise<SearchParams> }) {
   const sp = await props.searchParams;
-  const db = tryGetDb();
+  const db = await tryGetDb();
   if (!db) return <DbSetupNotice />;
 
-  const result = listAwaitingManualResult(db, parsePage(sp.page));
-  const { providers, activeProviderId, error } = await loadProviders();
+  const [result, { providers, activeProviderId, error }] = await Promise.all([
+    listAwaitingManualResult(db, parsePage(sp.page)),
+    loadProviders(),
+  ]);
 
   const items: WorkbenchItem[] = result.items.map((p) => ({
     id: p.id,

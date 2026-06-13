@@ -35,10 +35,9 @@ interface SearchParams {
 
 export default async function PostsPage(props: { searchParams: Promise<SearchParams> }) {
   const sp = await props.searchParams;
-  const db = tryGetDb();
+  const db = await tryGetDb();
   if (!db) return <DbSetupNotice />;
 
-  const options = postFilterOptions(db);
   const status: 'analyzed' | 'pending' | undefined =
     sp.status === 'analyzed' ? 'analyzed' : sp.status === 'pending' ? 'pending' : undefined;
   const q = sp.q?.trim() || undefined;
@@ -49,7 +48,7 @@ export default async function PostsPage(props: { searchParams: Promise<SearchPar
     q,
     page: parsePage(sp.page),
   };
-  const result = listPosts(db, filter);
+  const [options, result] = await Promise.all([postFilterOptions(db), listPosts(db, filter)]);
   const hasFilter = Boolean(filter.source || filter.subreddit || filter.status || filter.q);
 
   return (

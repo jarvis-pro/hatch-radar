@@ -14,13 +14,15 @@ export const dynamic = 'force-dynamic';
 
 export default async function PostDetailPage(props: { params: Promise<{ id: string }> }) {
   const { id } = await props.params;
-  const db = tryGetDb();
+  const db = await tryGetDb();
   if (!db) return <DbSetupNotice />;
 
-  const post = getPost(db, id);
+  const post = await getPost(db, id);
   if (!post) notFound();
-  const comments = getComments(db, post.id);
-  const insight = getInsightForPost(db, post.id);
+  const [comments, insight] = await Promise.all([
+    getComments(db, post.id),
+    getInsightForPost(db, post.id),
+  ]);
 
   return (
     <Card className="gap-0 p-4 sm:p-6">

@@ -1,34 +1,47 @@
 import 'server-only';
-import { existsSync } from 'node:fs';
-import { resolve } from 'node:path';
-import Database from 'better-sqlite3';
+import { sql } from 'drizzle-orm';
+import { createDb, type AppDatabase, type DbHandle } from '@hatch-radar/db';
 
-/**
- * 默认指向 server 包的数据文件：本地开发时 web 与 server 同仓运行。
- * Docker / 独立部署用 DATABASE_URL 覆盖（如 /data/radar.db）。
- */
-const DEFAULT_DB_PATH = '../server/data/radar.db';
+/** 默认连接本地 docker-compose 的 PG；部署时用 DATABASE_URL 覆盖 */
+const DEFAULT_DATABASE_URL = 'postgres://radar:radar@localhost:5432/hatch_radar';
 
-/** 解析数据文件绝对路径（相对路径基于 web 进程工作目录） */
-export function dbFilePath(): string {
-  return resolve(process.cwd(), process.env.DATABASE_URL?.trim() || DEFAULT_DB_PATH);
+/** 当前 PG 连接串 */
+export function databaseUrl(): string {
+  return process.env.DATABASE_URL?.trim() || DEFAULT_DATABASE_URL;
 }
 
-// dev 模式热更新会反复执行模块，把连接挂到 globalThis 避免句柄泄漏
-const globalForDb = globalThis as unknown as { __radarDb?: Database.Database };
+/** 脱敏连接目标（host/db，不含口令），仅用于「未就绪」提示展示 */
+export function dbTarget(): string {
+  try {
+    const u = new URL(databaseUrl());
+    return `${u.host}${u.pathname}`;
+  } catch {
+    return '(无效的 DATABASE_URL)';
+  }
+}
+
+// dev 热更新会反复执行模块，把句柄挂到 globalThis 避免连接池泄漏
+const globalForDb = globalThis as unknown as { __radarDb?: DbHandle };
+
+function handle(): DbHandle {
+  if (!globalForDb.__radarDb) {
+    // 只读连接：连接级 default_transaction_read_only=on——控制台绝不写库，
+    // 写入（爬取 / 分析 / 同步应用）统一由 server 进程执行（纵深防御）。
+    globalForDb.__radarDb = createDb(databaseUrl(), { readonly: true });
+  }
+  return globalForDb.__radarDb;
+}
 
 /**
- * 以只读模式打开数据库；文件不存在时返回 null（页面渲染引导提示，等待 server 进程建库）。
- *
- * 控制台绝不写库：写操作（爬取 / 分析 / 同步应用）统一由 server 进程执行，
- * 避免与爬虫抢 SQLite 写锁。连接只读 + busy_timeout，可与 WAL 写进程安全并存。
+ * 取只读 PG 连接；连接不可用（PG 未启动 / DATABASE_URL 错误 / 未迁移）时返回 null，
+ * 页面据此渲染 DbSetupNotice。
  */
-export function tryGetDb(): Database.Database | null {
-  if (globalForDb.__radarDb) return globalForDb.__radarDb;
-  const file = dbFilePath();
-  if (!existsSync(file)) return null;
-  const db = new Database(file, { readonly: true, fileMustExist: true });
-  db.pragma('busy_timeout = 5000');
-  globalForDb.__radarDb = db;
-  return db;
+export async function tryGetDb(): Promise<AppDatabase | null> {
+  try {
+    const { db } = handle();
+    await db.execute(sql`select 1`);
+    return db;
+  } catch {
+    return null;
+  }
 }

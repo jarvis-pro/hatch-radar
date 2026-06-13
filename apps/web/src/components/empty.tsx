@@ -7,7 +7,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@hatch-radar/ui/components/empty';
-import { dbFilePath } from '@/lib/db';
+import { dbTarget } from '@/lib/db';
 
 /** 行内 code 样式（沿用主题 muted 底色，避免自定义 CSS） */
 const code = 'rounded bg-muted px-1.5 py-0.5 font-mono text-[0.85em]';
@@ -44,14 +44,14 @@ export function DbSetupNotice() {
         </EmptyMedia>
         <EmptyTitle>数据库未就绪</EmptyTitle>
         <EmptyDescription>
-          未找到 SQLite 数据文件：<code className={code}>{dbFilePath()}</code>
+          无法连接 PostgreSQL：<code className={code}>{dbTarget()}</code>
         </EmptyDescription>
       </EmptyHeader>
       <EmptyContent>
         <p>
-          请先启动工作台进程生成数据（<code className={code}>pnpm dev</code> 或{' '}
-          <code className={code}>pnpm db:migrate</code>），或通过环境变量{' '}
-          <code className={code}>DATABASE_URL</code> 指定数据文件位置。
+          请先启动数据库与工作台进程（<code className={code}>docker compose up -d db</code> 后{' '}
+          <code className={code}>pnpm dev</code>），或通过环境变量{' '}
+          <code className={code}>DATABASE_URL</code> 指定 PG 连接串。
           控制台为只读端，不会创建或修改数据库。
         </p>
       </EmptyContent>
