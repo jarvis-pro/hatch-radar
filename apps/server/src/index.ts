@@ -36,12 +36,14 @@ async function main(): Promise<void> {
     `当前数据: 帖子 ${stats.posts} / 评论 ${stats.comments} / 待分析 ${stats.pendingAnalysis} / 洞察 ${stats.insights}`,
   );
 
+  const autoAnalyze = env.analysis.provider !== 'file';
   const jobs = startScheduler({
     reddit,
     hackernews,
     processor,
     analyzeBatchSize: env.analyzeBatchSize,
     subreddits: reddit ? SUBREDDITS : [],
+    autoAnalyze,
   });
 
   // 局域网导出服务：供移动端拉取批次（只下行数据，密钥不经过此服务）
@@ -56,10 +58,10 @@ async function main(): Promise<void> {
   process.on('SIGINT', () => shutdown('SIGINT'));
   process.on('SIGTERM', () => shutdown('SIGTERM'));
 
-  logger.info('启动初始化轮次：扫描 → 评论补全 → AI 分析');
+  logger.info(`启动初始化轮次：扫描 → 评论补全${autoAnalyze ? ' → AI 分析' : ''}`);
   await jobs.scan();
   await jobs.comments();
-  await jobs.analyze();
+  if (autoAnalyze) await jobs.analyze();
   logger.info('初始化轮次完成，进入定时调度（查看洞察: pnpm insights）');
 }
 
