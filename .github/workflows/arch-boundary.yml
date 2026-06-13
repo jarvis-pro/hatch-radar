@@ -1,0 +1,20 @@
+name: Architecture Boundary
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  check-boundaries:
+    name: Check module boundaries
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: mobile must not import @hatch-radar/db
+        run: |
+          if grep -r "@hatch-radar/db" apps/mobile/; then
+            echo "::error::apps/mobile 不允许直接依赖 @hatch-radar/db，请改走 server API"
+            exit 1
+          fi
