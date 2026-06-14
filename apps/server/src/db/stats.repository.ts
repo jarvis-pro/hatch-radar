@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { AppDatabase } from '@hatch-radar/db';
 import { PRISMA } from '../common/tokens';
+import { PENDING_ANALYSIS_PREDICATE } from './posts.repository';
 
 /** 数据库各表计数概览 */
 export interface DbStats {
@@ -19,17 +20,25 @@ export class StatsRepository {
 
   /**
    * 返回数据库各表的当前行数汇总。
+   * - 单条 SQL 一次往返取全部计数（health 探测每次都会调，避免 4 次独立查询）
+   * - 待分析口径复用 {@link PENDING_ANALYSIS_PREDICATE}，与实际入队取数完全一致
    * @returns posts / comments / 待分析帖子数 / insights 的当前计数
    */
   async getStats(): Promise<DbStats> {
-    const [posts, comments, pendingAnalysis, insights] = await Promise.all([
-      this.db.posts.count(),
-      this.db.comments.count(),
-      this.db.posts.count({
-        where: { analyzed_at: null, comment_pass: { gte: 1 }, analyze_attempts: { lt: 3 } },
-      }),
-      this.db.insights.count(),
-    ]);
-    return { posts, comments, pendingAnalysis, insights };
+    const [row] = await this.db.$queryRaw<
+      { posts: bigint; comments: bigint; pending: bigint; insights: bigint }[]
+    >`
+      SELECT
+        (SELECT count(*) FROM posts) AS posts,
+        (SELECT count(*) FROM comments) AS comments,
+        (SELECT count(*) FROM posts WHERE ${PENDING_ANALYSIS_PREDICATE}) AS pending,
+        (SELECT count(*) FROM insights) AS insights
+    `;
+    return {
+      posts: Number(row?.posts ?? 0),
+      comments: Number(row?.comments ?? 0),
+      pendingAnalysis: Number(row?.pending ?? 0),
+      insights: Number(row?.insights ?? 0),
+    };
   }
 }
