@@ -65,7 +65,7 @@ const envSchema = z
 
     // ── 导出服务（局域网 HTTP，供移动端拉取批次）──────────────────────
 
-    /** 导出 HTTP 服务监听端口，默认 8787；绑定 0.0.0.0 */
+    /** 导出 HTTP 服务监听端口，默认 47878（DEFAULT_HTTP_PORT）；绑定 0.0.0.0 */
     HTTP_PORT: z.coerce.number().int().min(1).max(65535).default(DEFAULT_HTTP_PORT),
     /** 可选访问令牌；设置后导出接口要求 Authorization: Bearer <token> */
     API_TOKEN: z.string().trim().min(1).optional(),

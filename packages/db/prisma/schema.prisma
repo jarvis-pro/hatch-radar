@@ -34,7 +34,7 @@ model analysis_jobs {
   max_attempts Int         @default(3)
   /// 最近一次失败的错误信息，成功时为空。
   error        String?
-  /// 入队时间戳（epoch 毫秒，下同），与 status 组成调度索引。
+  /// 入队时间戳（epoch 秒，下同；全库 Unix 秒，与 nowSec() 一致），与 status 组成调度索引。
   enqueued_at  BigInt
   /// 开始执行时间戳。
   started_at   BigInt?
@@ -71,7 +71,7 @@ model comments {
   depth       Int     @default(0)
   /// Reddit 原始发布时间（epoch 秒）。
   created_utc BigInt
-  /// 本地抓取时间戳（epoch 毫秒）。
+  /// 本地抓取时间戳（epoch 秒）。
   fetched_at  BigInt
   posts       posts   @relation(fields: [post_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "comments_post_id_posts_id_fk")
 
@@ -102,7 +102,7 @@ model insights {
   opportunities Json
   /// 标签列表（JSON 数组）。
   tags          Json
-  /// 洞察生成时间戳（epoch 毫秒）。
+  /// 洞察生成时间戳（epoch 秒）。
   created_at    BigInt
 
   @@index([intensity], map: "idx_insights_intensity")
@@ -148,7 +148,7 @@ model posts {
   num_comments        Int        @default(0)
   /// Reddit 原始发布时间（epoch 秒）。
   created_utc         BigInt
-  /// 本地首次抓取时间戳（epoch 毫秒，下同）。
+  /// 本地首次抓取时间戳（epoch 秒，下同）。
   fetched_at          BigInt
   /// 评论抓取轮次；用于增量分多轮拉取评论。
   comment_pass        Int        @default(0)
@@ -156,7 +156,7 @@ model posts {
   comments_fetched_at BigInt?
   /// 评论内容发生变化的时间，用于判断是否需要重新分析。
   comments_changed_at BigInt?
-  /// 导出锁定时间；非空表示已被导出流程锁定，避免并发改动。
+  /// 预留列：导出锁定时间（Unix 秒）。当前 server 未写入、评论 refresh 也不据此暂停，仅随导出产物携带；后续实现「导出冻结」再启用。
   export_locked_at    BigInt?
   /// 完成 AI 分析的时间；为空表示尚未分析。
   analyzed_at         BigInt?

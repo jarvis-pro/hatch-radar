@@ -23,7 +23,7 @@
 | 调度          | `@nestjs/schedule`（`@Cron`）                                                                                               |
 | Reddit 数据源 | Reddit REST API（OAuth）                                                                                                    |
 | AI 分析       | 多模型可配：Anthropic（`@anthropic-ai/sdk`）/ OpenAI / DeepSeek；PostgreSQL 任务队列（`FOR UPDATE SKIP LOCKED`）+ Worker 池 |
-| 存储          | PostgreSQL（Drizzle ORM；server 读写 / web 只读直查）；导出 `.sqlite` 与移动端 expo-sqlite 互通                             |
+| 存储          | PostgreSQL（Prisma ORM；server 读写 / web 只读直查）；导出 `.sqlite` 与移动端 expo-sqlite 互通                             |
 | Web 控制台    | Next.js（App Router，standalone 产物 + Docker）                                                                             |
 | PC 端 UI 库   | shadcn/ui + Tailwind CSS v4（`packages/ui` 共享，仅限 Web/PC 子项目）                                                       |
 | 移动端        | React Native（Expo SDK 56 + expo-router + expo-sqlite）                                                                     |
@@ -75,11 +75,10 @@ DATABASE_URL=postgres://radar:radar@localhost:47432/hatch_radar
 
 ```bash
 docker compose up -d db   # 本地 PostgreSQL（默认 radar/radar @ localhost:47432/hatch_radar）
-pnpm db:migrate           # drizzle-kit 应用迁移建出全部表
+pnpm db:migrate           # prisma migrate deploy 应用迁移建出全部表
 ```
 
-> server 启动时也会自动应用迁移（幂等）；首次/CI 可用上面的命令显式建表。
-> 旧 SQLite 库迁移到 PG：`pnpm --filter @hatch-radar/server exec node --import @swc-node/register/esm-register scripts/migrate-sqlite-to-pg.ts ./data/radar.db`
+> dev / start 脚本在进程启动前自动执行 `prisma migrate deploy`（幂等）；首次/CI 可用上面的命令显式建表。
 
 ### 4. 启动
 
@@ -180,7 +179,7 @@ pnpm dev:mobile   # 启动 Expo dev server，用 Expo Go 扫码（iOS 真机）
 - **未选用 active** → 不自动分析；在「分析」页多选帖子 + 选一个模型 → 手动运行入队。
 - **一条模型都没配** → 先去设置页加一个（无密钥无法调用模型）。
 
-**队列驱动**：定时与手动运行都只是把帖子写入 PostgreSQL 持久化任务队列（`analysis_jobs`），由常驻 Worker 池靠 `FOR UPDATE SKIP LOCKED` 认领消费——并发认领不重不漏、可多进程/独立进程扩展，单任务超时、失败重试、僵死/孤儿回收，进程重启自动续跑，单个慢调用不会卡住整批。改密钥/模型/选用即热重载，无需重启进程。洞察按 `post_id` 幂等落库（`model` 记真实模型 ID），重分析覆盖且保住研判。
+**队列驱动**：定时与手动运行都只是把帖子写入 PostgreSQL 持久化任务队列（`analysis_jobs`），由常驻 Worker 池靠 `FOR UPDATE SKIP LOCKED` 认领消费——并发认领不重不漏、可多进程/独立进程扩展（仅 Worker 这层水平扩；HTTP + 定时调度的主进程为单实例，cron 无分布式锁），单任务超时、失败重试、僵死/孤儿回收，进程重启自动续跑，单个慢调用不会卡住整批。改密钥/模型/选用即热重载，无需重启进程。洞察按 `post_id` 幂等落库（`model` 记真实模型 ID），重分析覆盖且保住研判。
 
 > 启动兜底：若在 `.env` 设了 `AI_PROVIDER` + 对应 KEY + `SETTINGS_SECRET`，启动时会把它一次性迁移入库并设为 active（老配置无感升级）。
 
@@ -223,8 +222,8 @@ hatch-radar/
 │   │   │   ├── worker-main.ts  # 独立 Worker 进程入口（standalone application context）
 │   │   │   ├── app.module.ts   # 主进程根模块（HTTP + 调度 + 同进程 Worker）
 │   │   │   ├── config/         # env 校验（zod）+ @nestjs/config、目标版块、HN/RSS 源
-│   │   │   ├── database/       # Drizzle 连接 provider + 启动迁移 + 优雅关闭
-│   │   │   ├── db/             # 异步 Drizzle repository（posts/comments/insights/jobs/providers/settings/stats）
+│   │   │   ├── database/       # Prisma 连接 provider（driver adapter）+ 启动连通性自检 + 优雅关闭
+│   │   │   ├── db/             # 异步 Prisma repository（posts/comments/insights/jobs/providers/settings/stats）
 │   │   │   ├── crawler/        # 令牌桶队列 + Reddit / HN / RSS 抓取（封装为 provider）
 │   │   │   ├── analyzer/       # prompt、Zod schema、Anthropic / OpenAI / DeepSeek 调用（无副作用）
 │   │   │   ├── analysis/       # 模型解析/热重载/入队 + 「分析并落库」编排
@@ -235,13 +234,11 @@ hatch-radar/
 │   │   │   ├── export/         # 批次收集（读 PG）+ .sqlite/.json 写出（better-sqlite3）
 │   │   │   ├── cli/            # CLI 命令（pnpm cli insights / analyze / export）
 │   │   │   ├── common/         # DI 令牌、时间、zod 管道、Bearer 守卫、全局异常过滤器
-│   │   │   └── crypto.ts       # 模型密钥 AES-256-GCM 加解密
-│   │   ├── scripts/migrate-sqlite-to-pg.ts  # 一次性 SQLite → PG 迁移脚本
-│   │   ├── test/               # 队列并发认领 / 同步幂等集成测试（vitest，连本地 PG）
+│   │   │   └── crypto.ts       # 模型密钥 AES-256-GCM 加解密│   │   ├── test/               # 队列并发认领 / 同步幂等集成测试（vitest，连本地 PG）
 │   │   └── .env.example
 │   ├── web/                    # Next.js 只读控制台（PG 只读直查）
 │   │   ├── src/app/            # 洞察/帖子列表与详情（App Router，全 RSC）
-│   │   ├── src/lib/            # PG 只读连接 + Drizzle 查询 + 格式化
+│   │   ├── src/lib/            # PG 只读连接 + Prisma 查询 + 格式化
 │   │   ├── src/components/     # 徽标/卡片/分页/评论树
 │   │   └── Dockerfile          # 多阶段构建（node:20-bookworm-slim + standalone）
 │   └── mobile/                 # Expo 离线伴侣 App（expo-sqlite，保持不变）
@@ -249,7 +246,7 @@ hatch-radar/
 │       └── src/                # 本地库（共享 DDL + outbox/meta）、研判与导入合并、同步推送
 ├── packages/
 │   ├── shared/                 # 跨端共享：DB DDL（mobile/导出用）、行类型、洞察域类型、研判/导出/同步协议
-│   ├── db/                     # PostgreSQL 层：Drizzle schema + 连接工厂 + 迁移 + PG⇄域映射（server/web 共用）
+│   ├── db/                     # PostgreSQL 层：Prisma schema + 连接工厂 + 迁移 + PG⇄域映射（server/web 共用）
 │   └── ui/                     # PC 端共享 UI 库：shadcn/ui + Tailwind v4（组件经 CLI 落入此包，RN 勿引）
 ├── docs/
 │   ├── multiplatform-refactor-spec.md          # 多端重构需求规格
