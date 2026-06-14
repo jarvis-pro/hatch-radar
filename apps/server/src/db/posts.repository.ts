@@ -13,6 +13,23 @@ const REFRESH = {
   midInterval: 24 * 3600,
 };
 
+/** 分析失败重试上限：analyze_attempts 达到此值后不再自动（重）分析该帖 */
+export const MAX_ANALYZE_ATTEMPTS = 3;
+
+/**
+ * 「待（重）分析」帖子的判定谓词——getPostsToAnalyze 取数与 StatsRepository 计数的单一数据源
+ * （避免谓词散落多处、改一处漏一处导致看板数与实际入队数对不上）。
+ * - 已完成至少一轮评论回捞（comment_pass >= 1），失败次数未达上限
+ * - 从未分析（analyzed_at IS NULL）**或** 分析后评论又有变化（comments_changed_at > analyzed_at）
+ *   后者接通「反馈后又变」的自动重分析；重分析成功后 markAnalyzed 前移 analyzed_at，
+ *   令 comments_changed_at <= analyzed_at，自然收敛、不空转。
+ */
+export const PENDING_ANALYSIS_PREDICATE = Prisma.sql`
+  comment_pass >= 1
+  AND analyze_attempts < ${MAX_ANALYZE_ATTEMPTS}
+  AND (analyzed_at IS NULL OR comments_changed_at > analyzed_at)
+`;
+
 /**
  * 帖子表数据访问（Prisma / PostgreSQL）。
  */
@@ -92,14 +109,15 @@ export class PostsRepository {
   }
 
   /**
-   * 取出等待 AI 分析的帖子：已完成至少一轮评论回捞、尚未分析、失败次数不超过 2 次。
+   * 取出等待 AI（重）分析的帖子（判定见 {@link PENDING_ANALYSIS_PREDICATE}）：
+   * 已完成至少一轮评论回捞、失败次数未达上限、且尚未分析或分析后评论又有变化。
    * - 按 `(score + num_comments)` 降序排列，优先处理热度高的帖子
    * @param limit 最多返回条数
    */
   async getPostsToAnalyze(limit: number): Promise<PostRow[]> {
     const rows = await this.db.$queryRaw<PostPg[]>`
       SELECT * FROM posts
-      WHERE analyzed_at IS NULL AND comment_pass >= 1 AND analyze_attempts < 3
+      WHERE ${PENDING_ANALYSIS_PREDICATE}
       ORDER BY (score + num_comments) DESC
       LIMIT ${limit}
     `;
