@@ -31,6 +31,7 @@ import {
 } from '@/lib/admin/device-actions';
 import type { DeviceRow, EnrollmentRow } from '@/lib/admin/device-queries';
 import { timeAgo } from '@/lib/format';
+import { QRCodeSVG } from 'qrcode.react';
 
 const TTL_OPTIONS = [7, 30, 60];
 
@@ -201,6 +202,13 @@ export function DeviceManager({
               在移动端「激活设备」页输入此码完成激活（15 分钟内有效，仅此一次显示）。
             </DialogDescription>
           </DialogHeader>
+          {code ? (
+            <div className="flex justify-center py-2">
+              <div className="rounded-lg bg-white p-3">
+                <QRCodeSVG value={code} size={176} />
+              </div>
+            </div>
+          ) : null}
           <div className="rounded bg-muted px-3 py-2 text-center font-mono text-lg tracking-wider select-all">
             {code}
           </div>
