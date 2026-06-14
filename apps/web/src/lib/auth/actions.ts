@@ -8,6 +8,7 @@ import { clearSessionCookie, readSessionCookie, setSessionCookie } from './cooki
 import { createSession, revokeOtherSessions, revokeSessionByToken } from './session';
 import { getCurrentUser } from './current-user';
 import { writeAudit } from './audit';
+import { clearLoginAttempts, loginLockRemaining, recordLoginFailure } from './throttle';
 import type { FormState, LoginState } from './types';
 
 /** 仅允许站内相对路径跳转，挡开放重定向。 */
@@ -33,13 +34,20 @@ export async function loginAction(_prev: LoginState, formData: FormData): Promis
   try {
     const db = getDb();
     const ip = await clientIp();
+    const lock = await loginLockRemaining(email);
+    if (lock > 0) {
+      await writeAudit({ action: 'auth.login.locked', metadata: { email }, ip });
+      return { error: `尝试过于频繁，请约 ${Math.ceil(lock / 60)} 分钟后再试` };
+    }
     const user = await db.users.findUnique({ where: { email } });
     const ok =
       !!user && user.status === 'active' && (await verifyPassword(password, user.password_hash));
     if (!user || !ok) {
+      await recordLoginFailure(email);
       await writeAudit({ action: 'auth.login.failed', metadata: { email }, ip });
       return { error: '邮箱或密码不正确' };
     }
+    await clearLoginAttempts(email);
     const token = await createSession(user.id, {
       userAgent: (await headers()).get('user-agent') ?? undefined,
       ip,
