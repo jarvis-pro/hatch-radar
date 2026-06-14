@@ -1,5 +1,6 @@
 import { Card } from '@hatch-radar/ui/components/card';
 import { DbSetupNotice, EmptyState } from '@/components/empty';
+import { ExportBatchButton } from '@/components/export-batch';
 import { FilterBar } from '@/components/filter-bar';
 import { InsightCard } from '@/components/insight-card';
 import { Pagination } from '@/components/pagination';
@@ -54,6 +55,11 @@ export default async function InsightsPage(props: { searchParams: Promise<Search
 
   return (
     <>
+      <div className="mb-4 flex items-center justify-between gap-2">
+        <h1 className="text-lg font-semibold tracking-tight">洞察</h1>
+        <ExportBatchButton subreddits={options.subreddits} />
+      </div>
+
       <section className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
         {statItems.map((s) => (
           <Card key={s.label} className="gap-1 p-4">
