@@ -44,7 +44,8 @@ class DatabaseLifecycle implements OnModuleInit, OnApplicationShutdown {
     {
       provide: DB_HANDLE,
       inject: [APP_ENV],
-      useFactory: (env: AppEnv): DbHandle => createDb(env.databaseUrl),
+      useFactory: (env: AppEnv): DbHandle =>
+        createDb(env.databaseUrl, { max: env.databasePoolMax }),
     },
     {
       provide: PRISMA,

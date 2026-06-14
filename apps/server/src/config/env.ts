@@ -79,6 +79,8 @@ const envSchema = z
 
     /** PostgreSQL 连接串，默认指向本地 docker-compose 的 PG */
     DATABASE_URL: z.string().trim().default(DEFAULT_DATABASE_URL),
+    /** PG 连接池上限；默认 max(10, WORKER_CONCURRENCY+5)，扩 worker 并发时随之放大，避免连接饥饿 */
+    DATABASE_POOL_MAX: z.coerce.number().int().min(1).optional(),
 
     // ── 导出服务（局域网 HTTP，供移动端拉取批次）──────────────────────
 
@@ -137,6 +139,7 @@ const envSchema = z
     analysis: resolveAnalysis(env),
     analyzeBatchSize: env.ANALYZE_BATCH_SIZE,
     databaseUrl: env.DATABASE_URL,
+    databasePoolMax: env.DATABASE_POOL_MAX ?? Math.max(10, env.WORKER_CONCURRENCY + 5),
     http: { port: env.HTTP_PORT, token: env.API_TOKEN } satisfies HttpConfig,
     worker: {
       concurrency: env.WORKER_CONCURRENCY,
@@ -195,6 +198,9 @@ export type AppEnv = z.infer<typeof envSchema>;
  * - SETTINGS_SECRET：仅 crypto.ts（纯模块、无 DI）按需读取，不下放到处处可见的 AppEnv
  * - LOG_DIR：logger.ts 在 bootstrap 之前就要初始化
  * - {@link databaseUrl}：CLI / 迁移脚本的轻量路径，不构建完整 AppEnv
+ *
+ * 这些在 DI / ConfigModule 之前读取的变量，靠启动脚本的 `node --env-file-if-exists=.env`
+ * 把 .env 注入 process.env（早于任何模块求值），故写在 .env 文件里同样生效——不必额外 export。
  */
 
 /** PostgreSQL 连接串单独暴露：CLI / 迁移脚本不需要 Reddit 与模型凭据 */
