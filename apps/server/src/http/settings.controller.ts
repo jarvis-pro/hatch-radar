@@ -54,7 +54,7 @@ function normalizeBaseUrl(v: string | undefined): string | undefined {
  * 任意写操作后调用 reloadAnalysisConfig() 使配置即时生效（无需重启进程）。
  */
 @UseGuards(BearerAuthGuard)
-@Controller('api/settings')
+@Controller('settings')
 export class SettingsController {
   constructor(
     private readonly providers: ProvidersRepository,

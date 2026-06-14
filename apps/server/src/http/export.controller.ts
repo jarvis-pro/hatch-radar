@@ -31,7 +31,7 @@ function parseExportFilter(q: Record<string, string | undefined>): ExportFilter 
  * - GET /api/export/batch.sqlite   同条件的独立 .sqlite 文件下载（StreamableFile 流式）
  */
 @UseGuards(BearerAuthGuard)
-@Controller('api/export')
+@Controller('export')
 export class ExportController {
   constructor(private readonly exportSvc: ExportService) {}
 

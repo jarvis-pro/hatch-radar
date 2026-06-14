@@ -26,7 +26,7 @@ const runSchema = z.object({
  * - GET  /api/analysis/jobs   队列看板：各状态汇总 + 最近任务（供 web 轮询）
  */
 @UseGuards(BearerAuthGuard)
-@Controller('api/analysis')
+@Controller('analysis')
 export class AnalysisController {
   constructor(
     private readonly analysisConfig: AnalysisConfigService,

@@ -9,7 +9,7 @@ import { pushEnvelopeSchema, SyncService } from '../sync/sync.service';
  * 请求体上限由全局 body 限制把控（5MB，对应裸跑实现）。
  */
 @UseGuards(BearerAuthGuard)
-@Controller('api/sync')
+@Controller('sync')
 export class SyncController {
   constructor(private readonly sync: SyncService) {}
 

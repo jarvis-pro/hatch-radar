@@ -62,6 +62,8 @@ async function bootstrap(): Promise<void> {
   // 同步推送上限：outbox 操作很小，5MB 足够容纳上万条（对应裸跑实现）
   app.useBodyParser('json', { limit: '5mb' });
   app.useGlobalFilters(new AllExceptionsFilter());
+  // 统一 API 前缀：控制器只声明各自子路径，外部路径仍为 /api/*（mobile / web 契约不变）
+  app.setGlobalPrefix('api');
   // 优雅退出：触发各 service 的 OnApplicationShutdown（worker 排空、连接池关闭）
   app.enableShutdownHooks();
 

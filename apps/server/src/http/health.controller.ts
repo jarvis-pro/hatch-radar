@@ -6,7 +6,7 @@ import { nowSec } from '../common/time';
  * GET /api/health —— 健康检查 + 数据概览（不鉴权，供 App 在局域网内探测工作台）。
  * 响应结构保持与裸跑实现一致：`{ ok, now, stats }`。
  */
-@Controller('api/health')
+@Controller('health')
 export class HealthController {
   constructor(private readonly stats: StatsRepository) {}
 
