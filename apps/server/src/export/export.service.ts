@@ -5,7 +5,9 @@ import {
   toInsightRow,
   toPostRow,
   type AppDatabase,
+  type CommentPg,
   type InsightPgRow,
+  type PostPg,
 } from '@hatch-radar/db';
 import {
   EXPORT_FORMAT_VERSION,
@@ -53,17 +55,38 @@ export class ExportService {
       ${limit}
     `;
 
+    // 批量取帖子与评论，消除按洞察逐条 findUnique/findMany 的 N+1（1+2N → 3 条查询）。
+    // 帖子按洞察顺序排列、跳过已归档缺失者；评论按 (created_utc,id) 升序后按帖分组，
+    // 产出顺序与原逐条实现字节级一致（mobile ATTACH 合并依赖此格式）。
+    const postIds = insightRows.map((ins) => ins.post_id);
+    const postPgs = postIds.length
+      ? await this.db.posts.findMany({ where: { id: { in: postIds } } })
+      : [];
+    const postPgById = new Map(postPgs.map((p) => [p.id, p]));
+    const orderedPosts = postIds
+      .map((id) => postPgById.get(id))
+      .filter((p): p is PostPg => p != null);
+
+    const presentPostIds = orderedPosts.map((p) => p.id);
+    const commentPgs = presentPostIds.length
+      ? await this.db.comments.findMany({
+          where: { post_id: { in: presentPostIds } },
+          orderBy: [{ created_utc: 'asc' }, { id: 'asc' }],
+        })
+      : [];
+    const commentsByPost = new Map<string, CommentPg[]>();
+    for (const c of commentPgs) {
+      const arr = commentsByPost.get(c.post_id);
+      if (arr) arr.push(c);
+      else commentsByPost.set(c.post_id, [c]);
+    }
+
     const postRows: PostRow[] = [];
     const commentRows: CommentRow[] = [];
-    for (const ins of insightRows) {
-      const post = await this.db.posts.findUnique({ where: { id: ins.post_id } });
-      if (!post) continue;
-      postRows.push(toPostRow(post));
-      const cs = await this.db.comments.findMany({
-        where: { post_id: post.id },
-        orderBy: [{ created_utc: 'asc' }, { id: 'asc' }],
-      });
-      for (const c of cs) commentRows.push(toCommentRow(c));
+    for (const p of orderedPosts) {
+      postRows.push(toPostRow(p));
+      const cs = commentsByPost.get(p.id);
+      if (cs) for (const c of cs) commentRows.push(toCommentRow(c));
     }
 
     return {
