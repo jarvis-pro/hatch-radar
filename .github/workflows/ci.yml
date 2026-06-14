@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  quality:
+    name: typecheck / lint / test
+    runs-on: ubuntu-latest
+
+    # 集成测试直连 PG：与 docker-compose 同镜像，库名对齐 TEST_DATABASE_URL。
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: radar
+          POSTGRES_PASSWORD: radar
+          POSTGRES_DB: hatch_radar_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U radar -d hatch_radar_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # CI 内 PG service 走 localhost:5432；global-setup 用 migrate deploy 据此建测试库
+      DATABASE_URL: postgres://radar:radar@localhost:5432/hatch_radar_test
+      TEST_DATABASE_URL: postgres://radar:radar@localhost:5432/hatch_radar_test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # pnpm 需先于 setup-node 安装，setup-node 的 pnpm 缓存才能定位 store
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      # postinstall 会跑 prisma generate（按 schema.prisma 生成 client，不连库）
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm -r typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      # global-setup 用 prisma migrate deploy 建测试库 schema，再跑 vitest
+      - name: Test (server, integration)
+        run: pnpm --filter @hatch-radar/server test
