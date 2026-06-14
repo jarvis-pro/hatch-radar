@@ -1,26 +1,24 @@
 import {
+  Inject,
   Injectable,
   type OnApplicationBootstrap,
   type OnApplicationShutdown,
 } from '@nestjs/common';
 import { AnalysisConfigService } from '../analysis/analysis-config.service';
 import { AnalysisService } from '../analysis/analysis.service';
+import { APP_ENV } from '../common/tokens';
 import { nowSec } from '../common/time';
+import type { AppEnv } from '../config/env';
 import { CommentsRepository } from '../db/comments.repository';
 import { JobsRepository, type JobRow } from '../db/jobs.repository';
 import { PostsRepository } from '../db/posts.repository';
 import { logger } from '../logger';
 
-/** 默认并发 worker 数 */
-const DEFAULT_CONCURRENCY = 2;
+// 并发数 / job 超时 / 僵死阈值已移到 env（见 AppEnv.worker），可按部署调整；以下为不随部署变的内部常量。
 /** 队列为空时的轮询间隔（毫秒） */
 const POLL_INTERVAL_MS = 2000;
-/** running 期间的心跳间隔（毫秒），需远小于 STALE_SECONDS */
+/** running 期间的心跳间隔（毫秒），需远小于 env.worker.staleSeconds */
 const HEARTBEAT_INTERVAL_MS = 15_000;
-/** 单个 job 的硬超时（毫秒）：仅作真正卡死的兜底 */
-const JOB_TIMEOUT_MS = 600_000;
-/** running 心跳早于 now-STALE_SECONDS 视为僵死 */
-const STALE_SECONDS = 300;
 /** 周期性僵死回收间隔（毫秒） */
 const RECLAIM_INTERVAL_MS = 60_000;
 
@@ -54,7 +52,6 @@ export class WorkerService implements OnApplicationBootstrap, OnApplicationShutd
   private stopping = false;
   private loops: Promise<void>[] = [];
   private reclaimTimer: ReturnType<typeof setInterval> | null = null;
-  private readonly concurrency = DEFAULT_CONCURRENCY;
 
   constructor(
     private readonly jobs: JobsRepository,
@@ -62,23 +59,25 @@ export class WorkerService implements OnApplicationBootstrap, OnApplicationShutd
     private readonly comments: CommentsRepository,
     private readonly analysis: AnalysisService,
     private readonly analysisConfig: AnalysisConfigService,
+    @Inject(APP_ENV) private readonly env: AppEnv,
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
+    const { concurrency, staleSeconds } = this.env.worker;
     // 启动即回收上次进程遗留的 running 任务（进程被杀时它们停在 running）
     const orphaned = await this.jobs.reclaimRunningJobs(nowSec(), null);
     if (orphaned > 0) logger.warn(`[worker] 启动回收 ${orphaned} 个遗留 running 任务`);
 
     this.reclaimTimer = setInterval(() => {
-      void this.jobs.reclaimRunningJobs(nowSec(), STALE_SECONDS).then((n) => {
-        if (n > 0) logger.warn(`[worker] 回收 ${n} 个僵死任务（心跳超 ${STALE_SECONDS}s）`);
+      void this.jobs.reclaimRunningJobs(nowSec(), staleSeconds).then((n) => {
+        if (n > 0) logger.warn(`[worker] 回收 ${n} 个僵死任务（心跳超 ${staleSeconds}s）`);
       });
     }, RECLAIM_INTERVAL_MS);
 
-    this.loops = Array.from({ length: this.concurrency }, () => this.loop());
+    this.loops = Array.from({ length: concurrency }, () => this.loop());
     const stats = await this.jobs.getJobStats();
     logger.info(
-      `[worker] 分析 worker 池已启动（并发 ${this.concurrency}）；当前队列 queued ${stats.queued} / running ${stats.running}`,
+      `[worker] 分析 worker 池已启动（并发 ${concurrency}）；当前队列 queued ${stats.queued} / running ${stats.running}`,
     );
   }
 
@@ -114,7 +113,7 @@ export class WorkerService implements OnApplicationBootstrap, OnApplicationShutd
     try {
       const { saved } = await withTimeout(
         this.analysis.analyzeAndPersist(processor, post, comments),
-        JOB_TIMEOUT_MS,
+        this.env.worker.jobTimeoutMs,
       );
       await this.posts.markAnalyzed(post.id, nowSec());
       await this.jobs.succeedJob(job.id, nowSec());

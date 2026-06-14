@@ -11,6 +11,16 @@ export interface HttpConfig {
   token?: string;
 }
 
+/** 分析 worker 池运行参数（env 推导） */
+export interface WorkerConfig {
+  /** 并发认领的 worker 数 */
+  concurrency: number;
+  /** 单 job 硬超时（毫秒） */
+  jobTimeoutMs: number;
+  /** running 心跳超时回收阈值（秒） */
+  staleSeconds: number;
+}
+
 const envSchema = z
   .object({
     // ── Reddit OAuth（五个字段全填或全不填）──────────────────────────
@@ -54,6 +64,13 @@ const envSchema = z
 
     /** 每轮 AI 分析的帖子批次上限，默认 20，最小 1 */
     ANALYZE_BATCH_SIZE: z.coerce.number().int().min(1).default(20),
+
+    /** 分析 worker 并发数，默认 2，最小 1（扩容时调大；独立 worker 进程同样读此值） */
+    WORKER_CONCURRENCY: z.coerce.number().int().min(1).default(2),
+    /** 单个分析 job 的硬超时（毫秒），默认 600000，最小 1000 */
+    WORKER_JOB_TIMEOUT_MS: z.coerce.number().int().min(1000).default(600_000),
+    /** running 心跳超时回收阈值（秒），默认 300，最小 30（须大于内部心跳间隔 15s） */
+    WORKER_STALE_SECONDS: z.coerce.number().int().min(30).default(300),
 
     /** 模型密钥加密入库的主密钥；在设置页配置模型须先设置它（建议 openssl rand -hex 32） */
     SETTINGS_SECRET: z.string().trim().min(1).optional(),
@@ -121,6 +138,11 @@ const envSchema = z
     analyzeBatchSize: env.ANALYZE_BATCH_SIZE,
     databaseUrl: env.DATABASE_URL,
     http: { port: env.HTTP_PORT, token: env.API_TOKEN } satisfies HttpConfig,
+    worker: {
+      concurrency: env.WORKER_CONCURRENCY,
+      jobTimeoutMs: env.WORKER_JOB_TIMEOUT_MS,
+      staleSeconds: env.WORKER_STALE_SECONDS,
+    } satisfies WorkerConfig,
   }));
 
 /** resolveAnalysis 关心的字段子集（transform 的 env 结构化兼容此形状） */
@@ -166,6 +188,14 @@ function resolveAnalysis(env: AnalysisEnv): AnalysisConfig | null {
 
 /** 应用运行时所需的全量配置，由 envSchema 自动派生 */
 export type AppEnv = z.infer<typeof envSchema>;
+
+/**
+ * 注：少数 env 变量刻意不经 AppEnv，因为须在 DI 容器就绪前或在纯模块中读取——这是有意为之，非遗漏：
+ * - WORKER_IN_PROCESS：在 AppModule 模块定义期决定是否 import WorkerModule（早于 DI）
+ * - SETTINGS_SECRET：仅 crypto.ts（纯模块、无 DI）按需读取，不下放到处处可见的 AppEnv
+ * - LOG_DIR：logger.ts 在 bootstrap 之前就要初始化
+ * - {@link databaseUrl}：CLI / 迁移脚本的轻量路径，不构建完整 AppEnv
+ */
 
 /** PostgreSQL 连接串单独暴露：CLI / 迁移脚本不需要 Reddit 与模型凭据 */
 export function databaseUrl(): string {
