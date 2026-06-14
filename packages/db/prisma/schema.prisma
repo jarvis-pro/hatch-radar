@@ -236,6 +236,7 @@ model users {
   permissions user_permissions[]
   sessions    sessions[]
   devices     device_credentials[]
+  enrollments device_enrollments[]
 }
 
 /// 普通管理员的「按能力勾选」授权：每行一个被授予的能力 key。
@@ -285,7 +286,9 @@ model device_credentials {
   public_key   String
   /// 凭据状态：active | revoked（revoked = 被强踢，下次校验即拒）。
   status       device_status @default(active)
-  /// 最长未联网续期时限（epoch 秒）：now + 离线宽限窗（7/30/60 天），每次成功 sync 滑动续期。
+  /// 离线宽限窗（天，7/30/60）：滑动续期时 expires_at = now + ttl_days，激活时从 enrollment 带入。
+  ttl_days     Int           @default(30)
+  /// 最长未联网续期时限（epoch 秒）：now + ttl_days，每次成功验签滑动续期；超期需重新赋予。
   expires_at   BigInt
   /// 最近一次成功校验 / 同步时间。
   last_seen_at BigInt?
@@ -332,6 +335,39 @@ enum user_status {
 /// 设备凭据状态。
 enum device_status {
   active
+  revoked
+}
+
+/// 设备激活码（一次性，短有效期）：管理员为某用户「赋予设备」时生成，
+/// 设备端用激活码 + 自生成公钥换取一条 device_credentials（见 server /api/auth/device/enroll）。
+/// 明文码只在生成时给管理员显示一次；库里只存其 sha256（code_hash）。
+model device_enrollments {
+  id          String            @id @default(uuid())
+  /// 激活后凭据将绑定到的账户。
+  user_id     String
+  /// 设备展示名（激活后写入 device_credentials.device_name）。
+  device_name String
+  /// sha256(激活码) 十六进制；按此查激活码，明文不入库。
+  code_hash   String            @unique(map: "idx_enroll_code")
+  /// 离线宽限窗（天）；激活时换算为 device_credentials.expires_at = now + ttl_days。
+  ttl_days    Int               @default(30)
+  /// pending=待激活 / consumed=已激活 / revoked=被取消。
+  status      enrollment_status @default(pending)
+  /// 激活码本身的有效期（epoch 秒，短，如 15 分钟）。
+  expires_at  BigInt
+  /// 赋予的管理员 users.id（软引用）。
+  issued_by   String?
+  created_at  BigInt
+  consumed_at BigInt?
+  user        users             @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id], map: "idx_enroll_user")
+}
+
+/// 设备激活码状态。
+enum enrollment_status {
+  pending
+  consumed
   revoked
 }
 
