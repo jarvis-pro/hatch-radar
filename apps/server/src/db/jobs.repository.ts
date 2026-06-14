@@ -47,7 +47,9 @@ export class JobsRepository {
 
   /**
    * 批量入队分析任务。
-   * - 幂等去重：同一帖子已有 queued / running 任务时跳过，避免重复入队
+   * - 幂等去重：同一帖子已有 queued / running 任务时跳过，避免重复入队；并发竞态由部分唯一
+   *   索引 `uniq_jobs_active_post`（post_id WHERE status IN queued/running，见 db 迁移）兜底，
+   *   保证同帖同时至多一条活跃任务（否则会被双 worker 认领、双次 AI 调用）
    * - 任务携带 model 快照与 provider_id（软引用），便于 worker 落库与溯源
    * @param postIds 目标帖子 ID 列表
    * @param providerId 使用的模型配置 ID
@@ -73,7 +75,9 @@ export class JobsRepository {
       const activeSet = new Set(active.map((r) => r.post_id));
       const toInsert = unique.filter((id) => !activeSet.has(id));
       if (toInsert.length === 0) return 0;
-      await tx.analysis_jobs.createMany({
+      // skipDuplicates → ON CONFLICT DO NOTHING：上面的预检查命中常态去重，此处兜住并发竞态
+      // （两轮入队同时跳过预检查后撞部分唯一索引）。取真实插入数为「实际入队数」。
+      const res = await tx.analysis_jobs.createMany({
         data: toInsert.map((post_id) => ({
           post_id,
           provider_id: providerId,
@@ -84,8 +88,9 @@ export class JobsRepository {
           max_attempts: DEFAULT_MAX_ATTEMPTS,
           enqueued_at: BigInt(now),
         })),
+        skipDuplicates: true,
       });
-      return toInsert.length;
+      return res.count;
     });
   }
 

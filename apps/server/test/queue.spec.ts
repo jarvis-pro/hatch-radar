@@ -119,4 +119,38 @@ describe('JobsRepository（队列并发认领 / 幂等入队 / 僵死回收）',
     expect(stats.failed).toBe(1); // new1 保留（finished_at 较新）
     expect(stats.queued).toBe(1); // q1 保留
   });
+
+  it('部分唯一索引兜底：绕过预检查直插第二条活跃任务会被拒（并发竞态保护）', async () => {
+    const t = nowSec();
+    await jobs.enqueueJobs(['p1'], 1, 'm', 'auto', t);
+    // 模拟两个入队事务都通过了预检查、第二条才落库的竞态：直插应撞 uniq_jobs_active_post
+    await expect(
+      db.analysis_jobs.create({
+        data: {
+          post_id: 'p1',
+          provider_id: 1,
+          model: 'm',
+          trigger: 'auto',
+          status: 'queued',
+          attempts: 0,
+          max_attempts: 3,
+          enqueued_at: BigInt(t),
+        },
+      }),
+    ).rejects.toThrow();
+    const stats = await jobs.getJobStats();
+    expect(stats.queued).toBe(1); // 仍只有一条活跃任务
+  });
+
+  it('帖子任务进入终态后可再次入队（部分唯一索引只约束活跃态）', async () => {
+    const t = nowSec();
+    await jobs.enqueueJobs(['p1'], 1, 'm', 'auto', t);
+    const j = await jobs.claimNextJob(t);
+    await jobs.failJob(j!.id, 'boom', t);
+    // 上一条已 failed（非活跃态）→ 同帖可重新入队，索引不阻挡
+    expect(await jobs.enqueueJobs(['p1'], 1, 'm', 'auto', t)).toBe(1);
+    const stats = await jobs.getJobStats();
+    expect(stats.failed).toBe(1);
+    expect(stats.queued).toBe(1);
+  });
 });
