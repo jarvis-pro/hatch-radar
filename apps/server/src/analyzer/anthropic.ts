@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { CommentRow, InsightResult, PostRow } from '@hatch-radar/shared';
-import { buildContext } from '../crawler/context';
+import { buildContext } from './context';
 import { INSIGHT_JSON_SCHEMA } from './insight-schema';
 import { SYSTEM_PROMPT, buildUserPrompt, normalizeInsight } from './prompt';
 

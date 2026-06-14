@@ -102,7 +102,7 @@ async function runAnalyze(app: INestApplicationContext): Promise<void> {
   const processor = await analysisConfig.getProcessorForProvider(active.id);
   if (!processor) fail('无法构建模型处理器（密钥解密失败或模型已停用），请检查设置');
   const env = app.get<AppEnv>(APP_ENV);
-  logger.info(`手动分析一轮（${processor.label}）`);
+  logger.info(`手动分析一轮（${processor.label}）——内联跑批、绕过队列，勿与运行中的 worker 并发`);
   const stats = await app.get(AnalysisService).runBatch(processor, env.analyzeBatchSize);
   logger.info(
     `完成：处理 ${stats.analyzed} 篇，产出洞察 ${stats.saved} 条，失败 ${stats.failed} 篇`,

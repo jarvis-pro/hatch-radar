@@ -45,6 +45,8 @@ export class AnalysisService {
   /**
    * 取一批待分析帖子逐条交给处理器，处理失败不影响后续帖子（供 CLI `pnpm cli analyze` 用）。
    * - 失败时递增 analyze_attempts（达 3 次后不再重试），成功后标记为已分析
+   * - **这是绕过 analysis_jobs 队列的内联路径，仅供 CLI 一次性 / 离线使用**：server 运行时
+   *   请走队列（设置页选用 active / 调度自动入队），勿与常驻 worker 并发跑，否则可能重复处理同一帖。
    * @param processor 单篇处理器
    * @param batchSize 本批次最多处理的帖子数
    */
