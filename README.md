@@ -23,7 +23,7 @@
 | 调度          | `@nestjs/schedule`（`@Cron`）                                                                                               |
 | Reddit 数据源 | Reddit REST API（OAuth）                                                                                                    |
 | AI 分析       | 多模型可配：Anthropic（`@anthropic-ai/sdk`）/ OpenAI / DeepSeek；PostgreSQL 任务队列（`FOR UPDATE SKIP LOCKED`）+ Worker 池 |
-| 存储          | PostgreSQL（Prisma ORM；server 读写 / web 只读直查）；导出 `.sqlite` 与移动端 expo-sqlite 互通                             |
+| 存储          | PostgreSQL（Prisma ORM；server 读写 / web 只读直查）；导出 `.sqlite` 与移动端 expo-sqlite 互通                              |
 | Web 控制台    | Next.js（App Router，standalone 产物 + Docker）                                                                             |
 | PC 端 UI 库   | shadcn/ui + Tailwind CSS v4（`packages/ui` 共享，仅限 Web/PC 子项目）                                                       |
 | 移动端        | React Native（Expo SDK 56 + expo-router + expo-sqlite）                                                                     |
@@ -135,13 +135,7 @@ pnpm dev:web
 
 端口 `HTTP_PORT`（默认 47878），设 `API_TOKEN` 后导出与同步接口要求 `Authorization: Bearer <token>`。
 
-**文件导出**（产物可 AirDrop 给手机）：
-
-```bash
-pnpm cli export                      # 全量有效数据 → ./data/exports/batch-<时间戳>.sqlite
-pnpm cli export -- --days 7 -i MEDIUM   # 近 7 天中高强度
-pnpm cli export -- -f json -o /tmp/b.json
-```
+**文件导出**（产物可 AirDrop 给手机）：在 web 控制台首页点「导出批次」，按条件（最近天数 / 最低强度 / 版块 / 上限）筛出有效数据，下载 `.sqlite`（移动端导入）或 `.json`；该入口经 web `/api/export` 代理到上表的 `/api/export/batch(.sqlite)`，复用 server 同一套 sqlite-writer，产物一致。
 
 ---
 
@@ -211,7 +205,7 @@ export const SUBREDDITS = [
 
 ## 项目结构
 
-pnpm workspace monorepo（多端规划见 `docs/multiplatform-refactor-spec.md`，本次重构见 `docs/server-nest-postgres-refactor-plan.md`）。根目录脚本约定：**裸命令（`dev` / `start` / `worker` / `cli` / `test`）= 主后端 server，其它端用 `:app` 后缀（`dev:web` / `build:web` / `start:web` / `dev:mobile`）**，`db:*` 代理到 `@hatch-radar/db`。
+pnpm workspace monorepo（多端规划见 `docs/multiplatform-refactor-spec.md`，本次重构见 `docs/server-nest-postgres-refactor-plan.md`）。根目录脚本约定：**裸命令（`dev` / `start` / `worker` / `test`）= 主后端 server，其它端用 `:app` 后缀（`dev:web` / `build:web` / `start:web` / `dev:mobile`）**，`db:*` 代理到 `@hatch-radar/db`。
 
 ```
 hatch-radar/
@@ -232,7 +226,6 @@ hatch-radar/
 │   │   │   ├── worker/         # 分析 Worker 池（FOR UPDATE SKIP LOCKED + 生命周期钩子）
 │   │   │   ├── sync/           # 同步操作校验与幂等应用（op_id 去重 + sync_ops 留痕）
 │   │   │   ├── export/         # 批次收集（读 PG）+ .sqlite/.json 写出（better-sqlite3）
-│   │   │   ├── cli/            # CLI 命令（pnpm cli insights / analyze / export）
 │   │   │   ├── common/         # DI 令牌、时间、zod 管道、Bearer 守卫、全局异常过滤器
 │   │   │   └── crypto.ts       # 模型密钥 AES-256-GCM 加解密│   │   ├── test/               # 队列并发认领 / 同步幂等集成测试（vitest，连本地 PG）
 │   │   └── .env.example
@@ -300,16 +293,7 @@ hatch-radar/
 
 ## 检索洞察
 
-```bash
-# 最新洞察
-pnpm cli insights
-
-# 按版块 / 标签 / 强度过滤
-pnpm cli insights -- --subreddit SaaS --tag 效率 --intensity HIGH
-
-# JSON 输出，便于二次处理
-pnpm cli insights -- --json
-```
+洞察在 web 控制台首页（`pnpm dev:web`）浏览：按来源 / 版块 / 强度筛选 + 关键词搜索，点卡片进详情看痛点与机会；需要离线分析或二次处理时，用首页「导出批次」导出 `.sqlite` / `.json`（见上文「文件导出」）。
 
 ---
 
