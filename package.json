@@ -13,7 +13,6 @@
     "dev": "pnpm --filter @hatch-radar/server dev",
     "start": "pnpm --filter @hatch-radar/server start",
     "worker": "pnpm --filter @hatch-radar/server worker",
-    "cli": "pnpm --filter @hatch-radar/server cli",
     "test": "pnpm --filter @hatch-radar/server test",
     "dev:web": "pnpm --filter @hatch-radar/web dev",
     "build:web": "pnpm --filter @hatch-radar/web build",

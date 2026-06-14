@@ -66,7 +66,7 @@ export class SchedulerService implements OnApplicationBootstrap {
     await this.scan();
     await this.comments();
     await this.analyze();
-    logger.info('初始化轮次完成，进入定时调度（查看洞察: pnpm cli insights）');
+    logger.info('初始化轮次完成，进入定时调度（洞察可在 web 控制台查看）');
   }
 
   /** 包装任务：同名任务不并发（上一轮未结束则跳过），异常只记录不抛出 */

@@ -57,13 +57,3 @@ export function createProcessor(cfg: AnalysisConfig): PostProcessor {
     }
   }
 }
-
-/** runBatch() 的批次执行统计 */
-export interface AnalysisStats {
-  /** 本批次成功处理的帖子数（含无洞察产出的帖子） */
-  analyzed: number;
-  /** 产出并写入洞察记录的帖子数 */
-  saved: number;
-  /** 处理过程中抛出异常的帖子数 */
-  failed: number;
-}
