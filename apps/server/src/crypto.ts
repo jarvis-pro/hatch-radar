@@ -4,7 +4,7 @@ import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from 'node:
  * 模型 API Key 的对称加解密（AES-256-GCM）。
  *
  * 密钥由 env `SETTINGS_SECRET` 经 scrypt 派生——只在 server 进程可得；web 即便直读同一个
- * SQLite 文件，看到的也只是密文，无法还原。盐固定（强度由 SETTINGS_SECRET 提供），
+ * PostgreSQL 库，看到的也只是密文，无法还原。盐固定（强度由 SETTINGS_SECRET 提供），
  * 每次加密用随机 IV，密文格式为 `iv:authTag:ciphertext`（均 base64）。
  */
 
@@ -13,6 +13,9 @@ const IV_BYTES = 12;
 /** 固定派生盐：真正的强度来自高熵的 SETTINGS_SECRET */
 const SALT = 'hatch-radar/settings/v1';
 
+/** 派生密钥缓存：SETTINGS_SECRET 进程内固定、scryptSync 故意慢，按 secret 记忆化，避免每次加解密重复派生 */
+let cachedKey: { secret: string; key: Buffer } | null = null;
+
 function deriveKey(): Buffer {
   const secret = process.env.SETTINGS_SECRET?.trim();
   if (!secret) {
@@ -20,7 +23,10 @@ function deriveKey(): Buffer {
       '未配置 SETTINGS_SECRET：模型密钥加密入库需要它，请在 .env 设一个高强度随机串（如 openssl rand -hex 32）',
     );
   }
-  return scryptSync(secret, SALT, 32);
+  if (cachedKey?.secret === secret) return cachedKey.key;
+  const key = scryptSync(secret, SALT, 32);
+  cachedKey = { secret, key };
+  return key;
 }
 
 /** 是否已配置 SETTINGS_SECRET（未配置则无法加密/解密模型密钥） */
