@@ -5,11 +5,11 @@ import {
   type OnApplicationShutdown,
   type OnModuleInit,
   Injectable,
-  Logger,
 } from '@nestjs/common';
 import { createDb, type AppDatabase, type DbHandle } from '@hatch-radar/db';
 import { APP_ENV, PRISMA } from '../common/tokens';
 import type { AppEnv } from '../config/env';
+import { logger } from '../logger';
 
 /** 注入令牌（内部）：数据库句柄（含连接，供优雅关闭） */
 const DB_HANDLE = Symbol('DB_HANDLE');
@@ -22,12 +22,11 @@ const DB_HANDLE = Symbol('DB_HANDLE');
  */
 @Injectable()
 class DatabaseLifecycle implements OnModuleInit, OnApplicationShutdown {
-  private readonly logger = new Logger('Database');
   constructor(@Inject(DB_HANDLE) private readonly handle: DbHandle) {}
 
   async onModuleInit(): Promise<void> {
     await this.handle.db.$queryRaw`select 1`;
-    this.logger.log('PostgreSQL 连接就绪');
+    logger.info('[db] PostgreSQL 连接就绪');
   }
 
   async onApplicationShutdown(): Promise<void> {

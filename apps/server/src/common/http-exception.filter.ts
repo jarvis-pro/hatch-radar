@@ -1,11 +1,6 @@
-import {
-  type ArgumentsHost,
-  Catch,
-  type ExceptionFilter,
-  HttpException,
-  Logger,
-} from '@nestjs/common';
+import { type ArgumentsHost, Catch, type ExceptionFilter, HttpException } from '@nestjs/common';
 import type { Response } from 'express';
+import { logger } from '../logger';
 
 /**
  * 全局异常过滤器：把所有异常统一序列化为 `{ error: <message> }`，保持与裸跑 HTTP 层
@@ -17,8 +12,6 @@ import type { Response } from 'express';
  */
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
-  private readonly logger = new Logger('HTTP');
-
   catch(exception: unknown, host: ArgumentsHost): void {
     const res = host.switchToHttp().getResponse<Response>();
     let status = 500;
@@ -40,8 +33,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
         status = code;
         message = anyExc.message ?? 'error';
       } else {
-        this.logger.error(
-          `处理失败: ${exception instanceof Error ? (exception.stack ?? exception.message) : String(exception)}`,
+        logger.error(
+          `[HTTP] 处理失败: ${exception instanceof Error ? (exception.stack ?? exception.message) : String(exception)}`,
         );
       }
     }

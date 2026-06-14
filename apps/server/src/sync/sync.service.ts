@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { z } from 'zod';
 import {
   TRIAGE_STATUSES,
@@ -9,6 +9,7 @@ import {
 import { Prisma, type AppDatabase } from '@hatch-radar/db';
 import { PRISMA } from '../common/tokens';
 import { nowSec } from '../common/time';
+import { logger } from '../logger';
 
 /** Prisma 交互式事务句柄类型 */
 type Tx = Prisma.TransactionClient;
@@ -69,7 +70,6 @@ function extractOpId(raw: unknown, index: number): string {
  */
 @Injectable()
 export class SyncService {
-  private readonly logger = new Logger('Sync');
   constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
 
   /** 按操作类型把变更落到服务端 triage 表（updated_at 取操作在设备上的发生时间） */
@@ -171,8 +171,8 @@ export class SyncService {
 
     const tally = { applied: 0, duplicate: 0, rejected: 0 };
     for (const r of results) tally[r.outcome]++;
-    this.logger.log(
-      `设备 ${deviceId.slice(0, 8)}… 推送 ${rawOps.length} 条：应用 ${tally.applied} / 重复 ${tally.duplicate} / 拒绝 ${tally.rejected}`,
+    logger.info(
+      `[sync] 设备 ${deviceId.slice(0, 8)}… 推送 ${rawOps.length} 条：应用 ${tally.applied} / 重复 ${tally.duplicate} / 拒绝 ${tally.rejected}`,
     );
     return { results };
   }
