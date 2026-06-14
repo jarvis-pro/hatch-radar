@@ -217,7 +217,7 @@ export type AppEnv = z.infer<typeof envSchema>;
  * 注：少数 env 变量刻意不经 AppEnv，因为须在 DI 容器就绪前或在纯模块中读取——这是有意为之，非遗漏：
  * - WORKER_IN_PROCESS：在 AppModule 模块定义期决定是否 import WorkerModule（早于 DI）
  * - SETTINGS_SECRET：仅 crypto.ts（纯模块、无 DI）按需读取，不下放到处处可见的 AppEnv
- * - LOG_DIR：logger.ts 在 bootstrap 之前就要初始化
+ * - LOG_LEVEL / NODE_ENV：logger.ts 在 bootstrap 之前就要初始化
  * - {@link databaseUrl}：CLI / 迁移脚本的轻量路径，不构建完整 AppEnv
  *
  * 这些在 DI / ConfigModule 之前读取的变量，靠启动脚本的 `node --env-file-if-exists=.env`

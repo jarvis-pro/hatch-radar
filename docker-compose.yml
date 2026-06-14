@@ -8,6 +8,17 @@
 #
 # 端口映射用 47xxx 段避免与同机其它项目冲突；容器内部端口不变（PG 5432 / web 3000），
 # 仅主机侧映射改为 47432 / 47080。容器之间仍用服务名 + 内部端口（db:5432）互访。
+#
+# 日志：各服务进程只把（结构化 JSON）日志打到 stdout，由 Docker 的 json-file driver
+# 负责落盘 + 轮转 + 保留（见 &default-logging）。应用本身不写日志文件——容器是临时的，
+# 持久化/轮转统一交给 Docker；将来要转发 Loki/Fluentd 只改 driver 不动应用代码。
+# server/worker 进程容器化后同样复用 *default-logging。
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: '20m' # 单文件上限，超过即切
+    max-file: '14' # 最多保留 14 个，循环覆盖
+
 services:
   db:
     image: postgres:17-alpine
@@ -25,6 +36,7 @@ services:
       timeout: 5s
       retries: 10
     restart: unless-stopped
+    logging: *default-logging
 
   web:
     build:
@@ -39,6 +51,7 @@ services:
       db:
         condition: service_healthy
     restart: unless-stopped
+    logging: *default-logging
 
 volumes:
   radar-pg:

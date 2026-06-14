@@ -1,9 +1,8 @@
-import { join } from 'node:path';
 import pino from 'pino';
 import build from 'pino-pretty';
-import roll from 'pino-roll';
 
-const logDir = process.env.LOG_DIR?.trim() || './logs';
+const isProd = process.env.NODE_ENV === 'production';
+const level = process.env.LOG_LEVEL?.trim() || 'info';
 
 const prettyOpts = {
   translateTime: 'SYS:yyyy-mm-dd HH:MM:ss',
@@ -16,37 +15,15 @@ const prettyOpts = {
   },
 };
 
-// 按天滚动的文件流，由 pino-roll 负责（自动建目录、跨天切文件）。
-// 命名格式：{logDir}/hatch-radar.YYYY-MM-DD.<n>.log（<n> 为当天的滚动序号）。
-const rollingStream = await roll({
-  file: join(logDir, 'hatch-radar'),
-  frequency: 'daily',
-  dateFormat: 'yyyy-MM-dd',
-  mkdir: true,
-});
-
 /**
- * 全局 logger 实例，双路输出：
- * - 终端：pino-pretty 彩色可读格式（默认写 stdout）
- * - 文件：pino-pretty 无色格式 → pino-roll 按天滚动写入，命名 {logDir}/hatch-radar.YYYY-MM-DD.n.log
+ * 全局 logger 实例，按环境单路输出到 stdout：
+ * - 生产（NODE_ENV=production，进程跑在 Docker 内）：结构化 JSON → stdout。
+ *   不做文件落盘 / pretty——日志的持久化、轮转、保留交给 Docker 的 logging driver
+ *   （见 docker-compose.yml 的 json-file max-size/max-file），将来转发 Loki/Fluentd 只改 driver 不动代码。
+ * - 开发：pino-pretty 彩色可读格式 → stdout（fd 1），方便本地直接看。
  *
- * 两路都用 pino-pretty 的 build() 直出（主线程），不走 pino.transport 的 worker 线程：
- * worker 线程通过 postMessage 传递 options，会对其做 structured-clone，而 messageFormat
- * 是函数无法克隆，必然抛 DataCloneError。主线程直出即可保留函数形式的 messageFormat。
- *
- * 日志目录可通过 LOG_DIR 环境变量覆盖，默认 ./logs。
+ * 日志级别由 LOG_LEVEL 覆盖，默认 info。logger 在 bootstrap 之前初始化，故直读 process.env（不走 AppEnv）。
  */
-export const logger = pino(
-  { level: 'info' },
-  pino.multistream([
-    {
-      level: 'info',
-      // 不指定 destination 时 pino-pretty 默认写 fd 1（stdout）。
-      stream: build({ ...prettyOpts, colorize: true }),
-    },
-    {
-      level: 'info',
-      stream: build({ ...prettyOpts, colorize: false, destination: rollingStream }),
-    },
-  ]),
-);
+export const logger = isProd
+  ? pino({ level })
+  : pino({ level }, build({ ...prettyOpts, colorize: true }));
