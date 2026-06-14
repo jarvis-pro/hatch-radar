@@ -1,4 +1,5 @@
 import * as Crypto from 'expo-crypto';
+import * as SecureStore from 'expo-secure-store';
 import nacl from 'tweetnacl';
 import naclUtil from 'tweetnacl-util';
 import { getMeta, setMeta } from '../db/schema';
@@ -7,7 +8,7 @@ import { getMeta, setMeta } from '../db/schema';
  * 设备身份：Ed25519 密钥对 + 激活码换凭据 + 请求签名（对应 server DeviceAuthService）。
  *
  * - 私钥本地生成、永不外传；签名 `${credentialId}.${ts}.${METHOD}.${path}` 防重放（服务端 60s 时间窗）。
- * - 当前私钥存本地 meta 表（与 device_id 同处）。**待办：升级到 expo-secure-store（需原生重建）以入安全区。**
+ * - 私钥存 expo-secure-store（Keychain/Keystore 安全区）、永不外传；公钥与凭据 id 非敏感留本地 meta。
  */
 
 // tweetnacl 在 RN 下无 crypto.getRandomValues，用 expo-crypto 同步播种其 PRNG。
@@ -15,7 +16,9 @@ nacl.setPRNG((x, n) => {
   x.set(Crypto.getRandomBytes(n));
 });
 
-const SECRET_KEY = 'device_secret_key'; // base64(64B nacl secretKey)
+// 私钥存 expo-secure-store（安全区）；旧版误存 meta 的私钥首次访问时迁入。公钥/凭据 id 留 meta。
+const SECRET_STORE_KEY = 'radar_device_secret_key';
+const LEGACY_SECRET_META = 'device_secret_key';
 const PUBLIC_KEY = 'device_public_key'; // base64(32B Ed25519 publicKey)
 const CREDENTIAL_ID = 'device_credential_id';
 
@@ -26,12 +29,21 @@ interface DeviceKeyPair {
 
 /** 取或生成本机设备密钥对（首次生成并落 meta）。 */
 function getOrCreateKeyPair(): DeviceKeyPair {
-  const sk = getMeta(SECRET_KEY);
   const pk = getMeta(PUBLIC_KEY);
+  let sk = SecureStore.getItem(SECRET_STORE_KEY);
+  // 迁移：旧版私钥在 meta → 移入 SecureStore 并清空 meta
+  if (!sk) {
+    const legacy = getMeta(LEGACY_SECRET_META);
+    if (legacy && pk) {
+      SecureStore.setItem(SECRET_STORE_KEY, legacy);
+      setMeta(LEGACY_SECRET_META, '');
+      sk = legacy;
+    }
+  }
   if (sk && pk) return { publicKeyB64: pk, secretKey: naclUtil.decodeBase64(sk) };
   const kp = nacl.sign.keyPair();
   const publicKeyB64 = naclUtil.encodeBase64(kp.publicKey);
-  setMeta(SECRET_KEY, naclUtil.encodeBase64(kp.secretKey));
+  SecureStore.setItem(SECRET_STORE_KEY, naclUtil.encodeBase64(kp.secretKey));
   setMeta(PUBLIC_KEY, publicKeyB64);
   return { publicKeyB64, secretKey: kp.secretKey };
 }
