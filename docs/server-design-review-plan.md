@@ -135,7 +135,7 @@
 - [x] 2.3 collectBatch 消除 N+1（1+2N → 3 条 IN 查询，保序；顺序/缺帖测试）
 - [x] 2.4 scrypt memoize（deriveKey 按 secret 缓存派生密钥）
 - [x] 3.1 单实例约束文档化（README + SchedulerService 类注释 + .env.example）
-- [ ] 3.2 错误返回风格统一（**待定**：test/run 的 200/400+{ok,error} 改抛异常会牵动 web /analyze 调用方，需 web 侧协同）
+- [x] 3.2 错误返回风格统一（run 失败抛异常→全局过滤器 {error}；test 恒 200 返回探测结果；核对 web 调用方兼容，无需改 web）
 - [x] 3.3 两条分析路径：保留 CLI 内联 runBatch（离线用），doc + 运行日志标注「绕过队列、勿与 worker 并发」
 - [x] 3.4 日志收敛到全局 pino logger（3 处 NestJS Logger → 带 [tag] 前缀的全局 logger）
 - [x] 4.1 死代码 / schema 注释（export_locked_at 标「预留」；canceled 标「预留态」）
