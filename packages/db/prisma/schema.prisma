@@ -206,6 +206,135 @@ model triage {
   updated_at BigInt
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// 账户系统与权限控制（Web + Mobile 同源 RBAC，详见 docs/account-rbac-design.md）
+// ─────────────────────────────────────────────────────────────────────────
+
+/// 控制台与移动端共用的账户（唯一真相源）。web 直接读写；server（Phase 2）读校验。
+/// 密码经 node:crypto scrypt 派生入库；密文/哈希永不外发客户端。
+model users {
+  id                   String      @id @default(uuid())
+  /// 登录标识，全局唯一（应用层归一为小写后入库）。
+  email                String      @unique(map: "idx_users_email")
+  /// 展示名。
+  name                 String
+  /// scrypt 派生口令哈希，格式 `scrypt:N:r:p:saltB64:hashB64`（自带参数便于调参/迁移）。
+  password_hash        String
+  /// 系统角色：super_admin 隐式拥有全部能力且不可被限制；admin 能力来自 user_permissions。
+  role                 user_role   @default(admin)
+  /// 账户状态：disabled 即时失效（拒登录 / 拒设备校验，并吊销其全部会话）。
+  status               user_status @default(active)
+  /// 强制改密标记：env 播种 / 被重置密码后置 true，下次登录强制改密。
+  must_change_password Boolean     @default(false)
+  /// 最近登录时间（epoch 秒）。
+  last_login_at        BigInt?
+  /// 创建者 users.id（软引用，不建外键）；env 播种的首个超管为空。
+  created_by           String?
+  created_at           BigInt
+  updated_at           BigInt
+
+  permissions user_permissions[]
+  sessions    sessions[]
+  devices     device_credentials[]
+}
+
+/// 普通管理员的「按能力勾选」授权：每行一个被授予的能力 key。
+/// super_admin 不入此表（隐式全通）。能力 key 目录维护在 @hatch-radar/shared，故用 String 而非 enum（新增能力免迁移）。
+model user_permissions {
+  user_id    String
+  /// 能力 key，如 `insights:triage` / `settings:manage`（取值受应用层目录约束）。
+  permission String
+  /// 授予者 users.id（软引用）。
+  granted_by String?
+  granted_at BigInt
+  user       users  @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@id([user_id, permission])
+  @@index([user_id], map: "idx_perm_user")
+}
+
+/// Web 浏览器登录会话：DB 持久化、可吊销。cookie 里是不透明随机 token，库里只存其 sha256。
+model sessions {
+  id           String  @id @default(uuid())
+  user_id      String
+  /// sha256(token) 的十六进制；按此查会话，原始 token 仅存在用户 cookie 中。
+  token_hash   String  @unique(map: "idx_sessions_token")
+  /// 绝对过期（epoch 秒）。
+  expires_at   BigInt
+  /// 最近活跃时间，用于滑动续期与「活跃会话」展示。
+  last_seen_at BigInt
+  /// 审计辅助：登录时的 UA / IP（可空）。
+  user_agent   String?
+  ip           String?
+  created_at   BigInt
+  user         users   @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id], map: "idx_sessions_user")
+  @@index([expires_at], map: "idx_sessions_expires")
+}
+
+/// Mobile 设备凭据：绑定到某 user，存设备 Ed25519 公钥；status=revoked 即「强踢」。
+/// 权限不在此存——sync 时从绑定的 user 实时查（改号权限即时生效、停号即全灭）。
+model device_credentials {
+  id           String        @id @default(uuid())
+  /// 绑定账号；权限实时从这里查。
+  user_id      String
+  /// 设备展示名，如「现场 iPad 1」，强踢列表给人看。
+  device_name  String
+  /// 设备 Ed25519 公钥（base64）；私钥永不离设备。
+  public_key   String
+  /// 凭据状态：active | revoked（revoked = 被强踢，下次校验即拒）。
+  status       device_status @default(active)
+  /// 最长未联网续期时限（epoch 秒）：now + 离线宽限窗（7/30/60 天），每次成功 sync 滑动续期。
+  expires_at   BigInt
+  /// 最近一次成功校验 / 同步时间。
+  last_seen_at BigInt?
+  /// 赋予它的管理员 users.id（软引用）。
+  issued_by    String?
+  created_at   BigInt
+  user         users         @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id], map: "idx_devcred_user")
+}
+
+/// 审计日志：敏感与计费相关操作（登录、账户/权限/设备变更、模型密钥变更、触发分析、导出）。
+/// 操作者删除后 actor_id 保留（软引用）。只追加、不更新。
+model audit_logs {
+  id          Int      @id @default(autoincrement())
+  /// 操作者 users.id（软引用）；系统动作或操作者已删时为空。
+  actor_id    String?
+  /// 操作类型，如 auth.login / account.create / permission.update / device.enroll / device.revoke / analyze.run / export.run。
+  action      String
+  /// 操作对象类型与 id（软引用，可空）。
+  target_type String?
+  target_id   String?
+  /// 结构化补充信息（变更前后摘要等）。
+  metadata    Json?
+  ip          String?
+  created_at  BigInt
+
+  @@index([actor_id], map: "idx_audit_actor")
+  @@index([created_at], map: "idx_audit_created")
+}
+
+/// 系统角色。
+enum user_role {
+  super_admin
+  admin
+}
+
+/// 账户状态。
+enum user_status {
+  active
+  disabled
+}
+
+/// 设备凭据状态。
+enum device_status {
+  active
+  revoked
+}
+
 /// 需求强度评级。
 enum intensity {
   HIGH
