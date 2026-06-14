@@ -47,8 +47,10 @@ export interface ManualRunResult {
  */
 @Injectable()
 export class AnalysisConfigService implements OnModuleInit {
-  /** 按 provider id 缓存已构建的处理器；reloadAnalysisConfig 时清空 */
+  /** 按 provider id 缓存已构建的处理器；本进程 reloadAnalysisConfig 或检测到跨进程版本变更时清空 */
   private readonly processorCache = new Map<number, PostProcessor>();
+  /** 本进程缓存所反映的分析配置版本号；落后于库中版本即失效重建（跨进程感知设置变更） */
+  private cacheVersion = -1;
 
   constructor(
     private readonly providers: ProvidersRepository,
@@ -95,6 +97,7 @@ export class AnalysisConfigService implements OnModuleInit {
    * @param providerId model_providers.id
    */
   async getProcessorForProvider(providerId: number): Promise<PostProcessor | null> {
+    await this.syncCacheVersion();
     const cached = this.processorCache.get(providerId);
     if (cached) return cached;
     const row = await this.providers.getProvider(providerId);
@@ -124,12 +127,27 @@ export class AnalysisConfigService implements OnModuleInit {
   }
 
   /**
-   * 热重载分析配置：清空处理器缓存，使密钥/模型/启用项的变更对下一条任务即时生效。
-   * 在任意设置写操作后调用（无需重启进程）。
+   * 热重载分析配置：递增库中 config 版本并清空本进程处理器缓存，使密钥/模型/启用项的变更
+   * 对下一条任务即时生效。在任意设置写操作后调用（无需重启进程）。
+   * 递增版本号是为了让独立 worker 进程（持各自缓存实例）也能在下个任务感知变更。
    */
-  reloadAnalysisConfig(): void {
+  async reloadAnalysisConfig(): Promise<void> {
+    const version = await this.settings.bumpConfigVersion();
     this.processorCache.clear();
-    logger.info('[analysis] 配置已热重载（处理器缓存已清空）');
+    this.cacheVersion = version;
+    logger.info('[analysis] 配置已热重载（config 版本 +1，跨进程 worker 下个任务即生效）');
+  }
+
+  /**
+   * 跨进程缓存失效：比对库中 config 版本，落后即清空本进程处理器缓存。
+   * 独立 worker 进程与 HTTP 进程各持一份缓存——靠共享版本号感知对方的设置写操作。
+   */
+  private async syncCacheVersion(): Promise<void> {
+    const version = await this.settings.getConfigVersion();
+    if (version !== this.cacheVersion) {
+      this.processorCache.clear();
+      this.cacheVersion = version;
+    }
   }
 
   /**

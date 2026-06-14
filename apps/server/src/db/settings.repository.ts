@@ -4,6 +4,8 @@ import { PRISMA } from '../common/tokens';
 
 /** app_settings 中「当前使用的模型配置 ID」键 */
 const ACTIVE_PROVIDER_KEY = 'active_provider_id';
+/** app_settings 中「分析配置版本号」键：模型/选用任一写操作即 +1，供跨进程缓存失效 */
+const CONFIG_VERSION_KEY = 'analysis_config_version';
 
 /**
  * 全局键值配置数据访问（Prisma / PostgreSQL）。
@@ -47,5 +49,30 @@ export class SettingsRepository {
   async setActiveProviderId(id: number | null): Promise<void> {
     if (id == null) await this.deleteSetting(ACTIVE_PROVIDER_KEY);
     else await this.setSetting(ACTIVE_PROVIDER_KEY, String(id));
+  }
+
+  /**
+   * 读取分析配置版本号。
+   * @returns 当前版本；从未写过任何模型/选用时返回 0
+   */
+  async getConfigVersion(): Promise<number> {
+    const value = await this.getSetting(CONFIG_VERSION_KEY);
+    if (value == null) return 0;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  /**
+   * 原子递增分析配置版本号（单语句 upsert + 自增，多进程并发安全）。
+   * 在任意模型/选用写操作后调用——其它进程的处理器缓存据此感知失效。
+   * @returns 递增后的新版本号
+   */
+  async bumpConfigVersion(): Promise<number> {
+    const rows = await this.db.$queryRaw<{ value: string }[]>`
+      INSERT INTO app_settings (key, value) VALUES (${CONFIG_VERSION_KEY}, '1')
+      ON CONFLICT (key) DO UPDATE SET value = (app_settings.value::bigint + 1)::text
+      RETURNING value
+    `;
+    return Number(rows[0]?.value ?? 0);
   }
 }

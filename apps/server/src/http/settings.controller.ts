@@ -89,7 +89,7 @@ export class SettingsController {
     }
     const input: ProviderInput = { ...dto, baseUrl: normalizeBaseUrl(dto.baseUrl) };
     const id = await this.providers.createProvider(input, nowSec());
-    this.analysisConfig.reloadAnalysisConfig();
+    await this.analysisConfig.reloadAnalysisConfig();
     logger.info(`[设置] 新增模型 #${id}：${dto.provider} (${dto.model})`);
     return { id };
   }
@@ -107,7 +107,7 @@ export class SettingsController {
     if (dto.baseUrl !== undefined) fields.baseUrl = normalizeBaseUrl(dto.baseUrl);
     const ok = await this.providers.updateProvider(id, fields, nowSec());
     if (!ok) throw new NotFoundException('模型配置不存在或无字段可更新');
-    this.analysisConfig.reloadAnalysisConfig();
+    await this.analysisConfig.reloadAnalysisConfig();
     logger.info(`[设置] 更新模型 #${id}`);
     return { ok: true };
   }
@@ -120,7 +120,7 @@ export class SettingsController {
     if ((await this.settings.getActiveProviderId()) === id) {
       await this.settings.setActiveProviderId(null);
     }
-    this.analysisConfig.reloadAnalysisConfig();
+    await this.analysisConfig.reloadAnalysisConfig();
     logger.info(`[设置] 删除模型 #${id}`);
     return { ok: true };
   }
@@ -142,7 +142,7 @@ export class SettingsController {
       if (!row.enabled) throw new BadRequestException('该模型已停用，无法设为 active');
     }
     await this.settings.setActiveProviderId(dto.providerId);
-    this.analysisConfig.reloadAnalysisConfig();
+    await this.analysisConfig.reloadAnalysisConfig();
     // 即时生效：选用后立刻入一轮队，无需等下一次定时调度
     const round = await this.analysisConfig.enqueueAutoAnalysisRound();
     logger.info(
