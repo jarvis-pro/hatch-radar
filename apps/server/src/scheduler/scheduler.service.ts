@@ -11,6 +11,7 @@ import { HackerNewsClient } from '../crawler/hackernews';
 import type { RedditClient, RedditComment } from '../crawler/reddit';
 import { fetchFeed } from '../crawler/rss';
 import { CommentsRepository } from '../db/comments.repository';
+import { JobsRepository } from '../db/jobs.repository';
 import { PostsRepository } from '../db/posts.repository';
 import { logger } from '../logger';
 
@@ -32,6 +33,8 @@ interface CommentTarget {
  * - cron 用 `@nestjs/schedule` 的 `@Cron`
  * - 同名任务不并发由 {@link guard} 保证（框架不内置，沿用裸跑的非重入语义）
  * - 启动后跑一轮初始化（扫描 → 评论补全 → 分析入队），不阻塞 HTTP 监听
+ * - guard 是进程内内存态、无分布式锁 → 本服务（HTTP + 调度进程）须**单实例**部署；
+ *   多开主进程会重复抓取 / 重复跑初始化轮次。可水平扩的是 Worker 池（独立进程经 PG 行锁认领）。
  */
 @Injectable()
 export class SchedulerService implements OnApplicationBootstrap {
@@ -43,6 +46,7 @@ export class SchedulerService implements OnApplicationBootstrap {
     private readonly hackernews: HackerNewsClient,
     private readonly postsRepo: PostsRepository,
     private readonly commentsRepo: CommentsRepository,
+    private readonly jobsRepo: JobsRepository,
     private readonly analysisConfig: AnalysisConfigService,
     @Inject(APP_ENV) private readonly env: AppEnv,
   ) {}
@@ -230,8 +234,9 @@ export class SchedulerService implements OnApplicationBootstrap {
     return this.guard('归档', async () => {
       const cutoff = nowSec() - ARCHIVE_DAYS * 86400;
       const removed = await this.postsRepo.archiveOldData(cutoff);
+      const removedJobs = await this.jobsRepo.deleteFinishedJobsBefore(cutoff);
       logger.info(
-        `[归档] 清理 ${ARCHIVE_DAYS} 天前原始数据：帖子 ${removed.posts}，评论 ${removed.comments}（洞察保留）`,
+        `[归档] 清理 ${ARCHIVE_DAYS} 天前原始数据：帖子 ${removed.posts}，评论 ${removed.comments}，终态分析任务 ${removedJobs}（洞察保留）`,
       );
     });
   }

@@ -99,4 +99,24 @@ describe('JobsRepository（队列并发认领 / 幂等入队 / 僵死回收）',
     expect(stats.queued).toBe(0);
     expect(stats.running).toBe(0);
   });
+
+  it('deleteFinishedJobsBefore 只删早于 cutoff 的终态任务，保留 queued/running 与较新终态', async () => {
+    // 旧的 succeeded（finished_at=1000）
+    await jobs.enqueueJobs(['old1'], 1, 'm', 'auto', 1000);
+    const j1 = await jobs.claimNextJob(1000);
+    await jobs.succeedJob(j1!.id, 1000);
+    // 新的 failed（finished_at=5000）
+    await jobs.enqueueJobs(['new1'], 1, 'm', 'auto', 5000);
+    const j2 = await jobs.claimNextJob(5000);
+    await jobs.failJob(j2!.id, 'e', 5000);
+    // queued（无 finished_at，不应被删）
+    await jobs.enqueueJobs(['q1'], 1, 'm', 'auto', 5000);
+
+    const deleted = await jobs.deleteFinishedJobsBefore(3000);
+    expect(deleted).toBe(1); // 仅 old1
+    const stats = await jobs.getJobStats();
+    expect(stats.succeeded).toBe(0); // old1 已清
+    expect(stats.failed).toBe(1); // new1 保留（finished_at 较新）
+    expect(stats.queued).toBe(1); // q1 保留
+  });
 });

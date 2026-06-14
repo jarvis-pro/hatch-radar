@@ -4,7 +4,7 @@ import { PRISMA } from '../common/tokens';
 
 /** 任务触发来源：auto=定时调度入队，manual=管理员在工作台手动入队 */
 export type JobTrigger = JobRow['trigger'];
-/** 任务状态机：queued → running →（succeeded | failed）；queued 可被取消为 canceled */
+/** 任务状态机：queued → running →（succeeded | failed）。canceled 为预留态——当前无取消入口，getJobStats 仍计数以备将来 */
 export type JobStatus = JobRow['status'];
 export type { JobRow };
 
@@ -202,6 +202,22 @@ export class JobsRepository {
       }
       return rows.length;
     });
+  }
+
+  /**
+   * 删除早于 cutoff 的终态任务（succeeded / failed / canceled），用于归档时控制队列表规模。
+   * queued / running 不受影响。
+   * @param cutoff Unix 秒；finished_at 早于此值的终态任务将被删除
+   * @returns 删除的任务数
+   */
+  async deleteFinishedJobsBefore(cutoff: number): Promise<number> {
+    const res = await this.db.analysis_jobs.deleteMany({
+      where: {
+        status: { in: ['succeeded', 'failed', 'canceled'] },
+        finished_at: { lt: BigInt(cutoff) },
+      },
+    });
+    return res.count;
   }
 
   /** 各状态任务数汇总，用于启动 / worker 日志与队列看板 */
