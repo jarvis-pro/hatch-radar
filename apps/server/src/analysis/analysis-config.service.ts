@@ -1,10 +1,11 @@
-import { Inject, Injectable, type OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, Optional, type OnModuleInit } from '@nestjs/common';
 import { createProcessor, type AnalysisConfig, type PostProcessor } from '../analyzer/analyze';
 import { testAnthropic } from '../analyzer/anthropic';
 import { testOpenAICompatible } from '../analyzer/openai-compatible';
 import { APP_ENV } from '../common/tokens';
 import { decryptSecret, isSecretConfigured } from '../crypto';
 import type { AppEnv } from '../config/env';
+import { GatewayService } from '../gateway/gateway.service';
 import { JobsRepository } from '../db/jobs.repository';
 import { PostsRepository } from '../db/posts.repository';
 import { ProvidersRepository, type ProviderRow } from '../db/providers.repository';
@@ -58,6 +59,8 @@ export class AnalysisConfigService implements OnModuleInit {
     private readonly jobs: JobsRepository,
     private readonly posts: PostsRepository,
     @Inject(APP_ENV) private readonly env: AppEnv,
+    // GatewayModule 为 @Global()，仅在主进程可用；standalone worker 进程中为 undefined
+    @Optional() private readonly gateway?: GatewayService,
   ) {}
 
   /**
@@ -166,6 +169,7 @@ export class AnalysisConfigService implements OnModuleInit {
       'auto',
       nowSec(),
     );
+    if (enqueued > 0) void this.gateway?.tryDispatch();
     return { active, enqueued, pending: posts.length };
   }
 
@@ -215,6 +219,7 @@ export class AnalysisConfigService implements OnModuleInit {
       'manual',
       nowSec(),
     );
+    if (enqueued > 0) void this.gateway?.tryDispatch();
     return { ok: true, enqueued };
   }
 

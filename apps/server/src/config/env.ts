@@ -88,6 +88,9 @@ const envSchema = z
     HTTP_PORT: z.coerce.number().int().min(1).max(65535).default(DEFAULT_HTTP_PORT),
     /** 可选访问令牌；设置后导出接口要求 Authorization: Bearer <token> */
     API_TOKEN: z.string().trim().min(1).optional(),
+
+    /** worker 进程连接 gateway 的 WebSocket 地址；不设则自动推导为 ws://localhost:<HTTP_PORT>/ws/worker */
+    GATEWAY_URL: z.string().trim().optional(),
   })
   .superRefine((data, ctx) => {
     // CLIENT_ID + CLIENT_SECRET 存在即视为启用 Reddit，其余 3 个字段变为必填
@@ -141,6 +144,7 @@ const envSchema = z
     databaseUrl: env.DATABASE_URL,
     databasePoolMax: env.DATABASE_POOL_MAX ?? Math.max(10, env.WORKER_CONCURRENCY + 5),
     http: { port: env.HTTP_PORT, token: env.API_TOKEN } satisfies HttpConfig,
+    gatewayUrl: env.GATEWAY_URL,
     worker: {
       concurrency: env.WORKER_CONCURRENCY,
       jobTimeoutMs: env.WORKER_JOB_TIMEOUT_MS,

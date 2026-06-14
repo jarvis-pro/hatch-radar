@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { LoggerModule } from 'nestjs-pino';
 import { AppConfigModule } from './config/app-config.module';
 import { DatabaseModule } from './database/database.module';
+import { GatewayModule } from './gateway/gateway.module';
 import { HttpModule } from './http/http.module';
 import { logger } from './logger';
 import { SchedulerModule } from './scheduler/scheduler.module';
@@ -24,6 +25,7 @@ function workerInProcess(): boolean {
     LoggerModule.forRoot({ pinoHttp: { logger, autoLogging: false } }),
     AppConfigModule,
     DatabaseModule,
+    GatewayModule,
     HttpModule,
     SchedulerModule,
     ...(workerInProcess() ? [WorkerModule] : []),

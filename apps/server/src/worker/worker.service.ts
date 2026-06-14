@@ -10,27 +10,15 @@ import { APP_ENV } from '../common/tokens';
 import { nowSec } from '../common/time';
 import type { AppEnv } from '../config/env';
 import { CommentsRepository } from '../db/comments.repository';
-import { JobsRepository, type JobRow } from '../db/jobs.repository';
+import { JobsRepository } from '../db/jobs.repository';
 import { PostsRepository } from '../db/posts.repository';
 import { logger } from '../logger';
 
-// 并发数 / job 超时 / 僵死阈值已移到 env（见 AppEnv.worker），可按部署调整；以下为不随部署变的内部常量。
-/** 队列为空时的轮询间隔（毫秒） */
-const POLL_INTERVAL_MS = 2000;
-/** running 期间的心跳间隔（毫秒），需远小于 env.worker.staleSeconds */
+/** running 期间的 DB 心跳间隔（毫秒），需远小于 env.worker.staleSeconds */
 const HEARTBEAT_INTERVAL_MS = 15_000;
 /** 周期性僵死回收间隔（毫秒） */
 const RECLAIM_INTERVAL_MS = 60_000;
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-/**
- * 给 Promise 加超时兜底：超时即 reject，并通过 onTimeout 回调中止底层调用（worker 传入
- * AbortController.abort），使慢调用真正停下、不空耗连接与 API 额度，而非仅放弃等待。
- * 竞速失败的一方仍会被 Promise.race 内部消费，不会产生 unhandledRejection。
- */
 function withTimeout<T>(promise: Promise<T>, ms: number, onTimeout?: () => void): Promise<T> {
   let timer: ReturnType<typeof setTimeout>;
   const timeout = new Promise<never>((_, reject) => {
@@ -42,20 +30,23 @@ function withTimeout<T>(promise: Promise<T>, ms: number, onTimeout?: () => void)
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
+/** 供 WorkerAgentService 分发时传入的最小 job 信息 */
+export interface DispatchedJobInfo {
+  id: number;
+  post_id: string;
+  provider_id: number | null;
+}
+
 /**
- * 分析 worker 池：固定并发地从 analysis_jobs 队列认领任务并执行。
+ * 分析 job 执行器：接受 Gateway 分发的任务，执行 AI 分析并将结果写回数据库。
  *
- * 借 PG 行锁（FOR UPDATE SKIP LOCKED）认领，可在同一 AppModule（与 HTTP 同进程）运行，
- * 也可在独立进程（worker-main.ts）运行——多消费者并发认领不冲突。
- *
- * 不卡死的几道保障：队列持久化（重启续跑、启动回收孤儿 running）、每 job 硬超时、
- * running 心跳 + 周期回收僵死（崩溃循环受 max_attempts 保护）。
+ * 不包含轮询逻辑——任务认领由 GatewayService 负责（Push 模式）。
+ * 僵死回收定时器保留：仍处理进程崩溃后遗留的 running 任务。
  */
 @Injectable()
 export class WorkerService implements OnApplicationBootstrap, OnApplicationShutdown {
-  private stopping = false;
-  private loops: Promise<void>[] = [];
   private reclaimTimer: ReturnType<typeof setInterval> | null = null;
+  private activeJobPromises: Promise<void>[] = [];
 
   constructor(
     private readonly jobs: JobsRepository,
@@ -67,8 +58,7 @@ export class WorkerService implements OnApplicationBootstrap, OnApplicationShutd
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
-    const { concurrency, staleSeconds } = this.env.worker;
-    // 启动即回收上次进程遗留的 running 任务（进程被杀时它们停在 running）
+    const { staleSeconds } = this.env.worker;
     const orphaned = await this.jobs.reclaimRunningJobs(nowSec(), null);
     if (orphaned > 0) logger.warn(`[worker] 启动回收 ${orphaned} 个遗留 running 任务`);
 
@@ -78,20 +68,42 @@ export class WorkerService implements OnApplicationBootstrap, OnApplicationShutd
       });
     }, RECLAIM_INTERVAL_MS);
 
-    this.loops = Array.from({ length: concurrency }, () => this.loop());
     const stats = await this.jobs.getJobStats();
-    logger.info(
-      `[worker] 分析 worker 池已启动（并发 ${concurrency}）；当前队列 queued ${stats.queued} / running ${stats.running}`,
-    );
+    logger.info(`[worker] 分析执行器已就绪；当前队列 queued ${stats.queued} / running ${stats.running}`);
   }
 
   async onApplicationShutdown(): Promise<void> {
-    this.stopping = true;
     if (this.reclaimTimer) clearInterval(this.reclaimTimer);
-    await Promise.allSettled(this.loops);
+    await Promise.allSettled(this.activeJobPromises);
   }
 
-  private async runJob(job: JobRow): Promise<void> {
+  /** 当前正在执行的任务数（供 WorkerAgentService 上报心跳） */
+  get activeJobCount(): number {
+    return this.activeJobPromises.length;
+  }
+
+  /**
+   * 执行由 Gateway 分发来的任务（job 已被 Gateway 认领为 running）。
+   * @param job 任务标识（id / post_id / provider_id）
+   * @param onProgress job 执行期间的心跳回调，用于通知 Gateway 任务仍在进行
+   */
+  async executeDispatchedJob(
+    job: DispatchedJobInfo,
+    onProgress?: (jobId: number) => void,
+  ): Promise<void> {
+    const p = this.runJob(job, onProgress);
+    this.activeJobPromises.push(p);
+    try {
+      await p;
+    } finally {
+      this.activeJobPromises = this.activeJobPromises.filter((x) => x !== p);
+    }
+  }
+
+  private async runJob(
+    job: DispatchedJobInfo,
+    onProgress?: (jobId: number) => void,
+  ): Promise<void> {
     const post = await this.posts.getPostById(job.post_id);
     if (!post) {
       await this.jobs.failJob(job.id, '帖子不存在或已归档', nowSec());
@@ -102,7 +114,6 @@ export class WorkerService implements OnApplicationBootstrap, OnApplicationShutd
         ? await this.analysisConfig.getProcessorForProvider(job.provider_id)
         : null;
     if (!processor) {
-      // 配置问题（非帖子问题）：不递增 posts.analyze_attempts，修好配置后下轮可重试
       await this.jobs.failJob(
         job.id,
         `无法解析模型配置（provider_id=${job.provider_id ?? 'null'}），请检查设置`,
@@ -110,15 +121,15 @@ export class WorkerService implements OnApplicationBootstrap, OnApplicationShutd
       );
       return;
     }
-    const comments = await this.comments.getCommentsForPost(job.post_id);
+    const commentsData = await this.comments.getCommentsForPost(job.post_id);
     const heartbeat = setInterval(() => {
       void this.jobs.touchHeartbeat(job.id, nowSec());
+      onProgress?.(job.id);
     }, HEARTBEAT_INTERVAL_MS);
-    // 超时控制器：超时回调 abort 之，使底层 AI 调用立即中断（不只是放弃等待）
     const ac = new AbortController();
     try {
       const { saved } = await withTimeout(
-        this.analysis.analyzeAndPersist(processor, post, comments, ac.signal),
+        this.analysis.analyzeAndPersist(processor, post, commentsData, ac.signal),
         this.env.worker.jobTimeoutMs,
         () => ac.abort(new Error('job 超时，中止底层调用')),
       );
@@ -128,33 +139,12 @@ export class WorkerService implements OnApplicationBootstrap, OnApplicationShutd
         logger.info(`  ✓ [job#${job.id}] r/${post.subreddit}「${post.title.slice(0, 40)}」已落库`);
       }
     } catch (err) {
-      // 两个计数各司其职：post.analyze_attempts 是该帖跨任务的真正重试预算（达
-      // MAX_ANALYZE_ATTEMPTS 后 getPostsToAnalyze 不再返回它）；job 失败即终态、不在原 job 上
-      // 重试，job.attempts/max_attempts 只用于僵死回收时的崩溃循环保护。故失败时两者各推进一格。
       await this.posts.bumpAnalyzeAttempts(post.id);
       const msg = err instanceof Error ? err.message : String(err);
       await this.jobs.failJob(job.id, msg, nowSec());
       logger.error(`  ✗ [job#${job.id}] ${post.id} 失败: ${msg}`);
     } finally {
       clearInterval(heartbeat);
-    }
-  }
-
-  private async loop(): Promise<void> {
-    while (!this.stopping) {
-      const job = await this.jobs.claimNextJob(nowSec());
-      if (!job) {
-        await sleep(POLL_INTERVAL_MS);
-        continue;
-      }
-      // runJob 内部已兜底异常；此处再加一层，确保单条意外永不拖垮 worker 循环
-      try {
-        await this.runJob(job);
-      } catch (err) {
-        logger.error(
-          `[worker] runJob 未捕获异常: ${err instanceof Error ? err.message : String(err)}`,
-        );
-      }
     }
   }
 }
