@@ -12,14 +12,14 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { z } from 'zod';
-import { AnalysisConfigService } from '../analysis/analysis-config.service';
-import { BearerAuthGuard } from '../common/bearer-auth.guard';
-import { nowSec } from '../utils/time';
-import { ZodValidationPipe } from '../common/zod-validation.pipe';
-import { isSecretConfigured } from '../utils/crypto';
-import { ProvidersRepository, toProviderDTO, type ProviderInput } from '../db/providers.repository';
-import { SettingsRepository } from '../db/settings.repository';
-import { logger } from '../logger';
+import { AnalysisConfigService } from '@/analysis/analysis-config.service';
+import { BearerAuthGuard } from '@/common/bearer-auth.guard';
+import { nowSec } from '@/utils/time';
+import { ZodValidationPipe } from '@/common/zod-validation.pipe';
+import { isSecretConfigured } from '@/utils/crypto';
+import { ProvidersRepository, toProviderDTO, type ProviderInput } from '@/db/providers.repository';
+import { SettingsRepository } from '@/db/settings.repository';
+import { logger } from '@/logger';
 
 const providerKind = z.enum(['anthropic', 'openai', 'deepseek']);
 
@@ -113,7 +113,9 @@ export class SettingsController {
     const nextBaseUrl =
       dto.baseUrl !== undefined ? (fields.baseUrl ?? null) : (existing.base_url ?? null);
     if ((existing.base_url ?? null) !== nextBaseUrl && !dto.apiKey) {
-      throw new BadRequestException('修改 baseUrl 时必须同时重新填写 API Key（避免旧密钥被发往新地址）');
+      throw new BadRequestException(
+        '修改 baseUrl 时必须同时重新填写 API Key（避免旧密钥被发往新地址）',
+      );
     }
 
     const ok = await this.providers.updateProvider(id, fields, nowSec());

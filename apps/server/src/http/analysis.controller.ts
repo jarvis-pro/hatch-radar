@@ -8,11 +8,11 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { z } from 'zod';
-import { AnalysisConfigService } from '../analysis/analysis-config.service';
-import { BearerAuthGuard } from '../common/bearer-auth.guard';
-import { ZodValidationPipe } from '../common/zod-validation.pipe';
-import { JobsRepository } from '../db/jobs.repository';
-import { logger } from '../logger';
+import { AnalysisConfigService } from '@/analysis/analysis-config.service';
+import { BearerAuthGuard } from '@/common/bearer-auth.guard';
+import { ZodValidationPipe } from '@/common/zod-validation.pipe';
+import { JobsRepository } from '@/db/jobs.repository';
+import { logger } from '@/logger';
 
 const runSchema = z.object({
   postIds: z.array(z.string().min(1)).min(1).max(500),

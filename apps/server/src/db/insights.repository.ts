@@ -7,7 +7,7 @@ import type {
   Intensity,
   PostRow,
 } from '@hatch-radar/shared';
-import { PRISMA } from '../common/tokens';
+import { PRISMA } from '@/common/tokens';
 
 /**
  * 洞察表数据访问（Prisma / PostgreSQL）。

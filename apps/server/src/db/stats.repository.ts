@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { AppDatabase } from '@hatch-radar/db';
-import { PRISMA } from '../common/tokens';
+import { PRISMA } from '@/common/tokens';
 import { PENDING_ANALYSIS_PREDICATE } from './posts.repository';
 
 /** 数据库各表计数概览 */

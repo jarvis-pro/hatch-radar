@@ -1,11 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import type { CommentRow, PostRow } from '@hatch-radar/shared';
-import { CommentsRepository } from '../db/comments.repository';
-import { InsightsRepository } from '../db/insights.repository';
-import { PostsRepository } from '../db/posts.repository';
-import { nowSec } from '../utils/time';
-import { logger } from '../logger';
-import type { AnalysisStats, PostProcessor } from '../analyzer/analyze';
+import { CommentsRepository } from '@/db/comments.repository';
+import { InsightsRepository } from '@/db/insights.repository';
+import { PostsRepository } from '@/db/posts.repository';
+import { nowSec } from '@/utils/time';
+import { logger } from '@/logger';
+import type { AnalysisStats, PostProcessor } from '@/analyzer/analyze';
 
 /**
  * 「分析并落库」的编排服务：worker（单条 job）与 CLI（批处理）共用。

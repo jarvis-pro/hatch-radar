@@ -1,3 +1,5 @@
+import { fileURLToPath } from 'node:url';
+
 import { defineConfig } from 'vitest/config';
 
 /**
@@ -7,6 +9,12 @@ import { defineConfig } from 'vitest/config';
  * - setup 引入 reflect-metadata，供 Nest 装饰器在测试中正常工作
  */
 export default defineConfig({
+  // Vite 不读 tsconfig 的 paths，需手动对齐 @/* -> src（与 tsconfig.json 保持一致）
+  resolve: {
+    alias: {
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+    },
+  },
   test: {
     include: ['test/**/*.spec.ts'],
     globalSetup: ['test/global-setup.ts'],

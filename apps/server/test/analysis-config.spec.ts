@@ -1,12 +1,12 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { AppDatabase, DbHandle } from '@hatch-radar/db';
-import { AnalysisConfigService } from '../src/analysis/analysis-config.service';
-import { JobsRepository } from '../src/db/jobs.repository';
-import { PostsRepository } from '../src/db/posts.repository';
-import { ProvidersRepository } from '../src/db/providers.repository';
-import { SettingsRepository } from '../src/db/settings.repository';
-import { nowSec } from '../src/utils/time';
-import type { AppEnv } from '../src/config/env';
+import { AnalysisConfigService } from '@/analysis/analysis-config.service';
+import { JobsRepository } from '@/db/jobs.repository';
+import { PostsRepository } from '@/db/posts.repository';
+import { ProvidersRepository } from '@/db/providers.repository';
+import { SettingsRepository } from '@/db/settings.repository';
+import { nowSec } from '@/utils/time';
+import type { AppEnv } from '@/config/env';
 import { setupTestDb, truncateAll } from './helpers';
 
 // 模型密钥加解密需要主密钥；测试用任意高熵串即可（不连模型）

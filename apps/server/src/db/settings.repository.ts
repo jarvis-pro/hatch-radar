@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { AppDatabase } from '@hatch-radar/db';
-import { PRISMA } from '../common/tokens';
+import { PRISMA } from '@/common/tokens';
 
 /** app_settings 中「当前使用的模型配置 ID」键 */
 const ACTIVE_PROVIDER_KEY = 'active_provider_id';

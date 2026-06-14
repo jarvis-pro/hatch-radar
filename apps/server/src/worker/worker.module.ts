@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
-import { AnalysisModule } from '../analysis/analysis.module';
-import { RepositoriesModule } from '../db/repositories.module';
+import { AnalysisModule } from '@/analysis/analysis.module';
+import { RepositoriesModule } from '@/db/repositories.module';
 import { WorkerAgentService } from './worker-agent.service';
 import { WorkerService } from './worker.service';
 

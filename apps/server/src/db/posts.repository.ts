@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { Prisma, toPostRow, type AppDatabase, type PostPg, type PostRow } from '@hatch-radar/db';
-import type { RedditPost } from '../crawler/reddit';
-import { PRISMA } from '../common/tokens';
+import type { RedditPost } from '@/crawler/reddit';
+import { PRISMA } from '@/common/tokens';
 
 /** 评论 refresh 节奏与冻结策略（秒） */
 const REFRESH = {

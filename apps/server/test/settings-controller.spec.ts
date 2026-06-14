@@ -1,11 +1,11 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { BadRequestException } from '@nestjs/common';
 import type { AppDatabase, DbHandle } from '@hatch-radar/db';
-import type { AnalysisConfigService } from '../src/analysis/analysis-config.service';
-import { ProvidersRepository } from '../src/db/providers.repository';
-import { SettingsRepository } from '../src/db/settings.repository';
-import { SettingsController } from '../src/http/settings.controller';
-import { nowSec } from '../src/utils/time';
+import type { AnalysisConfigService } from '@/analysis/analysis-config.service';
+import { ProvidersRepository } from '@/db/providers.repository';
+import { SettingsRepository } from '@/db/settings.repository';
+import { SettingsController } from '@/http/settings.controller';
+import { nowSec } from '@/utils/time';
 import { setupTestDb, truncateAll } from './helpers';
 
 // 加解密主密钥（createProvider 入库时加密用），测试用任意高熵串
@@ -54,9 +54,9 @@ describe('SettingsController.update（改 baseUrl 必须重填 API Key）', () =
 
   it('改 baseUrl 但不带 apiKey → 拒绝，且库中 baseUrl 不变', async () => {
     const id = await seedOpenAI();
-    await expect(controller.update(id, { baseUrl: 'http://evil.example/v1' })).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
+    await expect(
+      controller.update(id, { baseUrl: 'http://evil.example/v1' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
     const row = await providers.getProvider(id);
     expect(row!.base_url).toBe('https://api.openai.com/v1'); // 未被改动
   });

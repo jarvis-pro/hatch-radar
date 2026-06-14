@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { RepositoriesModule } from '../db/repositories.module';
+import { RepositoriesModule } from '@/db/repositories.module';
 import { AnalysisConfigService } from './analysis-config.service';
 import { AnalysisService } from './analysis.service';
 

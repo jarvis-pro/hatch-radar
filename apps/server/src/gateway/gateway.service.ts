@@ -7,9 +7,9 @@ import { HttpAdapterHost } from '@nestjs/core';
 import { WebSocket, WebSocketServer } from 'ws';
 import type { IncomingMessage } from 'node:http';
 import type { Server as HttpServer } from 'node:http';
-import { nowSec } from '../utils/time';
-import { JobsRepository } from '../db/jobs.repository';
-import { logger } from '../logger';
+import { nowSec } from '@/utils/time';
+import { JobsRepository } from '@/db/jobs.repository';
+import { logger } from '@/logger';
 
 interface WorkerState {
   workerId: string;
@@ -24,7 +24,13 @@ interface WorkerState {
 type WorkerMessage =
   | { type: 'register'; workerId: string; concurrency: number }
   | { type: 'heartbeat'; workerId: string; cpu: number; memory: number; activeJobs: number }
-  | { type: 'job_result'; workerId: string; jobId: number; status: 'succeeded' | 'failed'; error?: string }
+  | {
+      type: 'job_result';
+      workerId: string;
+      jobId: number;
+      status: 'succeeded' | 'failed';
+      error?: string;
+    }
   | { type: 'job_progress'; workerId: string; jobId: number };
 
 /** worker 心跳超过此时长无响应则从注册表驱逐 */

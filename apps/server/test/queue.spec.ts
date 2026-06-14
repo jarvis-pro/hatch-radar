@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { AppDatabase, DbHandle } from '@hatch-radar/db';
-import { JobsRepository } from '../src/db/jobs.repository';
-import { nowSec } from '../src/utils/time';
+import { JobsRepository } from '@/db/jobs.repository';
+import { nowSec } from '@/utils/time';
 import { setupTestDb, truncateAll } from './helpers';
 
 /**

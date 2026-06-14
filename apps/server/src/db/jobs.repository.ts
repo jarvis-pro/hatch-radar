@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { toJobRow, type AppDatabase, type JobPg, type JobRow, type Prisma } from '@hatch-radar/db';
-import { PRISMA } from '../common/tokens';
+import { PRISMA } from '@/common/tokens';
 
 /** 任务触发来源：auto=定时调度入队，manual=管理员在工作台手动入队 */
 export type JobTrigger = JobRow['trigger'];

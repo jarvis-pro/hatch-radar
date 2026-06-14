@@ -1,9 +1,9 @@
 import { Module } from '@nestjs/common';
-import { AnalysisModule } from '../analysis/analysis.module';
-import { BearerAuthGuard } from '../common/bearer-auth.guard';
-import { RepositoriesModule } from '../db/repositories.module';
-import { ExportModule } from '../export/export.module';
-import { SyncModule } from '../sync/sync.module';
+import { AnalysisModule } from '@/analysis/analysis.module';
+import { BearerAuthGuard } from '@/common/bearer-auth.guard';
+import { RepositoriesModule } from '@/db/repositories.module';
+import { ExportModule } from '@/export/export.module';
+import { SyncModule } from '@/sync/sync.module';
 import { AnalysisController } from './analysis.controller';
 import { ExportController } from './export.controller';
 import { HealthController } from './health.controller';

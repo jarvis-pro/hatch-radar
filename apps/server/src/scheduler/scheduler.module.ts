@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
-import { AnalysisModule } from '../analysis/analysis.module';
-import { CrawlerModule } from '../crawler/crawler.module';
-import { RepositoriesModule } from '../db/repositories.module';
+import { AnalysisModule } from '@/analysis/analysis.module';
+import { CrawlerModule } from '@/crawler/crawler.module';
+import { RepositoriesModule } from '@/db/repositories.module';
 import { SchedulerService } from './scheduler.service';
 
 /**

@@ -1,9 +1,14 @@
-import { Inject, Injectable, type OnApplicationBootstrap, type OnApplicationShutdown } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  type OnApplicationBootstrap,
+  type OnApplicationShutdown,
+} from '@nestjs/common';
 import { cpus, freemem, hostname, loadavg, totalmem } from 'node:os';
 import WebSocket from 'ws';
-import { APP_ENV } from '../common/tokens';
-import type { AppEnv } from '../config/env';
-import { logger } from '../logger';
+import { APP_ENV } from '@/common/tokens';
+import type { AppEnv } from '@/config/env';
+import { logger } from '@/logger';
 import { WorkerService } from './worker.service';
 
 type GatewayMessage =
@@ -56,7 +61,11 @@ export class WorkerAgentService implements OnApplicationBootstrap, OnApplication
 
     this.ws.on('open', () => {
       this.reconnectDelay = RECONNECT_BASE_MS;
-      this.send({ type: 'register', workerId: this.workerId, concurrency: this.env.worker.concurrency });
+      this.send({
+        type: 'register',
+        workerId: this.workerId,
+        concurrency: this.env.worker.concurrency,
+      });
       this.startHeartbeat();
       logger.info(`[worker-agent] 已连接（worker: ${this.workerId}）`);
     });

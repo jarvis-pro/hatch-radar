@@ -1,5 +1,5 @@
 import { Global, Module } from '@nestjs/common';
-import { RepositoriesModule } from '../db/repositories.module';
+import { RepositoriesModule } from '@/db/repositories.module';
 import { GatewayService } from './gateway.service';
 
 /**

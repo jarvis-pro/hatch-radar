@@ -1,6 +1,6 @@
 import { type ArgumentsHost, Catch, type ExceptionFilter, HttpException } from '@nestjs/common';
 import type { Response } from 'express';
-import { logger } from '../logger';
+import { logger } from '@/logger';
 
 /**
  * 全局异常过滤器：把所有异常统一序列化为 `{ error: <message> }`，保持与裸跑 HTTP 层

@@ -6,7 +6,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { APP_ENV } from './tokens';
-import type { AppEnv } from '../config/env';
+import type { AppEnv } from '@/config/env';
 
 /**
  * Bearer Token 鉴权守卫（局域网信任模式）。

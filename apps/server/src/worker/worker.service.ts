@@ -4,15 +4,15 @@ import {
   type OnApplicationBootstrap,
   type OnApplicationShutdown,
 } from '@nestjs/common';
-import { AnalysisConfigService } from '../analysis/analysis-config.service';
-import { AnalysisService } from '../analysis/analysis.service';
-import { APP_ENV } from '../common/tokens';
-import { nowSec } from '../utils/time';
-import type { AppEnv } from '../config/env';
-import { CommentsRepository } from '../db/comments.repository';
-import { JobsRepository } from '../db/jobs.repository';
-import { PostsRepository } from '../db/posts.repository';
-import { logger } from '../logger';
+import { AnalysisConfigService } from '@/analysis/analysis-config.service';
+import { AnalysisService } from '@/analysis/analysis.service';
+import { APP_ENV } from '@/common/tokens';
+import { nowSec } from '@/utils/time';
+import type { AppEnv } from '@/config/env';
+import { CommentsRepository } from '@/db/comments.repository';
+import { JobsRepository } from '@/db/jobs.repository';
+import { PostsRepository } from '@/db/posts.repository';
+import { logger } from '@/logger';
 
 /** running 期间的 DB 心跳间隔（毫秒），需远小于 env.worker.staleSeconds */
 const HEARTBEAT_INTERVAL_MS = 15_000;
@@ -69,7 +69,9 @@ export class WorkerService implements OnApplicationBootstrap, OnApplicationShutd
     }, RECLAIM_INTERVAL_MS);
 
     const stats = await this.jobs.getJobStats();
-    logger.info(`[worker] 分析执行器已就绪；当前队列 queued ${stats.queued} / running ${stats.running}`);
+    logger.info(
+      `[worker] 分析执行器已就绪；当前队列 queued ${stats.queued} / running ${stats.running}`,
+    );
   }
 
   async onApplicationShutdown(): Promise<void> {

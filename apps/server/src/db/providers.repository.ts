@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { Prisma, toProviderRow, type AppDatabase, type ProviderRow } from '@hatch-radar/db';
-import { decryptSecret, encryptSecret } from '../utils/crypto';
-import { PRISMA } from '../common/tokens';
+import { decryptSecret, encryptSecret } from '@/utils/crypto';
+import { PRISMA } from '@/common/tokens';
 
 /** 支持的模型厂商 */
 export type ProviderKind = ProviderRow['provider'];

@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
 import { LoggerModule } from 'nestjs-pino';
-import { AppConfigModule } from '../config/app-config.module';
-import { DatabaseModule } from '../database/database.module';
-import { logger } from '../logger';
+import { AppConfigModule } from '@/config/app-config.module';
+import { DatabaseModule } from '@/database/database.module';
+import { logger } from '@/logger';
 import { WorkerModule } from './worker.module';
 
 /**

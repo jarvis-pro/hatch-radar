@@ -1,4 +1,9 @@
 {
   "extends": "@hatch-radar/config/tsconfig.nest.json",
+  "compilerOptions": {
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
   "include": ["src", "test"]
 }

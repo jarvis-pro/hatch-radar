@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
-import { APP_ENV } from '../common/tokens';
-import type { AppEnv } from '../config/env';
+import { APP_ENV } from '@/common/tokens';
+import type { AppEnv } from '@/config/env';
 import { HackerNewsClient } from './hackernews';
 import { TokenBucketQueue } from './queue';
 import { RedditClient } from './reddit';
