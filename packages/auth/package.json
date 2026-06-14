@@ -1,0 +1,21 @@
+{
+  "name": "@hatch-radar/auth",
+  "version": "0.1.0",
+  "private": true,
+  "description": "认证 crypto（Node-only）：scrypt 口令哈希、会话 token、Ed25519 设备验签。web 与 server 共用，mobile 不引（仅依赖 node:crypto）。",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@hatch-radar/config": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  }
+}

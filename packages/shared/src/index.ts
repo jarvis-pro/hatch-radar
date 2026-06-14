@@ -7,10 +7,12 @@
  * 3. 人工研判结构（triage.ts，移动端本地与服务端同步落库共用）
  * 4. 导出批次协议类型（export.ts）
  * 5. App ⇄ 工作台同步协议类型（sync.ts）
+ * 6. 账户角色与能力目录（permissions.ts，web/server 授权 + mobile UI 显隐共用）
  *
  * better-sqlite3 等原生模块、AI SDK、抓取逻辑一律不进入本包。
  */
 export * from './schema';
+export * from './permissions';
 export * from './posts';
 export * from './comments';
 export * from './insights';
