@@ -101,8 +101,21 @@ export class SettingsController {
     if (dto.apiKey && !isSecretConfigured()) {
       throw new BadRequestException('未配置 SETTINGS_SECRET，无法加密新密钥');
     }
+    const existing = await this.providers.getProvider(id);
+    if (!existing) throw new NotFoundException('模型配置不存在');
+
     const fields: Partial<ProviderInput> = { ...dto };
     if (dto.baseUrl !== undefined) fields.baseUrl = normalizeBaseUrl(dto.baseUrl);
+
+    // 安全闸：改 baseUrl 必须同时重填 API Key。否则攻击者可只改 baseUrl（不带 key），
+    // 让 test / 分析调用把已入库的明文密钥发往任意地址——局域网默认免鉴权时尤其危险，
+    // 会瓦解「密钥加密入库」的全部意义。重填 key 时旧 key 被覆盖，无可窃取。
+    const nextBaseUrl =
+      dto.baseUrl !== undefined ? (fields.baseUrl ?? null) : (existing.base_url ?? null);
+    if ((existing.base_url ?? null) !== nextBaseUrl && !dto.apiKey) {
+      throw new BadRequestException('修改 baseUrl 时必须同时重新填写 API Key（避免旧密钥被发往新地址）');
+    }
+
     const ok = await this.providers.updateProvider(id, fields, nowSec());
     if (!ok) throw new NotFoundException('模型配置不存在或无字段可更新');
     await this.analysisConfig.reloadAnalysisConfig();

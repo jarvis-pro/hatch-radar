@@ -10,6 +10,7 @@ import { APP_ENV } from './common/tokens';
 import type { AppEnv } from './config/env';
 import { HN_SECTIONS, RSS_FEEDS } from './config/feeds';
 import { SUBREDDITS } from './config/subreddits';
+import { ProvidersRepository } from './db/providers.repository';
 import { StatsRepository } from './db/stats.repository';
 import { logger } from './logger';
 
@@ -43,6 +44,15 @@ async function logStartup(app: NestExpressApplication, env: AppEnv): Promise<voi
   logger.info(
     `当前数据: 帖子 ${stats.posts} / 评论 ${stats.comments} / 待分析 ${stats.pendingAnalysis} / 洞察 ${stats.insights}`,
   );
+
+  // 安全告警：已入库模型密钥但未设 API_TOKEN → 局域网内任何人都能调用写接口
+  // （增删模型 / 触发分析 / 改 baseUrl）。密钥本身已加密入库，但开放的写接口仍是风险面。
+  const providerCount = (await app.get(ProvidersRepository).listProviders()).length;
+  if (providerCount > 0 && !env.http.token) {
+    logger.warn(
+      `[安全] 已配置 ${providerCount} 个模型且未设 API_TOKEN：局域网内写接口（设置/分析）对所有人开放，建议设置 API_TOKEN（见 .env.example）`,
+    );
+  }
 }
 
 async function bootstrap(): Promise<void> {
