@@ -7,6 +7,7 @@ import { Text } from '@/components/ui/text';
 import { importBatch, importSqliteFile, type ImportResult } from '@/db/import';
 import { hapticError, hapticSuccess } from '@/lib/haptics';
 import { pendingSyncCount, pushOutbox } from '@/lib/sync';
+import { isEnrolled } from '@/lib/device-identity';
 import { THEME } from '@/lib/theme';
 import {
   fetchBatch,
@@ -18,7 +19,7 @@ import {
 import type { ExportBatch } from '@hatch-radar/shared';
 import * as DocumentPicker from 'expo-document-picker';
 import { File } from 'expo-file-system';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import {
   CircleAlert,
   CircleCheck,
@@ -26,6 +27,7 @@ import {
   CloudUpload,
   FileInput,
   Radio,
+  ShieldCheck,
 } from 'lucide-react-native';
 import { useColorScheme } from 'nativewind';
 import { useCallback, useState } from 'react';
@@ -48,15 +50,18 @@ function describeResult(r: ImportResult): string {
 export default function SyncScreen() {
   const { colorScheme } = useColorScheme();
   const theme = THEME[colorScheme === 'dark' ? 'dark' : 'light'];
+  const router = useRouter();
   const saved = loadWorkstationConfig();
   const [baseUrl, setBaseUrl] = useState(saved?.baseUrl ?? 'http://192.168.0.95:8787');
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
   const [pending, setPending] = useState(0);
+  const [enrolled, setEnrolled] = useState(false);
 
-  // 进入页面时刷新待同步计数（检测 → 提示，规格 §D）
+  // 进入页面时刷新待同步计数与激活状态（检测 → 提示，规格 §D）
   useFocusEffect(
     useCallback(() => {
       setPending(pendingSyncCount());
+      setEnrolled(isEnrolled());
     }, []),
   );
 
@@ -136,6 +141,30 @@ export default function SyncScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView contentContainerClassName="gap-3 p-4 pb-10" keyboardShouldPersistTaps="handled">
+        <Card className="gap-4 py-4 shadow-none">
+          <CardHeader className="gap-1 px-4">
+            <CardTitle>设备凭据</CardTitle>
+            <CardDescription className="leading-5">
+              {enrolled
+                ? '本机已激活，以你的账户身份同步，权限随账户、可被管理员远程强踢。'
+                : '尚未激活：同步前需向管理员索取一次性激活码激活本机。'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="px-4">
+            <Button
+              variant={enrolled ? 'outline' : 'default'}
+              onPress={() => router.push('/activate')}
+            >
+              <Icon
+                as={ShieldCheck}
+                size={16}
+                className={enrolled ? undefined : 'text-primary-foreground'}
+              />
+              <Text>{enrolled ? '管理设备激活' : '激活设备'}</Text>
+            </Button>
+          </CardContent>
+        </Card>
+
         <Card className="gap-4 py-4 shadow-none">
           <CardHeader className="gap-1 px-4">
             <CardTitle>工作台连接</CardTitle>

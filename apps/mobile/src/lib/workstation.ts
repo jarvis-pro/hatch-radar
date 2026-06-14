@@ -1,5 +1,6 @@
 import type { ExportBatch } from '@hatch-radar/shared';
 import { getMeta, setMeta } from '../db/schema';
+import { buildDeviceHeaders } from './device-identity';
 
 /** 工作台连接配置（保存在本地 meta 表，App 卸载前持久有效） */
 export interface WorkstationConfig {
@@ -42,13 +43,17 @@ export function normalizeBaseUrl(input: string): string {
 async function request<T>(cfg: WorkstationConfig, path: string, init?: RequestInit): Promise<T> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 15_000);
+  // 已激活则带设备签名头（server 优先走设备通道）；未激活回退到旧的共享令牌。
+  const deviceHeaders = buildDeviceHeaders(init?.method ?? 'GET', path);
+  const enrolled = Object.keys(deviceHeaders).length > 0;
   try {
     const res = await fetch(`${cfg.baseUrl}${path}`, {
       ...init,
       signal: controller.signal,
       headers: {
         ...(init?.headers as Record<string, string> | undefined),
-        ...(cfg.token ? { authorization: `Bearer ${cfg.token}` } : undefined),
+        ...deviceHeaders,
+        ...(!enrolled && cfg.token ? { authorization: `Bearer ${cfg.token}` } : undefined),
       },
     });
     if (res.status === 401) throw new Error('鉴权失败：请检查访问令牌（API_TOKEN）');

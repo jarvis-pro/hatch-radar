@@ -39,6 +39,7 @@ function ThemedStack() {
         />
         <Stack.Screen name="insight/[id]" options={{ title: '洞察详情' }} />
         <Stack.Screen name="sync" options={{ title: '工作台同步', presentation: 'modal' }} />
+        <Stack.Screen name="activate" options={{ title: '激活设备', presentation: 'modal' }} />
       </Stack>
     </>
   );
