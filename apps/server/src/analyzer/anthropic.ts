@@ -26,6 +26,7 @@ export function createAnthropicClient(apiKey: string): Anthropic {
  * @param model 使用的模型 ID
  * @param post 目标帖子行
  * @param comments 该帖子的全部评论
+ * @param signal 可选中止信号（job 超时时 abort，立即中断在途请求）
  * @returns 归一化后的分析结果；pain_points / opportunities 可能为空数组
  */
 export async function analyzeWithAnthropic(
@@ -33,17 +34,21 @@ export async function analyzeWithAnthropic(
   model: string,
   post: PostRow,
   comments: CommentRow[],
+  signal?: AbortSignal,
 ): Promise<InsightResult> {
-  const response = await client.messages.create({
-    model,
-    max_tokens: 16000,
-    thinking: { type: 'adaptive' },
-    system: SYSTEM_PROMPT,
-    messages: [{ role: 'user', content: buildUserPrompt(buildContext(post, comments)) }],
-    output_config: {
-      format: { type: 'json_schema', schema: INSIGHT_JSON_SCHEMA },
+  const response = await client.messages.create(
+    {
+      model,
+      max_tokens: 16000,
+      thinking: { type: 'adaptive' },
+      system: SYSTEM_PROMPT,
+      messages: [{ role: 'user', content: buildUserPrompt(buildContext(post, comments)) }],
+      output_config: {
+        format: { type: 'json_schema', schema: INSIGHT_JSON_SCHEMA },
+      },
     },
-  });
+    { signal },
+  );
   const textBlock = response.content.find(
     (block): block is Anthropic.TextBlock => block.type === 'text',
   );

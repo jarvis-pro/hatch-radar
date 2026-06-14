@@ -24,14 +24,16 @@ export class AnalysisService {
   /**
    * 分析单篇帖子并按需落库。
    * - pain_points 与 opportunities 均为空时视为无信号，不落库，saved 为 false
+   * @param signal 可选中止信号（worker 传入 job 超时信号，使慢调用真正停下）
    * @returns saved 是否产出并落库了洞察
    */
   async analyzeAndPersist(
     processor: PostProcessor,
     post: PostRow,
     comments: CommentRow[],
+    signal?: AbortSignal,
   ): Promise<{ saved: boolean }> {
-    const insight = await processor.analyze(post, comments);
+    const insight = await processor.analyze(post, comments, signal);
     if (insight.pain_points.length === 0 && insight.opportunities.length === 0) {
       return { saved: false };
     }

@@ -27,13 +27,17 @@ function sleep(ms: number): Promise<void> {
 }
 
 /**
- * 给 Promise 加超时兜底。竞速失败的一方仍会被 Promise.race 内部消费，不会产生
- * unhandledRejection；但底层调用不会因此被取消（由 provider 自身的超时中止）。
+ * 给 Promise 加超时兜底：超时即 reject，并通过 onTimeout 回调中止底层调用（worker 传入
+ * AbortController.abort），使慢调用真正停下、不空耗连接与 API 额度，而非仅放弃等待。
+ * 竞速失败的一方仍会被 Promise.race 内部消费，不会产生 unhandledRejection。
  */
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+function withTimeout<T>(promise: Promise<T>, ms: number, onTimeout?: () => void): Promise<T> {
   let timer: ReturnType<typeof setTimeout>;
   const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error(`job 处理超时（>${ms}ms）`)), ms);
+    timer = setTimeout(() => {
+      onTimeout?.();
+      reject(new Error(`job 处理超时（>${ms}ms）`));
+    }, ms);
   });
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
@@ -110,10 +114,13 @@ export class WorkerService implements OnApplicationBootstrap, OnApplicationShutd
     const heartbeat = setInterval(() => {
       void this.jobs.touchHeartbeat(job.id, nowSec());
     }, HEARTBEAT_INTERVAL_MS);
+    // 超时控制器：超时回调 abort 之，使底层 AI 调用立即中断（不只是放弃等待）
+    const ac = new AbortController();
     try {
       const { saved } = await withTimeout(
-        this.analysis.analyzeAndPersist(processor, post, comments),
+        this.analysis.analyzeAndPersist(processor, post, comments, ac.signal),
         this.env.worker.jobTimeoutMs,
+        () => ac.abort(new Error('job 超时，中止底层调用')),
       );
       await this.posts.markAnalyzed(post.id, nowSec());
       await this.jobs.succeedJob(job.id, nowSec());
@@ -121,6 +128,9 @@ export class WorkerService implements OnApplicationBootstrap, OnApplicationShutd
         logger.info(`  ✓ [job#${job.id}] r/${post.subreddit}「${post.title.slice(0, 40)}」已落库`);
       }
     } catch (err) {
+      // 两个计数各司其职：post.analyze_attempts 是该帖跨任务的真正重试预算（达
+      // MAX_ANALYZE_ATTEMPTS 后 getPostsToAnalyze 不再返回它）；job 失败即终态、不在原 job 上
+      // 重试，job.attempts/max_attempts 只用于僵死回收时的崩溃循环保护。故失败时两者各推进一格。
       await this.posts.bumpAnalyzeAttempts(post.id);
       const msg = err instanceof Error ? err.message : String(err);
       await this.jobs.failJob(job.id, msg, nowSec());

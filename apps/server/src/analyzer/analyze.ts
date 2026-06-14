@@ -22,8 +22,11 @@ export interface PostProcessor {
   readonly label: string;
   /** 写入洞察记录的模型 ID 快照 */
   readonly model: string;
-  /** 分析单篇帖子，返回结构化结果（失败时抛出，由调用方计入失败并重试） */
-  analyze(post: PostRow, comments: CommentRow[]): Promise<InsightResult>;
+  /**
+   * 分析单篇帖子，返回结构化结果（失败时抛出，由调用方计入失败并重试）。
+   * @param signal 可选中止信号；job 超时时触发，使底层 AI 调用立即 abort，不空耗连接与额度
+   */
+  analyze(post: PostRow, comments: CommentRow[], signal?: AbortSignal): Promise<InsightResult>;
 }
 
 /**
@@ -38,7 +41,8 @@ export function createProcessor(cfg: AnalysisConfig): PostProcessor {
       return {
         label: `Anthropic (${cfg.model})`,
         model: cfg.model,
-        analyze: (post, comments) => analyzeWithAnthropic(client, cfg.model, post, comments),
+        analyze: (post, comments, signal) =>
+          analyzeWithAnthropic(client, cfg.model, post, comments, signal),
       };
     }
     case 'openai':
@@ -47,7 +51,8 @@ export function createProcessor(cfg: AnalysisConfig): PostProcessor {
       return {
         label: `${label} (${cfg.model})`,
         model: cfg.model,
-        analyze: (post, comments) => analyzeWithOpenAICompatible(cfg, post, comments),
+        analyze: (post, comments, signal) =>
+          analyzeWithOpenAICompatible(cfg, post, comments, signal),
       };
     }
   }

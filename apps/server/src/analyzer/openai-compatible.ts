@@ -42,13 +42,19 @@ function sleep(ms: number): Promise<void> {
 async function postChat(
   cfg: OpenAICompatibleConfig,
   body: Record<string, unknown>,
+  outerSignal?: AbortSignal,
 ): Promise<ChatCompletion> {
   const url = `${cfg.baseUrl.replace(/\/+$/, '')}/chat/completions`;
   let lastErr: unknown;
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    outerSignal?.throwIfAborted(); // job 超时后不再重试，立即冒泡
     if (attempt > 0) await sleep(2 ** attempt * 500);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    // 单次请求超时控制器与外部中止信号（job 超时）合并：任一触发即 abort 本次请求
+    const signal = outerSignal
+      ? AbortSignal.any([controller.signal, outerSignal])
+      : controller.signal;
     let res: Response;
     try {
       res = await fetch(url, {
@@ -58,10 +64,11 @@ async function postChat(
           authorization: `Bearer ${cfg.apiKey}`,
         },
         body: JSON.stringify(body),
-        signal: controller.signal,
+        signal,
       });
     } catch (err) {
       lastErr = err; // 网络层错误或超时中止，重试
+      if (outerSignal?.aborted) throw err; // 外部中止（job 超时）：不再重试，直接冒泡
       continue;
     } finally {
       clearTimeout(timer);
@@ -96,12 +103,14 @@ function parseLooseJson(text: string): unknown {
  * @param cfg OpenAI 兼容接口配置
  * @param post 目标帖子行
  * @param comments 该帖子的全部评论
+ * @param signal 可选中止信号（job 超时时 abort，立即中断在途请求且不再重试）
  * @returns 归一化后的分析结果；pain_points / opportunities 可能为空数组
  */
 export async function analyzeWithOpenAICompatible(
   cfg: OpenAICompatibleConfig,
   post: PostRow,
   comments: CommentRow[],
+  signal?: AbortSignal,
 ): Promise<InsightResult> {
   const useJsonSchema = cfg.provider === 'openai';
   const body: Record<string, unknown> = {
@@ -122,7 +131,7 @@ export async function analyzeWithOpenAICompatible(
         }
       : { type: 'json_object' },
   };
-  const data = await postChat(cfg, body);
+  const data = await postChat(cfg, body, signal);
   const content = data.choices?.[0]?.message?.content;
   if (!content) {
     throw new Error(`${cfg.provider} 未返回内容`);
