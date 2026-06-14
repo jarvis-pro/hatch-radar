@@ -124,36 +124,50 @@ export class SchedulerService implements OnApplicationBootstrap {
       if (this.reddit && this.subreddits.length > 0) {
         for (const subreddit of this.subreddits) {
           for (const sort of ['hot', 'new'] as const) {
-            const posts = await this.reddit.fetchListing(subreddit, sort, 25);
-            const { added, updated, newPosts } = await this.postsRepo.upsertPosts(
-              posts,
-              'reddit',
-              nowSec(),
-            );
-            for (const p of newPosts) {
-              fresh.push({ id: p.id, source: 'reddit', subreddit: p.subreddit });
+            // 单个版块失败（如被封 / 改名 / 私有触发 403/404）只跳过该项，不中断整轮扫描
+            try {
+              const posts = await this.reddit.fetchListing(subreddit, sort, 25);
+              const { added, updated, newPosts } = await this.postsRepo.upsertPosts(
+                posts,
+                'reddit',
+                nowSec(),
+              );
+              for (const p of newPosts) {
+                fresh.push({ id: p.id, source: 'reddit', subreddit: p.subreddit });
+              }
+              logger.info(
+                `[扫描] r/${subreddit}/${sort}: 抓取 ${posts.length}，新增 ${added}，更新 ${updated}`,
+              );
+            } catch (err) {
+              logger.warn(
+                `[扫描] r/${subreddit}/${sort} 失败: ${err instanceof Error ? err.message : String(err)}`,
+              );
             }
-            logger.info(
-              `[扫描] r/${subreddit}/${sort}: 抓取 ${posts.length}，新增 ${added}，更新 ${updated}`,
-            );
           }
         }
       }
 
       if (this.hackernews) {
         for (const section of HN_SECTIONS) {
-          const posts = await this.hackernews.fetchStories(section.endpoint, section.channel, 30);
-          const { added, updated, newPosts } = await this.postsRepo.upsertPosts(
-            posts,
-            'hackernews',
-            nowSec(),
-          );
-          for (const p of newPosts) {
-            fresh.push({ id: p.id, source: 'hackernews', subreddit: p.subreddit });
+          // 单个分区失败只跳过该分区，不影响其余分区与后续 RSS 抓取
+          try {
+            const posts = await this.hackernews.fetchStories(section.endpoint, section.channel, 30);
+            const { added, updated, newPosts } = await this.postsRepo.upsertPosts(
+              posts,
+              'hackernews',
+              nowSec(),
+            );
+            for (const p of newPosts) {
+              fresh.push({ id: p.id, source: 'hackernews', subreddit: p.subreddit });
+            }
+            logger.info(
+              `[扫描] HN/${section.channel}: 抓取 ${posts.length}，新增 ${added}，更新 ${updated}`,
+            );
+          } catch (err) {
+            logger.warn(
+              `[扫描] HN/${section.channel} 失败: ${err instanceof Error ? err.message : String(err)}`,
+            );
           }
-          logger.info(
-            `[扫描] HN/${section.channel}: 抓取 ${posts.length}，新增 ${added}，更新 ${updated}`,
-          );
         }
       }
 
