@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.104.1",
+    "@hatch-radar/auth": "workspace:*",
     "@hatch-radar/config": "workspace:*",
     "@hatch-radar/db": "workspace:*",
     "@hatch-radar/shared": "workspace:*",

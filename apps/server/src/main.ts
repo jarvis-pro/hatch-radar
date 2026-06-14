@@ -85,6 +85,13 @@ async function bootstrap(): Promise<void> {
   app.enableShutdownHooks();
 
   const env = app.get<AppEnv>(APP_ENV);
+  // 机器平面收紧：服务绑定 0.0.0.0（局域网/外部可达），生产环境必须设 API_TOKEN，
+  // 否则导出/同步/设置等接口在无设备签名时对任何可达者开放——启动即拒，逼显式配置。
+  if (process.env.NODE_ENV === 'production' && !env.http.token) {
+    throw new Error(
+      '[安全] 生产环境必须设置 API_TOKEN：服务绑定 0.0.0.0，未设令牌则局域网/外部可裸调 web 代理通道接口',
+    );
+  }
   // 绑定 0.0.0.0 供局域网内的移动端访问
   await app.listen(env.http.port, '0.0.0.0');
 
