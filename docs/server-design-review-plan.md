@@ -137,11 +137,11 @@
 - [x] 3.1 单实例约束文档化（README + SchedulerService 类注释 + .env.example）
 - [ ] 3.2 错误返回风格统一（**待定**：test/run 的 200/400+{ok,error} 改抛异常会牵动 web /analyze 调用方，需 web 侧协同）
 - [x] 3.3 两条分析路径：保留 CLI 内联 runBatch（离线用），doc + 运行日志标注「绕过队列、勿与 worker 并发」
-- [ ] 3.4 日志风格统一（**待定**：3 处 NestJS Logger vs 全局 pino logger，方向可选；输出已统一、功能价值低）
+- [x] 3.4 日志收敛到全局 pino logger（3 处 NestJS Logger → 带 [tag] 前缀的全局 logger）
 - [x] 4.1 死代码 / schema 注释（export_locked_at 标「预留」；canceled 标「预留态」）
 - [x] 4.2 buildContext 归位（crawler→analyzer，git mv + 改 2 处 import）
-- [ ] 4.3 配置集中化补漏（可选）
-- [ ] 4.4 Worker 参数可配（可选）
-- [ ] 4.5 测试补全（可选；已随 1.1/2.1/2.3 补了 3 个用例）
+- [x] 4.3 配置旁路集中说明（env.ts 注释枚举 WORKER_IN_PROCESS/SETTINGS_SECRET/LOG_DIR/databaseUrl 为何不走 AppEnv）
+- [x] 4.4 Worker 参数 env 可配（WORKER_CONCURRENCY/JOB_TIMEOUT_MS/STALE_SECONDS，纳入 AppEnv）
+- [x] 4.5 测试补全（+crypto +normalizeInsight；累计 23 个用例）
 
 > 约定：每条改动后跑对应预检查（`typecheck` / 涉及 DB 的跑 `test`）；按主题分组提交（Conventional Commits，中文）。
