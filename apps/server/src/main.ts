@@ -30,19 +30,29 @@ async function logStartup(app: NestExpressApplication, env: AppEnv): Promise<voi
   logger.info('hatch-radar 启动（NestJS + PostgreSQL）');
 
   const sources: string[] = [];
-  if (env.reddit) sources.push(`Reddit (${SUBREDDITS.map((s) => `r/${s}`).join(', ')})`);
+  if (env.reddit) {
+    sources.push(`Reddit (${SUBREDDITS.map((s) => `r/${s}`).join(', ')})`);
+  }
   sources.push(`HackerNews (${HN_SECTIONS.map((s) => s.channel).join(', ')})`);
   sources.push(`RSS (${RSS_FEEDS.map((f) => f.name).join(', ')})`);
-  logger.info(`监控来源 (${sources.length}):`);
-  for (const src of sources) logger.info(`  · ${src}`);
+  logger.info('监控来源 (%d):', sources.length);
+  for (const src of sources) {
+    logger.info('  · %s', src);
+  }
 
   const active = await app.get(AnalysisConfigService).getActiveProvider();
   logger.info(
-    `分析模型: ${active ? active.label : '未配置（在设置页选用后即自动分析）'} | 每轮分析上限: ${env.analyzeBatchSize}`,
+    '分析模型: %s | 每轮分析上限: %d',
+    active ? active.label : '未配置（在设置页选用后即自动分析）',
+    env.analyzeBatchSize,
   );
   const stats = await app.get(StatsRepository).getStats();
   logger.info(
-    `当前数据: 帖子 ${stats.posts} / 评论 ${stats.comments} / 待分析 ${stats.pendingAnalysis} / 洞察 ${stats.insights}`,
+    '当前数据: 帖子 %d / 评论 %d / 待分析 %d / 洞察 %d',
+    stats.posts,
+    stats.comments,
+    stats.pendingAnalysis,
+    stats.insights,
   );
 
   // 安全告警：已入库模型密钥但未设 API_TOKEN → 局域网内任何人都能调用写接口
@@ -50,7 +60,8 @@ async function logStartup(app: NestExpressApplication, env: AppEnv): Promise<voi
   const providerCount = (await app.get(ProvidersRepository).listProviders()).length;
   if (providerCount > 0 && !env.http.token) {
     logger.warn(
-      `[安全] 已配置 ${providerCount} 个模型且未设 API_TOKEN：局域网内写接口（设置/分析）对所有人开放，建议设置 API_TOKEN（见 .env.example）`,
+      '[安全] 已配置 %d 个模型且未设 API_TOKEN：局域网内写接口（设置/分析）对所有人开放，建议设置 API_TOKEN（见 .env.example）',
+      providerCount,
     );
   }
 }
@@ -73,9 +84,13 @@ async function bootstrap(): Promise<void> {
 
   await logStartup(app, env);
   logger.info(
-    `导出/同步服务已启动（端口 ${env.http.port}${env.http.token ? '，已启用 Token 鉴权' : ''}）`,
+    '导出/同步服务已启动（端口 %d%s）',
+    env.http.port,
+    env.http.token ? '，已启用 Token 鉴权' : '',
   );
-  for (const ip of lanAddresses()) logger.info(`  · 局域网地址: http://${ip}:${env.http.port}`);
+  for (const ip of lanAddresses()) {
+    logger.info('  · 局域网地址: http://%s:%d', ip, env.http.port);
+  }
 }
 
 bootstrap().catch((err: unknown) => {
