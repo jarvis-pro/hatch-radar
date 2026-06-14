@@ -273,6 +273,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@hatch-radar/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
       '@hatch-radar/config':
         specifier: workspace:*
         version: link:../../packages/config
@@ -319,6 +322,21 @@ importers:
       '@types/react-dom':
         specifier: 'catalog:'
         version: 19.2.3(@types/react@19.2.17)
+      tsx:
+        specifier: ^4.20.6
+        version: 4.22.4
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+
+  packages/auth:
+    devDependencies:
+      '@hatch-radar/config':
+        specifier: workspace:*
+        version: link:../config
+      '@types/node':
+        specifier: 'catalog:'
+        version: 25.9.2
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
@@ -9317,7 +9335,9 @@ snapshots:
       metro-runtime: 0.84.4
     transitivePeerDependencies:
       - '@babel/core'
+      - bufferutil
       - supports-color
+      - utf-8-validate
 
   '@react-native/normalize-colors@0.85.3': {}
 
@@ -10680,7 +10700,6 @@ snapshots:
       '@esbuild/win32-arm64': 0.28.0
       '@esbuild/win32-ia32': 0.28.0
       '@esbuild/win32-x64': 0.28.0
-    optional: true
 
   escalade@3.2.0: {}
 
@@ -13193,7 +13212,6 @@ snapshots:
       esbuild: 0.28.0
     optionalDependencies:
       fsevents: 2.3.3
-    optional: true
 
   tunnel-agent@0.6.0:
     dependencies:

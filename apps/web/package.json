@@ -7,9 +7,11 @@
     "dev": "next dev -p 47080",
     "build": "next build",
     "start": "next start -p 47080",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "seed:admin": "tsx scripts/seed-admin.ts"
   },
   "dependencies": {
+    "@hatch-radar/auth": "workspace:*",
     "@hatch-radar/config": "workspace:*",
     "@hatch-radar/db": "workspace:*",
     "@hatch-radar/shared": "workspace:*",
@@ -27,6 +29,7 @@
     "@types/pg": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
+    "tsx": "^4.20.6",
     "typescript": "catalog:"
   }
 }

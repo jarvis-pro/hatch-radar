@@ -12,6 +12,8 @@ const nextConfig: NextConfig = {
     '@hatch-radar/shared',
     '@hatch-radar/db',
     '@hatch-radar/ui',
+    // 认证 crypto（Node-only，仅服务端 RSC / action / route / middleware 使用，勿进客户端组件）
+    '@hatch-radar/auth',
   ],
   // pg 是服务端数据库驱动：保持 external，仅存在于服务端运行时，绝不进客户端 bundle
   serverExternalPackages: ['pg'],

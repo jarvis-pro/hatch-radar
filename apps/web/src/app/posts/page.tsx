@@ -14,6 +14,8 @@ import { Pagination } from '@/components/pagination';
 import { tryGetDb } from '@/lib/db';
 import { channelLabel, parsePage, sourceLabel, timeAgo } from '@/lib/format';
 import { listPosts, postFilterOptions } from '@/lib/queries';
+import { requirePermission } from '@/lib/auth/guards';
+import { Forbidden } from '@/components/forbidden';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,6 +36,8 @@ interface SearchParams {
 }
 
 export default async function PostsPage(props: { searchParams: Promise<SearchParams> }) {
+  const { allowed } = await requirePermission('posts:view');
+  if (!allowed) return <Forbidden />;
   const sp = await props.searchParams;
   const db = await tryGetDb();
   if (!db) return <DbSetupNotice />;

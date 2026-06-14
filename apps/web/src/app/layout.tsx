@@ -7,13 +7,21 @@ import '@hatch-radar/ui/globals.css';
 import { ModeToggle } from '@hatch-radar/ui/components/mode-toggle';
 import { ThemeProvider } from '@hatch-radar/ui/components/theme-provider';
 import { SiteNav } from '@/components/site-nav';
+import { UserMenu } from '@/components/user-menu';
+import { getCurrentUser } from '@/lib/auth/current-user';
+import type { PublicUser } from '@/lib/auth/types';
 
 export const metadata: Metadata = {
   title: { default: 'Hatch Radar 控制台', template: '%s · Hatch Radar' },
   description: '社区痛点与产品机会雷达 —— 只读控制台',
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  // 顶栏据登录态渲染：未登录（仅 /login 可达）只显示 Logo + 主题切换
+  const user = await getCurrentUser();
+  const publicUser: PublicUser | null = user
+    ? { name: user.name, email: user.email, role: user.role, permissions: user.permissions }
+    : null;
   return (
     // suppressHydrationWarning：next-themes 在水合前给 <html> 注入 class，避免不匹配告警
     <html lang="zh-CN" suppressHydrationWarning>
@@ -31,8 +39,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                 Hatch Radar
               </Link>
               <div className="flex items-center gap-1">
-                <SiteNav />
+                {publicUser ? <SiteNav user={publicUser} /> : null}
                 <ModeToggle />
+                {publicUser ? <UserMenu user={publicUser} /> : null}
               </div>
             </div>
           </header>

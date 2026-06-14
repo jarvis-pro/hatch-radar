@@ -7,6 +7,8 @@ import { Pagination } from '@/components/pagination';
 import { tryGetDb } from '@/lib/db';
 import { INTENSITY_LABELS, parseIntensity, parsePage, sourceLabel } from '@/lib/format';
 import { getStats, insightFilterOptions, listInsights } from '@/lib/queries';
+import { requirePermission } from '@/lib/auth/guards';
+import { Forbidden } from '@/components/forbidden';
 
 // 每次请求都读最新数据；构建机上没有数据库，禁止任何预渲染
 export const dynamic = 'force-dynamic';
@@ -26,6 +28,8 @@ interface SearchParams {
 }
 
 export default async function InsightsPage(props: { searchParams: Promise<SearchParams> }) {
+  const { allowed } = await requirePermission('insights:view');
+  if (!allowed) return <Forbidden />;
   const sp = await props.searchParams;
   const db = await tryGetDb();
   if (!db) return <DbSetupNotice />;

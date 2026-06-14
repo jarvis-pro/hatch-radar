@@ -42,3 +42,11 @@ export async function tryGetDb(): Promise<AppDatabase | null> {
     return null;
   }
 }
+
+/**
+ * 取读写 PG 句柄（鉴权 / 账户与设备写操作用，不做连通性预检）。
+ * 连接不可用时其后续查询会抛，由调用方（登录/会话解析等）按需兜底。
+ */
+export function getDb(): AppDatabase {
+  return handle().db;
+}

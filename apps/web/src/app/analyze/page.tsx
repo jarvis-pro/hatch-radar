@@ -9,6 +9,8 @@ import { tryGetDb } from '@/lib/db';
 import { channelLabel, parsePage } from '@/lib/format';
 import { listAwaitingManualResult } from '@/lib/queries';
 import { serverApiFetch } from '@/lib/server-api';
+import { requirePermission } from '@/lib/auth/guards';
+import { Forbidden } from '@/components/forbidden';
 
 export const dynamic = 'force-dynamic';
 
@@ -49,6 +51,8 @@ async function loadProviders(): Promise<{
 }
 
 export default async function AnalyzePage(props: { searchParams: Promise<SearchParams> }) {
+  const { allowed } = await requirePermission('analyze:run');
+  if (!allowed) return <Forbidden />;
   const sp = await props.searchParams;
   const db = await tryGetDb();
   if (!db) return <DbSetupNotice />;

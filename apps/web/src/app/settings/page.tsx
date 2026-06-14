@@ -1,5 +1,7 @@
 import { SettingsManager, type SettingsData } from '@/components/settings-manager';
 import { serverApiFetch } from '@/lib/server-api';
+import { requirePermission } from '@/lib/auth/guards';
+import { Forbidden } from '@/components/forbidden';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,6 +12,8 @@ export const metadata = { title: '模型设置' };
  * 密钥读写一律走 server（web 不直读密钥），故此处不用 lib/db 直读。
  */
 export default async function SettingsPage() {
+  const { allowed } = await requirePermission('settings:manage');
+  if (!allowed) return <Forbidden />;
   let initial: SettingsData | null = null;
   let loadError: string | null = null;
   try {
