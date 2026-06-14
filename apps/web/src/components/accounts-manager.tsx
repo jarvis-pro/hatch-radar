@@ -59,7 +59,9 @@ import {
   type ActionResult,
 } from '@/lib/admin/actions';
 import type { AdminUserRow } from '@/lib/admin/queries';
+import type { DeviceRow, EnrollmentRow } from '@/lib/admin/device-queries';
 import type { FormState } from '@/lib/auth/types';
+import { DeviceManager } from './device-manager';
 import { PermissionEditor } from './permission-editor';
 import { timeAgo } from '@/lib/format';
 
@@ -91,8 +93,19 @@ const CONFIRM_TEXT: Record<ConfirmKind, { title: string; desc: string; action: s
 };
 
 /** 账户管理：列表 + 新建/编辑 Sheet + 启停/重置/删除（护栏在服务端，UI 同步置灰）。 */
-export function AccountsManager({ users, actor }: { users: AdminUserRow[]; actor: Actor }) {
+export function AccountsManager({
+  users,
+  actor,
+  devicesByUser,
+  enrollmentsByUser,
+}: {
+  users: AdminUserRow[];
+  actor: Actor;
+  devicesByUser: Record<string, DeviceRow[]>;
+  enrollmentsByUser: Record<string, EnrollmentRow[]>;
+}) {
   const [sheet, setSheet] = useState<AdminUserRow | 'new' | null>(null);
+  const [deviceSheet, setDeviceSheet] = useState<AdminUserRow | null>(null);
   const [confirm, setConfirm] = useState<{ kind: ConfirmKind; user: AdminUserRow } | null>(null);
   const [resetResult, setResetResult] = useState<{ email: string; tempPassword: string } | null>(
     null,
@@ -191,6 +204,7 @@ export function AccountsManager({ users, actor }: { users: AdminUserRow[]; actor
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem onClick={() => setSheet(u)}>编辑</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setDeviceSheet(u)}>管理设备</DropdownMenuItem>
                     <DropdownMenuItem onClick={() => setConfirm({ kind: 'reset', user: u })}>
                       重置密码
                     </DropdownMenuItem>
@@ -282,6 +296,24 @@ export function AccountsManager({ users, actor }: { users: AdminUserRow[]; actor
           </div>
         </DialogContent>
       </Dialog>
+
+      <Sheet open={deviceSheet !== null} onOpenChange={(o) => !o && setDeviceSheet(null)}>
+        <SheetContent className="overflow-y-auto sm:max-w-md">
+          <SheetHeader>
+            <SheetTitle>设备管理 · {deviceSheet?.name}</SheetTitle>
+            <SheetDescription>赋予设备、查看与强踢（凭据吊销即时生效）。</SheetDescription>
+          </SheetHeader>
+          {deviceSheet ? (
+            <div className="px-4 pb-4">
+              <DeviceManager
+                userId={deviceSheet.id}
+                devices={devicesByUser[deviceSheet.id] ?? []}
+                enrollments={enrollmentsByUser[deviceSheet.id] ?? []}
+              />
+            </div>
+          ) : null}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
