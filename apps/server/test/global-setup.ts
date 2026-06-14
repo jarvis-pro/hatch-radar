@@ -10,9 +10,8 @@ import { TEST_DATABASE_URL } from './helpers';
  * 用例间的数据隔离由各 spec 的 beforeEach truncateAll 负责，无需每轮重置 schema。
  */
 export default function setup(): void {
-  execFileSync(
-    'pnpm',
-    ['--filter', '@hatch-radar/db', 'exec', 'prisma', 'migrate', 'deploy'],
-    { stdio: 'inherit', env: { ...process.env, DATABASE_URL: TEST_DATABASE_URL } },
-  );
+  execFileSync('pnpm', ['--filter', '@hatch-radar/db', 'exec', 'prisma', 'migrate', 'deploy'], {
+    stdio: 'inherit',
+    env: { ...process.env, DATABASE_URL: TEST_DATABASE_URL },
+  });
 }

@@ -38,135 +38,135 @@ function stripEmptyEnv(raw: unknown): unknown {
 const envSchema = z.preprocess(
   stripEmptyEnv,
   z
-  .object({
-    // ── Reddit OAuth（五个字段全填或全不填）──────────────────────────
+    .object({
+      // ── Reddit OAuth（五个字段全填或全不填）──────────────────────────
 
-    /** Reddit 应用 Client ID，在 reddit.com/prefs/apps 创建 */
-    REDDIT_CLIENT_ID: z.string().trim().min(1).optional(),
-    /** Reddit 应用 Client Secret */
-    REDDIT_CLIENT_SECRET: z.string().trim().min(1).optional(),
-    /** 用于 OAuth 授权的 Reddit 账号用户名 */
-    REDDIT_USERNAME: z.string().trim().min(1).optional(),
-    /** 对应账号的密码 */
-    REDDIT_PASSWORD: z.string().trim().min(1).optional(),
-    /** HTTP User-Agent，格式建议 `<platform>:<appid>:<version> (by u/<user>)` */
-    REDDIT_USER_AGENT: z.string().trim().min(1).optional(),
+      /** Reddit 应用 Client ID，在 reddit.com/prefs/apps 创建 */
+      REDDIT_CLIENT_ID: z.string().trim().min(1).optional(),
+      /** Reddit 应用 Client Secret */
+      REDDIT_CLIENT_SECRET: z.string().trim().min(1).optional(),
+      /** 用于 OAuth 授权的 Reddit 账号用户名 */
+      REDDIT_USERNAME: z.string().trim().min(1).optional(),
+      /** 对应账号的密码 */
+      REDDIT_PASSWORD: z.string().trim().min(1).optional(),
+      /** HTTP User-Agent，格式建议 `<platform>:<appid>:<version> (by u/<user>)` */
+      REDDIT_USER_AGENT: z.string().trim().min(1).optional(),
 
-    // ── AI 分析方式 ───────────────────────────────────────────────────
-    // 模型配置以「设置页入库」为权威来源；此处 env 仅作启动兜底：设了 AI_PROVIDER +
-    // 对应 KEY，启动时会一次性迁移入库并设为 active。不设则不从 env 派生模型。
+      // ── AI 分析方式 ───────────────────────────────────────────────────
+      // 模型配置以「设置页入库」为权威来源；此处 env 仅作启动兜底：设了 AI_PROVIDER +
+      // 对应 KEY，启动时会一次性迁移入库并设为 active。不设则不从 env 派生模型。
 
-    /** 启动兜底用的分析方式（可选）；设置页配置后以库为准 */
-    AI_PROVIDER: z.enum(['anthropic', 'openai', 'deepseek']).optional(),
+      /** 启动兜底用的分析方式（可选）；设置页配置后以库为准 */
+      AI_PROVIDER: z.enum(['anthropic', 'openai', 'deepseek']).optional(),
 
-    /** Anthropic API 密钥，可选；填写后可启用 Anthropic 分析 */
-    ANTHROPIC_API_KEY: z.string().trim().min(1).optional(),
-    /** 使用的 Anthropic 模型 ID，默认 claude-opus-4-8 */
-    ANTHROPIC_MODEL: z.string().trim().default('claude-opus-4-8'),
+      /** Anthropic API 密钥，可选；填写后可启用 Anthropic 分析 */
+      ANTHROPIC_API_KEY: z.string().trim().min(1).optional(),
+      /** 使用的 Anthropic 模型 ID，默认 claude-opus-4-8 */
+      ANTHROPIC_MODEL: z.string().trim().default('claude-opus-4-8'),
 
-    /** OpenAI API 密钥，可选；填写后可启用 OpenAI（ChatGPT）分析 */
-    OPENAI_API_KEY: z.string().trim().min(1).optional(),
-    /** 使用的 OpenAI 模型 ID，默认 gpt-4o（支持 json_schema strict 结构化输出） */
-    OPENAI_MODEL: z.string().trim().default('gpt-4o'),
-    /** OpenAI API 基地址，默认 https://api.openai.com/v1 */
-    OPENAI_BASE_URL: z.string().trim().default('https://api.openai.com/v1'),
+      /** OpenAI API 密钥，可选；填写后可启用 OpenAI（ChatGPT）分析 */
+      OPENAI_API_KEY: z.string().trim().min(1).optional(),
+      /** 使用的 OpenAI 模型 ID，默认 gpt-4o（支持 json_schema strict 结构化输出） */
+      OPENAI_MODEL: z.string().trim().default('gpt-4o'),
+      /** OpenAI API 基地址，默认 https://api.openai.com/v1 */
+      OPENAI_BASE_URL: z.string().trim().default('https://api.openai.com/v1'),
 
-    /** DeepSeek API 密钥，可选；填写后可启用 DeepSeek 分析 */
-    DEEPSEEK_API_KEY: z.string().trim().min(1).optional(),
-    /** 使用的 DeepSeek 模型 ID，默认 deepseek-chat */
-    DEEPSEEK_MODEL: z.string().trim().default('deepseek-chat'),
-    /** DeepSeek API 基地址，默认 https://api.deepseek.com */
-    DEEPSEEK_BASE_URL: z.string().trim().default('https://api.deepseek.com'),
+      /** DeepSeek API 密钥，可选；填写后可启用 DeepSeek 分析 */
+      DEEPSEEK_API_KEY: z.string().trim().min(1).optional(),
+      /** 使用的 DeepSeek 模型 ID，默认 deepseek-chat */
+      DEEPSEEK_MODEL: z.string().trim().default('deepseek-chat'),
+      /** DeepSeek API 基地址，默认 https://api.deepseek.com */
+      DEEPSEEK_BASE_URL: z.string().trim().default('https://api.deepseek.com'),
 
-    /** 每轮 AI 分析的帖子批次上限，默认 20，最小 1 */
-    ANALYZE_BATCH_SIZE: z.coerce.number().int().min(1).default(20),
+      /** 每轮 AI 分析的帖子批次上限，默认 20，最小 1 */
+      ANALYZE_BATCH_SIZE: z.coerce.number().int().min(1).default(20),
 
-    /** 分析 worker 并发数，默认 2，最小 1（扩容时调大；独立 worker 进程同样读此值） */
-    WORKER_CONCURRENCY: z.coerce.number().int().min(1).default(2),
-    /** 单个分析 job 的硬超时（毫秒），默认 600000，最小 1000 */
-    WORKER_JOB_TIMEOUT_MS: z.coerce.number().int().min(1000).default(600_000),
-    /** running 心跳超时回收阈值（秒），默认 300，最小 30（须大于内部心跳间隔 15s） */
-    WORKER_STALE_SECONDS: z.coerce.number().int().min(30).default(300),
+      /** 分析 worker 并发数，默认 2，最小 1（扩容时调大；独立 worker 进程同样读此值） */
+      WORKER_CONCURRENCY: z.coerce.number().int().min(1).default(2),
+      /** 单个分析 job 的硬超时（毫秒），默认 600000，最小 1000 */
+      WORKER_JOB_TIMEOUT_MS: z.coerce.number().int().min(1000).default(600_000),
+      /** running 心跳超时回收阈值（秒），默认 300，最小 30（须大于内部心跳间隔 15s） */
+      WORKER_STALE_SECONDS: z.coerce.number().int().min(30).default(300),
 
-    /** 模型密钥加密入库的主密钥；在设置页配置模型须先设置它（建议 openssl rand -hex 32） */
-    SETTINGS_SECRET: z.string().trim().min(1).optional(),
+      /** 模型密钥加密入库的主密钥；在设置页配置模型须先设置它（建议 openssl rand -hex 32） */
+      SETTINGS_SECRET: z.string().trim().min(1).optional(),
 
-    // ── 存储 ─────────────────────────────────────────────────────────
+      // ── 存储 ─────────────────────────────────────────────────────────
 
-    /** PostgreSQL 连接串，默认指向本地 docker-compose 的 PG */
-    DATABASE_URL: z.string().trim().default(DEFAULT_DATABASE_URL),
-    /** PG 连接池上限；默认 max(10, WORKER_CONCURRENCY+5)，扩 worker 并发时随之放大，避免连接饥饿 */
-    DATABASE_POOL_MAX: z.coerce.number().int().min(1).optional(),
+      /** PostgreSQL 连接串，默认指向本地 docker-compose 的 PG */
+      DATABASE_URL: z.string().trim().default(DEFAULT_DATABASE_URL),
+      /** PG 连接池上限；默认 max(10, WORKER_CONCURRENCY+5)，扩 worker 并发时随之放大，避免连接饥饿 */
+      DATABASE_POOL_MAX: z.coerce.number().int().min(1).optional(),
 
-    // ── 导出服务（局域网 HTTP，供移动端拉取批次）──────────────────────
+      // ── 导出服务（局域网 HTTP，供移动端拉取批次）──────────────────────
 
-    /** 导出 HTTP 服务监听端口，默认 47878（DEFAULT_HTTP_PORT）；绑定 0.0.0.0 */
-    HTTP_PORT: z.coerce.number().int().min(1).max(65535).default(DEFAULT_HTTP_PORT),
-    /** 可选访问令牌；设置后导出接口要求 Authorization: Bearer <token> */
-    API_TOKEN: z.string().trim().min(1).optional(),
+      /** 导出 HTTP 服务监听端口，默认 47878（DEFAULT_HTTP_PORT）；绑定 0.0.0.0 */
+      HTTP_PORT: z.coerce.number().int().min(1).max(65535).default(DEFAULT_HTTP_PORT),
+      /** 可选访问令牌；设置后导出接口要求 Authorization: Bearer <token> */
+      API_TOKEN: z.string().trim().min(1).optional(),
 
-    /** worker 进程连接 gateway 的 WebSocket 地址；不设则自动推导为 ws://localhost:<HTTP_PORT>/ws/worker */
-    GATEWAY_URL: z.string().trim().optional(),
-  })
-  .superRefine((data, ctx) => {
-    // CLIENT_ID + CLIENT_SECRET 存在即视为启用 Reddit，其余 3 个字段变为必填
-    if (data.REDDIT_CLIENT_ID && data.REDDIT_CLIENT_SECRET) {
-      for (const key of ['REDDIT_USERNAME', 'REDDIT_PASSWORD', 'REDDIT_USER_AGENT'] as const) {
-        if (!data[key]) {
-          ctx.addIssue({
-            code: 'custom',
-            message: 'Reddit 凭据不完整，该字段必填',
-            path: [key],
-          });
+      /** worker 进程连接 gateway 的 WebSocket 地址；不设则自动推导为 ws://localhost:<HTTP_PORT>/ws/worker */
+      GATEWAY_URL: z.string().trim().optional(),
+    })
+    .superRefine((data, ctx) => {
+      // CLIENT_ID + CLIENT_SECRET 存在即视为启用 Reddit，其余 3 个字段变为必填
+      if (data.REDDIT_CLIENT_ID && data.REDDIT_CLIENT_SECRET) {
+        for (const key of ['REDDIT_USERNAME', 'REDDIT_PASSWORD', 'REDDIT_USER_AGENT'] as const) {
+          if (!data[key]) {
+            ctx.addIssue({
+              code: 'custom',
+              message: 'Reddit 凭据不完整，该字段必填',
+              path: [key],
+            });
+          }
         }
       }
-    }
-    // 显式指定的分析方式必须有对应的 API Key
-    if (data.AI_PROVIDER === 'anthropic' && !data.ANTHROPIC_API_KEY) {
-      ctx.addIssue({
-        code: 'custom',
-        message: 'AI_PROVIDER=anthropic 时必填',
-        path: ['ANTHROPIC_API_KEY'],
-      });
-    }
-    if (data.AI_PROVIDER === 'openai' && !data.OPENAI_API_KEY) {
-      ctx.addIssue({
-        code: 'custom',
-        message: 'AI_PROVIDER=openai 时必填',
-        path: ['OPENAI_API_KEY'],
-      });
-    }
-    if (data.AI_PROVIDER === 'deepseek' && !data.DEEPSEEK_API_KEY) {
-      ctx.addIssue({
-        code: 'custom',
-        message: 'AI_PROVIDER=deepseek 时必填',
-        path: ['DEEPSEEK_API_KEY'],
-      });
-    }
-  })
-  .transform((env) => ({
-    reddit:
-      env.REDDIT_CLIENT_ID && env.REDDIT_CLIENT_SECRET
-        ? ({
-            clientId: env.REDDIT_CLIENT_ID,
-            clientSecret: env.REDDIT_CLIENT_SECRET,
-            username: env.REDDIT_USERNAME!,
-            password: env.REDDIT_PASSWORD!,
-            userAgent: env.REDDIT_USER_AGENT!,
-          } satisfies RedditConfig)
-        : undefined,
-    analysis: resolveAnalysis(env),
-    analyzeBatchSize: env.ANALYZE_BATCH_SIZE,
-    databaseUrl: env.DATABASE_URL,
-    databasePoolMax: env.DATABASE_POOL_MAX ?? Math.max(10, env.WORKER_CONCURRENCY + 5),
-    http: { port: env.HTTP_PORT, token: env.API_TOKEN } satisfies HttpConfig,
-    gatewayUrl: env.GATEWAY_URL,
-    worker: {
-      concurrency: env.WORKER_CONCURRENCY,
-      jobTimeoutMs: env.WORKER_JOB_TIMEOUT_MS,
-      staleSeconds: env.WORKER_STALE_SECONDS,
-    } satisfies WorkerConfig,
-  })),
+      // 显式指定的分析方式必须有对应的 API Key
+      if (data.AI_PROVIDER === 'anthropic' && !data.ANTHROPIC_API_KEY) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'AI_PROVIDER=anthropic 时必填',
+          path: ['ANTHROPIC_API_KEY'],
+        });
+      }
+      if (data.AI_PROVIDER === 'openai' && !data.OPENAI_API_KEY) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'AI_PROVIDER=openai 时必填',
+          path: ['OPENAI_API_KEY'],
+        });
+      }
+      if (data.AI_PROVIDER === 'deepseek' && !data.DEEPSEEK_API_KEY) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'AI_PROVIDER=deepseek 时必填',
+          path: ['DEEPSEEK_API_KEY'],
+        });
+      }
+    })
+    .transform((env) => ({
+      reddit:
+        env.REDDIT_CLIENT_ID && env.REDDIT_CLIENT_SECRET
+          ? ({
+              clientId: env.REDDIT_CLIENT_ID,
+              clientSecret: env.REDDIT_CLIENT_SECRET,
+              username: env.REDDIT_USERNAME!,
+              password: env.REDDIT_PASSWORD!,
+              userAgent: env.REDDIT_USER_AGENT!,
+            } satisfies RedditConfig)
+          : undefined,
+      analysis: resolveAnalysis(env),
+      analyzeBatchSize: env.ANALYZE_BATCH_SIZE,
+      databaseUrl: env.DATABASE_URL,
+      databasePoolMax: env.DATABASE_POOL_MAX ?? Math.max(10, env.WORKER_CONCURRENCY + 5),
+      http: { port: env.HTTP_PORT, token: env.API_TOKEN } satisfies HttpConfig,
+      gatewayUrl: env.GATEWAY_URL,
+      worker: {
+        concurrency: env.WORKER_CONCURRENCY,
+        jobTimeoutMs: env.WORKER_JOB_TIMEOUT_MS,
+        staleSeconds: env.WORKER_STALE_SECONDS,
+      } satisfies WorkerConfig,
+    })),
 );
 
 /** resolveAnalysis 关心的字段子集（transform 的 env 结构化兼容此形状） */
