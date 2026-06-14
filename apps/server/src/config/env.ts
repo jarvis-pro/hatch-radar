@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { DEFAULT_DATABASE_URL, DEFAULT_HTTP_PORT } from '@hatch-radar/config';
-import type { AnalysisConfig } from '../analyzer/analyze';
-import type { RedditConfig } from '../crawler/reddit';
+import type { AnalysisConfig } from '@/analyzer/analyze';
+import type { RedditConfig } from '@/crawler/reddit';
 
 /** 局域网导出/同步 HTTP 服务配置（env 推导） */
 export interface HttpConfig {
@@ -21,7 +21,23 @@ export interface WorkerConfig {
   staleSeconds: number;
 }
 
-const envSchema = z
+/**
+ * `KEY=`（空串 / 纯空白）一律按「未设置」处理：等同把该行注释掉。
+ * 这样 .env 里取消注释但留空（如 `SETTINGS_SECRET=`）不会触发 `min(1)` 校验失败导致启动崩——
+ * 可选项回落到 undefined、带默认值的项回落到默认值，符合「空环境变量即未配置」的惯例。
+ */
+function stripEmptyEnv(raw: unknown): unknown {
+  if (!raw || typeof raw !== 'object') return raw;
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    out[key] = typeof value === 'string' && value.trim() === '' ? undefined : value;
+  }
+  return out;
+}
+
+const envSchema = z.preprocess(
+  stripEmptyEnv,
+  z
   .object({
     // ── Reddit OAuth（五个字段全填或全不填）──────────────────────────
 
@@ -150,7 +166,8 @@ const envSchema = z
       jobTimeoutMs: env.WORKER_JOB_TIMEOUT_MS,
       staleSeconds: env.WORKER_STALE_SECONDS,
     } satisfies WorkerConfig,
-  }));
+  })),
+);
 
 /** resolveAnalysis 关心的字段子集（transform 的 env 结构化兼容此形状） */
 interface AnalysisEnv {
