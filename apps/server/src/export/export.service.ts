@@ -17,7 +17,7 @@ import {
   type PostRow,
 } from '@hatch-radar/shared';
 import { PRISMA } from '../common/tokens';
-import { nowSec } from '../common/time';
+import { nowSec } from '../utils/time';
 
 /**
  * 导出批次收集（数据源 = PG）。

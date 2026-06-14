@@ -14,9 +14,9 @@ import {
 import { z } from 'zod';
 import { AnalysisConfigService } from '../analysis/analysis-config.service';
 import { BearerAuthGuard } from '../common/bearer-auth.guard';
-import { nowSec } from '../common/time';
+import { nowSec } from '../utils/time';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
-import { isSecretConfigured } from '../crypto';
+import { isSecretConfigured } from '../utils/crypto';
 import { ProvidersRepository, toProviderDTO, type ProviderInput } from '../db/providers.repository';
 import { SettingsRepository } from '../db/settings.repository';
 import { logger } from '../logger';

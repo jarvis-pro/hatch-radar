@@ -7,7 +7,7 @@ import {
 import { AnalysisConfigService } from '../analysis/analysis-config.service';
 import { AnalysisService } from '../analysis/analysis.service';
 import { APP_ENV } from '../common/tokens';
-import { nowSec } from '../common/time';
+import { nowSec } from '../utils/time';
 import type { AppEnv } from '../config/env';
 import { CommentsRepository } from '../db/comments.repository';
 import { JobsRepository } from '../db/jobs.repository';

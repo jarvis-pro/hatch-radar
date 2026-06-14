@@ -5,7 +5,7 @@ import { JobsRepository } from '../src/db/jobs.repository';
 import { PostsRepository } from '../src/db/posts.repository';
 import { ProvidersRepository } from '../src/db/providers.repository';
 import { SettingsRepository } from '../src/db/settings.repository';
-import { nowSec } from '../src/common/time';
+import { nowSec } from '../src/utils/time';
 import type { AppEnv } from '../src/config/env';
 import { setupTestDb, truncateAll } from './helpers';
 

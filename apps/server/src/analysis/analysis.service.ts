@@ -3,7 +3,7 @@ import type { CommentRow, PostRow } from '@hatch-radar/shared';
 import { CommentsRepository } from '../db/comments.repository';
 import { InsightsRepository } from '../db/insights.repository';
 import { PostsRepository } from '../db/posts.repository';
-import { nowSec } from '../common/time';
+import { nowSec } from '../utils/time';
 import { logger } from '../logger';
 import type { AnalysisStats, PostProcessor } from '../analyzer/analyze';
 

@@ -5,7 +5,7 @@ import type { AnalysisConfigService } from '../src/analysis/analysis-config.serv
 import { ProvidersRepository } from '../src/db/providers.repository';
 import { SettingsRepository } from '../src/db/settings.repository';
 import { SettingsController } from '../src/http/settings.controller';
-import { nowSec } from '../src/common/time';
+import { nowSec } from '../src/utils/time';
 import { setupTestDb, truncateAll } from './helpers';
 
 // 加解密主密钥（createProvider 入库时加密用），测试用任意高熵串

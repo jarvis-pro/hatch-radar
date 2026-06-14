@@ -2,7 +2,7 @@ import { Inject, Injectable, type OnApplicationBootstrap } from '@nestjs/common'
 import { Cron } from '@nestjs/schedule';
 import { AnalysisConfigService } from '../analysis/analysis-config.service';
 import { APP_ENV } from '../common/tokens';
-import { nowSec } from '../common/time';
+import { nowSec } from '../utils/time';
 import type { AppEnv } from '../config/env';
 import { HN_SECTIONS, RSS_FEEDS } from '../config/feeds';
 import { SUBREDDITS } from '../config/subreddits';

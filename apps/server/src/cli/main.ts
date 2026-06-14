@@ -7,7 +7,7 @@ import type { ExportFilter } from '@hatch-radar/shared';
 import { AnalysisConfigService } from '../analysis/analysis-config.service';
 import { AnalysisService } from '../analysis/analysis.service';
 import { APP_ENV } from '../common/tokens';
-import { nowSec } from '../common/time';
+import { nowSec } from '../utils/time';
 import type { AppEnv } from '../config/env';
 import { InsightsRepository } from '../db/insights.repository';
 import { ExportService } from '../export/export.service';

@@ -3,14 +3,14 @@ import { createProcessor, type AnalysisConfig, type PostProcessor } from '../ana
 import { testAnthropic } from '../analyzer/anthropic';
 import { testOpenAICompatible } from '../analyzer/openai-compatible';
 import { APP_ENV } from '../common/tokens';
-import { decryptSecret, isSecretConfigured } from '../crypto';
+import { decryptSecret, isSecretConfigured } from '../utils/crypto';
 import type { AppEnv } from '../config/env';
 import { GatewayService } from '../gateway/gateway.service';
 import { JobsRepository } from '../db/jobs.repository';
 import { PostsRepository } from '../db/posts.repository';
 import { ProvidersRepository, type ProviderRow } from '../db/providers.repository';
 import { SettingsRepository } from '../db/settings.repository';
-import { nowSec } from '../common/time';
+import { nowSec } from '../utils/time';
 import { logger } from '../logger';
 
 /** 默认每轮自动入队上限（设置端点即时触发时用；定时调度按 env.analyzeBatchSize 传入） */

@@ -8,7 +8,7 @@ import {
 } from '@hatch-radar/shared';
 import { Prisma, type AppDatabase } from '@hatch-radar/db';
 import { PRISMA } from '../common/tokens';
-import { nowSec } from '../common/time';
+import { nowSec } from '../utils/time';
 import { logger } from '../logger';
 
 /** Prisma 交互式事务句柄类型 */

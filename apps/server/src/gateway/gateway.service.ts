@@ -7,7 +7,7 @@ import { HttpAdapterHost } from '@nestjs/core';
 import { WebSocket, WebSocketServer } from 'ws';
 import type { IncomingMessage } from 'node:http';
 import type { Server as HttpServer } from 'node:http';
-import { nowSec } from '../common/time';
+import { nowSec } from '../utils/time';
 import { JobsRepository } from '../db/jobs.repository';
 import { logger } from '../logger';
 
