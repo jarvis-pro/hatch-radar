@@ -9,10 +9,8 @@ import {
   ParseIntPipe,
   Post,
   Put,
-  Res,
   UseGuards,
 } from '@nestjs/common';
-import type { Response } from 'express';
 import { z } from 'zod';
 import { AnalysisConfigService } from '../analysis/analysis-config.service';
 import { BearerAuthGuard } from '../common/bearer-auth.guard';
@@ -125,12 +123,13 @@ export class SettingsController {
     return { ok: true };
   }
 
-  /** POST /api/settings/providers/:id/test —— 连通性测试，200/400 + { ok, error? } */
+  /**
+   * POST /api/settings/providers/:id/test —— 连通性探测，始终 200 + { ok, error? }。
+   * 探测结果（连不连得上）是响应数据、不是请求错误，故不抛异常 / 不置 4xx。
+   */
   @Post('providers/:id/test')
-  async test(@Param('id', ParseIntPipe) id: number, @Res({ passthrough: true }) res: Response) {
-    const result = await this.analysisConfig.testProvider(id);
-    if (!result.ok) res.status(400);
-    return result;
+  async test(@Param('id', ParseIntPipe) id: number) {
+    return this.analysisConfig.testProvider(id);
   }
 
   /** PUT /api/settings/active —— 选用模型 { providerId: number|null }，即时热重载并触发一轮入队 */
