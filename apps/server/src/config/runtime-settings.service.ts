@@ -73,8 +73,12 @@ function parseOverride(raw: string | undefined, min: number): number | null {
 export class RuntimeSettingsService {
   constructor(private readonly settings: SettingsRepository) {}
 
-  /** 首启幂等播种：五项默认值写入 app_settings（仅当键不存在；绝不覆盖已有值） */
-  async ensureSeeded(): Promise<void> {
+  /**
+   * 首启幂等播种：五项默认值写入 app_settings（仅当键不存在；绝不覆盖已有值）。
+   * 由 RuntimeSettingsSeeder 调用并统一记日志；此处只做写入、回报实际新增条数。
+   * @returns 实际新插入的条数（0 表示全部已存在）
+   */
+  async ensureSeeded(): Promise<number> {
     let inserted = 0;
     for (const key of Object.keys(FIELDS) as RuntimeSettingKey[]) {
       inserted += await this.settings.insertSettingIfAbsent(
@@ -82,7 +86,7 @@ export class RuntimeSettingsService {
         String(DEFAULT_RUNTIME_SETTINGS[key]),
       );
     }
-    if (inserted > 0) logger.info(`[seed] 运行期参数播种：写入 ${inserted} 项默认值（app_settings）`);
+    return inserted;
   }
 
   /** 读单项有效值（DB 值；缺失/非法回落默认常量） */

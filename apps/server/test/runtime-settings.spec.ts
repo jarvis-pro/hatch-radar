@@ -42,14 +42,14 @@ describe('RuntimeSettingsService（DB 唯一事实源 + 首启播种）', () => 
     expect(overview.workerStaleSeconds).toEqual({ value: 300, defaultValue: 300 });
   });
 
-  it('ensureSeeded 写入五项默认值；幂等且不覆盖已改值', async () => {
-    await svc.ensureSeeded();
+  it('ensureSeeded 写入五项默认值（回报条数）；幂等且不覆盖已改值', async () => {
+    expect(await svc.ensureSeeded()).toBe(5); // 空库 → 五项全部新插入
     expect(await settings.getSetting('analyze_batch_size')).toBe('20');
     expect(await settings.getSetting('worker_stale_seconds')).toBe('300');
 
-    // 改一项后再次播种：insertIfAbsent 跳过已存在键，不回退
+    // 改一项后再次播种：全部已存在 → 0 条新增，且不覆盖已改值
     await svc.applySettings({ analyzeBatchSize: 99 });
-    await svc.ensureSeeded();
+    expect(await svc.ensureSeeded()).toBe(0);
     expect(await svc.getAnalyzeBatchSize()).toBe(99);
   });
 

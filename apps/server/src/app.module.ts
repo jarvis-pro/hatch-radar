@@ -31,6 +31,7 @@ function workerInProcess(): boolean {
     AppConfigModule,
     DatabaseModule,
     AccountModule,
+    // 须排在 SchedulerModule 之前：SeedRunner(OnApplicationBootstrap) 要在 scheduler 初始轮取数前播种来源
     SeedModule,
     DataModule,
     AdminModule,

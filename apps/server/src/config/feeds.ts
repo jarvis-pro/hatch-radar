@@ -6,7 +6,10 @@ export interface HnSection {
   channel: string;
 }
 
-/** 需要监控的 HackerNews 分区列表，按需增减 */
+/**
+ * 需要监控的 HackerNews 分区列表——**仅作首启种子**（SourcesSeeder 写入 sources 表）。
+ * 首启后请在 Web 设置页增减，勿改此处（库非空即不再读取本列表）。
+ */
 export const HN_SECTIONS: HnSection[] = [
   { endpoint: 'askstories', channel: 'ask_hn' },
   { endpoint: 'showstories', channel: 'show_hn' },
@@ -21,7 +24,10 @@ export interface RssFeed {
   url: string;
 }
 
-/** 需要监控的 RSS 订阅源列表，按需增减 */
+/**
+ * 需要监控的 RSS 订阅源列表——**仅作首启种子**（SourcesSeeder 写入 sources 表）。
+ * 首启后请在 Web 设置页增减，勿改此处（库非空即不再读取本列表）。
+ */
 export const RSS_FEEDS: RssFeed[] = [
   { name: 'techcrunch', url: 'https://techcrunch.com/feed/' },
   { name: 'yc_blog', url: 'https://www.ycombinator.com/blog/rss.xml' },

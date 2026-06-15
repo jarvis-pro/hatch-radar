@@ -1,12 +1,9 @@
-import { Injectable, type OnModuleInit } from '@nestjs/common';
-import { HN_SECTIONS, RSS_FEEDS } from '@/config/feeds';
-import { SUBREDDITS } from '@/config/subreddits';
+import { Injectable } from '@nestjs/common';
 import {
   SourceConnectorsRepository,
   decryptConnectorSecret,
   type SourceConnectorRow,
 } from '@/db/source-connectors.repository';
-import { SourcesRepository } from '@/db/sources.repository';
 import { nowSec } from '@/utils/time';
 import { logger } from '@/logger';
 import { TokenBucketQueue } from './queue';
@@ -17,28 +14,21 @@ function errMsg(err: unknown): string {
 }
 
 /**
- * 采集运行期配置层：把 source_connectors 行解析成 Reddit 客户端、跑连通性测试，
- * 并在首启把来源列表从代码常量播种入库。
+ * 采集运行期配置层：把 source_connectors 行解析成 Reddit 客户端、跑连通性测试。
  *
  * Reddit 客户端按「可用连接器」(enabled 且 last_check_ok) 惰性构建，并按连接器
  * 指纹(id+updated_at)缓存：连接器一改（updated_at 变）下次取用即重建——保存即生效，无需重启。
- * 凭据一律来自 DB（已彻底移出 env）。
+ * 凭据一律来自 DB（已彻底移出 env）。来源列表的首启播种已收拢到 SeedModule（SourcesSeeder）。
  */
 @Injectable()
-export class CrawlerConfigService implements OnModuleInit {
+export class CrawlerConfigService {
   /** 缓存的 Reddit 客户端及其来源连接器指纹；指纹变化即重建 */
   private cached: { fingerprint: string; client: RedditClient } | null = null;
 
   constructor(
     private readonly connectors: SourceConnectorsRepository,
-    private readonly sources: SourcesRepository,
     private readonly queue: TokenBucketQueue,
   ) {}
-
-  /** 首启把来源列表播种入库（仅当 sources 为空），保证开箱即有默认监控面。 */
-  async onModuleInit(): Promise<void> {
-    await this.seedSourcesIfEmpty();
-  }
 
   /**
    * 取当前可用的 Reddit 客户端（按可用连接器构建，带指纹缓存）。
@@ -112,40 +102,5 @@ export class CrawlerConfigService implements OnModuleInit {
       await this.connectors.recordCheck(id, false, m, nowSec());
       return { ok: false, error: m };
     }
-  }
-
-  /**
-   * 首启播种：sources 为空时，把代码常量（原硬编码的订阅/板块/RSS）写入 sources 表。
-   * 只播种来源「列表」，不含任何凭据——Reddit 凭据须在设置页单独配置连接器。
-   */
-  async seedSourcesIfEmpty(): Promise<void> {
-    if ((await this.sources.countSources()) > 0) return;
-    const now = nowSec();
-    for (const sub of SUBREDDITS) {
-      await this.sources.createSource(
-        {
-          platform: 'reddit',
-          identifier: sub,
-          label: sub,
-          config: { sorts: ['hot', 'new'], limit: 25 },
-        },
-        now,
-      );
-    }
-    for (const hn of HN_SECTIONS) {
-      await this.sources.createSource(
-        { platform: 'hackernews', identifier: hn.endpoint, label: hn.channel },
-        now,
-      );
-    }
-    for (const feed of RSS_FEEDS) {
-      await this.sources.createSource(
-        { platform: 'rss', identifier: feed.url, label: feed.name },
-        now,
-      );
-    }
-    logger.info(
-      `[crawler] 首启播种来源列表：reddit ${SUBREDDITS.length} / hackernews ${HN_SECTIONS.length} / rss ${RSS_FEEDS.length}`,
-    );
   }
 }
