@@ -1,17 +1,19 @@
 import { cpus, freemem, hostname, loadavg, totalmem } from 'node:os';
 import WebSocket from 'ws';
-import { type AppEnv, type GatewayMessage, logger, type WorkerService } from '@hatch-radar/core';
+import type { AppEnv } from '../config/env';
+import type { GatewayMessage } from '../gateway/protocol';
+import { logger } from '../logger';
+import type { WorkerService } from './worker.service';
 
 const HEARTBEAT_INTERVAL_MS = 10_000;
 const RECONNECT_BASE_MS = 1_000;
 const RECONNECT_MAX_MS = 30_000;
 
 /**
- * Worker 侧 WebSocket 客户端（与 NestJS / 内嵌版逐字等价）：连接 API 的 GatewayService，
- * 接收分发的任务并交给 core 的 WorkerService 执行。
+ * Worker 侧 WebSocket 客户端（框架无关纯类）：连接 GatewayService，接收分发的任务交给 WorkerService 执行。
+ * 启动时 register → 等待 dispatch → 执行 → 回报 job_result；断连后指数退避重连。
  *
- * 启动时发送 register → 等待 dispatch → 执行 → 回报 job_result；断连后指数退避重连。
- * 纯类（无框架依赖）：由 worker-main 直接 `new` 出来并 start()。
+ * 由各端（独立 worker 进程 / api 内嵌 worker）直接 `new WorkerAgentService(env, worker).start()`。
  */
 export class WorkerAgentService {
   private ws: WebSocket | null = null;

@@ -1,7 +1,6 @@
 import 'reflect-metadata';
 import { createDb } from '@hatch-radar/db';
-import { createCore, loadEnv, logger } from '@hatch-radar/core';
-import { WorkerAgentService } from './worker-agent';
+import { createCore, loadEnv, logger, WorkerAgentService } from '@hatch-radar/core';
 
 /**
  * 独立 worker 进程入口（`pnpm --filter @hatch-radar/server-midway-worker start`）。

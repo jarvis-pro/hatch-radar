@@ -58,6 +58,7 @@ export * from './gateway/protocol';
 export * from './gateway/gateway.service';
 export * from './scheduler/scheduler.service';
 export * from './worker/worker.service';
+export * from './worker/worker-agent';
 
 // 种子
 export * from './seed/seeder';
