@@ -1,9 +1,8 @@
-import { Inject, Injectable, type OnApplicationBootstrap } from '@nestjs/common';
+import { Injectable, type OnApplicationBootstrap } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { AnalysisConfigService } from '@/analysis/analysis-config.service';
-import { APP_ENV } from '@/common/tokens';
+import { RuntimeSettingsService } from '@/config/runtime-settings.service';
 import { nowSec } from '@/utils/time';
-import type { AppEnv } from '@/config/env';
 import { CrawlerConfigService } from '@/crawler/crawler-config.service';
 import { HackerNewsClient } from '@/crawler/hackernews';
 import type { RedditClient, RedditComment } from '@/crawler/reddit';
@@ -66,7 +65,7 @@ export class SchedulerService implements OnApplicationBootstrap {
     private readonly commentsRepo: CommentsRepository,
     private readonly jobsRepo: JobsRepository,
     private readonly analysisConfig: AnalysisConfigService,
-    @Inject(APP_ENV) private readonly env: AppEnv,
+    private readonly runtimeSettings: RuntimeSettingsService,
   ) {}
 
   onApplicationBootstrap(): void {
@@ -256,7 +255,7 @@ export class SchedulerService implements OnApplicationBootstrap {
   analyze(): Promise<void> {
     return this.guard('AI 分析入队', async () => {
       const { active, enqueued, pending } = await this.analysisConfig.enqueueAutoAnalysisRound(
-        this.env.analyzeBatchSize,
+        await this.runtimeSettings.getAnalyzeBatchSize(),
       );
       if (!active) {
         logger.info('[AI 分析] 未配置 active 模型，跳过自动入队（可在设置页配置）');

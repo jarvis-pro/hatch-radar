@@ -2,6 +2,7 @@ import { Inject, Injectable, type OnApplicationBootstrap } from '@nestjs/common'
 import { hashPassword } from '@hatch-radar/auth';
 import { APP_ENV } from '@/common/tokens';
 import type { AppEnv } from '@/config/env';
+import { RuntimeSettingsService } from '@/config/runtime-settings.service';
 import { UsersRepository } from '@/db/users.repository';
 import { logger } from '@/logger';
 import { nowSec } from '@/utils/time';
@@ -18,9 +19,13 @@ export class SeedService implements OnApplicationBootstrap {
   constructor(
     @Inject(APP_ENV) private readonly env: AppEnv,
     private readonly users: UsersRepository,
+    private readonly runtimeSettings: RuntimeSettingsService,
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
+    // 运行期参数（分析批次 / 会话时长 / worker 调优）默认值入库——与超管种子无关，无条件确保
+    await this.runtimeSettings.ensureSeeded();
+
     const sa = this.env.superAdmin;
     if (!sa) return;
     const count = await this.users.count();

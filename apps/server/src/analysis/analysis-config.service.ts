@@ -16,7 +16,7 @@ import { SettingsRepository } from '@/db/settings.repository';
 import { nowSec } from '@/utils/time';
 import { logger } from '@/logger';
 
-/** 默认每轮自动入队上限（设置端点即时触发时用；定时调度按 env.analyzeBatchSize 传入） */
+/** enqueueAutoAnalysisRound 的兜底批次（调用方一般传运行期设置 analyzeBatchSize；省略时用此值） */
 const DEFAULT_BATCH_SIZE = 20;
 
 /**

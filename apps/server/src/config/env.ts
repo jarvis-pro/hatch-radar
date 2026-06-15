@@ -11,18 +11,6 @@ export interface HttpConfig {
 export interface WorkerConfig {
   /** 并发认领的 worker 数 */
   concurrency: number;
-  /** 单 job 硬超时（毫秒） */
-  jobTimeoutMs: number;
-  /** running 心跳超时回收阈值（秒） */
-  staleSeconds: number;
-}
-
-/** Web 会话生命周期参数（env 推导） */
-export interface SessionConfig {
-  /** 空闲过期窗（天）：每次活跃滑动续期到 now + 此值 */
-  idleDays: number;
-  /** 绝对过期窗（天）：自创建起的硬上限，滑动续期不得超过 */
-  absoluteDays: number;
 }
 
 /**
@@ -49,17 +37,13 @@ const envSchema = z.preprocess(
 
       // ── AI 分析调优 ───────────────────────────────────────────────────
       // 模型接入（厂商 / 密钥 / 模型名 / base_url）一律在设置页 /settings 配置入库，
-      // env 不再承载任何模型密钥（见 docs/runtime-config-design.md §3.4）。此处仅留批次/并发调优。
+      // env 不再承载任何模型密钥（见 docs/runtime-config-design.md §3.4）。
+      // 注：分析批次 / 会话时长 / job 超时 / 僵死回收阈值等运行期参数已迁入 app_settings（首启播种、
+      //     设置页可改，见 RuntimeSettingsService），不再走 env。WORKER_CONCURRENCY 仍为纯 env：
+      //     影响连接池与启动拓扑，改后须重启 worker，故不入库。
 
-      /** 每轮 AI 分析的帖子批次上限，默认 20，最小 1 */
-      ANALYZE_BATCH_SIZE: z.coerce.number().int().min(1).default(20),
-
-      /** 分析 worker 并发数，默认 2，最小 1（扩容时调大；独立 worker 进程同样读此值） */
+      /** 分析 worker 并发数，默认 2，最小 1（扩容时调大；独立 worker 进程同样读此值；纯 env，不入库） */
       WORKER_CONCURRENCY: z.coerce.number().int().min(1).default(2),
-      /** 单个分析 job 的硬超时（毫秒），默认 600000，最小 1000 */
-      WORKER_JOB_TIMEOUT_MS: z.coerce.number().int().min(1000).default(600_000),
-      /** running 心跳超时回收阈值（秒），默认 300，最小 30（须大于内部心跳间隔 15s） */
-      WORKER_STALE_SECONDS: z.coerce.number().int().min(30).default(300),
 
       /** 模型密钥加密入库的主密钥；在设置页配置模型须先设置它（建议 openssl rand -hex 32） */
       SETTINGS_SECRET: z.string().trim().min(1).optional(),
@@ -76,13 +60,6 @@ const envSchema = z.preprocess(
       /** 导出 HTTP 服务监听端口，默认 47878（DEFAULT_HTTP_PORT）；绑定 0.0.0.0 */
       HTTP_PORT: z.coerce.number().int().min(1).max(65535).default(DEFAULT_HTTP_PORT),
 
-      // ── Web 会话 ───────────────────────────────────────────────────────
-
-      /** 会话空闲过期窗（天），默认 7，最小 1：活跃即滑动续期到 now + 此值 */
-      SESSION_IDLE_DAYS: z.coerce.number().int().min(1).default(7),
-      /** 会话绝对过期窗（天），默认 30，最小 1：自创建起硬上限，续期不得超过 */
-      SESSION_ABSOLUTE_DAYS: z.coerce.number().int().min(1).default(30),
-
       /** 首个超级管理员种子（仅空库时创建；幂等）；不设则跳过种子 */
       SUPER_ADMIN_EMAIL: z.string().trim().toLowerCase().optional(),
       SUPER_ADMIN_PASSWORD: z.string().min(8).optional(),
@@ -91,24 +68,15 @@ const envSchema = z.preprocess(
       GATEWAY_URL: z.string().trim().optional(),
     })
     .transform((env) => ({
-      analyzeBatchSize: env.ANALYZE_BATCH_SIZE,
       databaseUrl: env.DATABASE_URL,
       databasePoolMax: env.DATABASE_POOL_MAX ?? Math.max(10, env.WORKER_CONCURRENCY + 5),
       http: { port: env.HTTP_PORT } satisfies HttpConfig,
       gatewayUrl: env.GATEWAY_URL,
-      session: {
-        idleDays: env.SESSION_IDLE_DAYS,
-        absoluteDays: env.SESSION_ABSOLUTE_DAYS,
-      } satisfies SessionConfig,
       superAdmin:
         env.SUPER_ADMIN_EMAIL && env.SUPER_ADMIN_PASSWORD
           ? { email: env.SUPER_ADMIN_EMAIL, password: env.SUPER_ADMIN_PASSWORD }
           : undefined,
-      worker: {
-        concurrency: env.WORKER_CONCURRENCY,
-        jobTimeoutMs: env.WORKER_JOB_TIMEOUT_MS,
-        staleSeconds: env.WORKER_STALE_SECONDS,
-      } satisfies WorkerConfig,
+      worker: { concurrency: env.WORKER_CONCURRENCY } satisfies WorkerConfig,
     })),
 );
 

@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { BadRequestException } from '@nestjs/common';
 import type { AppDatabase, DbHandle } from '@hatch-radar/db';
 import type { AnalysisConfigService } from '@/analysis/analysis-config.service';
+import type { RuntimeSettingsService } from '@/config/runtime-settings.service';
 import { ProvidersRepository } from '@/db/providers.repository';
 import { SettingsRepository } from '@/db/settings.repository';
 import { SettingsController } from '@/http/settings.controller';
@@ -29,7 +30,14 @@ describe('SettingsController.update（改 baseUrl 必须重填 API Key）', () =
     const analysisConfig = {
       reloadAnalysisConfig: async () => {},
     } as unknown as AnalysisConfigService;
-    controller = new SettingsController(providers, new SettingsRepository(db), analysisConfig);
+    // 本组用例只测改 baseUrl 的安全闸，不触及运行期参数端点，空桩即可
+    const runtimeSettings = {} as unknown as RuntimeSettingsService;
+    controller = new SettingsController(
+      providers,
+      new SettingsRepository(db),
+      analysisConfig,
+      runtimeSettings,
+    );
   });
   afterAll(async () => {
     await handle.close();

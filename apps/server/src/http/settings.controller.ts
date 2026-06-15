@@ -15,6 +15,10 @@ import { z } from 'zod';
 import { AnalysisConfigService } from '@/analysis/analysis-config.service';
 import { RequirePermission } from '@/account/auth-user.decorator';
 import { SessionAuthGuard } from '@/account/session-auth.guard';
+import {
+  RuntimeSettingsService,
+  type RuntimeSettingsPatch,
+} from '@/config/runtime-settings.service';
 import { nowSec } from '@/utils/time';
 import { ZodValidationPipe } from '@/common/zod-validation.pipe';
 import { isSecretConfigured } from '@/utils/crypto';
@@ -64,6 +68,20 @@ const updateKeySchema = z.object({
 
 const activeSchema = z.object({ providerId: z.number().int().nullable() });
 
+/**
+ * 运行期参数写入入参：每项可省略（不变）/ 给整数（写入）。下界与 RuntimeSettingsService 一致，
+ * 避免从设置页填出会让 worker / 会话失常的值。「恢复默认」由前端以默认值发起，等同普通写入。
+ */
+const runtimeSettingsSchema = z
+  .object({
+    analyzeBatchSize: z.number().int().min(1),
+    sessionIdleDays: z.number().int().min(1),
+    sessionAbsoluteDays: z.number().int().min(1),
+    workerJobTimeoutMs: z.number().int().min(1000),
+    workerStaleSeconds: z.number().int().min(30),
+  })
+  .partial();
+
 /** '' / 仅空白的 baseUrl 归一化为 undefined（不存空串） */
 function normalizeBaseUrl(v: string | undefined): string | undefined {
   const t = v?.trim();
@@ -83,7 +101,28 @@ export class SettingsController {
     private readonly providers: ProvidersRepository,
     private readonly settings: SettingsRepository,
     private readonly analysisConfig: AnalysisConfigService,
+    private readonly runtimeSettings: RuntimeSettingsService,
   ) {}
+
+  // ── 运行期可调项（分析批次 / 会话时长 / worker 调优；DB 覆盖优先、env 默认兜底）────────
+
+  /** GET /api/settings/runtime —— 五项运行期可调项有效态（当前值 / env 默认 / 是否覆盖） */
+  @Get('runtime')
+  runtime() {
+    return this.runtimeSettings.getOverview();
+  }
+
+  /**
+   * PUT /api/settings/runtime —— 写入运行期参数（整数），保存即生效。
+   * 实时读库故无需重启或版本广播；独立 worker 进程下一次回收/分发即采用新值。
+   */
+  @Put('runtime')
+  updateRuntime(
+    @Body(new ZodValidationPipe(runtimeSettingsSchema))
+    dto: z.infer<typeof runtimeSettingsSchema>,
+  ) {
+    return this.runtimeSettings.applySettings(dto satisfies RuntimeSettingsPatch);
+  }
 
   /** GET /api/settings —— providers（含 Key 池脱敏）+ activeProviderId + secretConfigured */
   @Get()
@@ -245,8 +284,10 @@ export class SettingsController {
     }
     await this.settings.setActiveProviderId(dto.providerId);
     await this.analysisConfig.reloadAnalysisConfig();
-    // 即时生效：选用后立刻入一轮队，无需等下一次定时调度
-    const round = await this.analysisConfig.enqueueAutoAnalysisRound();
+    // 即时生效：选用后立刻入一轮队，无需等下一次定时调度（批次上限与定时调度同取运行期设置）
+    const round = await this.analysisConfig.enqueueAutoAnalysisRound(
+      await this.runtimeSettings.getAnalyzeBatchSize(),
+    );
     logger.info(
       `[设置] active 模型 → ${dto.providerId ?? '（清空）'}；即时入队 ${round.enqueued} 篇`,
     );

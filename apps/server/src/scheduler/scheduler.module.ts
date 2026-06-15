@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
 import { AnalysisModule } from '@/analysis/analysis.module';
+import { RuntimeSettingsModule } from '@/config/runtime-settings.module';
 import { CrawlerModule } from '@/crawler/crawler.module';
 import { RepositoriesModule } from '@/db/repositories.module';
 import { SchedulerService } from './scheduler.service';
@@ -10,7 +11,13 @@ import { SchedulerService } from './scheduler.service';
  * 仅装入主进程 AppModule；独立 worker 进程不含本模块（不重复跑定时任务）。
  */
 @Module({
-  imports: [ScheduleModule.forRoot(), CrawlerModule, RepositoriesModule, AnalysisModule],
+  imports: [
+    ScheduleModule.forRoot(),
+    CrawlerModule,
+    RepositoriesModule,
+    AnalysisModule,
+    RuntimeSettingsModule,
+  ],
   providers: [SchedulerService],
 })
 export class SchedulerModule {}

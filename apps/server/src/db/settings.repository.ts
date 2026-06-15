@@ -29,6 +29,17 @@ export class SettingsRepository {
     });
   }
 
+  /**
+   * 仅当 key 不存在时插入（ON CONFLICT DO NOTHING），用于幂等播种——绝不覆盖已有值。
+   * @returns 实际插入的行数（1=新播种 / 0=已存在），供调用方统计
+   */
+  insertSettingIfAbsent(key: string, value: string): Promise<number> {
+    return this.db.$executeRaw`
+      INSERT INTO app_settings (key, value) VALUES (${key}, ${value})
+      ON CONFLICT (key) DO NOTHING
+    `;
+  }
+
   /** 删除一个全局配置项 */
   async deleteSetting(key: string): Promise<void> {
     await this.db.app_settings.deleteMany({ where: { key } });

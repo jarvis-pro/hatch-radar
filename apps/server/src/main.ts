@@ -8,6 +8,7 @@ import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/http-exception.filter';
 import { APP_ENV } from './common/tokens';
 import type { AppEnv } from './config/env';
+import { RuntimeSettingsService } from './config/runtime-settings.service';
 import { SourceConnectorsRepository } from './db/source-connectors.repository';
 import { SourcesRepository } from './db/sources.repository';
 import { StatsRepository } from './db/stats.repository';
@@ -25,7 +26,7 @@ function lanAddresses(): string[] {
 }
 
 /** 启动横幅：监控来源 / 分析模型 / 当前数据概览（DB 迁移已就绪后调用） */
-async function logStartup(app: NestExpressApplication, env: AppEnv): Promise<void> {
+async function logStartup(app: NestExpressApplication): Promise<void> {
   logger.info('hatch-radar 启动（NestJS + PostgreSQL）');
 
   const enabledSources = (await app.get(SourcesRepository).listSources()).filter((s) => s.enabled);
@@ -50,7 +51,7 @@ async function logStartup(app: NestExpressApplication, env: AppEnv): Promise<voi
   logger.info(
     '分析模型: %s | 每轮分析上限: %d',
     active ? active.label : '未配置（在设置页选用后即自动分析）',
-    env.analyzeBatchSize,
+    await app.get(RuntimeSettingsService).getAnalyzeBatchSize(),
   );
   const stats = await app.get(StatsRepository).getStats();
   logger.info(
@@ -86,7 +87,7 @@ async function bootstrap(): Promise<void> {
   // 绑定 0.0.0.0 供局域网内的移动端访问。
   await app.listen(env.http.port, '0.0.0.0');
 
-  await logStartup(app, env);
+  await logStartup(app);
   logger.info('服务已启动（端口 %d，鉴权恒开：会话 / 设备签名）', env.http.port);
   for (const ip of lanAddresses()) {
     logger.info('  · 局域网地址: http://%s:%d', ip, env.http.port);

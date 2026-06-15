@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import {
   generateSessionToken,
   hashPassword,
@@ -6,8 +6,7 @@ import {
   verifyPassword,
 } from '@hatch-radar/auth';
 import type { CurrentUser, SessionInfo } from '@hatch-radar/shared';
-import { APP_ENV } from '@/common/tokens';
-import type { AppEnv } from '@/config/env';
+import { RuntimeSettingsService } from '@/config/runtime-settings.service';
 import { AuditLogsRepository } from '@/db/audit-logs.repository';
 import { LoginAttemptsRepository } from '@/db/login-attempts.repository';
 import { SessionsRepository } from '@/db/sessions.repository';
@@ -31,9 +30,12 @@ export interface LoginMeta {
   ip?: string;
 }
 
-/** 登录结果：成功带 token（控制器据此 Set-Cookie）+ 用户态；失败带 HTTP 状态与文案。 */
+/**
+ * 登录结果：成功带 token（控制器据此 Set-Cookie）+ 用户态 + cookie 绝对生命周期（天）；
+ * 失败带 HTTP 状态与文案。absoluteDays 随运行期设置可变，故由服务回传而非控制器自取。
+ */
 export type LoginResult =
-  | { ok: true; token: string; user: CurrentUser }
+  | { ok: true; token: string; user: CurrentUser; absoluteDays: number }
   | { ok: false; status: number; message: string };
 
 /** 改密 / 自助操作的通用结果。 */
@@ -59,19 +61,13 @@ function stripHash(view: UserAuthView): CurrentUser {
  */
 @Injectable()
 export class AccountService {
-  private readonly idleTtl: number;
-  private readonly absoluteTtl: number;
-
   constructor(
-    @Inject(APP_ENV) env: AppEnv,
     private readonly users: UsersRepository,
     private readonly sessions: SessionsRepository,
     private readonly attempts: LoginAttemptsRepository,
     private readonly audit: AuditLogsRepository,
-  ) {
-    this.idleTtl = env.session.idleDays * DAY;
-    this.absoluteTtl = env.session.absoluteDays * DAY;
-  }
+    private readonly runtimeSettings: RuntimeSettingsService,
+  ) {}
 
   /**
    * 解析会话 token → 当前用户（含权限 + sessionId）。
@@ -91,9 +87,10 @@ export class AccountService {
       return null;
     }
     if (now - Number(session.last_seen_at) >= SLIDE_THROTTLE) {
+      const { idleDays, absoluteDays } = await this.runtimeSettings.getSessionConfig();
       const nextExpiry = Math.min(
-        now + this.idleTtl,
-        Number(session.created_at) + this.absoluteTtl,
+        now + idleDays * DAY,
+        Number(session.created_at) + absoluteDays * DAY,
       );
       await this.sessions.touch(session.id, now, nextExpiry);
     }
@@ -131,11 +128,12 @@ export class AccountService {
         return { ok: false, status: 401, message: '邮箱或密码不正确' };
       }
       await this.attempts.clear(email);
+      const { idleDays, absoluteDays } = await this.runtimeSettings.getSessionConfig();
       const token = generateSessionToken();
       await this.sessions.create({
         userId: view.id,
         tokenHash: hashSessionToken(token),
-        expiresAt: now + this.idleTtl,
+        expiresAt: now + idleDays * DAY,
         lastSeenAt: now,
         createdAt: now,
         userAgent: meta.userAgent ?? null,
@@ -143,7 +141,7 @@ export class AccountService {
       });
       await this.users.updateLastLogin(view.id, now);
       await this.audit.write({ actorId: view.id, action: 'auth.login', ip: meta.ip ?? null });
-      return { ok: true, token, user: stripHash(view) };
+      return { ok: true, token, user: stripHash(view), absoluteDays };
     } catch {
       return { ok: false, status: 503, message: '登录失败：服务暂时不可用，请稍后再试' };
     }

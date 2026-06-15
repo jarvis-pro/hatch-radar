@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AccountModule } from '@/account/account.module';
 import { AnalysisModule } from '@/analysis/analysis.module';
 import { AuthModule } from '@/auth/auth.module';
+import { RuntimeSettingsModule } from '@/config/runtime-settings.module';
 import { CrawlerModule } from '@/crawler/crawler.module';
 import { RepositoriesModule } from '@/db/repositories.module';
 import { ExportModule } from '@/export/export.module';
@@ -21,6 +22,7 @@ import { SyncController } from './sync.controller';
 @Module({
   imports: [
     RepositoriesModule,
+    RuntimeSettingsModule,
     AccountModule,
     AnalysisModule,
     SyncModule,

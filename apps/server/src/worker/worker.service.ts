@@ -1,20 +1,18 @@
 import {
-  Inject,
   Injectable,
   type OnApplicationBootstrap,
   type OnApplicationShutdown,
 } from '@nestjs/common';
 import { AnalysisConfigService } from '@/analysis/analysis-config.service';
 import { AnalysisService } from '@/analysis/analysis.service';
-import { APP_ENV } from '@/common/tokens';
+import { RuntimeSettingsService } from '@/config/runtime-settings.service';
 import { nowSec } from '@/utils/time';
-import type { AppEnv } from '@/config/env';
 import { CommentsRepository } from '@/db/comments.repository';
 import { JobsRepository } from '@/db/jobs.repository';
 import { PostsRepository } from '@/db/posts.repository';
 import { logger } from '@/logger';
 
-/** running 期间的 DB 心跳间隔（毫秒），需远小于 env.worker.staleSeconds */
+/** running 期间的 DB 心跳间隔（毫秒），需远小于运行期设置 workerStaleSeconds（下界 30s） */
 const HEARTBEAT_INTERVAL_MS = 15_000;
 /** 周期性僵死回收间隔（毫秒） */
 const RECLAIM_INTERVAL_MS = 60_000;
@@ -54,18 +52,20 @@ export class WorkerService implements OnApplicationBootstrap, OnApplicationShutd
     private readonly comments: CommentsRepository,
     private readonly analysis: AnalysisService,
     private readonly analysisConfig: AnalysisConfigService,
-    @Inject(APP_ENV) private readonly env: AppEnv,
+    private readonly runtimeSettings: RuntimeSettingsService,
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
-    const { staleSeconds } = this.env.worker;
     const orphaned = await this.jobs.reclaimRunningJobs(nowSec(), null);
     if (orphaned > 0) logger.warn(`[worker] 启动回收 ${orphaned} 个遗留 running 任务`);
 
+    // 每轮实时读取回收阈值——设置页改 workerStaleSeconds 后下一轮即生效（含独立 worker 进程）
     this.reclaimTimer = setInterval(() => {
-      void this.jobs.reclaimRunningJobs(nowSec(), staleSeconds).then((n) => {
+      void (async () => {
+        const { staleSeconds } = await this.runtimeSettings.getWorkerTuning();
+        const n = await this.jobs.reclaimRunningJobs(nowSec(), staleSeconds);
         if (n > 0) logger.warn(`[worker] 回收 ${n} 个僵死任务（心跳超 ${staleSeconds}s）`);
-      });
+      })();
     }, RECLAIM_INTERVAL_MS);
 
     const stats = await this.jobs.getJobStats();
@@ -129,10 +129,11 @@ export class WorkerService implements OnApplicationBootstrap, OnApplicationShutd
       onProgress?.(job.id);
     }, HEARTBEAT_INTERVAL_MS);
     const ac = new AbortController();
+    const { jobTimeoutMs } = await this.runtimeSettings.getWorkerTuning();
     try {
       const { saved } = await withTimeout(
         this.analysis.analyzeAndPersist(processor, post, commentsData, ac.signal),
-        this.env.worker.jobTimeoutMs,
+        jobTimeoutMs,
         () => ac.abort(new Error('job 超时，中止底层调用')),
       );
       await this.posts.markAnalyzed(post.id, nowSec());

@@ -5,7 +5,6 @@ import {
   Get,
   HttpCode,
   HttpException,
-  Inject,
   Param,
   Patch,
   Post,
@@ -16,8 +15,6 @@ import {
 import type { Request, Response } from 'express';
 import { z } from 'zod';
 import type { CurrentUser } from '@hatch-radar/shared';
-import { APP_ENV } from '@/common/tokens';
-import type { AppEnv } from '@/config/env';
 import { ZodValidationPipe } from '@/common/zod-validation.pipe';
 import { AccountService } from './account.service';
 import { AuthUser, type AuthedUser } from './auth-user.decorator';
@@ -63,10 +60,7 @@ function toCurrentUser(user: AuthedUser): CurrentUser {
  */
 @Controller('auth')
 export class AccountController {
-  constructor(
-    @Inject(APP_ENV) private readonly env: AppEnv,
-    private readonly account: AccountService,
-  ) {}
+  constructor(private readonly account: AccountService) {}
 
   /** POST /api/auth/login —— 校验后 Set-Cookie: radar_session（HttpOnly），返回用户态。 */
   @Post('login')
@@ -81,7 +75,7 @@ export class AccountController {
       ip: clientIp(req),
     });
     if (!result.ok) throw new HttpException(result.message, result.status);
-    setSessionCookie(res, result.token, this.env.session.absoluteDays);
+    setSessionCookie(res, result.token, result.absoluteDays);
     return { user: result.user };
   }
 
