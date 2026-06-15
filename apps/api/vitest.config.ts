@@ -17,6 +17,9 @@ export default defineConfig({
   },
   test: {
     include: ['test/**/*.spec.ts'],
+    // 测试期闭掉应用日志（pino silent）：失败路径用例会故意打 ERROR/WARN、服务亦有大量 INFO 流水，
+    // 静音后 pass/fail 一目了然；调试某用例时临时改 'debug' 再跑即可。
+    env: { LOG_LEVEL: 'silent' },
     globalSetup: ['test/global-setup.ts'],
     setupFiles: ['test/setup.ts'],
     fileParallelism: false,
