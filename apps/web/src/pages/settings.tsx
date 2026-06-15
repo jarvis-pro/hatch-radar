@@ -2,6 +2,10 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Skeleton } from '@hatch-radar/ui/components/skeleton';
 import { api, ApiError } from '@/api/client';
 import { RequirePerm } from '@/auth/require-perm';
+import {
+  RuntimeSettingsManager,
+  type RuntimeSettingsData,
+} from '@/components/runtime-settings-manager';
 import { SettingsManager, type SettingsData } from '@/components/settings-manager';
 import { SourcesManager, type SourcesData } from '@/components/sources-manager';
 
@@ -18,6 +22,10 @@ function SettingsView() {
   const sourcesQ = useQuery({
     queryKey: ['sources'],
     queryFn: () => api.get<SourcesData>('/sources'),
+  });
+  const runtimeQ = useQuery({
+    queryKey: ['settings-runtime'],
+    queryFn: () => api.get<RuntimeSettingsData>('/settings/runtime'),
   });
 
   return (
@@ -39,6 +47,16 @@ function SettingsView() {
           initial={sourcesQ.data ?? null}
           loadError={sourcesQ.isError ? errMsg(sourcesQ.error, '加载数据来源失败') : null}
           onChanged={() => qc.invalidateQueries({ queryKey: ['sources'] })}
+        />
+      )}
+
+      {runtimeQ.isPending ? (
+        <Skeleton className="mt-10 h-48 w-full" />
+      ) : (
+        <RuntimeSettingsManager
+          initial={runtimeQ.data ?? null}
+          loadError={runtimeQ.isError ? errMsg(runtimeQ.error, '加载运行期参数失败') : null}
+          onChanged={() => qc.invalidateQueries({ queryKey: ['settings-runtime'] })}
         />
       )}
     </>
