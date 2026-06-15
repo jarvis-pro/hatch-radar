@@ -1,0 +1,32 @@
+{
+  "name": "@hatch-radar/core",
+  "version": "0.1.0",
+  "private": true,
+  "description": "框架无关的领域核心：仓储 + 分析 + 爬虫 + 运行期配置 + 调度/网关/worker 执行逻辑 + 装配工厂。被 api / worker 两端（及 NestJS / MidwayJS 两框架）复用，不依赖任何 Web 框架。",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.104.1",
+    "@hatch-radar/auth": "workspace:*",
+    "@hatch-radar/config": "workspace:*",
+    "@hatch-radar/db": "workspace:*",
+    "@hatch-radar/shared": "workspace:*",
+    "better-sqlite3": "catalog:",
+    "pino": "^10.3.1",
+    "pino-pretty": "^13.1.3",
+    "rss-parser": "^3.13.0",
+    "ws": "^8.21.0",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "catalog:",
+    "@types/node": "catalog:",
+    "@types/ws": "^8.18.1",
+    "typescript": "catalog:"
+  }
+}

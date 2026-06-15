@@ -1,0 +1,223 @@
+import {
+  generateSessionToken,
+  hashPassword,
+  hashSessionToken,
+  verifyPassword,
+} from '@hatch-radar/auth';
+import type { CurrentUser, SessionInfo } from '@hatch-radar/shared';
+import { RuntimeSettingsService } from '../config/runtime-settings.service';
+import { AuditLogsRepository } from '../db/audit-logs.repository';
+import { LoginAttemptsRepository } from '../db/login-attempts.repository';
+import { SessionsRepository } from '../db/sessions.repository';
+import { UsersRepository, type UserAuthView } from '../db/users.repository';
+import { nowSec } from '../utils/time';
+import type { AuthedUser } from './auth-context';
+
+const DAY = 86_400;
+/** 滑动续期写库的最小间隔（秒）：last_seen 在此区间内不重复 update，省写。 */
+const SLIDE_THROTTLE = 60;
+/** 滑动窗内达到此失败次数即锁定。 */
+const MAX_FAILURES = 5;
+/** 滑动窗（秒）：上次失败超过此时长则失败计数从头算。 */
+const WINDOW_SEC = 900;
+/** 锁定时长（秒）。 */
+const LOCK_SEC = 300;
+
+/** 登录请求附带的客户端信息（写入会话与审计）。 */
+export interface LoginMeta {
+  userAgent?: string;
+  ip?: string;
+}
+
+/**
+ * 登录结果：成功带 token（控制器据此 Set-Cookie）+ 用户态 + cookie 绝对生命周期（天）；
+ * 失败带 HTTP 状态与文案。absoluteDays 随运行期设置可变，故由服务回传而非控制器自取。
+ */
+export type LoginResult =
+  | { ok: true; token: string; user: CurrentUser; absoluteDays: number }
+  | { ok: false; status: number; message: string };
+
+/** 改密 / 自助操作的通用结果。 */
+export type ServiceResult = { ok: true } | { ok: false; status: number; message: string };
+
+function stripHash(view: UserAuthView): CurrentUser {
+  return {
+    id: view.id,
+    email: view.email,
+    name: view.name,
+    role: view.role,
+    status: view.status,
+    mustChangePassword: view.mustChangePassword,
+    permissions: view.permissions,
+  };
+}
+
+/**
+ * 人鉴权权威服务（后端归一：原 web lib/auth 整体迁来，行为不变）。
+ *
+ * 负责会话生命周期（建/解析/滑动续期/吊销）、登录限流、改密与审计。
+ * 密码 scrypt 校验、会话 token 哈希复用 @hatch-radar/auth。
+ */
+export class AccountService {
+  constructor(
+    private readonly users: UsersRepository,
+    private readonly sessions: SessionsRepository,
+    private readonly attempts: LoginAttemptsRepository,
+    private readonly audit: AuditLogsRepository,
+    private readonly runtimeSettings: RuntimeSettingsService,
+  ) {}
+
+  /**
+   * 解析会话 token → 当前用户（含权限 + sessionId）。
+   * 无效 / 过期 / 账户停用一律返回 null，并顺手清理坏会话；活跃则滑动续期（限频写库）。
+   */
+  async resolveSession(token: string): Promise<AuthedUser | null> {
+    const now = nowSec();
+    const session = await this.sessions.findByTokenHash(hashSessionToken(token));
+    if (!session) return null;
+    if (Number(session.expires_at) <= now) {
+      await this.sessions.deleteById(session.id);
+      return null;
+    }
+    const user = await this.users.resolveWithPermissions(session.user_id);
+    if (!user || user.status !== 'active') {
+      await this.sessions.deleteById(session.id);
+      return null;
+    }
+    if (now - Number(session.last_seen_at) >= SLIDE_THROTTLE) {
+      const { idleDays, absoluteDays } = await this.runtimeSettings.getSessionConfig();
+      const nextExpiry = Math.min(
+        now + idleDays * DAY,
+        Number(session.created_at) + absoluteDays * DAY,
+      );
+      await this.sessions.touch(session.id, now, nextExpiry);
+    }
+    return { ...stripHash(user), sessionId: session.id };
+  }
+
+  /** 登录：限流 → 校验邮箱+密码 → 建会话 + 回 token；错误文案统一不泄露存在性。 */
+  async login(email: string, password: string, meta: LoginMeta): Promise<LoginResult> {
+    if (!email || !password) return { ok: false, status: 400, message: '请输入邮箱和密码' };
+    try {
+      const now = nowSec();
+      const lock = await this.lockRemaining(email, now);
+      if (lock > 0) {
+        await this.audit.write({
+          action: 'auth.login.locked',
+          metadata: { email },
+          ip: meta.ip ?? null,
+        });
+        return {
+          ok: false,
+          status: 429,
+          message: `尝试过于频繁，请约 ${Math.ceil(lock / 60)} 分钟后再试`,
+        };
+      }
+      const view = await this.users.findAuthViewByEmail(email);
+      const ok =
+        !!view && view.status === 'active' && (await verifyPassword(password, view.passwordHash));
+      if (!view || !ok) {
+        await this.recordFailure(email, now);
+        await this.audit.write({
+          action: 'auth.login.failed',
+          metadata: { email },
+          ip: meta.ip ?? null,
+        });
+        return { ok: false, status: 401, message: '邮箱或密码不正确' };
+      }
+      await this.attempts.clear(email);
+      const { idleDays, absoluteDays } = await this.runtimeSettings.getSessionConfig();
+      const token = generateSessionToken();
+      await this.sessions.create({
+        userId: view.id,
+        tokenHash: hashSessionToken(token),
+        expiresAt: now + idleDays * DAY,
+        lastSeenAt: now,
+        createdAt: now,
+        userAgent: meta.userAgent ?? null,
+        ip: meta.ip ?? null,
+      });
+      await this.users.updateLastLogin(view.id, now);
+      await this.audit.write({ actorId: view.id, action: 'auth.login', ip: meta.ip ?? null });
+      return { ok: true, token, user: stripHash(view), absoluteDays };
+    } catch {
+      return { ok: false, status: 503, message: '登录失败：服务暂时不可用，请稍后再试' };
+    }
+  }
+
+  /** 登出：吊销当前会话 + 写审计。 */
+  async logout(token: string, actorId?: string): Promise<void> {
+    await this.sessions.deleteByTokenHash(hashSessionToken(token));
+    if (actorId) await this.audit.write({ actorId, action: 'auth.logout' });
+  }
+
+  /** 改密：校验当前密码 → 写新哈希、清强制改密标记、吊销其余会话。 */
+  async changePassword(
+    user: AuthedUser,
+    current: string,
+    next: string,
+    confirm: string,
+  ): Promise<ServiceResult> {
+    if (next.length < 8) return { ok: false, status: 400, message: '新密码至少 8 位' };
+    if (next !== confirm) return { ok: false, status: 400, message: '两次输入的新密码不一致' };
+    try {
+      const row = await this.users.findById(user.id);
+      if (!row || !(await verifyPassword(current, row.password_hash))) {
+        return { ok: false, status: 400, message: '当前密码不正确' };
+      }
+      await this.users.updatePassword(user.id, await hashPassword(next), false, nowSec());
+      await this.sessions.deleteOthers(user.id, user.sessionId);
+      await this.audit.write({ actorId: user.id, action: 'account.password.change' });
+      return { ok: true };
+    } catch {
+      return { ok: false, status: 503, message: '修改失败：服务暂时不可用，请稍后再试' };
+    }
+  }
+
+  /** 改本人姓名。 */
+  async updateOwnName(user: AuthedUser, name: string): Promise<ServiceResult> {
+    const trimmed = name.trim();
+    if (!trimmed) return { ok: false, status: 400, message: '姓名不能为空' };
+    try {
+      await this.users.updateName(user.id, trimmed, nowSec());
+      return { ok: true };
+    } catch {
+      return { ok: false, status: 503, message: '保存失败：服务暂时不可用' };
+    }
+  }
+
+  /** 个人中心：未过期会话列表（标记当前会话）。 */
+  async listSessions(user: AuthedUser): Promise<SessionInfo[]> {
+    const rows = await this.sessions.listActiveByUser(user.id, nowSec());
+    return rows.map((s) => ({ ...s, current: s.id === user.sessionId }));
+  }
+
+  /** 个人中心：登出除当前外的其它会话。 */
+  async revokeOtherSessions(user: AuthedUser): Promise<void> {
+    await this.sessions.deleteOthers(user.id, user.sessionId);
+  }
+
+  /** 个人中心：登出指定会话（仅限本人会话）。 */
+  async revokeSession(user: AuthedUser, sessionId: string): Promise<void> {
+    await this.sessions.deleteOwn(sessionId, user.id);
+  }
+
+  // ── 限流（滑动窗 + 锁定）──────────────────────────────────────────────
+
+  /** 邮箱当前的登录锁定剩余秒数；未锁返回 0。 */
+  private async lockRemaining(email: string, now: number): Promise<number> {
+    const row = await this.attempts.findByEmail(email);
+    if (!row || row.locked_until == null) return 0;
+    const remaining = Number(row.locked_until) - now;
+    return remaining > 0 ? remaining : 0;
+  }
+
+  /** 记一次登录失败；滑动窗内累计达阈值则锁定一段时间。 */
+  private async recordFailure(email: string, now: number): Promise<void> {
+    const row = await this.attempts.findByEmail(email);
+    const base = row && now - Number(row.last_attempt_at) <= WINDOW_SEC ? row.failed_count : 0;
+    const failed = base + 1;
+    const lockedUntil = failed >= MAX_FAILURES ? now + LOCK_SEC : null;
+    await this.attempts.record(email, failed, lockedUntil, now);
+  }
+}
