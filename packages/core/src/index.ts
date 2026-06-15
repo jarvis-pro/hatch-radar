@@ -1,7 +1,7 @@
 /**
  * @hatch-radar/core —— 框架无关的领域核心。
- * api / worker 两端（及 NestJS / MidwayJS 两框架）统一从此导入领域类型与实现，
- * 用 {@link createCore} 拿到装配好的全套实例，再各自登记进各框架的 IoC 容器。
+ * api / worker 两端统一从此导入领域类型与实现，用 {@link createCore} 拿到装配好的
+ * 全套实例，再登记进 NestJS 的 IoC 容器。
  */
 
 // 装配工厂 + 通用

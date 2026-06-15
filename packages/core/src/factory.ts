@@ -42,8 +42,8 @@ import { SeedRunner } from './seed/seed.runner';
 /**
  * 领域装配工厂：一处把全部仓储 / 服务 / 调度 / 网关 / worker / 种子按依赖图实例化好。
  *
- * 框架无关——api 与 worker 两端（及未来 Nest 版）都调它拿到同一套领域实例，再各自用各框架的 IoC
- * 把需要的实例登记进容器（Midway: registerObject(token, core.x)）。依赖图只在此定义一次。
+ * 框架无关——api 与 worker 两端都调它拿到同一套领域实例，再用框架的 IoC 把需要的实例登记进
+ * 容器（NestJS：以 value provider 按令牌登记）。依赖图只在此定义一次。
  *
  * gateway 始终创建但只在 api 侧 `start(server)` 后才真正开 WS；AnalysisConfigService 以它作派发器
  * （worker 侧不入队，故不触发派发）。

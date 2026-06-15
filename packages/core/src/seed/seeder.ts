@@ -1,7 +1,6 @@
 /**
  * 种子机制契约：一个 {@link Seeder} 策略接口 + 一个编排器（见 seed.runner.ts）。
- * 与 NestJS 版一致，仅去掉 SEEDERS 注入令牌——Midway 下 SeedRunner 直接注入三个 Seeder 聚合
- * （Midway 无 Angular 式 multi-provider 工厂，改为显式注入，行为等价）。
+ * SeedRunner 直接构造注入三个 Seeder 聚合（不走 Angular 式 multi-provider 工厂 / SEEDERS 令牌，行为等价）。
  */
 
 /** 一次启动内统一下传给所有 Seeder 的上下文（当前仅时间，预留扩展位） */

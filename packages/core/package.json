@@ -2,7 +2,7 @@
   "name": "@hatch-radar/core",
   "version": "0.1.0",
   "private": true,
-  "description": "框架无关的领域核心：仓储 + 分析 + 爬虫 + 运行期配置 + 调度/网关/worker 执行逻辑 + 装配工厂。被 api / worker 两端（及 NestJS / MidwayJS 两框架）复用，不依赖任何 Web 框架。",
+  "description": "框架无关的领域核心：仓储 + 分析 + 爬虫 + 运行期配置 + 调度/网关/worker 执行逻辑 + 装配工厂。被 NestJS server 的 api / worker 两端复用，不依赖任何 Web 框架。",
   "type": "module",
   "exports": {
     ".": {

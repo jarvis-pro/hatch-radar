@@ -14,7 +14,7 @@ const prettyOpts = {
 };
 
 /**
- * 框架无关的全局 logger（与 NestJS / Midway 版一致，单路输出 stdout）。
+ * 框架无关的全局 logger（单路输出 stdout）。
  * api / worker 两端共用；级别由 LOG_LEVEL 覆盖，默认 info。
  */
 export const logger = isProd
