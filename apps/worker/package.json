@@ -5,8 +5,8 @@
   "description": "工作台数据面 worker（NestJS standalone context）：经 PG 队列认领分析 job、WS 连 api 网关、跑 AI 分析写回。无 HTTP / 无调度，可独立横向扩 N 实例。",
   "type": "module",
   "scripts": {
-    "dev": "node --env-file-if-exists=.env --watch --import @swc-node/register/esm-register src/main.ts",
-    "start": "node --env-file-if-exists=.env --import @swc-node/register/esm-register src/main.ts",
+    "dev": "node --env-file-if-exists=../../.env --env-file-if-exists=.env --watch --import @swc-node/register/esm-register src/main.ts",
+    "start": "node --env-file-if-exists=../../.env --env-file-if-exists=.env --import @swc-node/register/esm-register src/main.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

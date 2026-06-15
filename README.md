@@ -42,22 +42,24 @@ pnpm install
 
 ### 2. 配置环境变量
 
+api / worker 共享的两个必填项放在**工作区根** `.env`，两个进程启动时都会自动加载（`prisma migrate` 也用它）：
+
 ```bash
-cp apps/api/.env.example apps/api/.env
+cp .env.example .env
 ```
 
-编辑 `apps/api/.env`（密钥只属于后端进程，不会进入 web / mobile）：
+编辑根 `.env`（密钥只属于后端进程，不会进入 web / mobile）：
 
 ```env
-# 数据来源 / Reddit 采集凭据 / AI 模型接入：一律在 Web 设置页（/settings）配置入库，env 不承载任何凭据。
-# 模型密钥与 Reddit 凭据的加密主密钥（设置页配置须先设它）：
-# SETTINGS_SECRET=                 # openssl rand -hex 32
-
 # 数据库（PostgreSQL；本地用 docker-compose 起，生产换托管 PG 只改此串）
 DATABASE_URL=postgres://radar:radar@localhost:47432/hatch_radar
+
+# 模型密钥与 Reddit 凭据的加密主密钥（设置页配置须先设它）；留空则禁用 AI 分析
+SETTINGS_SECRET=                 # openssl rand -hex 32
 ```
 
-`SETTINGS_SECRET`、每轮分析上限等见 `.env.example` 注释；模型与数据来源/Reddit 凭据一律在 Web 设置页配置。
+> 数据来源 / Reddit 采集凭据 / AI 模型接入一律在 Web 设置页（/settings）配置入库，env 不承载任何凭据。
+> 共享调优项 `LOG_LEVEL` / `HTTP_PORT` / `DATABASE_POOL_MAX` 也在根 `.env`（取消注释即覆盖两端）；各进程专属项（api 的超管种子 / `WEB_DIST_DIR`，worker 的 `GATEWAY_URL` / `WORKER_CONCURRENCY`）按需另建 `apps/api/.env`、`apps/worker/.env`，见各自 `.env.example`；不建也能用默认值启动。
 
 ### 3. 起数据库并建表
 
@@ -215,6 +217,7 @@ hatch-radar/
 │   ├── config/                 # 共享配置切片 + TypeScript 预设（tsconfig base / nest）
 │   └── ui/                     # PC 端共享 UI 库：shadcn/ui + Tailwind v4（组件经 CLI 落入此包，RN 勿引）
 ├── docs/                       # 设计与计划文档
+├── .env.example                # 根级共享配置（DATABASE_URL/SETTINGS_SECRET + LOG_LEVEL/HTTP_PORT/POOL）：api/worker/迁移共用
 ├── docker-compose.yml          # db（PostgreSQL）；api + worker 两进程跑在宿主机
 ├── pnpm-workspace.yaml
 └── package.json                # 根脚本统一代理到子包

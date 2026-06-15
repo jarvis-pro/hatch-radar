@@ -5,8 +5,8 @@
   "description": "工作台控制面 API（NestJS + PostgreSQL）：HTTP + 鉴权 + 调度 + push 网关 + 同源托管 web SPA。领域逻辑组装在 src/domain（复用 kernel/db/crawler/analysis 能力包）。密钥只在此进程，绝不下发到 web / mobile。",
   "type": "module",
   "scripts": {
-    "dev": "pnpm --filter @hatch-radar/db db:migrate && node --env-file-if-exists=.env --watch --import @swc-node/register/esm-register src/main.ts",
-    "start": "pnpm --filter @hatch-radar/db db:migrate && node --env-file-if-exists=.env --import @swc-node/register/esm-register src/main.ts",
+    "dev": "pnpm --filter @hatch-radar/db db:migrate && node --env-file-if-exists=../../.env --env-file-if-exists=.env --watch --import @swc-node/register/esm-register src/main.ts",
+    "start": "pnpm --filter @hatch-radar/db db:migrate && node --env-file-if-exists=../../.env --env-file-if-exists=.env --import @swc-node/register/esm-register src/main.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
