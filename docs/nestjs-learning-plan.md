@@ -1,12 +1,12 @@
 # NestJS 学习计划（Midway 老手 · 围绕 hatch-radar）
 
-> 给有 Midway.js 经验的人的 NestJS 上手计划：**以 `apps/server` 的真实代码为教材**，每个里程碑都落到本仓已有代码（读）或真·未建增量（建）。
+> 给有 Midway.js 经验的人的 NestJS 上手计划：**以 `apps/api` + `apps/worker` 的真实代码为教材**，每个里程碑都落到本仓已有代码（读）或真·未建增量（建）。
 > Midway 与 NestJS 是概念上的孪生（IoC、装饰器、Guard/Filter/Pipe、生命周期几乎照搬），所以本计划不从零讲框架，而是聚焦**「Midway 会的直接迁移、真正不同的重点学」**。
 
 - **状态**：活文档（边学边勾 ☐/☑）
 - **日期**：2026-06-15
 - **前提**：已掌握 Midway 的 IoC/DI、装饰器路由、Guard/Filter/Pipe、生命周期、配置体系
-- **教材**：`apps/server`（NestJS 11 + Express + Prisma 7），配套设计文档 `docs/runtime-config-design.md`、`docs/account-rbac-design.md`、`docs/worker-push-gateway-design.md`、`docs/server-nest-postgres-refactor-plan.md`
+- **教材**：`apps/api`（控制面）+ `apps/worker`（数据面）（NestJS 11 + Express + Prisma 7），配套设计文档 `docs/runtime-config-design.md`、`docs/account-rbac-design.md`、`docs/worker-push-gateway-design.md`、`docs/server-nest-postgres-refactor-plan.md`
 - **官方文档**：<https://docs.nestjs.com>（下文「资料」列章节名）
 - **现状校准**：运行期配置中心与账户 RBAC **两大块均已落地**（带测试）——本计划据此以「精读真实实现」为主，实战靶子改为少量真·未建增量（首选**审计 Interceptor**，全仓唯一没用过的横切模式），详见 §4。
 
@@ -60,16 +60,16 @@
 
 ## 2. 里程碑总览
 
-| 里程碑                        | 学什么                                          | 读这些代码（本仓现成）                                            | 动手产出                                  | 关联路线图               |
-| ----------------------------- | ----------------------------------------------- | ----------------------------------------------------------------- | ----------------------------------------- | ------------------------ |
-| **M0** 环境与心智             | 启动链路、reflect-metadata、两种入口            | `main.ts`、`worker-main.ts`、`package.json`                       | 本地跑起 server+worker，跟一遍启动顺序    | —                        |
-| **M1** DI 与模块系统 ⭐       | provider 可见性、自定义 provider、token         | `app.module.ts`、`database.module.ts`、`tokens.ts`                | 画 DI 依赖图；故意 `import type` 复现报错 | 贯穿全局                 |
-| **M2** 请求生命周期 / 横切 ⭐ | Guard/Pipe/Filter/Interceptor、Reflector        | `*.guard.ts`、`zod-validation.pipe.ts`、`*.filter`                | 写一个 LoggingInterceptor（本仓缺的那块） | 审计 Interceptor（§4）   |
-| **M3** 配置与动态模块         | `@nestjs/config`、`forRootAsync`、热重载        | `app-config.module.ts`、`env.ts`                                  | 把某 boot 期注入改成动态模块              | 运行期配置（已落地·读）  |
-| **M4** 数据层（Prisma）       | PrismaService 模式、事务、仓储 DI、生命周期     | `database.module.ts`、`db/*.repository.ts`                        | 读懂多 Key 故障转移；仿写一个仓储         | 运行期配置（已落地·读）  |
-| **M5** 异步与长生命周期       | 生命周期钩子、@Cron、独立上下文、网关、队列     | `scheduler.service.ts`、`worker.service.ts`、`gateway.service.ts` | 写优雅停机测试；BullMQ vs PG 队列 ADR     | worker 网关（已落地·读） |
-| **M6** 测试                   | `Test.createTestingModule` + `overrideProvider` | `test/*.spec.ts`、`vitest.config.ts`                              | 把一个手写测试改写成 testing module       | 全局质量                 |
-| **M7** 超出本项目的版图       | 微服务/GraphQL/CQRS/Swagger/Passport…           | —（官方 sample）                                                  | 各跑一个官方 sample                       | 选学                     |
+| 里程碑                        | 学什么                                          | 读这些代码（本仓现成）                                                                  | 动手产出                                  | 关联路线图               |
+| ----------------------------- | ----------------------------------------------- | --------------------------------------------------------------------------------------- | ----------------------------------------- | ------------------------ |
+| **M0** 环境与心智             | 启动链路、reflect-metadata、两种入口            | `main.ts`、`worker-main.ts`、`package.json`                                             | 本地跑起 server+worker，跟一遍启动顺序    | —                        |
+| **M1** DI 与模块系统 ⭐       | provider 可见性、自定义 provider、token         | `app.module.ts`、`database.module.ts`、`tokens.ts`、`core.module.ts`（`fromCore` 桥接） | 画 DI 依赖图；故意 `import type` 复现报错 | 贯穿全局                 |
+| **M2** 请求生命周期 / 横切 ⭐ | Guard/Pipe/Filter/Interceptor、Reflector        | `*.guard.ts`、`zod-validation.pipe.ts`、`*.filter`                                      | 写一个 LoggingInterceptor（本仓缺的那块） | 审计 Interceptor（§4）   |
+| **M3** 配置与动态模块         | `@nestjs/config`、`forRootAsync`、热重载        | `app-config.module.ts`、`env.ts`                                                        | 把某 boot 期注入改成动态模块              | 运行期配置（已落地·读）  |
+| **M4** 数据层（Prisma）       | PrismaService 模式、事务、仓储 DI、生命周期     | `database.module.ts`、`db/*.repository.ts`                                              | 读懂多 Key 故障转移；仿写一个仓储         | 运行期配置（已落地·读）  |
+| **M5** 异步与长生命周期       | 生命周期钩子、@Cron、独立上下文、网关、队列     | `scheduler.cron.ts`（api）、`worker.service.ts`（apps/worker）、`gateway.service.ts`    | 写优雅停机测试；BullMQ vs PG 队列 ADR     | worker 网关（已落地·读） |
+| **M6** 测试                   | `Test.createTestingModule` + `overrideProvider` | `test/*.spec.ts`、`vitest.config.ts`                                                    | 把一个手写测试改写成 testing module       | 全局质量                 |
+| **M7** 超出本项目的版图       | 微服务/GraphQL/CQRS/Swagger/Passport…           | —（官方 sample）                                                                        | 各跑一个官方 sample                       | 选学                     |
 
 ---
 
@@ -81,15 +81,15 @@
 
 **读这些代码**
 
-- [apps/server/src/main.ts](apps/server/src/main.ts) — `NestFactory.create<NestExpressApplication>()`、全局 Filter、`setGlobalPrefix('api')`、`enableShutdownHooks()`、nestjs-pino 注入。
-- [apps/server/src/worker-main.ts](apps/server/src/worker-main.ts) — `NestFactory.createApplicationContext()`（**无 HTTP 的独立上下文**，Midway 没这个直接对应）。
-- [apps/server/package.json](apps/server/package.json) — 看 `dev`/`start` 脚本：`node --import @swc-node/register/esm-register src/main.ts`。**注意本仓不走 `nest build` / nest CLI**，而是 swc 直接跑 TS 源。
-- [apps/server/tsconfig.json](apps/server/tsconfig.json) — 确认 `experimentalDecorators` + `emitDecoratorMetadata`（DI 的命根子）。
+- [apps/api/src/main.ts](apps/api/src/main.ts) — `NestFactory.create<NestExpressApplication>()`、全局 Filter、`setGlobalPrefix('api')`、`enableShutdownHooks()`、nestjs-pino 注入。
+- [apps/worker/src/main.ts](apps/worker/src/main.ts) — `NestFactory.createApplicationContext()`（**无 HTTP 的独立上下文**）。注意现在是**真·独立进程**（`apps/worker` 是独立包，`pnpm --filter @hatch-radar/worker`），不是同一 app 内的第二入口——两者共享同一 PG 队列协调工作。
+- [apps/api/package.json](apps/api/package.json) — 看 `dev`/`start` 脚本：`node --import @swc-node/register/esm-register src/main.ts`。**注意本仓不走 `nest build` / nest CLI**，而是 swc 直接跑 TS 源。
+- [apps/api/tsconfig.json](apps/api/tsconfig.json) — 确认 `experimentalDecorators` + `emitDecoratorMetadata`（DI 的命根子）。
 
 **动手**
 
-1. `pnpm --filter @hatch-radar/server dev` 跑起来，访问 `GET /api/health`。
-2. 单独跑 worker 入口，对比两个 bootstrap 的差异（一个建 HTTP server，一个只建 IoC 容器）。
+1. `pnpm --filter @hatch-radar/api dev` 跑起来，访问 `GET /api/health`。
+2. 单独跑 `pnpm --filter @hatch-radar/worker dev`，对比两个 bootstrap 的差异（api 建 HTTP server，worker 只建 IoC 容器）。两者是独立 pnpm 包，共享同一 PG 数据库队列。
 3. 在 `main.ts` 的 bootstrap 里打日志，观察 `enableShutdownHooks` 后 Ctrl-C 的优雅停机顺序（为 M5 铺垫）。
 
 **Midway 对照 & 坑**
@@ -106,11 +106,11 @@
 
 **读这些代码**
 
-- [apps/server/src/app.module.ts](apps/server/src/app.module.ts) — 根模块，看 `imports` 里哪些是 `@Global`（Config/Database/Gateway）、哪些是普通特性模块。
-- [apps/server/src/config/app-config.module.ts](apps/server/src/config/app-config.module.ts) — `@Global()` + `useFactory` 提供 `APP_ENV`，并 `exports`。
-- [apps/server/src/database/database.module.ts](apps/server/src/database/database.module.ts) — `useFactory` + `inject` 数组接 Prisma（**自定义 provider 的范本**）。
-- [apps/server/src/common/tokens.ts](apps/server/src/common/tokens.ts) — `PRISMA`/`APP_ENV` 用 **Symbol token**，专门为「避免循环 import + 让仓储不必拖进整个 DatabaseModule」。
-- [apps/server/src/db/repositories.module.ts](apps/server/src/db/repositories.module.ts) — 一堆仓储集中声明 + `exports`，给 `http`/`analysis` 等模块复用。
+- [apps/api/src/app.module.ts](apps/api/src/app.module.ts) — 根模块，看 `imports` 里哪些是 `@Global`（Config/Database/Core）、哪些是普通特性模块。
+- [apps/api/src/config/app-config.module.ts](apps/api/src/config/app-config.module.ts) — `@Global()` + `useFactory` 提供 `APP_ENV`，并 `exports`。
+- [apps/api/src/database/database.module.ts](apps/api/src/database/database.module.ts) — `useFactory` + `inject` 数组接 Prisma（**自定义 provider 的范本**）。
+- [apps/api/src/common/tokens.ts](apps/api/src/common/tokens.ts) — `PRISMA`/`APP_ENV`/`CORE` 用 **Symbol token**。
+- [apps/api/src/core/core.module.ts](apps/api/src/core/core.module.ts) — ⭐ **本仓最值得精读的 DI 范本**，原 `repositories.module.ts` 的升级版。`createCore(db, env)` 在 NestJS 外一次性装配全部领域实例（仓储 + 服务），再用 `fromCore(ClassName, 'key')` 把每个实例以「其类」为 token 重新注册为 Nest provider（`useFactory: (core) => core[key], inject: [CORE]`）。效果：控制器维持按类型构造注入，零改注入点，同时领域层完全框架无关。这是 `useFactory` 高级用法的教科书示例。
 
 **动手**
 
@@ -118,6 +118,7 @@
 2. **复现核心报错**：把某个被注入的 service 改成 `import type { XxxService }`，启动看 `Nest can't resolve dependencies of ...`——这就是你们 memory 记的坑，亲手踩一次记得牢（§5.1）。
 3. **体会模块边界**：临时把 `DatabaseModule` 的 `@Global()` 去掉，启动会炸；然后改成「在需要 `PRISMA` 的模块里显式 `imports: [DatabaseModule]`」让它复活——这就是 Midway 没有的「可见性」机制。
 4. 用四种自定义 provider 各写一个玩具 provider：`useValue`（常量）、`useClass`（换实现）、`useFactory`（带 `inject`）、`useExisting`（别名）。
+5. **精读 `CoreModule` 的 `fromCore` 桥接**：理解 `CORE` Symbol token 怎么把框架无关的领域图引入 Nest DI；试着在 worker 侧的 [apps/worker/src/assembly.ts](apps/worker/src/assembly.ts) 找到同样用 `createCore` 的地方，对比两侧桥接方式的异同。
 
 **Midway 对照 & 坑**
 
@@ -142,17 +143,17 @@
 
 **读这些代码**
 
-- [apps/server/src/common/bearer-auth.guard.ts](apps/server/src/common/bearer-auth.guard.ts) — 最简 `CanActivate`：读 header 比对 `API_TOKEN`。
-- [apps/server/src/auth/machine-or-device.guard.ts](apps/server/src/auth/machine-or-device.guard.ts) — **进阶范本**：`ExecutionContext` + `Reflector.get(...)` 读 `@RequireDevicePermission` 元数据 + Ed25519 验签 + 把 `deviceUser` 挂到 `req`。
-- [apps/server/src/auth/device-permission.decorator.ts](apps/server/src/auth/device-permission.decorator.ts) — `SetMetadata` 包出 `@RequireDevicePermission`，`createParamDecorator` 包出 `@DeviceUser()`。**本仓 RBAC 正是大量复用这个模式（已落地）。**
-- [apps/server/src/common/zod-validation.pipe.ts](apps/server/src/common/zod-validation.pipe.ts) — `PipeTransform`，用 Zod 校验 `@Body`。
-- [apps/server/src/common/http-exception.filter.ts](apps/server/src/common/http-exception.filter.ts) — 全局 `@Catch()`，统一 `{ error }` 契约、不泄露堆栈。
-- 看它们在 [apps/server/src/http/sync.controller.ts](apps/server/src/http/sync.controller.ts) / [apps/server/src/http/settings.controller.ts](apps/server/src/http/settings.controller.ts) 怎么用 `@UseGuards` + `@Body(new ZodValidationPipe(schema))`。
+- [apps/api/src/account/session-auth.guard.ts](apps/api/src/account/session-auth.guard.ts) — 最简 `CanActivate`：校验 httpOnly cookie 会话（原 `bearer-auth.guard.ts` / API_TOKEN 已随后端归一退役）。
+- [apps/api/src/auth/device-or-session.guard.ts](apps/api/src/auth/device-or-session.guard.ts) — **进阶范本**：**双通道**（mobile 设备 Ed25519 **或** web 用户会话）+ `ExecutionContext` + `Reflector.get(...)` 读 `@RequireDevicePermission` 元数据 + 把 `deviceUser`/`user` 挂到 `req`。原 `machine-or-device.guard.ts` 已演进为此。
+- [apps/api/src/auth/device-permission.decorator.ts](apps/api/src/auth/device-permission.decorator.ts) — `SetMetadata` 包出 `@RequireDevicePermission`，`createParamDecorator` 包出 `@DeviceUser()`。**本仓 RBAC 正是大量复用这个模式（已落地）。**
+- [apps/api/src/common/zod-validation.pipe.ts](apps/api/src/common/zod-validation.pipe.ts) — `PipeTransform`，用 Zod 校验 `@Body`。
+- [apps/api/src/common/http-exception.filter.ts](apps/api/src/common/http-exception.filter.ts) — 全局 `@Catch()`，统一 `{ error }` 契约、不泄露堆栈。
+- 看它们在 [apps/api/src/http/sync.controller.ts](apps/api/src/http/sync.controller.ts) / [apps/api/src/http/settings.controller.ts](apps/api/src/http/settings.controller.ts) 怎么用 `@UseGuards` + `@Body(new ZodValidationPipe(schema))`。
 
 **动手**
 
 1. **补上本仓缺的 Interceptor**：写一个 `LoggingInterceptor`，记录每个请求耗时（`intercept(ctx, next)` 里 `next.handle().pipe(tap(...))`）。这是你练 **RxJS Observable 包裹** 的最佳入口（对照 Midway `@Aspect` 的 around），也是 §4 进阶 capstone（审计 Interceptor）的预热。
-2. **对照已落地代码脱稿重写一个 Guard**：合上代码，凭 account-rbac-design §4.2 能力目录，自己重写 `machine-or-device.guard.ts` 的权限判定，再和仓库实现（+ web [lib/auth/guards.ts](apps/web/src/lib/auth/guards.ts) 的 `requirePermission`）对拍。这是 §4 入门 capstone。
+2. **对照已落地代码脱稿重写一个 Guard**：合上代码，凭 account-rbac-design §4.2 能力目录，自己重写 `device-or-session.guard.ts` 的双通道权限判定，再和仓库实现（+ web [lib/auth/guards.ts](apps/web/src/lib/auth/guards.ts) 的 `requirePermission`）对拍。这是 §4 入门 capstone。
 3. 把全局组件三种注册方式都试一遍：`app.useGlobalX()`（main.ts，无法注入依赖）、`@UseGuards()`（路由级）、`APP_GUARD` provider（能注入依赖，§5.7）。
 
 **Midway 对照 & 坑**
@@ -170,8 +171,8 @@
 
 **读这些代码**
 
-- [apps/server/src/config/app-config.module.ts](apps/server/src/config/app-config.module.ts) — `ConfigModule.forRoot({ isGlobal, cache, validate })`，但真正的强类型配置走 `APP_ENV` 的 `useFactory`（Zod 解析）。
-- [apps/server/src/config/env.ts](apps/server/src/config/env.ts) — Zod schema + `stripEmptyEnv`（空串当未设，[[env-example-required-uncommented]]），产出结构化 `AppEnv`。
+- [apps/api/src/config/app-config.module.ts](apps/api/src/config/app-config.module.ts) — `ConfigModule.forRoot({ isGlobal, cache, validate })`，但真正的强类型配置走 `APP_ENV` 的 `useFactory`（Zod 解析）。
+- [apps/api/src/config/env.ts](apps/api/src/config/env.ts) — Zod schema + `stripEmptyEnv`（空串当未设，[[env-example-required-uncommented]]），产出结构化 `AppEnv`。
 - 配套读设计文档 `docs/runtime-config-design.md` §3.5/§4.6 的「热重载」（`reloadAnalysisConfig()` / bump `crawler_config_version`）——这是「运行期可调配置入库、不重启生效」的 NestJS 落法（已实现）。
 
 **动手**
@@ -194,11 +195,11 @@
 
 **读这些代码**
 
-- [apps/server/src/database/database.module.ts](apps/server/src/database/database.module.ts) — `DB_HANDLE`→`PRISMA` 的 `useFactory` 链 + 生命周期管理连接（`OnModuleInit/OnApplicationShutdown` 思路）。
+- [apps/api/src/database/database.module.ts](apps/api/src/database/database.module.ts) — `DB_HANDLE`→`PRISMA` 的 `useFactory` 链 + 生命周期管理连接（`OnModuleInit/OnApplicationShutdown` 思路）。
 - [packages/db/src/client.ts](packages/db/src/client.ts) + [packages/db/prisma.config.ts](packages/db/prisma.config.ts) — Prisma 7 **driver adapter**（`@prisma/adapter-pg`）、连接串不在 schema 里（[[server-nest-pg-refactor]] 记的坑）。
-- [apps/server/src/db/providers.repository.ts](apps/server/src/db/providers.repository.ts) — **已落地的多 Key 仓储**：`@Inject(PRISMA)` + 脱敏 DTO。
-- [apps/server/src/analysis/analysis-config.service.ts](apps/server/src/analysis/analysis-config.service.ts) — `selectKey` + 单任务内故障转移 + 冷却自愈（runtime-config-design §3.3 的实现）。
-- 一个用事务的仓储，如 [apps/server/src/db/posts.repository.ts](apps/server/src/db/posts.repository.ts)（`db.$transaction`）。
+- [packages/db/src/repositories/providers.repository.ts](packages/db/src/repositories/providers.repository.ts) — **已落地的多 Key 仓储**（原 `apps/server/src/db/`，已迁 `packages/db`）：框架无关类，经 `CoreModule` 的 `fromCore` 桥接注入 Nest。
+- [packages/analysis/src/analysis-config.service.ts](packages/analysis/src/analysis-config.service.ts) — `selectKey` + 单任务内故障转移 + 冷却自愈（runtime-config-design §3.3 的实现）。
+- 一个用事务的仓储，如 [packages/db/src/repositories/posts.repository.ts](packages/db/src/repositories/posts.repository.ts)（`db.$transaction`）。
 
 **动手**
 
@@ -220,11 +221,11 @@
 
 **读这些代码**
 
-- [apps/server/src/scheduler/scheduler.service.ts](apps/server/src/scheduler/scheduler.service.ts) — `@Cron` 定时 + 防并发；`ScheduleModule.forRoot()` 在 [scheduler.module.ts](apps/server/src/scheduler/scheduler.module.ts)。
-- [apps/server/src/worker/worker.service.ts](apps/server/src/worker/worker.service.ts) — `OnApplicationBootstrap`（回收僵死任务、起心跳）+ `OnApplicationShutdown`（停定时器、等在途任务）。**这是生命周期钩子的教科书用法。**
-- [apps/server/src/worker/worker-standalone.module.ts](apps/server/src/worker/worker-standalone.module.ts) + [worker-main.ts](apps/server/src/worker-main.ts) — `createApplicationContext` 跑无 HTTP 的独立 worker 进程。
-- [apps/server/src/gateway/gateway.service.ts](apps/server/src/gateway/gateway.service.ts) — 手搓 `ws` 网关推任务（**注意：不是 `@nestjs/websockets`**，对比官方 Gateway 理解取舍）；设计见 `docs/worker-push-gateway-design.md`。
-- [apps/server/src/db/jobs.repository.ts](apps/server/src/db/jobs.repository.ts) — **PG 表当任务队列**（状态机 + 部分唯一索引保幂等），而非 BullMQ。
+- [apps/api/src/scheduler/scheduler.cron.ts](apps/api/src/scheduler/scheduler.cron.ts) — Nest 侧**薄封装**：只挂 `@Cron` 注解 + 委托 `SchedulerService`（来自 `packages/kernel`）；`ScheduleModule.forRoot()` 在 [scheduler.module.ts](apps/api/src/scheduler/scheduler.module.ts)。业务逻辑本身在 `packages/kernel/src/` 的框架无关层。
+- [apps/worker/src/worker.service.ts](apps/worker/src/worker.service.ts) — `OnApplicationBootstrap`（回收僵死任务、起心跳）+ `OnApplicationShutdown`（停定时器、等在途任务）。**这是生命周期钩子的教科书用法。**
+- [apps/worker/src/worker.module.ts](apps/worker/src/worker.module.ts) + [apps/worker/src/main.ts](apps/worker/src/main.ts) — `createApplicationContext` 跑无 HTTP 的独立 worker 进程（**真·独立 pnpm 包** `@hatch-radar/worker`）。
+- [apps/api/src/domain/gateway/gateway.service.ts](apps/api/src/domain/gateway/gateway.service.ts) — 手搓 `ws` 网关推任务（**注意：不是 `@nestjs/websockets`**，对比官方 Gateway 理解取舍）；设计见 `docs/worker-push-gateway-design.md`。
+- [packages/db/src/repositories/jobs.repository.ts](packages/db/src/repositories/jobs.repository.ts) — **PG 表当任务队列**（状态机 + 部分唯一索引保幂等），而非 BullMQ。
 
 **动手**
 
@@ -247,9 +248,9 @@
 
 **读这些代码**
 
-- [apps/server/test/settings-controller.spec.ts](apps/server/test/settings-controller.spec.ts) — 看现在怎么手动 `new SettingsController(...)` + stub 依赖。
-- [apps/server/test/provider-keys.spec.ts](apps/server/test/provider-keys.spec.ts) — 多 Key 故障转移的真实测试。
-- [apps/server/vitest.config.ts](apps/server/vitest.config.ts) + [apps/server/test/setup.ts](apps/server/test/setup.ts) — `@` 别名、`import 'reflect-metadata'`、`fileParallelism: false`（共享单测试库）。
+- [apps/api/test/settings-controller.spec.ts](apps/api/test/settings-controller.spec.ts) — 看现在怎么手动 `new SettingsController(...)` + stub 依赖。
+- [apps/api/test/provider-keys.spec.ts](apps/api/test/provider-keys.spec.ts) — 多 Key 故障转移的真实测试。
+- [apps/api/vitest.config.ts](apps/api/vitest.config.ts) + [apps/api/test/setup.ts](apps/api/test/setup.ts) — `@` 别名、`import 'reflect-metadata'`、`fileParallelism: false`（共享单测试库）。
 
 **动手**
 
@@ -295,13 +296,13 @@
 
 - **性质**：纯读 + 在测试里重写，零风险，覆盖 M1+M2+M6。
 - **做什么**：
-  1. 跟读 `docs/account-rbac-design.md` → 对照实现逐段印证：服务端 [machine-or-device.guard.ts](apps/server/src/auth/machine-or-device.guard.ts) + [device-auth.service.ts](apps/server/src/auth/device-auth.service.ts) + [device-permission.decorator.ts](apps/server/src/auth/device-permission.decorator.ts)；web 侧 [apps/web/src/lib/auth/guards.ts](apps/web/src/lib/auth/guards.ts)（`requireSession`/`requirePermission`）；共享 [packages/shared/src/permissions.ts](packages/shared/src/permissions.ts)、`packages/auth/src`（scrypt/session/Ed25519）。
-  2. **脱稿重写**：合上实现，凭 §4.3 授权语义 + §4.4 越权护栏自己写一遍 `MachineOrDeviceGuard`，再用 M6 的 `Test.createTestingModule` + `overrideProvider` 给它写测试，最后和仓库实现对拍。
+  1. 跟读 `docs/account-rbac-design.md` → 对照实现逐段印证：服务端 [device-or-session.guard.ts](apps/api/src/auth/device-or-session.guard.ts) + [device-auth.service.ts](apps/api/src/auth/device-auth.service.ts)（via `packages/auth`）+ [device-permission.decorator.ts](apps/api/src/auth/device-permission.decorator.ts)；web 侧 [apps/web/src/lib/auth/guards.ts](apps/web/src/lib/auth/guards.ts)（`requireSession`/`requirePermission`）；共享 [packages/shared/src/permissions.ts](packages/shared/src/permissions.ts)、`packages/auth/src`（scrypt/session/Ed25519）。
+  2. **脱稿重写**：合上实现，凭 §4.3 授权语义 + §4.4 越权护栏自己写一遍 `DeviceOrSessionGuard`（双通道），再用 M6 的 `Test.createTestingModule` + `overrideProvider` 给它写测试，最后和仓库实现对拍。
 - **练到的**：Guard + `ExecutionContext` + `Reflector` + `createParamDecorator` + 测试 module，把 M2 全套吃透。
 
 ### 进阶 capstone：审计 Interceptor（**全仓唯一没用过的横切模式**）⭐
 
-- **性质**：**真·net-new**。本仓**至今没有任何 Interceptor**（已核实），而审计现在是**手动散写**（server 在 [device-auth.service.ts](apps/server/src/auth/device-auth.service.ts)、[sync.controller.ts](apps/server/src/http/sync.controller.ts) 里逐处调；web 在 [lib/auth/audit.ts](apps/web/src/lib/auth/audit.ts)）。把它收敛成一个声明式 Interceptor，正好兑现 `runtime-config-design.md` §7 那条未来项「Key/凭据变更写 `audit_logs`，RBAC 落地后接入」（如今 RBAC 已落地，可做）。
+- **性质**：**真·net-new**。本仓**至今没有任何 Interceptor**（已核实），而审计现在是**手动散写**（server 在 [device-auth.service.ts](apps/api/src/auth/device-auth.service.ts)（via `packages/auth`）、[sync.controller.ts](apps/api/src/http/sync.controller.ts) 里逐处调；web 在 [lib/auth/audit.ts](apps/web/src/lib/auth/audit.ts)）。把它收敛成一个声明式 Interceptor，正好兑现 `runtime-config-design.md` §7 那条未来项「Key/凭据变更写 `audit_logs`，RBAC 落地后接入」（如今 RBAC 已落地，可做）。
 - **做什么**：
   1. 写 `@Audit('analyze.run')` 元数据装饰器（`SetMetadata`，仿 `device-permission.decorator.ts`）。
   2. 写 `AuditInterceptor implements NestInterceptor`：`intercept(ctx, next)` 里用 `Reflector` 读 action，`next.handle().pipe(tap(() => writeAudit(...)))` 在处理成功后落 `audit_logs`，附操作者（从 `req.deviceUser`/会话解析）。
@@ -312,7 +313,7 @@
 
 ### 还想多练？任选一个真·未建增量
 
-- **多连接器故障转移**（runtime-config-design §10 / D5，schema 已支持未实现）——和已落地的「多 Key 故障转移」同构，照着 [providers.repository.ts](apps/server/src/db/providers.repository.ts) 抄到 [source-connectors.repository.ts](apps/server/src/db/source-connectors.repository.ts)。练 M4。
+- **多连接器故障转移**（runtime-config-design §10 / D5，schema 已支持未实现）——和已落地的「多 Key 故障转移」同构，照着 [providers.repository.ts](packages/db/src/repositories/providers.repository.ts) 抄到 [source-connectors.repository.ts](packages/db/src/repositories/source-connectors.repository.ts)。练 M4。
 - **按源定制轮询频率** `sources.config.cadence`（runtime-config-design §10）——调度按 cadence 分桶。练 M5（`SchedulerRegistry` 动态任务）。
 - **补 Swagger 或健康检查**（M7）——引 `@nestjs/swagger` 给现有 controller 出 OpenAPI，或 `@nestjs/terminus` 把手写 `/api/health` 升级成标准探针。练 net-new NestJS 面。
 
