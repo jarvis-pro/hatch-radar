@@ -8,8 +8,8 @@ import { CommentsRepository } from '../db/comments.repository';
 import { JobsRepository } from '../db/jobs.repository';
 import { PostsRepository } from '../db/posts.repository';
 import { SourcesRepository, type SourceRow } from '../db/sources.repository';
-import { logger } from '../logger';
-import { nowSec } from '../utils/time';
+import { logger } from '@hatch-radar/kernel';
+import { nowSec } from '@hatch-radar/kernel';
 
 const ARCHIVE_DAYS = 30;
 const COMMENT_BATCH_LIMIT = 200;

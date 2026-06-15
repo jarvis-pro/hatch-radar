@@ -1,16 +1,16 @@
 /**
- * @hatch-radar/core —— 框架无关的领域核心。
+ * @hatch-radar/core —— 框架无关的领域核心（逐步拆解中：基座已迁至 @hatch-radar/kernel）。
  * api / worker 两端统一从此导入领域类型与实现，用 {@link createCore} 拿到装配好的
  * 全套实例，再登记进 NestJS 的 IoC 容器。
  */
 
-// 装配工厂 + 通用
-export { createCore, type Core } from './factory';
-export { DomainError } from './errors';
-export { logger } from './logger';
+// 基座（errors / logger / env / 网关协议 / utils）已迁至 kernel；过渡期由 core 再导出，保持下游 import 不变
+export * from '@hatch-radar/kernel';
 
-// 配置 / 运行期设置
-export * from './config/env';
+// 装配工厂
+export { createCore, type Core } from './factory';
+
+// 运行期设置
 export * from './config/runtime-settings.service';
 
 // 仓储
@@ -53,8 +53,7 @@ export * from './sync/sync.service';
 export * from './export/export.service';
 export * from './export/sqlite-writer';
 
-// 网关协议 / 网关 / 调度 / worker 执行
-export * from './gateway/protocol';
+// 网关 / 调度 / worker 执行（协议已迁至 kernel）
 export * from './gateway/gateway.service';
 export * from './scheduler/scheduler.service';
 export * from './worker/worker.service';
@@ -66,10 +65,6 @@ export * from './seed/sources.seeder';
 export * from './seed/super-admin.seeder';
 export * from './seed/runtime-settings.seeder';
 export * from './seed/seed.runner';
-
-// 工具
-export * from './utils/time';
-export * from './utils/crypto';
 
 // 鉴权原语（转出 @hatch-radar/auth,供建号 / 工具脚本直接使用；领域服务内部亦用之）
 export { hashPassword, verifyPassword } from '@hatch-radar/auth';

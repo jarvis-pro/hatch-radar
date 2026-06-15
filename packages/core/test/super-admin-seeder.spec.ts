@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { verifyPassword } from '@hatch-radar/auth';
 import type { AppDatabase, DbHandle } from '@hatch-radar/db';
-import type { AppEnv } from '@/config/env';
+import type { AppEnv } from '@hatch-radar/kernel';
 import { UsersRepository } from '@/db/users.repository';
 import { SuperAdminSeeder } from '@/seed/super-admin.seeder';
 import { setupTestDb, truncateAll } from './helpers';

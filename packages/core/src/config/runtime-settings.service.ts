@@ -1,5 +1,5 @@
 import { SettingsRepository } from '../db/settings.repository';
-import { logger } from '../logger';
+import { logger } from '@hatch-radar/kernel';
 
 /** 运行期可调项的 camelCase 键（同时用作 web DTO 字段名与 PUT body 字段名） */
 export type RuntimeSettingKey =

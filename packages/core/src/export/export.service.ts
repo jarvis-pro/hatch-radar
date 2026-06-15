@@ -15,7 +15,7 @@ import {
   type ExportFilter,
   type PostRow,
 } from '@hatch-radar/shared';
-import { nowSec } from '../utils/time';
+import { nowSec } from '@hatch-radar/kernel';
 
 /**
  * 导出批次收集（数据源 = PG）。

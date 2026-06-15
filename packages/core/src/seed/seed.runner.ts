@@ -1,4 +1,4 @@
-import { logger } from '../logger';
+import { logger } from '@hatch-radar/kernel';
 import { RuntimeSettingsSeeder } from './runtime-settings.seeder';
 import type { Seeder, SeedContext } from './seeder';
 import { SourcesSeeder } from './sources.seeder';

@@ -1,4 +1,4 @@
-import { logger } from '../logger';
+import { logger } from '@hatch-radar/kernel';
 import type { TokenBucketQueue } from './queue';
 
 const TOKEN_URL = 'https://www.reddit.com/api/v1/access_token';

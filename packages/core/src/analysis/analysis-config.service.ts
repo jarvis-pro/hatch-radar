@@ -2,8 +2,8 @@ import type { CommentRow, InsightResult, PostRow } from '@hatch-radar/shared';
 import { createProcessor, type AnalysisConfig, type PostProcessor } from '../analyzer/analyze';
 import { testAnthropic } from '../analyzer/anthropic';
 import { testOpenAICompatible } from '../analyzer/openai-compatible';
-import { decryptSecret } from '../utils/crypto';
-import type { Dispatcher } from '../gateway/protocol';
+import { decryptSecret } from '@hatch-radar/kernel';
+import type { Dispatcher } from '@hatch-radar/kernel';
 import { JobsRepository } from '../db/jobs.repository';
 import { PostsRepository } from '../db/posts.repository';
 import {
@@ -12,8 +12,8 @@ import {
   type ProviderRow,
 } from '../db/providers.repository';
 import { SettingsRepository } from '../db/settings.repository';
-import { nowSec } from '../utils/time';
-import { logger } from '../logger';
+import { nowSec } from '@hatch-radar/kernel';
+import { logger } from '@hatch-radar/kernel';
 
 /** enqueueAutoAnalysisRound 的兜底批次（调用方一般传运行期设置 analyzeBatchSize；省略时用此值） */
 const DEFAULT_BATCH_SIZE = 20;

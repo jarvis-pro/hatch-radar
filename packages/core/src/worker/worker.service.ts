@@ -4,8 +4,8 @@ import { RuntimeSettingsService } from '../config/runtime-settings.service';
 import { CommentsRepository } from '../db/comments.repository';
 import { JobsRepository } from '../db/jobs.repository';
 import { PostsRepository } from '../db/posts.repository';
-import { logger } from '../logger';
-import { nowSec } from '../utils/time';
+import { logger } from '@hatch-radar/kernel';
+import { nowSec } from '@hatch-radar/kernel';
 
 /** running 期间的 DB 心跳间隔（毫秒），需远小于运行期设置 workerStaleSeconds（下界 30s） */
 const HEARTBEAT_INTERVAL_MS = 15_000;

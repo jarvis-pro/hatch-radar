@@ -10,7 +10,7 @@ import { AuditLogsRepository } from '../db/audit-logs.repository';
 import { LoginAttemptsRepository } from '../db/login-attempts.repository';
 import { SessionsRepository } from '../db/sessions.repository';
 import { UsersRepository, type UserAuthView } from '../db/users.repository';
-import { nowSec } from '../utils/time';
+import { nowSec } from '@hatch-radar/kernel';
 import type { AuthedUser } from './auth-context';
 
 const DAY = 86_400;

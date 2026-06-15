@@ -1,5 +1,5 @@
 import { hashPassword } from '@hatch-radar/auth';
-import type { AppEnv } from '../config/env';
+import type { AppEnv } from '@hatch-radar/kernel';
 import { UsersRepository } from '../db/users.repository';
 import type { Seeder, SeedContext, SeedOutcome } from './seeder';
 

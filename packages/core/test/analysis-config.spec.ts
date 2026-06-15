@@ -5,7 +5,7 @@ import { JobsRepository } from '@/db/jobs.repository';
 import { PostsRepository } from '@/db/posts.repository';
 import { ProvidersRepository } from '@/db/providers.repository';
 import { SettingsRepository } from '@/db/settings.repository';
-import { nowSec } from '@/utils/time';
+import { nowSec } from '@hatch-radar/kernel';
 import { setupTestDb, truncateAll } from './helpers';
 
 // 模型密钥加解密需要主密钥；测试用任意高熵串即可（不连模型）

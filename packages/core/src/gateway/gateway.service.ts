@@ -1,9 +1,9 @@
 import type { IncomingMessage, Server as HttpServer } from 'node:http';
 import { WebSocket, WebSocketServer } from 'ws';
 import { JobsRepository } from '../db/jobs.repository';
-import { logger } from '../logger';
-import { nowSec } from '../utils/time';
-import type { WorkerMessage } from './protocol';
+import { logger } from '@hatch-radar/kernel';
+import { nowSec } from '@hatch-radar/kernel';
+import type { WorkerMessage } from '@hatch-radar/kernel';
 
 interface WorkerState {
   workerId: string;

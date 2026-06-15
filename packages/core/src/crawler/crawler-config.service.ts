@@ -3,8 +3,8 @@ import {
   decryptConnectorSecret,
   type SourceConnectorRow,
 } from '../db/source-connectors.repository';
-import { nowSec } from '../utils/time';
-import { logger } from '../logger';
+import { nowSec } from '@hatch-radar/kernel';
+import { logger } from '@hatch-radar/kernel';
 import { TokenBucketQueue } from './queue';
 import { RedditClient, type RedditConfig } from './reddit';
 

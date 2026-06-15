@@ -1,5 +1,5 @@
 import type { AppDatabase } from '@hatch-radar/db';
-import type { AppEnv } from './config/env';
+import type { AppEnv } from '@hatch-radar/kernel';
 // repos
 import { AuditLogsRepository } from './db/audit-logs.repository';
 import { CommentsRepository } from './db/comments.repository';
