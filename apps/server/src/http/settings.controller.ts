@@ -201,7 +201,8 @@ export class SettingsController {
   ) {
     const key = await this.providers.getKey(keyId);
     if (!key || key.provider_id !== providerId) throw new NotFoundException('API Key 不存在');
-    if (Object.keys(dto).length > 0) await this.providers.updateKey(keyId, dto satisfies KeyUpdate, nowSec());
+    if (Object.keys(dto).length > 0)
+      await this.providers.updateKey(keyId, dto satisfies KeyUpdate, nowSec());
     return { ok: true };
   }
 

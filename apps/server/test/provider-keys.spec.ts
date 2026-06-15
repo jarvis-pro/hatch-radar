@@ -43,7 +43,12 @@ describe('ProvidersRepository（多 Key 池 / 可用性选取）', () => {
     const { providerId } = await seed();
     const keys = await repo.listKeysForProvider(providerId);
     expect(keys).toHaveLength(1);
-    expect(keys[0]).toMatchObject({ label: 'primary', priority: 0, enabled: true, status: 'active' });
+    expect(keys[0]).toMatchObject({
+      label: 'primary',
+      priority: 0,
+      enabled: true,
+      status: 'active',
+    });
   });
 
   it('listUsableKeys 按 priority 升序；排除停用 Key', async () => {

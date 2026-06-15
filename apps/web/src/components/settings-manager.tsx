@@ -141,7 +141,9 @@ function KeyStatusBadge({ k, now }: { k: ProviderKeyDTO; now: number }) {
   if (k.status === 'invalid') return <Badge variant="destructive">失效</Badge>;
   if (k.status === 'cooling') {
     const remain = k.cooldownUntil ? k.cooldownUntil - now : 0;
-    return <Badge variant="outline">{remain > 0 ? `冷却 ${Math.ceil(remain / 60)}m` : '待恢复'}</Badge>;
+    return (
+      <Badge variant="outline">{remain > 0 ? `冷却 ${Math.ceil(remain / 60)}m` : '待恢复'}</Badge>
+    );
   }
   return <Badge variant="secondary">正常</Badge>;
 }
@@ -232,7 +234,8 @@ export function SettingsManager({
     if (needKeyOnSave && !form.apiKey.trim()) {
       setFlash({
         kind: 'err',
-        text: editingId === null ? '新增模型必须填写首把 API Key' : '修改 base 地址必须重填 API Key',
+        text:
+          editingId === null ? '新增模型必须填写首把 API Key' : '修改 base 地址必须重填 API Key',
       });
       return;
     }
@@ -384,7 +387,8 @@ export function SettingsManager({
     setTestingKeyId(k.id);
     const res = await apiSend(`/api/settings/providers/${providerId}/keys/${k.id}/test`, 'POST');
     setTestingKeyId(null);
-    if (res.ok && res.data?.ok) setFlash({ kind: 'ok', text: `Key「${k.label || k.keyMasked}」连接正常` });
+    if (res.ok && res.data?.ok)
+      setFlash({ kind: 'ok', text: `Key「${k.label || k.keyMasked}」连接正常` });
     else setFlash({ kind: 'err', text: `Key 连接失败：${res.data?.error ?? res.status}` });
   }
 
@@ -394,7 +398,8 @@ export function SettingsManager({
         <div>
           <h1 className="text-lg font-semibold tracking-tight">模型设置</h1>
           <p className="text-sm text-muted-foreground">
-            配置 Anthropic / OpenAI / DeepSeek，每条可挂多把 API Key 做故障转移；选用其一即自动分析，保存即生效。
+            配置 Anthropic / OpenAI / DeepSeek，每条可挂多把 API Key
+            做故障转移；选用其一即自动分析，保存即生效。
           </p>
         </div>
         <Button onClick={openCreate} disabled={!secretConfigured}>
@@ -488,7 +493,9 @@ export function SettingsManager({
 
               <div className="p-3">
                 <div className="mb-2 flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">API Key 池（{p.keys.length}）</span>
+                  <span className="text-sm text-muted-foreground">
+                    API Key 池（{p.keys.length}）
+                  </span>
                   <Button
                     variant="outline"
                     size="sm"
@@ -550,7 +557,11 @@ export function SettingsManager({
                                   复位
                                 </Button>
                               ) : null}
-                              <Button variant="ghost" size="sm" onClick={() => openEditKey(p.id, k)}>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => openEditKey(p.id, k)}
+                              >
                                 编辑
                               </Button>
                               <Button variant="ghost" size="sm" onClick={() => removeKey(p.id, k)}>
@@ -575,7 +586,8 @@ export function SettingsManager({
           <DialogHeader>
             <DialogTitle>{editingId === null ? '新增模型' : '编辑模型'}</DialogTitle>
             <DialogDescription>
-              密钥经 server 加密入库，浏览器只展示脱敏值。API Key 的日常增删改请用每条模型下方的「Key 池」。
+              密钥经 server 加密入库，浏览器只展示脱敏值。API Key
+              的日常增删改请用每条模型下方的「Key 池」。
             </DialogDescription>
           </DialogHeader>
 

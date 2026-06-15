@@ -138,7 +138,8 @@ export class AnalysisConfigService {
     const processor: PostProcessor = {
       label: `${provider.provider} (${provider.model})`,
       model: provider.model,
-      analyze: (post, comments, signal) => this.analyzeWithFailover(provider, post, comments, signal),
+      analyze: (post, comments, signal) =>
+        this.analyzeWithFailover(provider, post, comments, signal),
     };
     this.processorCache.set(providerId, processor);
     return processor;
@@ -275,7 +276,13 @@ export class AnalysisConfigService {
     const row = await this.providers.getProvider(providerId);
     if (!row) return { ok: false, enqueued: 0, error: '模型配置不存在' };
     if (!row.enabled) return { ok: false, enqueued: 0, error: '该模型已停用' };
-    const enqueued = await this.jobs.enqueueJobs(postIds, providerId, row.model, 'manual', nowSec());
+    const enqueued = await this.jobs.enqueueJobs(
+      postIds,
+      providerId,
+      row.model,
+      'manual',
+      nowSec(),
+    );
     if (enqueued > 0) void this.gateway?.tryDispatch();
     return { ok: true, enqueued };
   }
