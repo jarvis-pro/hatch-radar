@@ -1,6 +1,5 @@
 import { z } from 'zod';
 import { DEFAULT_DATABASE_URL, DEFAULT_HTTP_PORT } from '@hatch-radar/config';
-import type { AnalysisConfig } from '@/analyzer/analyze';
 import type { RedditConfig } from '@/crawler/reddit';
 
 /** 局域网导出/同步 HTTP 服务配置（env 推导） */
@@ -52,31 +51,9 @@ const envSchema = z.preprocess(
       /** HTTP User-Agent，格式建议 `<platform>:<appid>:<version> (by u/<user>)` */
       REDDIT_USER_AGENT: z.string().trim().min(1).optional(),
 
-      // ── AI 分析方式 ───────────────────────────────────────────────────
-      // 模型配置以「设置页入库」为权威来源；此处 env 仅作启动兜底：设了 AI_PROVIDER +
-      // 对应 KEY，启动时会一次性迁移入库并设为 active。不设则不从 env 派生模型。
-
-      /** 启动兜底用的分析方式（可选）；设置页配置后以库为准 */
-      AI_PROVIDER: z.enum(['anthropic', 'openai', 'deepseek']).optional(),
-
-      /** Anthropic API 密钥，可选；填写后可启用 Anthropic 分析 */
-      ANTHROPIC_API_KEY: z.string().trim().min(1).optional(),
-      /** 使用的 Anthropic 模型 ID，默认 claude-opus-4-8 */
-      ANTHROPIC_MODEL: z.string().trim().default('claude-opus-4-8'),
-
-      /** OpenAI API 密钥，可选；填写后可启用 OpenAI（ChatGPT）分析 */
-      OPENAI_API_KEY: z.string().trim().min(1).optional(),
-      /** 使用的 OpenAI 模型 ID，默认 gpt-4o（支持 json_schema strict 结构化输出） */
-      OPENAI_MODEL: z.string().trim().default('gpt-4o'),
-      /** OpenAI API 基地址，默认 https://api.openai.com/v1 */
-      OPENAI_BASE_URL: z.string().trim().default('https://api.openai.com/v1'),
-
-      /** DeepSeek API 密钥，可选；填写后可启用 DeepSeek 分析 */
-      DEEPSEEK_API_KEY: z.string().trim().min(1).optional(),
-      /** 使用的 DeepSeek 模型 ID，默认 deepseek-chat */
-      DEEPSEEK_MODEL: z.string().trim().default('deepseek-chat'),
-      /** DeepSeek API 基地址，默认 https://api.deepseek.com */
-      DEEPSEEK_BASE_URL: z.string().trim().default('https://api.deepseek.com'),
+      // ── AI 分析调优 ───────────────────────────────────────────────────
+      // 模型接入（厂商 / 密钥 / 模型名 / base_url）一律在设置页 /settings 配置入库，
+      // env 不再承载任何模型密钥（见 docs/runtime-config-design.md §3.4）。此处仅留批次/并发调优。
 
       /** 每轮 AI 分析的帖子批次上限，默认 20，最小 1 */
       ANALYZE_BATCH_SIZE: z.coerce.number().int().min(1).default(20),
@@ -121,28 +98,6 @@ const envSchema = z.preprocess(
           }
         }
       }
-      // 显式指定的分析方式必须有对应的 API Key
-      if (data.AI_PROVIDER === 'anthropic' && !data.ANTHROPIC_API_KEY) {
-        ctx.addIssue({
-          code: 'custom',
-          message: 'AI_PROVIDER=anthropic 时必填',
-          path: ['ANTHROPIC_API_KEY'],
-        });
-      }
-      if (data.AI_PROVIDER === 'openai' && !data.OPENAI_API_KEY) {
-        ctx.addIssue({
-          code: 'custom',
-          message: 'AI_PROVIDER=openai 时必填',
-          path: ['OPENAI_API_KEY'],
-        });
-      }
-      if (data.AI_PROVIDER === 'deepseek' && !data.DEEPSEEK_API_KEY) {
-        ctx.addIssue({
-          code: 'custom',
-          message: 'AI_PROVIDER=deepseek 时必填',
-          path: ['DEEPSEEK_API_KEY'],
-        });
-      }
     })
     .transform((env) => ({
       reddit:
@@ -155,7 +110,6 @@ const envSchema = z.preprocess(
               userAgent: env.REDDIT_USER_AGENT!,
             } satisfies RedditConfig)
           : undefined,
-      analysis: resolveAnalysis(env),
       analyzeBatchSize: env.ANALYZE_BATCH_SIZE,
       databaseUrl: env.DATABASE_URL,
       databasePoolMax: env.DATABASE_POOL_MAX ?? Math.max(10, env.WORKER_CONCURRENCY + 5),
@@ -168,47 +122,6 @@ const envSchema = z.preprocess(
       } satisfies WorkerConfig,
     })),
 );
-
-/** resolveAnalysis 关心的字段子集（transform 的 env 结构化兼容此形状） */
-interface AnalysisEnv {
-  AI_PROVIDER?: 'anthropic' | 'openai' | 'deepseek';
-  ANTHROPIC_API_KEY?: string;
-  ANTHROPIC_MODEL: string;
-  OPENAI_API_KEY?: string;
-  OPENAI_MODEL: string;
-  OPENAI_BASE_URL: string;
-  DEEPSEEK_API_KEY?: string;
-  DEEPSEEK_MODEL: string;
-  DEEPSEEK_BASE_URL: string;
-}
-
-/**
- * 根据 AI_PROVIDER 推导启动兜底的分析方式（缺对应 API Key 已在 superRefine 拦截）。
- * - 未设 AI_PROVIDER：返回 null（不从 env 派生模型，配置以设置页入库为准）
- * - anthropic / openai / deepseek：调用对应模型
- */
-function resolveAnalysis(env: AnalysisEnv): AnalysisConfig | null {
-  switch (env.AI_PROVIDER) {
-    case 'anthropic':
-      return { provider: 'anthropic', apiKey: env.ANTHROPIC_API_KEY!, model: env.ANTHROPIC_MODEL };
-    case 'openai':
-      return {
-        provider: 'openai',
-        apiKey: env.OPENAI_API_KEY!,
-        baseUrl: env.OPENAI_BASE_URL,
-        model: env.OPENAI_MODEL,
-      };
-    case 'deepseek':
-      return {
-        provider: 'deepseek',
-        apiKey: env.DEEPSEEK_API_KEY!,
-        baseUrl: env.DEEPSEEK_BASE_URL,
-        model: env.DEEPSEEK_MODEL,
-      };
-    default:
-      return null;
-  }
-}
 
 /** 应用运行时所需的全量配置，由 envSchema 自动派生 */
 export type AppEnv = z.infer<typeof envSchema>;
@@ -232,7 +145,7 @@ export function databaseUrl(): string {
 /**
  * 从环境变量加载并校验应用配置。
  * - `REDDIT_CLIENT_ID` 与 `REDDIT_CLIENT_SECRET` 均存在时启用 Reddit，否则 `reddit` 为 undefined
- * - 分析方式由 `AI_PROVIDER` 决定（不设则不从 env 派生模型）
+ * - 模型接入不再读 env：一律在设置页 /settings 配置入库（见 docs/runtime-config-design.md）
  * - 校验失败时一次性报告所有缺失/非法字段
  * @returns 校验通过的应用配置对象
  */

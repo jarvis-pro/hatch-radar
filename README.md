@@ -56,14 +56,9 @@ REDDIT_USERNAME=your_reddit_username
 REDDIT_PASSWORD=your_reddit_password
 REDDIT_USER_AGENT=your-app-name/1.0 (by /u/your_reddit_username)
 
-# AI 分析：推荐在 Web 设置页（/settings）配置模型（多模型、密钥加密入库）。
+# AI 模型接入：一律在 Web 设置页（/settings）配置入库，env 不承载任何模型密钥。
 # 模型密钥加密主密钥（设置页配置模型必需）：
 # SETTINGS_SECRET=                 # openssl rand -hex 32
-# 也可用 env 作启动兜底（设了会在启动时迁移入库并设为 active）：
-# AI_PROVIDER=anthropic            # 或 openai / deepseek
-# ANTHROPIC_API_KEY=your_anthropic_api_key
-# OPENAI_API_KEY=your_openai_api_key
-# DEEPSEEK_API_KEY=your_deepseek_api_key
 
 # 数据库（PostgreSQL；本地用 docker-compose 起，生产换托管 PG 只改此串）
 DATABASE_URL=postgres://radar:radar@localhost:47432/hatch_radar
@@ -159,7 +154,7 @@ pnpm dev:mobile   # 启动 Expo dev server，用 Expo Go 扫码（iOS 真机）
 
 ## AI 分析方式
 
-模型在 **Web 设置页（`/settings`）** 配置：可添加多条 Anthropic / OpenAI / DeepSeek 模型，密钥经 `SETTINGS_SECRET`（AES-256-GCM）**加密入库**，API 仅返回脱敏视图、绝不下发明文。
+模型在 **Web 设置页（`/settings`）** 配置：可添加多条 Anthropic / OpenAI / DeepSeek 模型，每条可挂**多把 API Key 做故障转移**（限流自动冷却、鉴权失败自动切换）；密钥经 `SETTINGS_SECRET`（AES-256-GCM）**加密入库**，API 仅返回脱敏视图、绝不下发明文。
 
 | 厂商      | 结构化输出                                             |
 | --------- | ------------------------------------------------------ |
@@ -171,11 +166,11 @@ pnpm dev:mobile   # 启动 Expo dev server，用 Expo Go 扫码（iOS 真机）
 
 - **选用了 active 模型** → 定时调度（每小时）+ 选用时即时入队，自动分析待处理帖子。
 - **未选用 active** → 不自动分析；在「分析」页多选帖子 + 选一个模型 → 手动运行入队。
-- **一条模型都没配** → 先去设置页加一个（无密钥无法调用模型）。
+- **一条模型都没配 / 模型无可用 Key** → 先去设置页加一个模型并填至少一把 API Key（无可用 Key 不能设为启用）。
 
 **队列驱动**：定时与手动运行都只是把帖子写入 PostgreSQL 持久化任务队列（`analysis_jobs`），由常驻 Worker 池靠 `FOR UPDATE SKIP LOCKED` 认领消费——并发认领不重不漏、可多进程/独立进程扩展（仅 Worker 这层水平扩；HTTP + 定时调度的主进程为单实例，cron 无分布式锁），单任务超时、失败重试、僵死/孤儿回收，进程重启自动续跑，单个慢调用不会卡住整批。改密钥/模型/选用即热重载，无需重启进程。洞察按 `post_id` 幂等落库（`model` 记真实模型 ID），重分析覆盖且保住研判。
 
-> 启动兜底：若在 `.env` 设了 `AI_PROVIDER` + 对应 KEY + `SETTINGS_SECRET`，启动时会把它一次性迁移入库并设为 active（老配置无感升级）。
+> 多 Key 故障转移：单次分析按 Key 的 `priority` 选「可用」的一把；遇限流（429）冷却 5 分钟后自动重试，遇鉴权失败/额度耗尽标记失效（需在设置页复位），失败即切下一把，全部不可用才判任务失败。
 
 ---
 

@@ -15,6 +15,7 @@ import type {
   insightsModel,
   model_providersModel,
   postsModel,
+  provider_api_keysModel,
   sync_opsModel,
   triageModel,
 } from './generated/prisma/models';
@@ -39,12 +40,15 @@ export type TriagePgRow = triageModel;
 export type SyncOpPgRow = sync_opsModel;
 export type JobPg = analysis_jobsModel;
 export type ProviderPg = model_providersModel;
+export type ProviderApiKeyPg = provider_api_keysModel;
 
 // ─── 域行类型（bigint→number）：无 shared 对应物的表在此定义 ──────────────────────────
 /** analysis_jobs 行（status / trigger 为枚举，时间戳为 number） */
 export type JobRow = BigIntToNumber<analysis_jobsModel>;
-/** model_providers 行（api_key 为密文；enabled 为 boolean；时间戳为 number） */
-export type ProviderRow = BigIntToNumber<model_providersModel>;
+/** model_providers 行（enabled 为 boolean；时间戳为 number；不含 keys 关系——密钥在 ProviderApiKeyRow） */
+export type ProviderRow = BigIntToNumber<Omit<model_providersModel, 'keys'>>;
+/** provider_api_keys 行（api_key 为密文；status 为枚举；cooldown_until / 时间戳为 number；不含 provider 反向关系） */
+export type ProviderApiKeyRow = BigIntToNumber<Omit<provider_api_keysModel, 'provider'>>;
 /** app_settings 行（无时间戳列） */
 export type AppSettingRow = app_settingsModel;
 

@@ -21,6 +21,8 @@ import type {
   JobPg,
   JobRow,
   PostPg,
+  ProviderApiKeyPg,
+  ProviderApiKeyRow,
   ProviderPg,
   ProviderRow,
   TriagePgRow,
@@ -60,9 +62,19 @@ export function toJobRow(m: JobPg): JobRow {
   };
 }
 
-/** Prisma model_providers 行 → 域 ProviderRow（时间戳 bigint→number） */
+/** Prisma model_providers 行 → 域 ProviderRow（时间戳 bigint→number；keys 关系不参与） */
 export function toProviderRow(m: ProviderPg): ProviderRow {
   return { ...m, created_at: n(m.created_at), updated_at: n(m.updated_at) };
+}
+
+/** Prisma provider_api_keys 行 → 域 ProviderApiKeyRow（cooldown_until / 时间戳 bigint→number） */
+export function toProviderApiKeyRow(m: ProviderApiKeyPg): ProviderApiKeyRow {
+  return {
+    ...m,
+    cooldown_until: nOpt(m.cooldown_until),
+    created_at: n(m.created_at),
+    updated_at: n(m.updated_at),
+  };
 }
 
 /** Prisma insights 行 → camelCase 视图（jsonb 已解析；web / 检索用） */

@@ -112,15 +112,14 @@ model insights {
   @@index([subreddit], map: "idx_insights_subreddit")
 }
 
-/// 模型提供方配置：用户在设置页配置的多模型接入点（含密钥）。
+/// 模型提供方配置：用户在设置页配置的多模型接入点。
+/// API 密钥已拆到子表 provider_api_keys（一条接入可挂多把 Key 做故障转移），本表不再存密钥。
 model model_providers {
   id         Int           @id @default(autoincrement())
   /// 提供方类型：anthropic/openai/deepseek。
   provider   provider_kind
   /// 展示名称，供 UI 区分同类多个配置。
   label      String
-  /// API 密钥（敏感，入库前应加密）。
-  api_key    String
   /// 自定义 API base url；为空用提供方默认地址。
   base_url   String?
   /// 默认调用的模型名。
@@ -129,6 +128,36 @@ model model_providers {
   enabled    Boolean       @default(true)
   created_at BigInt
   updated_at BigInt
+  /// 可用 API Key 池（一对多）：调用时按 priority 选健康的一把，失败即切换。
+  keys       provider_api_keys[]
+}
+
+/// 模型接入点的 API Key 池：一条 model_providers 可挂多把 Key 做备用/容灾。
+/// api_key 为 AES-256-GCM 密文（明文永不外发）；调用时按 priority 升序取「enabled 且
+/// status=active（或 cooling 已过 cooldown_until）」的一把，遇限流/鉴权失败即冷却/失效并切下一把。
+model provider_api_keys {
+  id             Int             @id @default(autoincrement())
+  /// 所属模型接入配置；随其删除级联清理。
+  provider_id    Int
+  /// 备注名，便于区分「主号 / 备用1」。
+  label          String          @default("")
+  /// API 密钥（AES-256-GCM 密文）。
+  api_key        String
+  /// 故障转移优先级，越小越先用。
+  priority       Int             @default(0)
+  /// 是否启用（人工停用即排除出池）。
+  enabled        Boolean         @default(true)
+  /// 运行期健康态：active 可用 / cooling 限流冷却中 / invalid 鉴权失败需人工。
+  status         api_key_status  @default(active)
+  /// cooling 的解冻时刻（epoch 秒）；到点后 selectKey 即可再次选用。
+  cooldown_until BigInt?
+  /// 最近一次失败原因，排查用。
+  last_error     String?
+  created_at     BigInt
+  updated_at     BigInt
+  provider       model_providers @relation(fields: [provider_id], references: [id], onDelete: Cascade)
+
+  @@index([provider_id], map: "idx_provider_keys_provider")
 }
 
 /// 帖子：抓取流水线的「原始」数据，承载后续评论抓取与 AI 分析的进度状态。
@@ -412,6 +441,13 @@ enum provider_kind {
   anthropic
   openai
   deepseek
+}
+
+/// 模型 API Key 运行期健康态。
+enum api_key_status {
+  active
+  cooling
+  invalid
 }
 
 /// 人工筛选状态。

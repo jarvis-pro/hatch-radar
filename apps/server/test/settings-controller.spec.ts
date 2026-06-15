@@ -43,11 +43,11 @@ describe('SettingsController.update（改 baseUrl 必须重填 API Key）', () =
       {
         provider: 'openai',
         label: 'o',
-        apiKey: 'sk-secret-aaaabbbb',
         baseUrl: 'https://api.openai.com/v1',
         model: 'gpt-4o',
         enabled: true,
       },
+      'sk-secret-aaaabbbb',
       nowSec(),
     );
   }
