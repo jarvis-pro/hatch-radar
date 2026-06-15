@@ -2,9 +2,9 @@
 node_modules/
 dist/
 
-# 运行时生成
-data/
-logs/
+# 运行时生成（按实际目录精确忽略；勿用裸 data/ —— 它会连源码目录如 apps/server/src/data 一起吞掉）
+apps/server/data/
+**/logs/
 
 # 环境变量与系统文件
 .env
