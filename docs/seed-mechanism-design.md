@@ -5,7 +5,7 @@
 > 单一入口、统一日志/错误语义、可发现、易扩展，同时各 Seeder 仍保持高内聚。
 > 本文是落地前的设计方案。
 
-- **状态**：设计待评审（未实现）
+- **状态**：✅ 已落地（2026-06-15）。实现时在原 super-admin / sources 两类之外，把上一步「运行期参数入库」的播种也收编为第三个 Seeder：`RuntimeSettingsSeeder`（`order=30`、`non-critical`，写 `app_settings` 默认值）。其余均按本设计落地。
 - **日期**：2026-06-15
 - **范围**：`apps/server/src/seed/`（新增接口 + 编排器 + 两个 Seeder + 装配）、`apps/server/src/crawler/crawler-config.service.ts`（摘除种子职责）、`apps/server/src/app.module.ts`（固化模块顺序注释）、`apps/server/test/`（新增单测）
 - **不在范围**：种子**数据**本身的取值（subreddit/RSS 列表仍来自现有 `config/` 常量，不改内容）；模型 provider / 连接器的运行期配置（无种子，见 [[runtime-config-design]]）；数据库表结构与迁移（种子不碰 schema）
