@@ -1,10 +1,12 @@
 import { Inject, Injectable, type OnApplicationBootstrap, type OnApplicationShutdown } from '@nestjs/common';
-import { WorkerAgentService, WorkerService, type AppEnv } from '@/domain';
-import { APP_ENV } from '@/common/tokens';
+import { type AppEnv } from '@hatch-radar/kernel';
+import { WorkerAgentService } from './worker-agent';
+import { WorkerService } from './worker.service';
+import { APP_ENV } from './tokens';
 
 /**
- * Nest 侧 worker 薄封装：启动 core 的 WorkerService（僵死回收/执行）+ WorkerAgentService（WS 连网关认领）。
- * 既装入主进程 AppModule（同进程消费,连 loopback 网关），也装入独立 worker 进程根模块。
+ * Nest 侧 worker 薄封装：启动 WorkerService（僵死回收/执行）+ WorkerAgentService（WS 连 api 网关认领）。
+ * 进程退出时优雅排空在途任务。
  */
 @Injectable()
 export class WorkerStarter implements OnApplicationBootstrap, OnApplicationShutdown {

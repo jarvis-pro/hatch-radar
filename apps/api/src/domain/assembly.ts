@@ -22,7 +22,6 @@ import { HackerNewsClient } from '@hatch-radar/crawler';
 // services
 import { RuntimeSettingsService } from '@hatch-radar/db';
 import { CrawlerConfigService } from '@hatch-radar/crawler';
-import { AnalysisService } from '@hatch-radar/analysis';
 import { AnalysisConfigService } from '@hatch-radar/analysis';
 import { GatewayService } from './gateway/gateway.service';
 import { DataService } from './data/data.service';
@@ -32,7 +31,6 @@ import { DeviceAuthService } from './auth/device-auth.service';
 import { SyncService } from './sync/sync.service';
 import { ExportService } from './export/export.service';
 import { SchedulerService } from './scheduler/scheduler.service';
-import { WorkerService } from './worker/worker.service';
 // seed
 import { SourcesSeeder } from './seed/sources.seeder';
 import { SuperAdminSeeder } from './seed/super-admin.seeder';
@@ -40,13 +38,11 @@ import { RuntimeSettingsSeeder } from './seed/runtime-settings.seeder';
 import { SeedRunner } from './seed/seed.runner';
 
 /**
- * 领域装配工厂：一处把全部仓储 / 服务 / 调度 / 网关 / worker / 种子按依赖图实例化好。
+ * api 控制面领域装配工厂：一处把仓储 / 服务 / 调度 / 网关 / 种子按依赖图实例化好。
  *
- * 框架无关——api 与 worker 两端都调它拿到同一套领域实例，再用框架的 IoC 把需要的实例登记进
- * 容器（NestJS：以 value provider 按令牌登记）。依赖图只在此定义一次。
- *
- * gateway 始终创建但只在 api 侧 `start(server)` 后才真正开 WS；AnalysisConfigService 以它作派发器
- * （worker 侧不入队，故不触发派发）。
+ * 用框架的 IoC 把需要的实例登记进容器（NestJS：以 value provider 按令牌登记）。依赖图只在此定义一次。
+ * 不含 worker 执行（数据面在 apps/worker，自带 createWorkerCore 装配）；AnalysisConfigService 以
+ * GatewayService 作派发器，把认领到的 job 经 WS push 给 worker。
  */
 export function createCore(db: AppDatabase, env: AppEnv) {
   // ── 仓储（仅依赖 db）──────────────────────────────────────────────────
@@ -73,7 +69,6 @@ export function createCore(db: AppDatabase, env: AppEnv) {
   // ── 服务 ─────────────────────────────────────────────────────────────
   const runtimeSettings = new RuntimeSettingsService(settings);
   const crawlerConfig = new CrawlerConfigService(sourceConnectors, queue);
-  const analysis = new AnalysisService(insights);
   const gateway = new GatewayService(jobs);
   const analysisConfig = new AnalysisConfigService(providers, settings, jobs, posts, gateway);
   const data = new DataService(db);
@@ -92,7 +87,6 @@ export function createCore(db: AppDatabase, env: AppEnv) {
     analysisConfig,
     runtimeSettings,
   );
-  const worker = new WorkerService(jobs, posts, comments, analysis, analysisConfig, runtimeSettings);
 
   // ── 种子 ─────────────────────────────────────────────────────────────
   const sourcesSeeder = new SourcesSeeder(sources);
@@ -120,7 +114,6 @@ export function createCore(db: AppDatabase, env: AppEnv) {
     hackernews,
     runtimeSettings,
     crawlerConfig,
-    analysis,
     gateway,
     analysisConfig,
     data,
@@ -130,7 +123,6 @@ export function createCore(db: AppDatabase, env: AppEnv) {
     sync,
     export: exportService,
     scheduler,
-    worker,
     sourcesSeeder,
     superAdminSeeder,
     runtimeSettingsSeeder,

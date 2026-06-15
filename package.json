@@ -12,7 +12,7 @@
   "scripts": {
     "dev": "pnpm --filter @hatch-radar/api dev",
     "start": "pnpm --filter @hatch-radar/api start",
-    "worker": "pnpm --filter @hatch-radar/api worker",
+    "worker": "pnpm --filter @hatch-radar/worker start",
     "test": "pnpm --filter @hatch-radar/api test",
     "dev:web": "pnpm --filter @hatch-radar/web dev",
     "build:web": "pnpm --filter @hatch-radar/web build",

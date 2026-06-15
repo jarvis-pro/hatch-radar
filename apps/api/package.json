@@ -7,7 +7,6 @@
   "scripts": {
     "dev": "pnpm --filter @hatch-radar/db db:migrate && node --env-file-if-exists=.env --watch --import @swc-node/register/esm-register src/main.ts",
     "start": "pnpm --filter @hatch-radar/db db:migrate && node --env-file-if-exists=.env --import @swc-node/register/esm-register src/main.ts",
-    "worker": "node --env-file-if-exists=.env --import @swc-node/register/esm-register src/worker-main.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
