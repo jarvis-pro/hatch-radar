@@ -2,13 +2,13 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { BadRequestException } from '@nestjs/common';
 import type { AppDatabase, DbHandle } from '@hatch-radar/db';
 import {
-  SourceConnectorsRepository,
   decryptConnectorSecret,
+  nowSec,
+  SourceConnectorsRepository,
+  SourcesRepository,
   toConnectorDTO,
-} from '@/db/source-connectors.repository';
-import { SourcesRepository } from '@/db/sources.repository';
+} from '@hatch-radar/core';
 import { SourcesController } from '@/http/sources.controller';
-import { nowSec } from '@/utils/time';
 import { setupTestDb, truncateAll } from './helpers';
 
 // 连接器凭据加解密需要主密钥；测试用任意高熵串

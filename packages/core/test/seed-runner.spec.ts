@@ -1,11 +1,27 @@
 import { describe, expect, it } from 'vitest';
 import { SeedRunner } from '@/seed/seed.runner';
+import type { RuntimeSettingsSeeder } from '@/seed/runtime-settings.seeder';
 import type { Seeder, SeedContext, SeedOutcome } from '@/seed/seeder';
+import type { SourcesSeeder } from '@/seed/sources.seeder';
+import type { SuperAdminSeeder } from '@/seed/super-admin.seeder';
 
+const NOW = 1_700_000_000;
 const skipped = (): SeedOutcome => ({ status: 'skipped', reason: 't' });
 
 function mk(name: string, order: number, critical: boolean, run: Seeder['run']): Seeder {
   return { name, order, critical, run };
+}
+
+/**
+ * SeedRunner 构造取三个具体 Seeder（与 createCore 装配一致）；它内部仅按 Seeder 接口
+ * （name/order/critical/run）使用之，故测试用 mock 充当三个位置即可——顺序无关，由 order 决定执行序。
+ */
+function runner(a: Seeder, b: Seeder, c: Seeder): SeedRunner {
+  return new SeedRunner(
+    a as unknown as SourcesSeeder,
+    b as unknown as SuperAdminSeeder,
+    c as unknown as RuntimeSettingsSeeder,
+  );
 }
 
 describe('SeedRunner', () => {
@@ -19,8 +35,12 @@ describe('SeedRunner', () => {
       calls.push('b');
       return skipped();
     });
-    await new SeedRunner([a, b]).onApplicationBootstrap();
-    expect(calls).toEqual(['b', 'a']);
+    const c = mk('c', 30, false, async () => {
+      calls.push('c');
+      return skipped();
+    });
+    await runner(a, b, c).run(NOW);
+    expect(calls).toEqual(['b', 'a', 'c']);
   });
 
   it('critical 失败 → 向上抛中止，后续不执行', async () => {
@@ -30,7 +50,11 @@ describe('SeedRunner', () => {
       calls.push('after');
       return skipped();
     });
-    await expect(new SeedRunner([crit, after]).onApplicationBootstrap()).rejects.toThrow('boom');
+    const last = mk('last', 30, false, async () => {
+      calls.push('last');
+      return skipped();
+    });
+    await expect(runner(crit, after, last).run(NOW)).rejects.toThrow('boom');
     expect(calls).toEqual([]);
   });
 
@@ -41,18 +65,26 @@ describe('SeedRunner', () => {
       calls.push('good');
       return skipped();
     });
-    await new SeedRunner([bad, good]).onApplicationBootstrap();
-    expect(calls).toEqual(['good']);
+    const more = mk('more', 30, false, async () => {
+      calls.push('more');
+      return skipped();
+    });
+    await runner(bad, good, more).run(NOW);
+    expect(calls).toEqual(['good', 'more']);
   });
 
-  it('ctx.now 对所有 Seeder 同值且为整数', async () => {
+  it('run(now) 把同一 now 下传给所有 Seeder', async () => {
     const nows: number[] = [];
     const push = async (ctx: SeedContext): Promise<SeedOutcome> => {
       nows.push(ctx.now);
       return skipped();
     };
-    await new SeedRunner([mk('a', 10, false, push), mk('b', 20, false, push)]).onApplicationBootstrap();
-    expect(nows[0]).toBe(nows[1]);
+    await runner(
+      mk('a', 10, false, push),
+      mk('b', 20, false, push),
+      mk('c', 30, false, push),
+    ).run(NOW);
+    expect(nows).toEqual([NOW, NOW, NOW]);
     expect(Number.isInteger(nows[0])).toBe(true);
   });
 });

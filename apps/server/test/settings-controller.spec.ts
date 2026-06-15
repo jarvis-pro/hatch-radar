@@ -1,12 +1,14 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { BadRequestException } from '@nestjs/common';
 import type { AppDatabase, DbHandle } from '@hatch-radar/db';
-import type { AnalysisConfigService } from '@/analysis/analysis-config.service';
-import type { RuntimeSettingsService } from '@/config/runtime-settings.service';
-import { ProvidersRepository } from '@/db/providers.repository';
-import { SettingsRepository } from '@/db/settings.repository';
+import {
+  type AnalysisConfigService,
+  nowSec,
+  ProvidersRepository,
+  type RuntimeSettingsService,
+  SettingsRepository,
+} from '@hatch-radar/core';
 import { SettingsController } from '@/http/settings.controller';
-import { nowSec } from '@/utils/time';
 import { setupTestDb, truncateAll } from './helpers';
 
 // 加解密主密钥（createProvider 入库时加密用），测试用任意高熵串
