@@ -29,8 +29,8 @@ import {
 } from '@hatch-radar/ui/components/table';
 import { api, ApiError } from '@/api/client';
 
-/** 模型厂商 */
-export type ProviderKind = 'anthropic' | 'openai' | 'deepseek';
+/** 模型厂商（claude_cli = Claude 订阅模式，复用本机已登录的 claude，无 API Key） */
+export type ProviderKind = 'anthropic' | 'openai' | 'deepseek' | 'claude_cli';
 
 /** API Key 运行期健康态 */
 export type ApiKeyStatus = 'active' | 'cooling' | 'invalid';
@@ -73,13 +73,25 @@ const PROVIDER_DEFAULTS: Record<ProviderKind, { model: string; baseUrl: string }
   anthropic: { model: 'claude-opus-4-8', baseUrl: '' },
   openai: { model: 'gpt-4o', baseUrl: 'https://api.openai.com/v1' },
   deepseek: { model: 'deepseek-chat', baseUrl: 'https://api.deepseek.com' },
+  claude_cli: { model: 'claude-opus-4-8', baseUrl: '' },
 };
 
 const PROVIDER_LABEL: Record<ProviderKind, string> = {
   anthropic: 'Anthropic (Claude)',
   openai: 'OpenAI (ChatGPT)',
   deepseek: 'DeepSeek',
+  claude_cli: 'Claude（订阅 / Claude Code）',
 };
+
+/** 订阅模式（claude_cli）复用本机已登录的 claude：无需 API Key、无 base 地址、无 Key 池 */
+function usesApiKey(p: ProviderKind): boolean {
+  return p !== 'claude_cli';
+}
+
+/** 仅 OpenAI / DeepSeek 暴露自定义 API 基地址 */
+function usesBaseUrl(p: ProviderKind): boolean {
+  return p === 'openai' || p === 'deepseek';
+}
 
 interface FormState {
   provider: ProviderKind;
@@ -194,9 +206,9 @@ export function SettingsManager({
   const { providers, activeProviderId, secretConfigured } = initial;
   const activeProvider = providers.find((p) => p.id === activeProviderId) ?? null;
   const now = Math.floor(Date.now() / 1000);
-  // 编辑态下改了 baseUrl 才需重填 Key（安全闸）；新建态始终需要首把 Key
+  // 编辑态下改了 baseUrl 才需重填 Key（安全闸）；新建态始终需要首把 Key。订阅模式无 Key，恒不需要。
   const baseUrlChanged = editingId !== null && form.baseUrl.trim() !== editOrigBaseUrl.trim();
-  const needKeyOnSave = editingId === null || baseUrlChanged;
+  const needKeyOnSave = usesApiKey(form.provider) && (editingId === null || baseUrlChanged);
 
   function openCreate() {
     setEditingId(null);
@@ -236,6 +248,10 @@ export function SettingsManager({
   async function save() {
     if (!form.label.trim() || !form.model.trim()) {
       setFlash({ kind: 'err', text: '名称与模型不能为空' });
+      return;
+    }
+    if (usesApiKey(form.provider) && !secretConfigured) {
+      setFlash({ kind: 'err', text: '未配置 SETTINGS_SECRET，无法保存带密钥的模型' });
       return;
     }
     if (needKeyOnSave && !form.apiKey.trim()) {
@@ -405,13 +421,12 @@ export function SettingsManager({
         <div>
           <h1 className="text-lg font-semibold tracking-tight">模型设置</h1>
           <p className="text-sm text-muted-foreground">
-            配置 Anthropic / OpenAI / DeepSeek，每条可挂多把 API Key
-            做故障转移；选用其一即自动分析，保存即生效。
+            配置 Anthropic / OpenAI / DeepSeek（API Key），或 Claude 订阅模式（复用本机已登录的
+            Claude Code，无需 Key）；API Key
+            模式每条可挂多把做故障转移，选用其一即自动分析，保存即生效。
           </p>
         </div>
-        <Button onClick={openCreate} disabled={!secretConfigured}>
-          新增模型
-        </Button>
+        <Button onClick={openCreate}>新增模型</Button>
       </div>
 
       {flash ? (
@@ -499,20 +514,26 @@ export function SettingsManager({
               </div>
 
               <div className="p-3">
-                <div className="mb-2 flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">
-                    API Key 池（{p.keys.length}）
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={!secretConfigured}
-                    onClick={() => openAddKey(p.id)}
-                  >
-                    添加 Key
-                  </Button>
-                </div>
-                {p.keys.length === 0 ? (
+                {p.provider !== 'claude_cli' ? (
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">
+                      API Key 池（{p.keys.length}）
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={!secretConfigured}
+                      onClick={() => openAddKey(p.id)}
+                    >
+                      添加 Key
+                    </Button>
+                  </div>
+                ) : null}
+                {p.provider === 'claude_cli' ? (
+                  <p className="text-sm text-muted-foreground">
+                    订阅模式：复用本机已登录的 Claude（Claude Code），无需 API Key。
+                  </p>
+                ) : p.keys.length === 0 ? (
                   <p className="text-sm text-destructive">
                     无 Key，该模型无法调用——请添加至少一把。
                   </p>
@@ -610,6 +631,7 @@ export function SettingsManager({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="anthropic">{PROVIDER_LABEL.anthropic}</SelectItem>
+                  <SelectItem value="claude_cli">{PROVIDER_LABEL.claude_cli}</SelectItem>
                   <SelectItem value="openai">{PROVIDER_LABEL.openai}</SelectItem>
                   <SelectItem value="deepseek">{PROVIDER_LABEL.deepseek}</SelectItem>
                 </SelectContent>
@@ -636,7 +658,7 @@ export function SettingsManager({
               />
             </div>
 
-            {form.provider !== 'anthropic' ? (
+            {usesBaseUrl(form.provider) ? (
               <div className="space-y-1.5">
                 <Label htmlFor="sm-baseurl">API 基地址（可选）</Label>
                 <Input

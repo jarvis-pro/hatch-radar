@@ -116,7 +116,7 @@ model insights {
 /// API 密钥已拆到子表 provider_api_keys（一条接入可挂多把 Key 做故障转移），本表不再存密钥。
 model model_providers {
   id         Int           @id @default(autoincrement())
-  /// 提供方类型：anthropic/openai/deepseek。
+  /// 提供方类型：anthropic/openai/deepseek（API Key 模式）/ claude_cli（订阅模式，无 Key/base_url）。
   provider   provider_kind
   /// 展示名称，供 UI 区分同类多个配置。
   label      String
@@ -486,6 +486,9 @@ enum provider_kind {
   anthropic
   openai
   deepseek
+  /// Claude 订阅模式：经 @anthropic-ai/claude-agent-sdk 复用 worker 本机已登录的 claude（Claude Code），
+  /// 吃订阅计划额度、无需 API Key（故无 Key 池 / base_url）。
+  claude_cli
 }
 
 /// 模型 API Key 运行期健康态。

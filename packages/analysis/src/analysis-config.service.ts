@@ -1,16 +1,13 @@
 import type { CommentRow, InsightResult, PostRow } from '@hatch-radar/shared';
 import { createProcessor, type AnalysisConfig, type PostProcessor } from './analyzer/analyze';
 import { testAnthropic } from './analyzer/anthropic';
+import { testClaudeAgent } from './analyzer/claude-agent';
 import { testOpenAICompatible } from './analyzer/openai-compatible';
 import { decryptSecret } from '@hatch-radar/kernel';
 import type { Dispatcher } from '@hatch-radar/kernel';
 import { JobsRepository } from '@hatch-radar/db';
 import { PostsRepository } from '@hatch-radar/db';
-import {
-  ProvidersRepository,
-  type ProviderApiKeyRow,
-  type ProviderRow,
-} from '@hatch-radar/db';
+import { ProvidersRepository, type ProviderApiKeyRow, type ProviderRow } from '@hatch-radar/db';
 import { SettingsRepository } from '@hatch-radar/db';
 import { nowSec } from '@hatch-radar/kernel';
 import { logger } from '@hatch-radar/kernel';
@@ -95,6 +92,9 @@ function providerConfigWithKey(provider: ProviderRow, apiKey: string): AnalysisC
         baseUrl: provider.base_url ?? 'https://api.deepseek.com',
         model: provider.model,
       };
+    case 'claude_cli':
+      // 订阅模式无 Key，不经此路径（getProcessorForProvider / testProvider 已提前分流）
+      throw new Error('claude_cli（订阅模式）不使用 API Key 路径');
   }
 }
 
@@ -131,12 +131,16 @@ export class AnalysisConfigService {
     if (cached) return cached;
     const provider = await this.providers.getProvider(providerId);
     if (!provider || !provider.enabled) return null;
-    const processor: PostProcessor = {
-      label: `${provider.provider} (${provider.model})`,
-      model: provider.model,
-      analyze: (post, comments, signal) =>
-        this.analyzeWithFailover(provider, post, comments, signal),
-    };
+    // claude_cli 订阅模式无 Key：直接用引擎处理器（query() 复用本机登录态），不走多 Key 故障转移
+    const processor: PostProcessor =
+      provider.provider === 'claude_cli'
+        ? createProcessor({ provider: 'claude_cli', model: provider.model })
+        : {
+            label: `${provider.provider} (${provider.model})`,
+            model: provider.model,
+            analyze: (post, comments, signal) =>
+              this.analyzeWithFailover(provider, post, comments, signal),
+          };
     this.processorCache.set(providerId, processor);
     return processor;
   }
@@ -260,18 +264,33 @@ export class AnalysisConfigService {
     const row = await this.providers.getProvider(providerId);
     if (!row) return { ok: false, enqueued: 0, error: '模型配置不存在' };
     if (!row.enabled) return { ok: false, enqueued: 0, error: '该模型已停用' };
-    const enqueued = await this.jobs.enqueueJobs(postIds, providerId, row.model, 'manual', nowSec());
+    const enqueued = await this.jobs.enqueueJobs(
+      postIds,
+      providerId,
+      row.model,
+      'manual',
+      nowSec(),
+    );
     if (enqueued > 0) void this.gateway?.tryDispatch();
     return { ok: true, enqueued };
   }
 
   /**
-   * 连通性测试：用某模型当前「最优可用」的一把 Key 发一次极小请求。
+   * 连通性测试：API Key 模式用当前「最优可用」的一把 Key 发一次极小请求；claude_cli 订阅模式
+   * 直接探测 worker 本机的 claude（无 Key）。
    * @returns ok 与可选错误信息（不抛出）
    */
   async testProvider(providerId: number): Promise<{ ok: boolean; error?: string }> {
     const provider = await this.providers.getProvider(providerId);
     if (!provider) return { ok: false, error: '模型配置不存在' };
+    if (provider.provider === 'claude_cli') {
+      try {
+        await testClaudeAgent(provider.model);
+        return { ok: true };
+      } catch (err) {
+        return { ok: false, error: errMsg(err) };
+      }
+    }
     const keys = await this.providers.listUsableKeys(providerId, nowSec());
     if (keys.length === 0) return { ok: false, error: '无可用 API Key（请先添加或复位）' };
     return this.runKeyTest(provider, keys[0]);
@@ -303,6 +322,7 @@ export class AnalysisConfigService {
     const cfg = providerConfigWithKey(provider, plain);
     try {
       if (cfg.provider === 'anthropic') await testAnthropic(cfg.apiKey, cfg.model);
+      else if (cfg.provider === 'claude_cli') await testClaudeAgent(cfg.model);
       else await testOpenAICompatible(cfg);
       return { ok: true };
     } catch (err) {

@@ -10,3 +10,4 @@ export * from './analysis.service';
 export * from './analysis-config.service';
 export * from './analyzer/analyze';
 export * from './analyzer/prompt';
+export { insightFromMessage } from './analyzer/claude-agent';

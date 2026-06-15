@@ -1,14 +1,17 @@
 import type { CommentRow, InsightResult, PostRow } from '@hatch-radar/shared';
 import { analyzeWithAnthropic, createAnthropicClient } from './anthropic';
+import { analyzeWithClaudeAgent } from './claude-agent';
 import { analyzeWithOpenAICompatible, type OpenAICompatibleConfig } from './openai-compatible';
 
 /**
  * 已解析的分析方式配置（按一条 model_providers 记录或 env 推导）。
- * - `anthropic`：调用 Anthropic（Claude 系列模型）
+ * - `anthropic`：调用 Anthropic（Claude 系列模型，API Key 按量计费）
+ * - `claude_cli`：经 Claude Agent SDK 复用本机已登录的 claude（订阅计划额度，无 API Key）
  * - `openai` / `deepseek`：调用 OpenAI 兼容接口（openai 用 json_schema strict，deepseek 用 json_object）
  */
 export type AnalysisConfig =
   | { provider: 'anthropic'; apiKey: string; model: string }
+  | { provider: 'claude_cli'; model: string }
   | OpenAICompatibleConfig;
 
 /**
@@ -45,6 +48,13 @@ export function createProcessor(cfg: AnalysisConfig): PostProcessor {
           analyzeWithAnthropic(client, cfg.model, post, comments, signal),
       };
     }
+    case 'claude_cli':
+      return {
+        label: `Claude CLI (${cfg.model})`,
+        model: cfg.model,
+        analyze: (post, comments, signal) =>
+          analyzeWithClaudeAgent(cfg.model, post, comments, signal),
+      };
     case 'openai':
     case 'deepseek': {
       const label = cfg.provider === 'openai' ? 'OpenAI' : 'DeepSeek';

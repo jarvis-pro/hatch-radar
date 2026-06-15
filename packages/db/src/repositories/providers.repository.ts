@@ -165,11 +165,16 @@ export class ProvidersRepository {
   /**
    * 新建模型配置（同时落第一把 Key，整体在事务内完成）。
    * @param input 标量字段
-   * @param firstKey 第一把 API Key 明文（加密入库，priority 0、label 'primary'）
+   * @param firstKey 第一把 API Key 明文（加密入库，priority 0、label 'primary'）；
+   *   传 `null` 表示无 Key 接入（claude_cli 订阅模式，靠本机登录态，不入 Key 池）。
    * @param now 当前 Unix 时间戳（秒）
    * @returns 新建记录的自增 ID
    */
-  async createProvider(input: ProviderInput, firstKey: string, now: number): Promise<number> {
+  async createProvider(
+    input: ProviderInput,
+    firstKey: string | null,
+    now: number,
+  ): Promise<number> {
     return this.db.$transaction(async (tx) => {
       const row = await tx.model_providers.create({
         data: {
@@ -183,18 +188,21 @@ export class ProvidersRepository {
         },
         select: { id: true },
       });
-      await tx.provider_api_keys.create({
-        data: {
-          provider_id: row.id,
-          label: 'primary',
-          api_key: encryptSecret(firstKey),
-          priority: 0,
-          enabled: true,
-          status: 'active',
-          created_at: BigInt(now),
-          updated_at: BigInt(now),
-        },
-      });
+      // 订阅模式（firstKey=null）不落 Key 行：其 Key 池恒空，调用经 query() 复用本机登录态。
+      if (firstKey !== null) {
+        await tx.provider_api_keys.create({
+          data: {
+            provider_id: row.id,
+            label: 'primary',
+            api_key: encryptSecret(firstKey),
+            priority: 0,
+            enabled: true,
+            status: 'active',
+            created_at: BigInt(now),
+            updated_at: BigInt(now),
+          },
+        });
+      }
       return row.id;
     });
   }

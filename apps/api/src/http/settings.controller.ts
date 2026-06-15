@@ -30,12 +30,13 @@ import {
 } from '@/domain';
 import { logger } from '@/logger';
 
-const providerKind = z.enum(['anthropic', 'openai', 'deepseek']);
+const providerKind = z.enum(['anthropic', 'openai', 'deepseek', 'claude_cli']);
 
 const createSchema = z.object({
   provider: providerKind,
   label: z.string().trim().min(1),
-  apiKey: z.string().trim().min(1),
+  /** claude_cli 订阅模式无需 Key（复用本机登录态）；其余 provider 在 handler 内强制必填 */
+  apiKey: z.string().trim().min(1).optional(),
   baseUrl: z.string().trim().optional(),
   model: z.string().trim().min(1),
   enabled: z.boolean().optional(),
@@ -141,12 +142,21 @@ export class SettingsController {
   /** POST /api/settings/providers —— 新建模型（含第一把 Key，密钥加密入库），201 { id } */
   @Post('providers')
   async create(@Body(new ZodValidationPipe(createSchema)) dto: z.infer<typeof createSchema>) {
-    if (!isSecretConfigured()) {
-      throw new BadRequestException('未配置 SETTINGS_SECRET，无法加密入库，请先在 .env 设置');
+    const isCli = dto.provider === 'claude_cli';
+    if (!isCli) {
+      if (!dto.apiKey) throw new BadRequestException('该模型必须提供 API Key');
+      if (!isSecretConfigured()) {
+        throw new BadRequestException('未配置 SETTINGS_SECRET，无法加密入库，请先在 .env 设置');
+      }
     }
     const { apiKey, baseUrl, ...rest } = dto;
-    const input: ProviderInput = { ...rest, baseUrl: normalizeBaseUrl(baseUrl) };
-    const id = await this.providers.createProvider(input, apiKey, nowSec());
+    // claude_cli 订阅模式：无 base_url、无 Key（复用本机已登录的 claude）
+    const input: ProviderInput = { ...rest, baseUrl: isCli ? null : normalizeBaseUrl(baseUrl) };
+    const id = await this.providers.createProvider(
+      input,
+      isCli ? null : (apiKey ?? null),
+      nowSec(),
+    );
     await this.analysisConfig.reloadAnalysisConfig();
     logger.info(`[设置] 新增模型 #${id}：${dto.provider} (${dto.model})`);
     return { id };
@@ -167,6 +177,19 @@ export class SettingsController {
     }
     const existing = await this.providers.getProvider(id);
     if (!existing) throw new NotFoundException('模型配置不存在');
+
+    // claude_cli 订阅模式：无 base_url / 无 Key，仅更新标量字段，跳过「改 baseUrl 须重填 Key」安全闸
+    if ((dto.provider ?? existing.provider) === 'claude_cli') {
+      const fields: Partial<ProviderInput> = { baseUrl: null };
+      if (dto.provider !== undefined) fields.provider = dto.provider;
+      if (dto.label !== undefined) fields.label = dto.label;
+      if (dto.model !== undefined) fields.model = dto.model;
+      if (dto.enabled !== undefined) fields.enabled = dto.enabled;
+      await this.providers.updateProvider(id, fields, nowSec());
+      await this.analysisConfig.reloadAnalysisConfig();
+      logger.info(`[设置] 更新模型 #${id}（订阅模式）`);
+      return { ok: true };
+    }
 
     const { apiKey, ...scalarDto } = dto;
     const fields: Partial<ProviderInput> = { ...scalarDto };
@@ -223,8 +246,10 @@ export class SettingsController {
     if (!isSecretConfigured()) {
       throw new BadRequestException('未配置 SETTINGS_SECRET，无法加密入库，请先在 .env 设置');
     }
-    if (!(await this.providers.getProvider(providerId))) {
-      throw new NotFoundException('模型配置不存在');
+    const provider = await this.providers.getProvider(providerId);
+    if (!provider) throw new NotFoundException('模型配置不存在');
+    if (provider.provider === 'claude_cli') {
+      throw new BadRequestException('订阅模式（Claude CLI）复用本机登录态，无需也不支持 API Key');
     }
     const id = await this.providers.createKey(providerId, dto satisfies KeyInput, nowSec());
     logger.info(`[设置] 模型 #${providerId} 新增 Key #${id}`);
@@ -276,7 +301,11 @@ export class SettingsController {
       const row = await this.providers.getProvider(dto.providerId);
       if (!row) throw new NotFoundException('模型配置不存在');
       if (!row.enabled) throw new BadRequestException('该模型已停用，无法设为 active');
-      if ((await this.providers.countUsableKeys(dto.providerId, nowSec())) === 0) {
+      // 订阅模式（claude_cli）无 Key；其余 provider 须有可用 Key 才能设为 active
+      if (
+        row.provider !== 'claude_cli' &&
+        (await this.providers.countUsableKeys(dto.providerId, nowSec())) === 0
+      ) {
         throw new BadRequestException('该模型无可用 API Key，请先添加或复位后再设为启用');
       }
     }

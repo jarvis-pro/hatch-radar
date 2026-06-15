@@ -88,3 +88,52 @@ describe('SettingsController.update（改 baseUrl 必须重填 API Key）', () =
     expect(res).toEqual({ ok: true });
   });
 });
+
+/** claude_cli 订阅模式：无 API Key，创建免 Key、Key 池端点拒绝。 */
+describe('SettingsController（claude_cli 订阅模式：免 Key）', () => {
+  let handle: DbHandle;
+  let db: AppDatabase;
+  let providers: ProvidersRepository;
+  let controller: SettingsController;
+
+  beforeAll(() => {
+    handle = setupTestDb();
+    db = handle.db;
+    providers = new ProvidersRepository(db);
+    const analysisConfig = {
+      reloadAnalysisConfig: async () => {},
+    } as unknown as AnalysisConfigService;
+    const runtimeSettings = {} as unknown as RuntimeSettingsService;
+    controller = new SettingsController(
+      providers,
+      new SettingsRepository(db),
+      analysisConfig,
+      runtimeSettings,
+    );
+  });
+  afterAll(async () => {
+    await handle.close();
+  });
+  beforeEach(async () => {
+    await truncateAll(db);
+  });
+
+  it('create 不带 apiKey → 成功，且无 Key、base_url 为空', async () => {
+    const { id } = await controller.create({
+      provider: 'claude_cli',
+      label: 'sub',
+      model: 'claude-opus-4-8',
+    });
+    const withKeys = await providers.getProviderWithKeys(id);
+    expect(withKeys?.provider.provider).toBe('claude_cli');
+    expect(withKeys?.provider.base_url).toBeNull();
+    expect(withKeys?.keys).toHaveLength(0);
+  });
+
+  it('addKey 对 claude_cli → 拒绝（订阅模式不支持 Key）', async () => {
+    const { id } = await controller.create({ provider: 'claude_cli', label: 'sub', model: 'm' });
+    await expect(controller.addKey(id, { apiKey: 'sk-x-aaaabbbb' })).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+  });
+});
