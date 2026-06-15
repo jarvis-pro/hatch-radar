@@ -8,9 +8,9 @@ import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/http-exception.filter';
 import { APP_ENV } from './common/tokens';
 import type { AppEnv } from './config/env';
-import { HN_SECTIONS, RSS_FEEDS } from './config/feeds';
-import { SUBREDDITS } from './config/subreddits';
 import { ProvidersRepository } from './db/providers.repository';
+import { SourceConnectorsRepository } from './db/source-connectors.repository';
+import { SourcesRepository } from './db/sources.repository';
 import { StatsRepository } from './db/stats.repository';
 import { logger } from './logger';
 
@@ -29,13 +29,20 @@ function lanAddresses(): string[] {
 async function logStartup(app: NestExpressApplication, env: AppEnv): Promise<void> {
   logger.info('hatch-radar 启动（NestJS + PostgreSQL）');
 
+  const enabledSources = (await app.get(SourcesRepository).listSources()).filter((s) => s.enabled);
+  const byPlatform = (p: string): string[] =>
+    enabledSources.filter((s) => s.platform === p).map((s) => s.label || s.identifier);
+  const reddit = byPlatform('reddit');
+  const hn = byPlatform('hackernews');
+  const rss = byPlatform('rss');
   const sources: string[] = [];
-  if (env.reddit) {
-    sources.push(`Reddit (${SUBREDDITS.map((s) => `r/${s}`).join(', ')})`);
+  if (reddit.length > 0) {
+    const usable = await app.get(SourceConnectorsRepository).hasUsableConnector('reddit');
+    sources.push(`Reddit (${reddit.join(', ')})${usable ? '' : ' [无可用连接器，本轮跳过]'}`);
   }
-  sources.push(`HackerNews (${HN_SECTIONS.map((s) => s.channel).join(', ')})`);
-  sources.push(`RSS (${RSS_FEEDS.map((f) => f.name).join(', ')})`);
-  logger.info('监控来源 (%d):', sources.length);
+  if (hn.length > 0) sources.push(`HackerNews (${hn.join(', ')})`);
+  if (rss.length > 0) sources.push(`RSS (${rss.join(', ')})`);
+  logger.info('监控来源 (%d 启用):', sources.length);
   for (const src of sources) {
     logger.info('  · %s', src);
   }

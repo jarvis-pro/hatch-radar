@@ -160,6 +160,51 @@ model provider_api_keys {
   @@index([provider_id], map: "idx_provider_keys_provider")
 }
 
+/// 采集目标（「爬虫计划」）：一行 = 一个要轮询的来源；enabled 即后台勾选开关。
+/// 种子来自原 config/subreddits.ts 与 config/feeds.ts（代码常量，非 env），由应用首启写入。
+model sources {
+  id         Int             @id @default(autoincrement())
+  /// 来源平台。
+  platform   source_platform
+  /// 平台内标识：reddit=subreddit 名；hackernews=endpoint(askstories/showstories/topstories)；rss=feed url。
+  identifier String
+  /// 展示名 / 频道别名（reddit 同 identifier；hackernews 如 ask_hn；rss 如 techcrunch）。
+  label      String          @default("")
+  /// 平台特定参数(JSON)：reddit={sorts:["hot","new"],limit:25}；hackernews/rss 可空。
+  config     Json?
+  /// 是否纳入轮询（= 后台勾选）。platform=reddit 时需有可用 reddit 连接器才允许置 true。
+  enabled    Boolean         @default(true)
+  created_at BigInt
+  updated_at BigInt
+
+  @@unique([platform, identifier], map: "uniq_sources_platform_ident")
+  @@index([platform, enabled], map: "idx_sources_enabled")
+}
+
+/// 需鉴权平台的采集连接器（现状仅 Reddit）。凭据以加密 JSON 存 secret，auth_kind 决定其形状。
+/// 为爬虫转向预留：oauth(现状/官方 API) → scrape(未来代理/cookie) 不改表结构。
+model source_connectors {
+  id               Int             @id @default(autoincrement())
+  platform         source_platform
+  label            String          @default("")
+  /// 鉴权方式：oauth(官方 API) | scrape(自托管爬虫)。决定 secret JSON 的字段。
+  auth_kind        connector_auth
+  /// 加密(AES-256-GCM)的凭据 JSON。oauth: {clientId,clientSecret,username,password,userAgent}
+  secret           String
+  /// 是否启用（停用即不参与抓取与门禁判定）。
+  enabled          Boolean         @default(true)
+  /// 多连接器时的选用顺序，越小越先用。
+  priority         Int             @default(0)
+  /// 最近一次「测试连接」结果：门禁要求 last_check_ok=true 才放行其平台的来源。
+  last_check_ok    Boolean?
+  last_check_at    BigInt?
+  last_check_error String?
+  created_at       BigInt
+  updated_at       BigInt
+
+  @@index([platform], map: "idx_connectors_platform")
+}
+
 /// 帖子：抓取流水线的「原始」数据，承载后续评论抓取与 AI 分析的进度状态。
 model posts {
   id                  String     @id
@@ -448,6 +493,19 @@ enum api_key_status {
   active
   cooling
   invalid
+}
+
+/// 数据来源平台。
+enum source_platform {
+  reddit
+  hackernews
+  rss
+}
+
+/// 采集连接器鉴权方式。
+enum connector_auth {
+  oauth
+  scrape
 }
 
 /// 人工筛选状态。

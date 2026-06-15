@@ -134,6 +134,14 @@ export class RedditClient {
     return this.fetchToken();
   }
 
+  /**
+   * 连通性测试：尝试用凭据换取一次 OAuth token，成功即视为可用。
+   * 供设置页「测试连接」调用；失败（凭据错/被封）直接抛出。
+   */
+  async testAuth(): Promise<void> {
+    await this.fetchToken();
+  }
+
   private async get<T>(path: string, params: Record<string, string | number> = {}): Promise<T> {
     const url = new URL(API_BASE + path);
     url.searchParams.set('raw_json', '1');

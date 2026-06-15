@@ -5,6 +5,8 @@ import { JobsRepository } from './jobs.repository';
 import { PostsRepository } from './posts.repository';
 import { ProvidersRepository } from './providers.repository';
 import { SettingsRepository } from './settings.repository';
+import { SourceConnectorsRepository } from './source-connectors.repository';
+import { SourcesRepository } from './sources.repository';
 import { StatsRepository } from './stats.repository';
 
 /**
@@ -18,6 +20,8 @@ const REPOSITORIES = [
   JobsRepository,
   ProvidersRepository,
   SettingsRepository,
+  SourcesRepository,
+  SourceConnectorsRepository,
   StatsRepository,
 ];
 

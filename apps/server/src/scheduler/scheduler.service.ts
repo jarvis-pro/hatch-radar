@@ -4,21 +4,37 @@ import { AnalysisConfigService } from '@/analysis/analysis-config.service';
 import { APP_ENV } from '@/common/tokens';
 import { nowSec } from '@/utils/time';
 import type { AppEnv } from '@/config/env';
-import { HN_SECTIONS, RSS_FEEDS } from '@/config/feeds';
-import { SUBREDDITS } from '@/config/subreddits';
-import { REDDIT_CLIENT } from '@/crawler/crawler.module';
+import { CrawlerConfigService } from '@/crawler/crawler-config.service';
 import { HackerNewsClient } from '@/crawler/hackernews';
 import type { RedditClient, RedditComment } from '@/crawler/reddit';
 import { fetchFeed } from '@/crawler/rss';
 import { CommentsRepository } from '@/db/comments.repository';
 import { JobsRepository } from '@/db/jobs.repository';
 import { PostsRepository } from '@/db/posts.repository';
+import { SourcesRepository, type SourceRow } from '@/db/sources.repository';
 import { logger } from '@/logger';
 
 const ARCHIVE_DAYS = 30;
 const COMMENT_BATCH_LIMIT = 200;
 /** 评论抓取后写入的 comment_pass 值（≥1 表示已抓，可进入分析队列） */
 const COMMENT_FETCHED_PASS = 2;
+
+/** HN 端点白名单：DB 里 source.identifier 存的就是端点名，取用前校验 */
+const HN_ENDPOINTS = ['topstories', 'askstories', 'showstories'] as const;
+type HnEndpoint = (typeof HN_ENDPOINTS)[number];
+function asHnEndpoint(s: string): HnEndpoint | null {
+  return (HN_ENDPOINTS as readonly string[]).includes(s) ? (s as HnEndpoint) : null;
+}
+
+/** 解析 reddit 来源的 config（sorts / limit），缺省回落 hot+new / 25 */
+function redditSourceConfig(source: SourceRow): { sorts: ('hot' | 'new')[]; limit: number } {
+  const cfg = (source.config ?? {}) as { sorts?: unknown; limit?: unknown };
+  const sorts = Array.isArray(cfg.sorts)
+    ? (cfg.sorts.filter((s) => s === 'hot' || s === 'new') as ('hot' | 'new')[])
+    : [];
+  const limit = typeof cfg.limit === 'number' && cfg.limit > 0 ? cfg.limit : 25;
+  return { sorts: sorts.length > 0 ? sorts : ['hot', 'new'], limit };
+}
 
 /** 评论抓取目标：source 决定用哪个客户端，subreddit 供 Reddit 评论接口 */
 interface CommentTarget {
@@ -33,8 +49,9 @@ interface CommentTarget {
  * - cron 用 `@nestjs/schedule` 的 `@Cron`
  * - 同名任务不并发由 {@link guard} 保证（框架不内置，沿用裸跑的非重入语义）
  * - 启动后跑一轮初始化（扫描 → 评论补全 → 分析入队），不阻塞 HTTP 监听
- * - guard 是进程内内存态、无分布式锁 → 本服务（HTTP + 调度进程）须**单实例**部署；
- *   多开主进程会重复抓取 / 重复跑初始化轮次。可水平扩的是 Worker 池（独立进程经 PG 行锁认领）。
+ * - 监控哪些来源、Reddit 凭据均来自 DB（sources / source_connectors，见 CrawlerConfigService）；
+ *   来源每轮现查，改完下一轮即生效；连接器改完按指纹下次取用即重建
+ * - guard 是进程内内存态、无分布式锁 → 本服务（HTTP + 调度进程）须**单实例**部署
  */
 @Injectable()
 export class SchedulerService implements OnApplicationBootstrap {
@@ -42,18 +59,15 @@ export class SchedulerService implements OnApplicationBootstrap {
   private readonly running = new Set<string>();
 
   constructor(
-    @Inject(REDDIT_CLIENT) private readonly reddit: RedditClient | null,
+    private readonly crawlerConfig: CrawlerConfigService,
     private readonly hackernews: HackerNewsClient,
+    private readonly sourcesRepo: SourcesRepository,
     private readonly postsRepo: PostsRepository,
     private readonly commentsRepo: CommentsRepository,
     private readonly jobsRepo: JobsRepository,
     private readonly analysisConfig: AnalysisConfigService,
     @Inject(APP_ENV) private readonly env: AppEnv,
   ) {}
-
-  private get subreddits(): string[] {
-    return this.reddit ? SUBREDDITS : [];
-  }
 
   onApplicationBootstrap(): void {
     // 初始化轮次：不阻塞应用启动 / HTTP 监听
@@ -88,12 +102,15 @@ export class SchedulerService implements OnApplicationBootstrap {
   }
 
   /** 抓取单篇帖子评论并落库（Reddit 经令牌桶限速，HN 内部批量；内容 diff 由 replaceComments 处理） */
-  private async fetchAndStoreComments(target: CommentTarget): Promise<void> {
+  private async fetchAndStoreComments(
+    target: CommentTarget,
+    reddit: RedditClient | null,
+  ): Promise<void> {
     let fetched: RedditComment[];
-    if (target.source === 'hackernews' && this.hackernews) {
+    if (target.source === 'hackernews') {
       fetched = await this.hackernews.fetchComments(target.id);
-    } else if (target.source === 'reddit' && this.reddit) {
-      fetched = await this.reddit.fetchComments(target.subreddit, target.id);
+    } else if (target.source === 'reddit' && reddit) {
+      fetched = await reddit.fetchComments(target.subreddit, target.id);
     } else {
       return;
     }
@@ -101,10 +118,13 @@ export class SchedulerService implements OnApplicationBootstrap {
   }
 
   /** 后台串行抓取新帖评论（fire-and-forget）：逐篇 await，进程中断遗漏的由 refresh 兜底 */
-  private async drainNewComments(targets: CommentTarget[]): Promise<void> {
+  private async drainNewComments(
+    targets: CommentTarget[],
+    reddit: RedditClient | null,
+  ): Promise<void> {
     for (const t of targets) {
       try {
-        await this.fetchAndStoreComments(t);
+        await this.fetchAndStoreComments(t, reddit);
       } catch (err) {
         logger.warn(
           `[即时评论] ${t.id} 抓取失败: ${err instanceof Error ? err.message : String(err)}`,
@@ -115,18 +135,25 @@ export class SchedulerService implements OnApplicationBootstrap {
 
   /**
    * 扫描（Reddit hot/new + HN + RSS）：每 30 分钟；新帖触发后台即时评论抓取。
+   * 来源取自 DB 的 enabled sources；Reddit 客户端取自可用连接器，无则跳过 Reddit。
    */
   @Cron('0,30 * * * *')
   scan(): Promise<void> {
     return this.guard('扫描', async () => {
       const fresh: CommentTarget[] = [];
+      const reddit = await this.crawlerConfig.getRedditClient();
 
-      if (this.reddit && this.subreddits.length > 0) {
-        for (const subreddit of this.subreddits) {
-          for (const sort of ['hot', 'new'] as const) {
+      const redditSources = await this.sourcesRepo.listEnabledByPlatform('reddit');
+      if (redditSources.length > 0 && !reddit) {
+        logger.warn('[扫描] 有启用的 Reddit 来源但无可用连接器（未配置/未测试通过），跳过 Reddit');
+      }
+      if (reddit) {
+        for (const source of redditSources) {
+          const { sorts, limit } = redditSourceConfig(source);
+          for (const sort of sorts) {
             // 单个版块失败（如被封 / 改名 / 私有触发 403/404）只跳过该项，不中断整轮扫描
             try {
-              const posts = await this.reddit.fetchListing(subreddit, sort, 25);
+              const posts = await reddit.fetchListing(source.identifier, sort, limit);
               const { added, updated, newPosts } = await this.postsRepo.upsertPosts(
                 posts,
                 'reddit',
@@ -136,59 +163,60 @@ export class SchedulerService implements OnApplicationBootstrap {
                 fresh.push({ id: p.id, source: 'reddit', subreddit: p.subreddit });
               }
               logger.info(
-                `[扫描] r/${subreddit}/${sort}: 抓取 ${posts.length}，新增 ${added}，更新 ${updated}`,
+                `[扫描] r/${source.identifier}/${sort}: 抓取 ${posts.length}，新增 ${added}，更新 ${updated}`,
               );
             } catch (err) {
               logger.warn(
-                `[扫描] r/${subreddit}/${sort} 失败: ${err instanceof Error ? err.message : String(err)}`,
+                `[扫描] r/${source.identifier}/${sort} 失败: ${err instanceof Error ? err.message : String(err)}`,
               );
             }
           }
         }
       }
 
-      if (this.hackernews) {
-        for (const section of HN_SECTIONS) {
-          // 单个分区失败只跳过该分区，不影响其余分区与后续 RSS 抓取
-          try {
-            const posts = await this.hackernews.fetchStories(section.endpoint, section.channel, 30);
-            const { added, updated, newPosts } = await this.postsRepo.upsertPosts(
-              posts,
-              'hackernews',
-              nowSec(),
-            );
-            for (const p of newPosts) {
-              fresh.push({ id: p.id, source: 'hackernews', subreddit: p.subreddit });
-            }
-            logger.info(
-              `[扫描] HN/${section.channel}: 抓取 ${posts.length}，新增 ${added}，更新 ${updated}`,
-            );
-          } catch (err) {
-            logger.warn(
-              `[扫描] HN/${section.channel} 失败: ${err instanceof Error ? err.message : String(err)}`,
-            );
+      for (const source of await this.sourcesRepo.listEnabledByPlatform('hackernews')) {
+        const endpoint = asHnEndpoint(source.identifier);
+        if (!endpoint) {
+          logger.warn(`[扫描] HN 来源 #${source.id} 端点非法（${source.identifier}），跳过`);
+          continue;
+        }
+        const channel = source.label || endpoint;
+        // 单个分区失败只跳过该分区，不影响其余分区与后续 RSS 抓取
+        try {
+          const posts = await this.hackernews.fetchStories(endpoint, channel, 30);
+          const { added, updated, newPosts } = await this.postsRepo.upsertPosts(
+            posts,
+            'hackernews',
+            nowSec(),
+          );
+          for (const p of newPosts) {
+            fresh.push({ id: p.id, source: 'hackernews', subreddit: p.subreddit });
           }
+          logger.info(`[扫描] HN/${channel}: 抓取 ${posts.length}，新增 ${added}，更新 ${updated}`);
+        } catch (err) {
+          logger.warn(
+            `[扫描] HN/${channel} 失败: ${err instanceof Error ? err.message : String(err)}`,
+          );
         }
       }
 
       // RSS（无评论，直接设 comment_pass=2 进入分析队列；不触发评论抓取）
-      for (const feed of RSS_FEEDS) {
+      for (const source of await this.sourcesRepo.listEnabledByPlatform('rss')) {
+        const name = source.label || source.identifier;
         try {
-          const posts = await fetchFeed(feed, 20);
+          const posts = await fetchFeed({ name, url: source.identifier }, 20);
           const { added, updated } = await this.postsRepo.upsertPosts(posts, 'rss', nowSec(), 2);
-          logger.info(
-            `[扫描] RSS/${feed.name}: 抓取 ${posts.length}，新增 ${added}，更新 ${updated}`,
-          );
+          logger.info(`[扫描] RSS/${name}: 抓取 ${posts.length}，新增 ${added}，更新 ${updated}`);
         } catch (err) {
           logger.warn(
-            `[扫描] RSS/${feed.name} 失败: ${err instanceof Error ? err.message : String(err)}`,
+            `[扫描] RSS/${name} 失败: ${err instanceof Error ? err.message : String(err)}`,
           );
         }
       }
 
       if (fresh.length > 0) {
         logger.info(`[扫描] 触发 ${fresh.length} 篇新帖即时评论抓取（后台）`);
-        void this.drainNewComments(fresh);
+        void this.drainNewComments(fresh, reddit);
       }
     });
   }
@@ -204,14 +232,14 @@ export class SchedulerService implements OnApplicationBootstrap {
         logger.info(`[评论补全] 暂无待抓/待刷新的帖子`);
         return;
       }
+      const reddit = await this.crawlerConfig.getRedditClient();
       logger.info(`[评论补全] ${due.length} 篇待抓/刷新评论`);
       for (const post of due) {
         try {
-          await this.fetchAndStoreComments({
-            id: post.id,
-            source: post.source,
-            subreddit: post.subreddit,
-          });
+          await this.fetchAndStoreComments(
+            { id: post.id, source: post.source, subreddit: post.subreddit },
+            reddit,
+          );
         } catch (err) {
           logger.error(
             `[评论补全] ${post.id} 失败: ${err instanceof Error ? err.message : String(err)}`,

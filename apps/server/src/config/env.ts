@@ -1,6 +1,5 @@
 import { z } from 'zod';
 import { DEFAULT_DATABASE_URL, DEFAULT_HTTP_PORT } from '@hatch-radar/config';
-import type { RedditConfig } from '@/crawler/reddit';
 
 /** 局域网导出/同步 HTTP 服务配置（env 推导） */
 export interface HttpConfig {
@@ -38,18 +37,9 @@ const envSchema = z.preprocess(
   stripEmptyEnv,
   z
     .object({
-      // ── Reddit OAuth（五个字段全填或全不填）──────────────────────────
-
-      /** Reddit 应用 Client ID，在 reddit.com/prefs/apps 创建 */
-      REDDIT_CLIENT_ID: z.string().trim().min(1).optional(),
-      /** Reddit 应用 Client Secret */
-      REDDIT_CLIENT_SECRET: z.string().trim().min(1).optional(),
-      /** 用于 OAuth 授权的 Reddit 账号用户名 */
-      REDDIT_USERNAME: z.string().trim().min(1).optional(),
-      /** 对应账号的密码 */
-      REDDIT_PASSWORD: z.string().trim().min(1).optional(),
-      /** HTTP User-Agent，格式建议 `<platform>:<appid>:<version> (by u/<user>)` */
-      REDDIT_USER_AGENT: z.string().trim().min(1).optional(),
+      // ── 数据来源 / Reddit 凭据 ─────────────────────────────────────────
+      // 监控哪些来源、Reddit 采集凭据一律在设置页 /settings 配置入库
+      // （sources / source_connectors，见 docs/runtime-config-design.md）。env 不再承载。
 
       // ── AI 分析调优 ───────────────────────────────────────────────────
       // 模型接入（厂商 / 密钥 / 模型名 / base_url）一律在设置页 /settings 配置入库，
@@ -85,31 +75,7 @@ const envSchema = z.preprocess(
       /** worker 进程连接 gateway 的 WebSocket 地址；不设则自动推导为 ws://localhost:<HTTP_PORT>/ws/worker */
       GATEWAY_URL: z.string().trim().optional(),
     })
-    .superRefine((data, ctx) => {
-      // CLIENT_ID + CLIENT_SECRET 存在即视为启用 Reddit，其余 3 个字段变为必填
-      if (data.REDDIT_CLIENT_ID && data.REDDIT_CLIENT_SECRET) {
-        for (const key of ['REDDIT_USERNAME', 'REDDIT_PASSWORD', 'REDDIT_USER_AGENT'] as const) {
-          if (!data[key]) {
-            ctx.addIssue({
-              code: 'custom',
-              message: 'Reddit 凭据不完整，该字段必填',
-              path: [key],
-            });
-          }
-        }
-      }
-    })
     .transform((env) => ({
-      reddit:
-        env.REDDIT_CLIENT_ID && env.REDDIT_CLIENT_SECRET
-          ? ({
-              clientId: env.REDDIT_CLIENT_ID,
-              clientSecret: env.REDDIT_CLIENT_SECRET,
-              username: env.REDDIT_USERNAME!,
-              password: env.REDDIT_PASSWORD!,
-              userAgent: env.REDDIT_USER_AGENT!,
-            } satisfies RedditConfig)
-          : undefined,
       analyzeBatchSize: env.ANALYZE_BATCH_SIZE,
       databaseUrl: env.DATABASE_URL,
       databasePoolMax: env.DATABASE_POOL_MAX ?? Math.max(10, env.WORKER_CONCURRENCY + 5),
@@ -137,15 +103,15 @@ export type AppEnv = z.infer<typeof envSchema>;
  * 把 .env 注入 process.env（早于任何模块求值），故写在 .env 文件里同样生效——不必额外 export。
  */
 
-/** PostgreSQL 连接串单独暴露：CLI / 迁移脚本不需要 Reddit 与模型凭据 */
+/** PostgreSQL 连接串单独暴露：CLI / 迁移脚本不需要任何业务凭据 */
 export function databaseUrl(): string {
   return process.env.DATABASE_URL?.trim() || DEFAULT_DATABASE_URL;
 }
 
 /**
  * 从环境变量加载并校验应用配置。
- * - `REDDIT_CLIENT_ID` 与 `REDDIT_CLIENT_SECRET` 均存在时启用 Reddit，否则 `reddit` 为 undefined
- * - 模型接入不再读 env：一律在设置页 /settings 配置入库（见 docs/runtime-config-design.md）
+ * - 数据来源 / Reddit 凭据 / 模型接入均不再读 env：一律在设置页 /settings 配置入库
+ *   （sources / source_connectors / model_providers，见 docs/runtime-config-design.md）
  * - 校验失败时一次性报告所有缺失/非法字段
  * @returns 校验通过的应用配置对象
  */

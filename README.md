@@ -49,22 +49,15 @@ cp apps/server/.env.example apps/server/.env
 编辑 `apps/server/.env`（密钥只属于 server，不会进入 web / mobile）：
 
 ```env
-# Reddit OAuth（在 https://www.reddit.com/prefs/apps 注册 script 类型应用）
-REDDIT_CLIENT_ID=your_client_id
-REDDIT_CLIENT_SECRET=your_client_secret
-REDDIT_USERNAME=your_reddit_username
-REDDIT_PASSWORD=your_reddit_password
-REDDIT_USER_AGENT=your-app-name/1.0 (by /u/your_reddit_username)
-
-# AI 模型接入：一律在 Web 设置页（/settings）配置入库，env 不承载任何模型密钥。
-# 模型密钥加密主密钥（设置页配置模型必需）：
+# 数据来源 / Reddit 采集凭据 / AI 模型接入：一律在 Web 设置页（/settings）配置入库，env 不承载任何凭据。
+# 模型密钥与 Reddit 凭据的加密主密钥（设置页配置须先设它）：
 # SETTINGS_SECRET=                 # openssl rand -hex 32
 
 # 数据库（PostgreSQL；本地用 docker-compose 起，生产换托管 PG 只改此串）
 DATABASE_URL=postgres://radar:radar@localhost:47432/hatch_radar
 ```
 
-模型默认 ID、各厂商接口地址、`SETTINGS_SECRET`、每轮分析上限等见 `.env.example` 注释；模型推荐在 Web 设置页配置。
+`SETTINGS_SECRET`、每轮分析上限等见 `.env.example` 注释；模型与数据来源/Reddit 凭据一律在 Web 设置页配置。
 
 ### 3. 起数据库并建表
 
@@ -174,27 +167,13 @@ pnpm dev:mobile   # 启动 Expo dev server，用 Expo Go 扫码（iOS 真机）
 
 ---
 
-## 配置目标版块
+## 配置数据来源
 
-编辑 `apps/server/src/config/subreddits.ts`：
+在 Web 设置页（`/settings`）的「数据来源」区维护：勾选启用哪些 subreddit / HackerNews 板块 / RSS 源（一行 = 一个「爬虫计划」），改完下一轮调度即生效。首启会从代码常量（`apps/server/src/config/{subreddits,feeds}.ts`，现降级为**种子常量**）播种一份默认列表。
 
-```typescript
-export const SUBREDDITS = [
-  // 通用创业 / 产品
-  'entrepreneur',
-  'startups',
-  'indiehackers',
-  'SaaS',
+Reddit 来源需先在同页「采集连接器」配置 OAuth 凭据（加密入库）并点「测试」通过，其来源的启用开关才会解锁——前端置灰、服务端校验、调度防御三道闸。
 
-  // 需求直接表达
-  'SomebodyMakeThis',
-  'AppIdeas',
-
-  // 按需补充垂直领域
-  // "marketing",
-  // "ecommerce",
-];
-```
+> Reddit 官方 API 有作废风险（停发免费 key、起诉爬虫）；连接器凭据以 `auth_kind` 抽象（`oauth` 现状 / `scrape` 未来代理爬虫），切换不改表。详见 `docs/runtime-config-design.md` §1.3 / §4。
 
 ---
 

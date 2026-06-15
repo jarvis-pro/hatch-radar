@@ -25,6 +25,10 @@ import type {
   ProviderApiKeyRow,
   ProviderPg,
   ProviderRow,
+  SourceConnectorPg,
+  SourceConnectorRow,
+  SourcePg,
+  SourceRow,
   TriagePgRow,
 } from './types';
 
@@ -72,6 +76,21 @@ export function toProviderApiKeyRow(m: ProviderApiKeyPg): ProviderApiKeyRow {
   return {
     ...m,
     cooldown_until: nOpt(m.cooldown_until),
+    created_at: n(m.created_at),
+    updated_at: n(m.updated_at),
+  };
+}
+
+/** Prisma sources 行 → 域 SourceRow（时间戳 bigint→number；config 为已解析 JsonValue） */
+export function toSourceRow(m: SourcePg): SourceRow {
+  return { ...m, created_at: n(m.created_at), updated_at: n(m.updated_at) };
+}
+
+/** Prisma source_connectors 行 → 域 SourceConnectorRow（last_check_at / 时间戳 bigint→number） */
+export function toSourceConnectorRow(m: SourceConnectorPg): SourceConnectorRow {
+  return {
+    ...m,
+    last_check_at: nOpt(m.last_check_at),
     created_at: n(m.created_at),
     updated_at: n(m.updated_at),
   };
