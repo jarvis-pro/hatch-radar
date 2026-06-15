@@ -1,11 +1,12 @@
 # 本地基础设施（仅数据库）。
 #
-# - db：PostgreSQL，server 的唯一主存储。单机/局域网工具，数据卷用本地命名卷即可；
+# - db：PostgreSQL，api / worker 的唯一主存储。单机/局域网工具，数据卷用本地命名卷即可；
 #   生产换托管 PG 只需改 DATABASE_URL。
 #
-# 后端归一后只剩一个应用进程：NestJS server 既发 /api，又同源托管 web 控制台 SPA
-# （vite build 产物，见 apps/web/dist）。server（爬取 + AI 分析 + 密钥 + 鉴权权威）
-# 跑在工作台宿主机上（直连本机 47432），不再有单独的 web 容器。
+# 后端拆为两个进程，均跑在工作台宿主机上（直连本机 47432）、不进容器：
+#   - api（控制面，单实例）：发 /api + 鉴权 + 调度 + push 网关，并同源托管 web 控制台 SPA
+#     （vite build 产物，见 apps/web/dist）。爬取 + AI 密钥 + 鉴权权威都在此。
+#   - worker（数据面，可横扩）：经 PG 队列认领 + WS 连 api 网关跑 AI 分析写回。
 #
 # 端口映射用 47xxx 段避免与同机其它项目冲突；主机侧映射 47432（PG）。
 #

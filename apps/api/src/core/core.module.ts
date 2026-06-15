@@ -37,7 +37,7 @@ import { APP_ENV, CORE, PRISMA } from '@/common/tokens';
 /**
  * 领域核心桥接模块（全局）。
  *
- * `apps/server`（NestJS）不再自带仓储/服务,改用 @/domain：onReady 前由 {@link CORE} 工厂
+ * `apps/api`（NestJS）不再自带仓储/服务,改用 @/domain：onReady 前由 {@link CORE} 工厂
  * 调 createCore(PRISMA, APP_ENV) 一处装配全部领域实例,再把每个实例以「其类」为 DI 令牌登记
  * （NestJS 支持「类当 token + useFactory」,故控制器/守卫维持按类型构造注入,无需改注入点）。
  *

@@ -43,7 +43,7 @@ interface CommentTarget {
 /**
  * 定时调度服务：扫描 / 评论补全 / AI 分析入队 / 归档。
  *
- * - cron 由 app 侧的调度类触发（NestJS：@nestjs/schedule 的 @Cron，见 apps/server/src/scheduler/scheduler.cron.ts），各自调用本服务方法。
+ * - cron 由 app 侧的调度类触发（NestJS：@nestjs/schedule 的 @Cron，见 apps/api/src/scheduler/scheduler.cron.ts），各自调用本服务方法。
  * - 同名任务不并发由 {@link guard} 保证（沿用裸跑的非重入语义）。
  * - 初始化轮次由 app 侧启动钩子调用 {@link runInitialRound}（NestJS：onApplicationBootstrap）。
  * - guard 是进程内内存态、无分布式锁 → 本服务（HTTP + 调度进程）须**单实例**部署。

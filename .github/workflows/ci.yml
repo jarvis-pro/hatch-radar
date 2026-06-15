@@ -55,5 +55,6 @@ jobs:
         run: pnpm lint
 
       # global-setup 用 prisma migrate deploy 建测试库 schema，再跑 vitest
-      - name: Test (server, integration)
-        run: pnpm --filter @hatch-radar/server test
+      # -r 覆盖所有带 test 脚本的包：apps/api（集成，连 PG）+ packages/kernel（纯单测）
+      - name: Test (integration)
+        run: pnpm -r test

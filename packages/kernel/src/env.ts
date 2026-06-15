@@ -15,7 +15,7 @@ export interface WorkerConfig {
 
 /**
  * `KEY=`（空串 / 纯空白）一律按「未设置」处理：等同把该行注释掉。
- * 与 NestJS 版 env.ts 行为完全一致（见 apps/server/src/config/env.ts）。
+ * 与 NestJS 版 env.ts 行为完全一致（见 apps/api/src/config/env.ts）。
  */
 function stripEmptyEnv(raw: unknown): unknown {
   if (!raw || typeof raw !== 'object') return raw;

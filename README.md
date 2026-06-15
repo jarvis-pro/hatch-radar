@@ -43,10 +43,10 @@ pnpm install
 ### 2. 配置环境变量
 
 ```bash
-cp apps/server/.env.example apps/server/.env
+cp apps/api/.env.example apps/api/.env
 ```
 
-编辑 `apps/server/.env`（密钥只属于 server，不会进入 web / mobile）：
+编辑 `apps/api/.env`（密钥只属于后端进程，不会进入 web / mobile）：
 
 ```env
 # 数据来源 / Reddit 采集凭据 / AI 模型接入：一律在 Web 设置页（/settings）配置入库，env 不承载任何凭据。
@@ -71,12 +71,14 @@ pnpm db:migrate           # prisma migrate deploy 应用迁移建出全部表
 ### 4. 启动
 
 ```bash
-# 工作台后端（爬取 + AI 分析 + 局域网导出服务 + 同进程 Worker）
+# 控制面 api（HTTP /api + 爬取 + 调度 + push 网关 + 同源托管 SPA）
 pnpm dev                # 开发模式（swc-node + node --watch）
 pnpm start              # 直接以 TS 源跑（swc-node）
-pnpm worker             # 可选：把分析 Worker 拆到独立进程（WORKER_IN_PROCESS=false 时）
 
-# Web 控制台（只读，直连同一个 PG）
+# 数据面 worker（独立进程，可多开横向扩；经 PG 队列认领 + WS 连 api 网关跑 AI 分析）
+pnpm worker             # 需先配 apps/worker/.env（单机可复用 api 的 .env）
+
+# Web 控制台（开发期 Vite dev server，/api 代理到 api）
 pnpm dev:web            # http://localhost:47080
 ```
 
@@ -92,17 +94,16 @@ pnpm dev:web            # http://localhost:47080
 - UI 组件来自 `@hatch-radar/ui`（shadcn/ui）。新增组件在 `apps/web` 下执行
   `pnpm dlx shadcn@latest add <component>`，CLI 会自动把组件写入 `packages/ui`，所有 PC 子项目共用
 
-Docker 部署：`docker compose up -d` 起 `db`（PostgreSQL）+ `web`（控制台，连同一个 PG）。
+Docker 部署：`docker compose up -d` 仅起 `db`（PostgreSQL）；api 与 worker 两进程跑在宿主机直连本机 47432。
 
 ```bash
-docker compose up -d            # db + web 一起起
-# 或仅起库，本地跑 web：
-docker compose up -d db
-pnpm dev:web
+docker compose up -d db         # 仅起库
+pnpm start                      # 控制面 api（同源托管 web SPA 的 build 产物）
+pnpm worker                     # 数据面 worker（可多开横向扩）
 ```
 
-> server（爬取 + AI + 密钥）按规格仍跑在工作台宿主机上，直连本机 47432。并发瓶颈已交给 PG
-> 异步驱动 + 连接池：定时器写库与局域网多人操作真正并行，不再串行在单条事件循环上。
+> api（爬取 + AI + 密钥 + 鉴权权威）按规格跑在工作台宿主机上。并发瓶颈已交给 PG 异步驱动 + 连接池：
+> 定时器写库与局域网多人操作真正并行，不再串行在单条事件循环上；分析执行的水平扩在 worker 这层。
 
 ---
 
@@ -180,53 +181,42 @@ Reddit 来源需先在同页「采集连接器」配置 OAuth 凭据（加密入
 
 ## 项目结构
 
-pnpm workspace monorepo（多端规划见 `docs/multiplatform-refactor-spec.md`，本次重构见 `docs/server-nest-postgres-refactor-plan.md`）。根目录脚本约定：**裸命令（`dev` / `start` / `worker` / `test`）= 主后端 server，其它端用 `:app` 后缀（`dev:web` / `build:web` / `preview:web` / `dev:mobile`）**，`db:*` 代理到 `@hatch-radar/db`。
+pnpm workspace monorepo。根目录脚本约定：**裸命令（`dev` / `start` / `test`）= api 控制面，`worker` = 独立数据面 worker，其它端用 `:app` 后缀（`dev:web` / `build:web` / `preview:web` / `dev:mobile`）**，`db:*` 代理到 `@hatch-radar/db`。
+
+后端按「**框架无关能力包 + 两个应用进程**」组织：领域逻辑沉到能力包（kernel/db/crawler/analysis），api（控制面，单实例）与 worker（数据面，可横扩）各自薄壳装配复用；经 PG 队列 + WS 网关解耦。
 
 ```
 hatch-radar/
 ├── apps/
-│   ├── server/                 # 工作台后端（NestJS）：爬取 + AI 分析 + 调度 + 导出
+│   ├── api/                    # 控制面（NestJS，单实例）：HTTP /api + 鉴权 + 定时调度 + push 网关 + 同源托管 web SPA
 │   │   ├── src/
 │   │   │   ├── main.ts         # HTTP 应用入口（NestFactory）
-│   │   │   ├── worker-main.ts  # 独立 Worker 进程入口（standalone application context）
-│   │   │   ├── app.module.ts   # 主进程根模块（HTTP + 调度 + 同进程 Worker）
-│   │   │   ├── config/         # env 校验（zod）+ @nestjs/config、目标版块、HN/RSS 源
-│   │   │   ├── database/       # Prisma 连接 provider（driver adapter）+ 启动连通性自检 + 优雅关闭
-│   │   │   ├── db/             # 异步 Prisma repository（posts/comments/insights/jobs/providers/settings/stats）
-│   │   │   ├── crawler/        # 令牌桶队列 + Reddit / HN / RSS 抓取（封装为 provider）
-│   │   │   ├── analyzer/       # prompt、Zod schema、Anthropic / OpenAI / DeepSeek 调用（无副作用）
-│   │   │   ├── analysis/       # 模型解析/热重载/入队 + 「分析并落库」编排
-│   │   │   ├── http/           # 控制器：health / settings / analysis / export / sync
-│   │   │   ├── scheduler/      # @Cron 调度（扫描/评论/分析入队/归档，guard 非重入）
-│   │   │   ├── worker/         # 分析 Worker 池（FOR UPDATE SKIP LOCKED + 生命周期钩子）
-│   │   │   ├── sync/           # 同步操作校验与幂等应用（op_id 去重 + sync_ops 留痕）
-│   │   │   ├── export/         # 批次收集（读 PG）+ .sqlite/.json 写出（better-sqlite3）
-│   │   │   ├── account/        # 人鉴权权威：会话登录/校验/改密 + SessionAuthGuard（cookie + CSRF）
-│   │   │   ├── data/           # 只读数据端点（洞察/帖子/评论/统计，能力闸）
-│   │   │   ├── admin/          # 账户/权限/设备管理 + 审计（accounts:manage / audit:view）
-│   │   │   ├── auth/           # 设备激活 + 设备/会话双通道守卫（sync/export）
-│   │   │   ├── seed/ static/   # 首超管种子 + 同源托管 SPA dist
-│   │   │   ├── common/         # DI 令牌、时间、zod 管道、全局异常过滤器
-│   │   │   └── crypto.ts       # 模型密钥 AES-256-GCM 加解密│   │   ├── test/               # 队列并发认领 / 同步幂等集成测试（vitest，连本地 PG）
+│   │   │   ├── app.module.ts   # 根模块（HTTP + 调度 + 网关 + 种子 + 静态托管）
+│   │   │   ├── domain/         # 本 app 领域层：assembly(createCore 装配) + 桶 index + account/admin/auth/data/sync/export/gateway/scheduler/seed 服务
+│   │   │   ├── core/           # CoreModule：调 createCore 一处装配，按「类令牌 + useFactory」桥接进 Nest DI
+│   │   │   ├── config/ database/   # env 校验(@nestjs/config) + Prisma 连接 provider（连通性自检 + 优雅关闭）
+│   │   │   ├── http/           # 控制器：health / settings / analysis / export / sync / sources
+│   │   │   ├── account/ admin/ auth/ data/  # 控制器 + 守卫（人会话 / 设备签名 / 能力闸 / 只读数据端点）
+│   │   │   ├── scheduler/ gateway/ seed/    # @Cron 调度 / WS push 网关 / 启动种子 的 Nest 生命周期薄封装
+│   │   │   ├── static/ common/ logger/      # 同源托管 SPA dist / DI 令牌·zod 管道·异常过滤器 / 日志
+│   │   │   └── test/           # 领域 + 控制器集成测试（vitest，连本地 PG）
 │   │   └── .env.example
-│   ├── web/                    # Vite + React Router 同源 SPA（经 /api 调 server，由 server 托管 dist）
-│   │   ├── src/api/            # 同源 fetch 客户端（cookie + CSRF；401 跳登录）
-│   │   ├── src/auth/           # AuthProvider（GET /api/auth/session）+ 能力闸
-│   │   ├── src/pages/          # 路由页（洞察/帖子/分析/设置/账户/管理…）
-│   │   └── src/components/     # 徽标/卡片/分页/评论树/各类管理器
+│   ├── worker/                 # 数据面（NestJS standalone context，可横向扩 N 实例）：PG 队列认领 + WS 连 api 网关跑 AI 分析写回
+│   │   └── src/                # main + worker.module + worker.starter + assembly(createWorkerCore) + worker.service + worker-agent
+│   ├── web/                    # Vite + React Router 同源 SPA（经 /api 调 api，由 api 托管 dist）
 │   └── mobile/                 # Expo 离线伴侣 App（expo-sqlite，保持不变）
-│       ├── app/                # expo-router：洞察列表 / 详情（含研判编辑）/ 工作台同步
-│       └── src/                # 本地库（共享 DDL + outbox/meta）、研判与导入合并、同步推送
-├── packages/
-│   ├── shared/                 # 跨端共享：DB DDL（mobile/导出用）、行类型、洞察域类型、研判/导出/同步协议
-│   ├── db/                     # PostgreSQL 层：Prisma schema + 连接工厂 + 迁移 + PG⇄域映射（server 唯一读写方）
+├── packages/                   # 框架无关能力包（api / worker 复用，不依赖任何 Web 框架）
+│   ├── kernel/                 # 基座（零内部依赖）：errors / logger / utils(time,crypto) / env 校验 / 网关协议(含 Dispatcher 接口)
+│   ├── db/                     # PostgreSQL 持久层：Prisma schema + 连接工厂 + PG⇄域映射 + 15 个仓储 + runtime-settings
+│   ├── crawler/                # 采集层：Reddit / HN / RSS 抓取 + 令牌桶限速 + 采集连接器配置
+│   ├── analysis/               # AI 分析：analyzer 引擎(prompt / 洞察 schema / Anthropic·OpenAI 客户端) + 配置入队 + 洞察落库
+│   ├── shared/                 # 跨端共享类型（零运行时依赖）：DDL、行类型、ingestion/洞察/研判/导出/同步协议、权限目录
+│   ├── auth/                   # 认证 crypto（Node-only）：scrypt 口令 / 会话 token / Ed25519 设备验签
+│   ├── config/                 # 共享配置切片 + TypeScript 预设（tsconfig base / nest）
 │   └── ui/                     # PC 端共享 UI 库：shadcn/ui + Tailwind v4（组件经 CLI 落入此包，RN 勿引）
-├── docs/
-│   ├── multiplatform-refactor-spec.md          # 多端重构需求规格
-│   └── server-nest-postgres-refactor-plan.md   # NestJS + PostgreSQL 重构计划书
-├── docker-compose.yml          # db（PostgreSQL）；server + web SPA 跑在宿主机单进程
+├── docs/                       # 设计与计划文档
+├── docker-compose.yml          # db（PostgreSQL）；api + worker 两进程跑在宿主机
 ├── pnpm-workspace.yaml
-├── tsconfig.base.json
 └── package.json                # 根脚本统一代理到子包
 ```
 

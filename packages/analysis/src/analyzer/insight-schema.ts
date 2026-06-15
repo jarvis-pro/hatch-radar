@@ -11,7 +11,7 @@ import type { InsightResult } from '@hatch-radar/shared';
  * 供 web / mobile 共用）。本文件底部的编译期断言保证二者结构完全一致，任一处漂移都会在
  * typecheck 阶段报错——这样「模型契约」与「落库类型」不会脱节。
  *
- * 注意：本包（apps/server）才引入 zod；@hatch-radar/shared 刻意保持零运行时依赖，
+ * 注意：本包（analysis 包）才引入 zod；@hatch-radar/shared 刻意保持零运行时依赖，
  * 故 schema 放这里、类型放 shared，用下方断言把两者绑定。
  */
 
