@@ -79,11 +79,9 @@ describe('SeedRunner', () => {
       nows.push(ctx.now);
       return skipped();
     };
-    await runner(
-      mk('a', 10, false, push),
-      mk('b', 20, false, push),
-      mk('c', 30, false, push),
-    ).run(NOW);
+    await runner(mk('a', 10, false, push), mk('b', 20, false, push), mk('c', 30, false, push)).run(
+      NOW,
+    );
     expect(nows).toEqual([NOW, NOW, NOW]);
     expect(Number.isInteger(nows[0])).toBe(true);
   });

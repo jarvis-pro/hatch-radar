@@ -196,7 +196,9 @@ export class SchedulerService {
           const { added, updated } = await this.postsRepo.upsertPosts(posts, 'rss', nowSec(), 2);
           logger.info(`[扫描] RSS/${name}: 抓取 ${posts.length}，新增 ${added}，更新 ${updated}`);
         } catch (err) {
-          logger.warn(`[扫描] RSS/${name} 失败: ${err instanceof Error ? err.message : String(err)}`);
+          logger.warn(
+            `[扫描] RSS/${name} 失败: ${err instanceof Error ? err.message : String(err)}`,
+          );
         }
       }
 

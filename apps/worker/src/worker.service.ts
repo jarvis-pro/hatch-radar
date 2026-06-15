@@ -96,7 +96,10 @@ export class WorkerService {
     }
   }
 
-  private async runJob(job: DispatchedJobInfo, onProgress?: (jobId: number) => void): Promise<void> {
+  private async runJob(
+    job: DispatchedJobInfo,
+    onProgress?: (jobId: number) => void,
+  ): Promise<void> {
     const post = await this.posts.getPostById(job.post_id);
     if (!post) {
       await this.jobs.failJob(job.id, '帖子不存在或已归档', nowSec());

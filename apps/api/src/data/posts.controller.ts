@@ -1,5 +1,12 @@
 import { Controller, Get, NotFoundException, Param, Query, UseGuards } from '@nestjs/common';
-import type { AwaitingPost, CommentRow, FilterOptions, Insight, Paged, PostRow } from '@hatch-radar/shared';
+import type {
+  AwaitingPost,
+  CommentRow,
+  FilterOptions,
+  Insight,
+  Paged,
+  PostRow,
+} from '@hatch-radar/shared';
 import { RequirePermission } from '@/account/auth-user.decorator';
 import { SessionAuthGuard } from '@/account/session-auth.guard';
 import { DataService, parsePage, trimmed } from '@/domain';

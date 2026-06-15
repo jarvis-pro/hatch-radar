@@ -28,7 +28,14 @@ export function createWorkerCore(db: AppDatabase): { worker: WorkerService } {
   const runtimeSettings = new RuntimeSettingsService(settings);
   const analysis = new AnalysisService(insights);
   const analysisConfig = new AnalysisConfigService(providers, settings, jobs, posts);
-  const worker = new WorkerService(jobs, posts, comments, analysis, analysisConfig, runtimeSettings);
+  const worker = new WorkerService(
+    jobs,
+    posts,
+    comments,
+    analysis,
+    analysisConfig,
+    runtimeSettings,
+  );
 
   return { worker };
 }

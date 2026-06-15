@@ -1,5 +1,9 @@
 import type { Server as HttpServer } from 'node:http';
-import { Injectable, type OnApplicationBootstrap, type OnApplicationShutdown } from '@nestjs/common';
+import {
+  Injectable,
+  type OnApplicationBootstrap,
+  type OnApplicationShutdown,
+} from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
 import { GatewayService } from '@/domain';
 
