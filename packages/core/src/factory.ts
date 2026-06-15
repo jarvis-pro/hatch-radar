@@ -22,8 +22,8 @@ import { HackerNewsClient } from '@hatch-radar/crawler';
 // services
 import { RuntimeSettingsService } from '@hatch-radar/db';
 import { CrawlerConfigService } from '@hatch-radar/crawler';
-import { AnalysisService } from './analysis/analysis.service';
-import { AnalysisConfigService } from './analysis/analysis-config.service';
+import { AnalysisService } from '@hatch-radar/analysis';
+import { AnalysisConfigService } from '@hatch-radar/analysis';
 import { GatewayService } from './gateway/gateway.service';
 import { DataService } from './data/data.service';
 import { AccountService } from './account/account.service';

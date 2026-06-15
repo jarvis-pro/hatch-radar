@@ -2,7 +2,7 @@ import type { CommentRow, PostRow } from '@hatch-radar/shared';
 import { InsightsRepository } from '@hatch-radar/db';
 import { nowSec } from '@hatch-radar/kernel';
 import { logger } from '@hatch-radar/kernel';
-import type { PostProcessor } from '../analyzer/analyze';
+import type { PostProcessor } from './analyzer/analyze';
 
 /**
  * 「分析并落库」的编排服务：由 worker 处理单条 analysis job 时调用。

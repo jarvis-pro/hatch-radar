@@ -305,6 +305,34 @@ importers:
         specifier: ^7.0.0
         version: 7.3.5(@types/node@25.9.2)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0)
 
+  packages/analysis:
+    dependencies:
+      '@anthropic-ai/sdk':
+        specifier: ^0.104.1
+        version: 0.104.1(zod@4.4.3)
+      '@hatch-radar/db':
+        specifier: workspace:*
+        version: link:../db
+      '@hatch-radar/kernel':
+        specifier: workspace:*
+        version: link:../kernel
+      '@hatch-radar/shared':
+        specifier: workspace:*
+        version: link:../shared
+      zod:
+        specifier: 'catalog:'
+        version: 4.4.3
+    devDependencies:
+      '@hatch-radar/config':
+        specifier: workspace:*
+        version: link:../config
+      '@types/node':
+        specifier: 'catalog:'
+        version: 25.9.2
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+
   packages/auth:
     devDependencies:
       '@hatch-radar/config':
@@ -325,9 +353,9 @@ importers:
 
   packages/core:
     dependencies:
-      '@anthropic-ai/sdk':
-        specifier: ^0.104.1
-        version: 0.104.1(zod@4.4.3)
+      '@hatch-radar/analysis':
+        specifier: workspace:*
+        version: link:../analysis
       '@hatch-radar/auth':
         specifier: workspace:*
         version: link:../auth

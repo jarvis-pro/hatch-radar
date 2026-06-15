@@ -1,7 +1,7 @@
 import type { CommentRow, InsightResult, PostRow } from '@hatch-radar/shared';
-import { createProcessor, type AnalysisConfig, type PostProcessor } from '../analyzer/analyze';
-import { testAnthropic } from '../analyzer/anthropic';
-import { testOpenAICompatible } from '../analyzer/openai-compatible';
+import { createProcessor, type AnalysisConfig, type PostProcessor } from './analyzer/analyze';
+import { testAnthropic } from './analyzer/anthropic';
+import { testOpenAICompatible } from './analyzer/openai-compatible';
 import { decryptSecret } from '@hatch-radar/kernel';
 import type { Dispatcher } from '@hatch-radar/kernel';
 import { JobsRepository } from '@hatch-radar/db';

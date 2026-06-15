@@ -16,7 +16,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.104.1",
+    "@hatch-radar/analysis": "workspace:*",
     "@hatch-radar/auth": "workspace:*",
     "@hatch-radar/config": "workspace:*",
     "@hatch-radar/crawler": "workspace:*",

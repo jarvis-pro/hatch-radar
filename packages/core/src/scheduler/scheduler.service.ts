@@ -1,4 +1,4 @@
-import { AnalysisConfigService } from '../analysis/analysis-config.service';
+import { AnalysisConfigService } from '@hatch-radar/analysis';
 import { RuntimeSettingsService } from '@hatch-radar/db';
 import { CrawlerConfigService } from '@hatch-radar/crawler';
 import { HackerNewsClient } from '@hatch-radar/crawler';

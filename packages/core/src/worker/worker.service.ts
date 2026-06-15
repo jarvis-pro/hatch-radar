@@ -1,5 +1,5 @@
-import { AnalysisConfigService } from '../analysis/analysis-config.service';
-import { AnalysisService } from '../analysis/analysis.service';
+import { AnalysisConfigService } from '@hatch-radar/analysis';
+import { AnalysisService } from '@hatch-radar/analysis';
 import { RuntimeSettingsService } from '@hatch-radar/db';
 import { CommentsRepository } from '@hatch-radar/db';
 import { JobsRepository } from '@hatch-radar/db';

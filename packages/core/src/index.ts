@@ -23,9 +23,8 @@ export * from './auth/device-auth.service';
 export * from './data/data.service';
 export * from './data/query-parse';
 
-// 分析
-export * from './analysis/analysis.service';
-export * from './analysis/analysis-config.service';
+// 分析（analyzer 引擎 + 配置/落库）已迁至 @hatch-radar/analysis；过渡期由 core 再导出
+export * from '@hatch-radar/analysis';
 
 // 采集（reddit/hn/rss/queue/连接器配置）已迁至 @hatch-radar/crawler；过渡期由 core 再导出
 export * from '@hatch-radar/crawler';
