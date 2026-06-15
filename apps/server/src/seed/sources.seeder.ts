@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { HN_SECTIONS, RSS_FEEDS } from '@/config/feeds';
-import { SUBREDDITS } from '@/config/subreddits';
 import { SourcesRepository } from '@/db/sources.repository';
+import { HN_SECTIONS, RSS_FEEDS, SUBREDDITS } from './source-lists';
 import type { Seeder, SeedContext, SeedOutcome } from './seeder';
 
 /**

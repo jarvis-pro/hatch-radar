@@ -1,8 +1,13 @@
 import { createHash } from 'node:crypto';
 import Parser from 'rss-parser';
 
-import type { RssFeed } from '@/config/feeds';
 import type { RedditPost } from './reddit';
+
+/** fetchFeed 入参：一个 RSS 源的名称与地址（运行期由 sources 行构造，无需依赖种子常量） */
+interface RssSource {
+  name: string;
+  url: string;
+}
 
 const parser = new Parser({ timeout: 10_000 });
 
@@ -25,7 +30,7 @@ function stripHtml(html: string): string {
  * @param limit 最多取前 N 条条目，默认 20
  * @returns 映射后的帖子列表，id 格式 `rss_{sha1前16位}`，score / numComments 恒为 0
  */
-export async function fetchFeed(feed: RssFeed, limit = 20): Promise<RedditPost[]> {
+export async function fetchFeed(feed: RssSource, limit = 20): Promise<RedditPost[]> {
   const result = await parser.parseURL(feed.url);
   const posts: RedditPost[] = [];
   for (const item of (result.items ?? []).slice(0, limit)) {
