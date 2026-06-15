@@ -1,4 +1,4 @@
-import type { AppDatabase } from '@hatch-radar/db';
+import type { AppDatabase } from '../internal';
 import { PENDING_ANALYSIS_PREDICATE } from './posts.repository';
 
 /** 数据库各表计数概览 */

@@ -4,7 +4,7 @@ import {
   type PermissionKey,
   type UserRole,
 } from '@hatch-radar/shared';
-import { type AppDatabase } from '@hatch-radar/db';
+import { type AppDatabase } from '../internal';
 
 /** 解析会话 / 校验密码时所需的用户视图（含密码哈希与已加载权限）。 */
 export interface UserAuthView {

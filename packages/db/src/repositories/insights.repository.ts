@@ -1,4 +1,4 @@
-import { Prisma, toInsight, type AppDatabase, type InsightPgRow } from '@hatch-radar/db';
+import { Prisma, toInsight, type AppDatabase, type InsightPgRow } from '../internal';
 import type {
   Insight,
   InsightFilter,

@@ -1,6 +1,6 @@
 import type { IncomingMessage, Server as HttpServer } from 'node:http';
 import { WebSocket, WebSocketServer } from 'ws';
-import { JobsRepository } from '../db/jobs.repository';
+import { JobsRepository } from '@hatch-radar/db';
 import { logger } from '@hatch-radar/kernel';
 import { nowSec } from '@hatch-radar/kernel';
 import type { WorkerMessage } from '@hatch-radar/kernel';

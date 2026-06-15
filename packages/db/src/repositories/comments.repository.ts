@@ -1,5 +1,5 @@
-import { Prisma, toCommentRow, type AppDatabase, type CommentRow } from '@hatch-radar/db';
-import type { RedditComment } from '../crawler/reddit';
+import { Prisma, toCommentRow, type AppDatabase, type CommentRow } from '../internal';
+import type { RedditComment } from '@hatch-radar/shared';
 
 /**
  * 评论快照指纹（id+score+body，排序后拼接），用于判断本次抓取是否带来内容变化。

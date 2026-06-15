@@ -1,9 +1,9 @@
 import { AnalysisConfigService } from '../analysis/analysis-config.service';
 import { AnalysisService } from '../analysis/analysis.service';
-import { RuntimeSettingsService } from '../config/runtime-settings.service';
-import { CommentsRepository } from '../db/comments.repository';
-import { JobsRepository } from '../db/jobs.repository';
-import { PostsRepository } from '../db/posts.repository';
+import { RuntimeSettingsService } from '@hatch-radar/db';
+import { CommentsRepository } from '@hatch-radar/db';
+import { JobsRepository } from '@hatch-radar/db';
+import { PostsRepository } from '@hatch-radar/db';
 import { logger } from '@hatch-radar/kernel';
 import { nowSec } from '@hatch-radar/kernel';
 

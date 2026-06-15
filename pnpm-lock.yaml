@@ -377,6 +377,9 @@ importers:
       '@hatch-radar/config':
         specifier: workspace:*
         version: link:../config
+      '@hatch-radar/kernel':
+        specifier: workspace:*
+        version: link:../kernel
       '@hatch-radar/shared':
         specifier: workspace:*
         version: link:../shared

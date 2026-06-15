@@ -4,7 +4,7 @@ import {
   type AppDatabase,
   type ProviderApiKeyRow,
   type ProviderRow,
-} from '@hatch-radar/db';
+} from '../internal';
 import { decryptSecret, encryptSecret } from '@hatch-radar/kernel';
 
 /** 支持的模型厂商 */

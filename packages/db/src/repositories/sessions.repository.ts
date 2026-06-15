@@ -1,4 +1,4 @@
-import { type AppDatabase } from '@hatch-radar/db';
+import { type AppDatabase } from '../internal';
 
 /** 新建会话的入参（TTL 策略由 AccountService 计算后传入）。 */
 export interface CreateSessionInput {

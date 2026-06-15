@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { AppDatabase, DbHandle } from '@hatch-radar/db';
-import { ProvidersRepository, toProviderDTO } from '@/db/providers.repository';
+import { ProvidersRepository, toProviderDTO } from '@hatch-radar/db';
 import { nowSec } from '@hatch-radar/kernel';
 import { setupTestDb, truncateAll } from './helpers';
 

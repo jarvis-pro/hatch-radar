@@ -4,14 +4,14 @@ import { testAnthropic } from '../analyzer/anthropic';
 import { testOpenAICompatible } from '../analyzer/openai-compatible';
 import { decryptSecret } from '@hatch-radar/kernel';
 import type { Dispatcher } from '@hatch-radar/kernel';
-import { JobsRepository } from '../db/jobs.repository';
-import { PostsRepository } from '../db/posts.repository';
+import { JobsRepository } from '@hatch-radar/db';
+import { PostsRepository } from '@hatch-radar/db';
 import {
   ProvidersRepository,
   type ProviderApiKeyRow,
   type ProviderRow,
-} from '../db/providers.repository';
-import { SettingsRepository } from '../db/settings.repository';
+} from '@hatch-radar/db';
+import { SettingsRepository } from '@hatch-radar/db';
 import { nowSec } from '@hatch-radar/kernel';
 import { logger } from '@hatch-radar/kernel';
 

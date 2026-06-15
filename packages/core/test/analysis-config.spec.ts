@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { AppDatabase, DbHandle } from '@hatch-radar/db';
 import { AnalysisConfigService } from '@/analysis/analysis-config.service';
-import { JobsRepository } from '@/db/jobs.repository';
-import { PostsRepository } from '@/db/posts.repository';
-import { ProvidersRepository } from '@/db/providers.repository';
-import { SettingsRepository } from '@/db/settings.repository';
+import { JobsRepository } from '@hatch-radar/db';
+import { PostsRepository } from '@hatch-radar/db';
+import { ProvidersRepository } from '@hatch-radar/db';
+import { SettingsRepository } from '@hatch-radar/db';
 import { nowSec } from '@hatch-radar/kernel';
 import { setupTestDb, truncateAll } from './helpers';
 

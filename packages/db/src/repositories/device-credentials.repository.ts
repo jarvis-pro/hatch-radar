@@ -1,5 +1,5 @@
 import type { DeviceRow, UserRole } from '@hatch-radar/shared';
-import { type AppDatabase } from '@hatch-radar/db';
+import { type AppDatabase } from '../internal';
 
 /** 设备凭据管理面数据访问（admin 列表 / 强踢）。设备验签 / 滑动续期仍在 DeviceAuthService。 */
 export class DeviceCredentialsRepository {

@@ -2,7 +2,7 @@ import {
   SourceConnectorsRepository,
   decryptConnectorSecret,
   type SourceConnectorRow,
-} from '../db/source-connectors.repository';
+} from '@hatch-radar/db';
 import { nowSec } from '@hatch-radar/kernel';
 import { logger } from '@hatch-radar/kernel';
 import { TokenBucketQueue } from './queue';

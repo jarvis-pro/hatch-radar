@@ -1,26 +1,26 @@
 import type { AppDatabase } from '@hatch-radar/db';
 import type { AppEnv } from '@hatch-radar/kernel';
 // repos
-import { AuditLogsRepository } from './db/audit-logs.repository';
-import { CommentsRepository } from './db/comments.repository';
-import { DeviceCredentialsRepository } from './db/device-credentials.repository';
-import { DeviceEnrollmentsRepository } from './db/device-enrollments.repository';
-import { InsightsRepository } from './db/insights.repository';
-import { JobsRepository } from './db/jobs.repository';
-import { LoginAttemptsRepository } from './db/login-attempts.repository';
-import { PostsRepository } from './db/posts.repository';
-import { ProvidersRepository } from './db/providers.repository';
-import { SessionsRepository } from './db/sessions.repository';
-import { SettingsRepository } from './db/settings.repository';
-import { SourceConnectorsRepository } from './db/source-connectors.repository';
-import { SourcesRepository } from './db/sources.repository';
-import { StatsRepository } from './db/stats.repository';
-import { UsersRepository } from './db/users.repository';
+import { AuditLogsRepository } from '@hatch-radar/db';
+import { CommentsRepository } from '@hatch-radar/db';
+import { DeviceCredentialsRepository } from '@hatch-radar/db';
+import { DeviceEnrollmentsRepository } from '@hatch-radar/db';
+import { InsightsRepository } from '@hatch-radar/db';
+import { JobsRepository } from '@hatch-radar/db';
+import { LoginAttemptsRepository } from '@hatch-radar/db';
+import { PostsRepository } from '@hatch-radar/db';
+import { ProvidersRepository } from '@hatch-radar/db';
+import { SessionsRepository } from '@hatch-radar/db';
+import { SettingsRepository } from '@hatch-radar/db';
+import { SourceConnectorsRepository } from '@hatch-radar/db';
+import { SourcesRepository } from '@hatch-radar/db';
+import { StatsRepository } from '@hatch-radar/db';
+import { UsersRepository } from '@hatch-radar/db';
 // infra singletons
 import { TokenBucketQueue } from './crawler/queue';
 import { HackerNewsClient } from './crawler/hackernews';
 // services
-import { RuntimeSettingsService } from './config/runtime-settings.service';
+import { RuntimeSettingsService } from '@hatch-radar/db';
 import { CrawlerConfigService } from './crawler/crawler-config.service';
 import { AnalysisService } from './analysis/analysis.service';
 import { AnalysisConfigService } from './analysis/analysis-config.service';

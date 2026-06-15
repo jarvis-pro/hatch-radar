@@ -1,4 +1,4 @@
-import { RuntimeSettingsService } from '../config/runtime-settings.service';
+import { RuntimeSettingsService } from '@hatch-radar/db';
 import type { Seeder, SeedOutcome } from './seeder';
 
 /**

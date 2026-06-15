@@ -1,4 +1,4 @@
-import { toJobRow, type AppDatabase, type JobPg, type JobRow, type Prisma } from '@hatch-radar/db';
+import { toJobRow, type AppDatabase, type JobPg, type JobRow, type Prisma } from '../internal';
 
 /** 任务触发来源：auto=定时调度入队，manual=管理员在工作台手动入队 */
 export type JobTrigger = JobRow['trigger'];

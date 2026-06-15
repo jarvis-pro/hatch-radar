@@ -17,6 +17,7 @@ export * from './permissions';
 export * from './posts';
 export * from './comments';
 export * from './insights';
+export * from './ingestion';
 export * from './triage';
 export * from './export';
 export * from './sync';

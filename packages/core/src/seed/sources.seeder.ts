@@ -1,4 +1,4 @@
-import { SourcesRepository } from '../db/sources.repository';
+import { SourcesRepository } from '@hatch-radar/db';
 import type { Seeder, SeedContext, SeedOutcome } from './seeder';
 import { HN_SECTIONS, RSS_FEEDS, SUBREDDITS } from './source-lists';
 

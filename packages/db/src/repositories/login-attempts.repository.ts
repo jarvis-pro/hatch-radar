@@ -1,4 +1,4 @@
-import { type AppDatabase } from '@hatch-radar/db';
+import { type AppDatabase } from '../internal';
 
 /** 登录限流计数表数据访问（滑动窗 / 锁定策略由 AccountService 决定，本类只存取）。 */
 export class LoginAttemptsRepository {

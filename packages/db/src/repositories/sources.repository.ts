@@ -1,4 +1,4 @@
-import { Prisma, toSourceRow, type AppDatabase, type SourceRow } from '@hatch-radar/db';
+import { Prisma, toSourceRow, type AppDatabase, type SourceRow } from '../internal';
 
 /** 数据来源平台 */
 export type SourcePlatform = SourceRow['platform'];
