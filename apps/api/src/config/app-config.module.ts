@@ -1,6 +1,6 @@
 import { Global, Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { loadEnv, type AppEnv } from '@/domain';
+import { loadEnv, type AppEnv } from './env';
 import { APP_ENV } from '@/common/tokens';
 
 /**

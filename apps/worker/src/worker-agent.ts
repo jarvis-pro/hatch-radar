@@ -1,8 +1,8 @@
 import { cpus, freemem, hostname, loadavg, totalmem } from 'node:os';
 import WebSocket from 'ws';
-import type { AppEnv } from '@hatch-radar/kernel';
 import type { GatewayMessage } from '@hatch-radar/kernel';
 import { logger } from '@hatch-radar/kernel';
+import type { AppEnv } from './env';
 import type { WorkerService } from './worker.service';
 
 const HEARTBEAT_INTERVAL_MS = 10_000;

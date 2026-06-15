@@ -1,5 +1,5 @@
 import { Inject, Injectable, type OnApplicationBootstrap, type OnApplicationShutdown } from '@nestjs/common';
-import { type AppEnv } from '@hatch-radar/kernel';
+import { type AppEnv } from './env';
 import { WorkerAgentService } from './worker-agent';
 import { WorkerService } from './worker.service';
 import { APP_ENV } from './tokens';

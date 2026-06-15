@@ -7,6 +7,8 @@
 
 // 能力包：基座 / 持久层
 export * from '@hatch-radar/kernel';
+// env：AppEnv / loadEnv 已从 kernel 大一统 schema 拆到本 app 自有 config（kernel 只留共享 base），经此再导出保持 @/domain 入口不变
+export { loadEnv, type AppEnv } from '@/config/env';
 export * from '@hatch-radar/db';
 
 // 装配工厂（原 core/factory，迁入 api 后改名 assembly）

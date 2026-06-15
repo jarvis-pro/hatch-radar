@@ -7,7 +7,8 @@ import {
 } from '@nestjs/common';
 import { LoggerModule } from 'nestjs-pino';
 import { createDb, type AppDatabase, type DbHandle } from '@hatch-radar/db';
-import { loadEnv, logger, type AppEnv } from '@hatch-radar/kernel';
+import { logger } from '@hatch-radar/kernel';
+import { loadEnv, type AppEnv } from './env';
 import { createWorkerCore } from './assembly';
 import { APP_ENV, PRISMA } from './tokens';
 import { WorkerService } from './worker.service';
@@ -43,9 +44,14 @@ class DatabaseLifecycle implements OnModuleInit, OnApplicationShutdown {
     {
       provide: DB_HANDLE,
       inject: [APP_ENV],
-      useFactory: (env: AppEnv): DbHandle => createDb(env.databaseUrl, { max: env.databasePoolMax }),
+      useFactory: (env: AppEnv): DbHandle =>
+        createDb(env.databaseUrl, { max: env.databasePoolMax }),
     },
-    { provide: PRISMA, inject: [DB_HANDLE], useFactory: (handle: DbHandle): AppDatabase => handle.db },
+    {
+      provide: PRISMA,
+      inject: [DB_HANDLE],
+      useFactory: (handle: DbHandle): AppDatabase => handle.db,
+    },
     {
       provide: WorkerService,
       inject: [PRISMA],

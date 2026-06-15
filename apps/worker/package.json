@@ -11,16 +11,17 @@
   },
   "dependencies": {
     "@hatch-radar/analysis": "workspace:*",
+    "@hatch-radar/config": "workspace:*",
     "@hatch-radar/db": "workspace:*",
     "@hatch-radar/kernel": "workspace:*",
     "@nestjs/common": "^11.1.26",
     "@nestjs/core": "^11.1.26",
     "nestjs-pino": "^4.6.1",
     "reflect-metadata": "^0.2.2",
-    "ws": "^8.21.0"
+    "ws": "^8.21.0",
+    "zod": "catalog:"
   },
   "devDependencies": {
-    "@hatch-radar/config": "workspace:*",
     "@swc-node/register": "^1.11.1",
     "@swc/core": "^1.15.41",
     "@types/node": "catalog:",
