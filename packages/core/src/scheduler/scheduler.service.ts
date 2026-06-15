@@ -1,9 +1,9 @@
 import { AnalysisConfigService } from '../analysis/analysis-config.service';
 import { RuntimeSettingsService } from '@hatch-radar/db';
-import { CrawlerConfigService } from '../crawler/crawler-config.service';
-import { HackerNewsClient } from '../crawler/hackernews';
-import type { RedditClient, RedditComment } from '../crawler/reddit';
-import { fetchFeed } from '../crawler/rss';
+import { CrawlerConfigService } from '@hatch-radar/crawler';
+import { HackerNewsClient } from '@hatch-radar/crawler';
+import type { RedditClient, RedditComment } from '@hatch-radar/crawler';
+import { fetchFeed } from '@hatch-radar/crawler';
 import { CommentsRepository } from '@hatch-radar/db';
 import { JobsRepository } from '@hatch-radar/db';
 import { PostsRepository } from '@hatch-radar/db';

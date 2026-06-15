@@ -1,0 +1,27 @@
+{
+  "name": "@hatch-radar/crawler",
+  "version": "0.1.0",
+  "private": true,
+  "description": "采集层：Reddit / HackerNews / RSS 抓取 + 令牌桶限速 + 采集连接器配置。抓取产物统一为 shared 的通用 ingestion 结构；依赖 db(连接器凭据)+kernel。",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@hatch-radar/db": "workspace:*",
+    "@hatch-radar/kernel": "workspace:*",
+    "@hatch-radar/shared": "workspace:*",
+    "rss-parser": "^3.13.0"
+  },
+  "devDependencies": {
+    "@hatch-radar/config": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  }
+}

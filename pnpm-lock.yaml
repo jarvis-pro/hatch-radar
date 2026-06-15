@@ -334,6 +334,9 @@ importers:
       '@hatch-radar/config':
         specifier: workspace:*
         version: link:../config
+      '@hatch-radar/crawler':
+        specifier: workspace:*
+        version: link:../crawler
       '@hatch-radar/db':
         specifier: workspace:*
         version: link:../db
@@ -346,9 +349,6 @@ importers:
       better-sqlite3:
         specifier: 'catalog:'
         version: 12.10.0
-      rss-parser:
-        specifier: ^3.13.0
-        version: 3.13.0
       ws:
         specifier: ^8.21.0
         version: 8.21.0
@@ -371,6 +371,31 @@ importers:
       vitest:
         specifier: ^4.1.8
         version: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@25.9.2)(vite@8.0.16(@types/node@25.9.2)(esbuild@0.28.0)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
+
+  packages/crawler:
+    dependencies:
+      '@hatch-radar/db':
+        specifier: workspace:*
+        version: link:../db
+      '@hatch-radar/kernel':
+        specifier: workspace:*
+        version: link:../kernel
+      '@hatch-radar/shared':
+        specifier: workspace:*
+        version: link:../shared
+      rss-parser:
+        specifier: ^3.13.0
+        version: 3.13.0
+    devDependencies:
+      '@hatch-radar/config':
+        specifier: workspace:*
+        version: link:../config
+      '@types/node':
+        specifier: 'catalog:'
+        version: 25.9.2
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
 
   packages/db:
     dependencies:
@@ -9528,9 +9553,7 @@ snapshots:
       metro-runtime: 0.84.4
     transitivePeerDependencies:
       - '@babel/core'
-      - bufferutil
       - supports-color
-      - utf-8-validate
 
   '@react-native/normalize-colors@0.85.3': {}
 

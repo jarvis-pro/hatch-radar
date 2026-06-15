@@ -19,11 +19,11 @@
     "@anthropic-ai/sdk": "^0.104.1",
     "@hatch-radar/auth": "workspace:*",
     "@hatch-radar/config": "workspace:*",
+    "@hatch-radar/crawler": "workspace:*",
     "@hatch-radar/db": "workspace:*",
     "@hatch-radar/kernel": "workspace:*",
     "@hatch-radar/shared": "workspace:*",
     "better-sqlite3": "catalog:",
-    "rss-parser": "^3.13.0",
     "ws": "^8.21.0",
     "zod": "catalog:"
   },

@@ -27,8 +27,8 @@ export * from './data/query-parse';
 export * from './analysis/analysis.service';
 export * from './analysis/analysis-config.service';
 
-// 采集（仅连接器配置服务对外；reddit/hn/rss/queue 为 core 内部）
-export * from './crawler/crawler-config.service';
+// 采集（reddit/hn/rss/queue/连接器配置）已迁至 @hatch-radar/crawler；过渡期由 core 再导出
+export * from '@hatch-radar/crawler';
 
 // 同步 / 导出
 export * from './sync/sync.service';

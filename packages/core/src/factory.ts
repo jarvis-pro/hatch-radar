@@ -17,11 +17,11 @@ import { SourcesRepository } from '@hatch-radar/db';
 import { StatsRepository } from '@hatch-radar/db';
 import { UsersRepository } from '@hatch-radar/db';
 // infra singletons
-import { TokenBucketQueue } from './crawler/queue';
-import { HackerNewsClient } from './crawler/hackernews';
+import { TokenBucketQueue } from '@hatch-radar/crawler';
+import { HackerNewsClient } from '@hatch-radar/crawler';
 // services
 import { RuntimeSettingsService } from '@hatch-radar/db';
-import { CrawlerConfigService } from './crawler/crawler-config.service';
+import { CrawlerConfigService } from '@hatch-radar/crawler';
 import { AnalysisService } from './analysis/analysis.service';
 import { AnalysisConfigService } from './analysis/analysis-config.service';
 import { GatewayService } from './gateway/gateway.service';
