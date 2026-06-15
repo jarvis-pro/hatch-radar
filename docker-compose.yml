@@ -1,18 +1,16 @@
-# 本地基础设施 + Web 控制台容器化。
+# 本地基础设施（仅数据库）。
 #
-# - db：PostgreSQL，server 与 web 的唯一主存储（重构后由 SQLite 迁来）。
-#   单机/局域网工具，数据卷用本地命名卷即可；生产换托管 PG 只需改 DATABASE_URL。
-# - web：Next.js 只读控制台；连同一个 PG（只读用法），写操作仍统一走 server 进程。
+# - db：PostgreSQL，server 的唯一主存储。单机/局域网工具，数据卷用本地命名卷即可；
+#   生产换托管 PG 只需改 DATABASE_URL。
 #
-# server（爬取 + AI 分析 + 密钥）按规格仍跑在工作台宿主机上（直连本机 47432）。
+# 后端归一后只剩一个应用进程：NestJS server 既发 /api，又同源托管 web 控制台 SPA
+# （vite build 产物，见 apps/web/dist）。server（爬取 + AI 分析 + 密钥 + 鉴权权威）
+# 跑在工作台宿主机上（直连本机 47432），不再有单独的 web 容器。
 #
-# 端口映射用 47xxx 段避免与同机其它项目冲突；容器内部端口不变（PG 5432 / web 3000），
-# 仅主机侧映射改为 47432 / 47080。容器之间仍用服务名 + 内部端口（db:5432）互访。
+# 端口映射用 47xxx 段避免与同机其它项目冲突；主机侧映射 47432（PG）。
 #
-# 日志：各服务进程只把（结构化 JSON）日志打到 stdout，由 Docker 的 json-file driver
-# 负责落盘 + 轮转 + 保留（见 &default-logging）。应用本身不写日志文件——容器是临时的，
-# 持久化/轮转统一交给 Docker；将来要转发 Loki/Fluentd 只改 driver 不动应用代码。
-# server/worker 进程容器化后同样复用 *default-logging。
+# 日志：进程把（结构化 JSON）日志打到 stdout，由 Docker 的 json-file driver
+# 负责落盘 + 轮转 + 保留（见 &default-logging）。
 x-logging: &default-logging
   driver: json-file
   options:
@@ -35,21 +33,6 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
-    restart: unless-stopped
-    logging: *default-logging
-
-  web:
-    build:
-      context: .
-      dockerfile: apps/web/Dockerfile
-    ports:
-      - '47080:3000'
-    environment:
-      # web 直连 PG 只读；容器内用服务名 db + 内部端口 5432 访问（与主机映射端口无关）
-      DATABASE_URL: postgres://radar:radar@db:5432/hatch_radar
-    depends_on:
-      db:
-        condition: service_healthy
     restart: unless-stopped
     logging: *default-logging
 

@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hatch Radar 控制台</title>
+    <meta name="description" content="社区痛点与产品机会雷达 —— 控制台" />
+    <script>
+      // 首屏防闪：React 挂载前据 localStorage / 系统偏好置 dark class（键与 ThemeProvider 一致）
+      (function () {
+        try {
+          var t = localStorage.getItem('hatch-radar-theme') || 'system';
+          var dark =
+            t === 'dark' ||
+            (t === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          if (dark) document.documentElement.classList.add('dark');
+        } catch (e) {
+          /* localStorage 不可用时忽略 */
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

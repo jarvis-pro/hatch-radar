@@ -1,26 +1,17 @@
-'use client';
-
 import { useState } from 'react';
 import { Button } from '@hatch-radar/ui/components/button';
 import { Input } from '@hatch-radar/ui/components/input';
 import { Label } from '@hatch-radar/ui/components/label';
 import { NativeSelect, NativeSelectOption } from '@hatch-radar/ui/components/native-select';
 import { Popover, PopoverContent, PopoverTrigger } from '@hatch-radar/ui/components/popover';
+import { ApiError, downloadBlob } from '@/api/client';
 
 type Format = 'sqlite' | 'json';
 type IntensityOpt = '' | 'MEDIUM' | 'HIGH';
 
-/** 从 Content-Disposition 解析下载文件名，缺失时回退到合成名 */
-function filenameFrom(disposition: string | null, fallback: string): string {
-  const match = disposition ? /filename="?([^"]+)"?/.exec(disposition) : null;
-  return match?.[1] ?? fallback;
-}
-
 /**
- * 「导出批次」入口（客户端）：按条件筛出有效数据，下载为 .sqlite / .json。
- *
- * 经 web `/api/export` 代理到工作台 server 的导出端点（server 持 token、
- * 复用同一套 sqlite-writer 生成产物）。
+ * 「导出批次」入口（同源直连 /api/export/*）：按条件筛出有效数据，下载为 .sqlite / .json。
+ * server 持密钥、复用同一套 sqlite-writer 生成产物；需 export:run 能力（守卫据会话校验）。
  */
 export function ExportBatchButton({ subreddits }: { subreddits: string[] }) {
   const [format, setFormat] = useState<Format>('sqlite');
@@ -31,11 +22,11 @@ export function ExportBatchButton({ subreddits }: { subreddits: string[] }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function download() {
+  async function download(): Promise<void> {
     setBusy(true);
     setError(null);
     try {
-      const qs = new URLSearchParams({ format });
+      const qs = new URLSearchParams();
       const d = Number(days);
       if (days && Number.isFinite(d) && d > 0) {
         // 「最近 N 天」→ since（Unix 秒），与 server parseExportFilter 对齐
@@ -46,27 +37,21 @@ export function ExportBatchButton({ subreddits }: { subreddits: string[] }) {
       const n = Number(limit);
       if (limit && Number.isInteger(n) && n > 0) qs.set('limit', String(n));
 
-      const resp = await fetch(`/api/export?${qs.toString()}`);
-      if (!resp.ok) {
-        const data = (await resp.json().catch(() => null)) as { error?: string } | null;
-        setError(data?.error ?? `导出失败（${resp.status}）`);
-        return;
-      }
-      const blob = await resp.blob();
-      const name = filenameFrom(
-        resp.headers.get('content-disposition'),
-        `batch-${Math.floor(Date.now() / 1000)}.${format}`,
-      );
+      const ts = Math.floor(Date.now() / 1000);
+      const query = qs.toString() ? `?${qs.toString()}` : '';
+      const path = format === 'sqlite' ? `/export/batch.sqlite${query}` : `/export/batch${query}`;
+      const { blob, filename } = await downloadBlob(path, `batch-${ts}.${format}`);
+
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = url;
-      anchor.download = name;
+      anchor.download = filename;
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
       URL.revokeObjectURL(url);
-    } catch {
-      setError('无法连接工作台 server 进程');
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : '无法连接工作台 server 进程');
     } finally {
       setBusy(false);
     }

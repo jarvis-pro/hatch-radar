@@ -5,7 +5,7 @@
 > 同源让 httpOnly cookie 自动随请求发往 `/api`——**连 BFF / Bearer 转发都省了，server 端到端持有会话 cookie**。
 > 本文是落地前的设计方案。
 
-- **状态**：设计待评审（未实现）
+- **状态**：✅ 已落地（分支 `refactor/backend-consolidation`，2026-06-15）——apps/web 已从 Next.js 切到 Vite + React Router 同源 SPA，由 NestJS `ServeStaticModule` 托管；`packages/ui` 去 next-themes 换自带 ThemeProvider。与后端归一同分支一次性完成。
 - **日期**：2026-06-15
 - **范围**：`apps/web`（Next App Router → Vite SPA + React Router）、`packages/ui`（去 `next-themes`，换 Vite 主题 provider）、`apps/server`（新增 `ServeStaticModule` 托管 SPA + 会话改 Set-Cookie/读 cookie）
 - **前置/配套**：本文与 [[backend-consolidation-design]] 配套，并**简化**其鉴权决策（见 §6）；server 单一后端是前提

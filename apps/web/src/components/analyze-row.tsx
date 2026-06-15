@@ -1,5 +1,3 @@
-'use client';
-
 import { Badge } from '@hatch-radar/ui/components/badge';
 import { Checkbox } from '@hatch-radar/ui/components/checkbox';
 
@@ -18,7 +16,7 @@ export interface AnalyzeRowProps {
 }
 
 /**
- * 单条待分析帖子（客户端）：多选勾选 + 标题/频道/状态展示。
+ * 单条待分析帖子：多选勾选 + 标题/频道/状态展示。
  * 运行与队列由 AnalyzeWorkbench 统一处理（模型直接串联，不再人工复制/粘贴）。
  */
 export function AnalyzeRow({ title, channel, kind, selected, onToggle }: AnalyzeRowProps) {

@@ -1,6 +1,6 @@
 import type { Intensity, TriageStatus } from '@hatch-radar/shared';
 
-/** Unix 秒 → 'YYYY-MM-DD HH:mm'（服务器本地时区） */
+/** Unix 秒 → 'YYYY-MM-DD HH:mm'（浏览器本地时区） */
 export function fmtDate(unixSec: number): string {
   const d = new Date(unixSec * 1000);
   const pad = (n: number) => String(n).padStart(2, '0');
@@ -53,13 +53,13 @@ export const TRIAGE_STATUS_LABELS: Record<TriageStatus, string> = {
 };
 
 /** 解析查询串中的强度筛选；非法值视为未筛选 */
-export function parseIntensity(value: string | undefined): Intensity | undefined {
+export function parseIntensity(value: string | undefined | null): Intensity | undefined {
   const upper = value?.toUpperCase();
   return upper === 'HIGH' || upper === 'MEDIUM' || upper === 'LOW' ? upper : undefined;
 }
 
 /** 解析查询串中的页码；非法值回退第 1 页 */
-export function parsePage(value: string | undefined): number {
+export function parsePage(value: string | undefined | null): number {
   const n = Number(value);
   return Number.isInteger(n) && n > 0 ? n : 1;
 }

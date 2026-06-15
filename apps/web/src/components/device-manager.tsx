@@ -1,7 +1,8 @@
-'use client';
-
-import { useState, useTransition } from 'react';
+import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
+import type { DeviceRow, EnrollmentRow } from '@hatch-radar/shared';
 import { Alert, AlertDescription } from '@hatch-radar/ui/components/alert';
 import {
   AlertDialog,
@@ -24,19 +25,17 @@ import {
 import { Input } from '@hatch-radar/ui/components/input';
 import { Label } from '@hatch-radar/ui/components/label';
 import { Spinner } from '@hatch-radar/ui/components/spinner';
-import {
-  cancelEnrollmentAction,
-  createEnrollmentAction,
-  revokeDeviceAction,
-} from '@/lib/admin/device-actions';
-import type { DeviceRow, EnrollmentRow } from '@/lib/admin/device-queries';
+import { api, ApiError } from '@/api/client';
 import { timeAgo } from '@/lib/format';
-import { QRCodeSVG } from 'qrcode.react';
 
 const TTL_OPTIONS = [7, 30, 60];
 
 function daysLeft(expiresAt: number): number {
   return Math.max(0, Math.ceil((expiresAt * 1000 - Date.now()) / 86_400_000));
+}
+
+function errText(err: unknown, fallback: string): string {
+  return err instanceof ApiError ? err.message : fallback;
 }
 
 /** 某用户的设备面板（在账户管理的 Sheet 内）：赋予新设备 / 设备列表强踢 / 待激活取消。 */
@@ -49,43 +48,62 @@ export function DeviceManager({
   devices: DeviceRow[];
   enrollments: EnrollmentRow[];
 }) {
+  const qc = useQueryClient();
   const [name, setName] = useState('');
   const [ttl, setTtl] = useState(30);
   const [code, setCode] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [kick, setKick] = useState<DeviceRow | null>(null);
-  const [pending, start] = useTransition();
+  const [pending, setPending] = useState(false);
 
-  function provision() {
+  const invalidate = () => qc.invalidateQueries({ queryKey: ['admin'] });
+
+  async function provision(): Promise<void> {
     setError(null);
-    start(async () => {
-      const res = await createEnrollmentAction(userId, name, ttl);
-      if (!res.ok || !res.code) {
-        setError(res.error ?? '生成失败');
-        return;
-      }
+    setPending(true);
+    try {
+      const { code } = await api.post<{ code: string }>(`/admin/users/${userId}/enrollments`, {
+        deviceName: name,
+        ttlDays: ttl,
+      });
       setName('');
-      setCode(res.code);
-    });
+      setCode(code);
+      invalidate();
+    } catch (err) {
+      setError(errText(err, '生成失败'));
+    } finally {
+      setPending(false);
+    }
   }
 
-  function runKick() {
+  async function runKick(): Promise<void> {
     if (!kick) return;
     const id = kick.id;
-    start(async () => {
-      setError(null);
-      const res = await revokeDeviceAction(id);
+    setError(null);
+    setPending(true);
+    try {
+      await api.del(`/admin/devices/${id}`);
       setKick(null);
-      if (!res.ok) setError(res.error ?? '操作失败');
-    });
+      invalidate();
+    } catch (err) {
+      setKick(null);
+      setError(errText(err, '操作失败'));
+    } finally {
+      setPending(false);
+    }
   }
 
-  function cancelEnroll(id: string) {
-    start(async () => {
-      setError(null);
-      const res = await cancelEnrollmentAction(id);
-      if (!res.ok) setError(res.error ?? '操作失败');
-    });
+  async function cancelEnroll(id: string): Promise<void> {
+    setError(null);
+    setPending(true);
+    try {
+      await api.del(`/admin/enrollments/${id}`);
+      invalidate();
+    } catch (err) {
+      setError(errText(err, '操作失败'));
+    } finally {
+      setPending(false);
+    }
   }
 
   return (

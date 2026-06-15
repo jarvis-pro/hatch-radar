@@ -3,24 +3,14 @@
   "compilerOptions": {
     "lib": ["dom", "dom.iterable", "esnext"],
     "jsx": "react-jsx",
-    "allowJs": true,
-    "isolatedModules": true,
-    "incremental": true,
-    "plugins": [
-      {
-        "name": "next"
-      }
-    ],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "useDefineForClassFields": true,
+    "noEmit": true,
     "paths": {
       "@/*": ["./src/*"]
-    }
+    },
+    "types": ["vite/client", "node"]
   },
-  "include": [
-    "next-env.d.ts",
-    "**/*.ts",
-    "**/*.tsx",
-    ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts"
-  ],
-  "exclude": ["node_modules"]
+  "include": ["src", "vite.config.ts"]
 }

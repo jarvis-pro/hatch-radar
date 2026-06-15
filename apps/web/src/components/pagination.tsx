@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import { Link } from 'react-router-dom';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@hatch-radar/ui/components/button';
 
@@ -15,10 +15,7 @@ interface PaginationProps {
   query: Record<string, string | undefined>;
 }
 
-/**
- * 链接式分页条：保留当前筛选参数，仅替换 page。
- * 纯 GET 导航，无客户端 JS。
- */
+/** 链接式分页条：保留当前筛选参数，仅替换 page（React Router 客户端导航）。 */
 export function Pagination({ page, pageCount, total, basePath, query }: PaginationProps) {
   if (pageCount <= 1) return null;
 
@@ -36,7 +33,7 @@ export function Pagination({ page, pageCount, total, basePath, query }: Paginati
     <nav className="mt-6 flex items-center justify-center gap-3 text-sm" aria-label="分页">
       {page > 1 ? (
         <Button asChild variant="outline" size="sm">
-          <Link href={href(page - 1)}>
+          <Link to={href(page - 1)}>
             <ChevronLeft />
             上一页
           </Link>
@@ -52,7 +49,7 @@ export function Pagination({ page, pageCount, total, basePath, query }: Paginati
       </span>
       {page < pageCount ? (
         <Button asChild variant="outline" size="sm">
-          <Link href={href(page + 1)}>
+          <Link to={href(page + 1)}>
             下一页
             <ChevronRight />
           </Link>

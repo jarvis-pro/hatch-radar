@@ -1,8 +1,6 @@
-'use client';
-
-import { useEffect, useState } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Badge } from '@hatch-radar/ui/components/badge';
 import { Button } from '@hatch-radar/ui/components/button';
 import {
@@ -12,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@hatch-radar/ui/components/select';
+import { api, ApiError } from '@/api/client';
 import { AnalyzeRow } from '@/components/analyze-row';
 
 /** 工作台单条帖子 */
@@ -63,25 +62,9 @@ interface Flash {
   text: string;
 }
 
-async function postRun(
-  postIds: string[],
-  providerId: number,
-): Promise<{ ok: boolean; status: number; data: { enqueued?: number; error?: string } | null }> {
-  const resp = await fetch('/api/analysis/run', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ postIds, providerId }),
-  });
-  const data = (await resp.json().catch(() => null)) as {
-    enqueued?: number;
-    error?: string;
-  } | null;
-  return { ok: resp.ok, status: resp.status, data };
-}
-
 /**
- * 分析工作台（客户端）：多选帖子 + 选模型 → 运行（入队），并实时轮询队列进度。
- * 取代旧的「复制文档 / 粘贴结果」人工回路——模型直接串联执行。
+ * 分析工作台：多选帖子 + 选模型 → 运行（入队），并实时轮询队列进度（react-query 3s）。
+ * 同源直连 /api/analysis（cookie + CSRF）；运行成功后让待分析列表与队列看板刷新。
  */
 export function AnalyzeWorkbench({
   items,
@@ -94,7 +77,7 @@ export function AnalyzeWorkbench({
   defaultProviderId: number | null;
   providersError: string | null;
 }) {
-  const router = useRouter();
+  const qc = useQueryClient();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [providerId, setProviderId] = useState<string>(
     defaultProviderId != null && providers.some((p) => p.id === defaultProviderId)
@@ -105,32 +88,12 @@ export function AnalyzeWorkbench({
   );
   const [busy, setBusy] = useState(false);
   const [flash, setFlash] = useState<Flash | null>(null);
-  const [stats, setStats] = useState<JobStats | null>(null);
-  const [jobs, setJobs] = useState<RecentJob[]>([]);
 
-  // 轮询队列看板（3s）
-  useEffect(() => {
-    let alive = true;
-    const tick = async () => {
-      try {
-        const resp = await fetch('/api/analysis/jobs');
-        if (!resp.ok) return;
-        const data = (await resp.json()) as { stats: JobStats; jobs: RecentJob[] };
-        if (alive) {
-          setStats(data.stats);
-          setJobs(data.jobs);
-        }
-      } catch {
-        /* 忽略瞬时拉取失败 */
-      }
-    };
-    void tick();
-    const timer = setInterval(tick, 3000);
-    return () => {
-      alive = false;
-      clearInterval(timer);
-    };
-  }, []);
+  const jobsQ = useQuery({
+    queryKey: ['analysis-jobs'],
+    queryFn: () => api.get<{ stats: JobStats; jobs: RecentJob[] }>('/analysis/jobs'),
+    refetchInterval: 3000,
+  });
 
   function toggle(id: string) {
     setSelected((prev) => {
@@ -152,25 +115,32 @@ export function AnalyzeWorkbench({
     if (ids.length === 0 || !providerId) return;
     setBusy(true);
     setFlash(null);
-    const res = await postRun(ids, Number(providerId));
-    setBusy(false);
-    if (res.ok) {
-      setFlash({ kind: 'ok', text: `已入队 ${res.data?.enqueued ?? ids.length} 篇，模型处理中…` });
+    try {
+      const data = await api.post<{ enqueued?: number }>('/analysis/run', {
+        postIds: ids,
+        providerId: Number(providerId),
+      });
+      setFlash({ kind: 'ok', text: `已入队 ${data?.enqueued ?? ids.length} 篇，模型处理中…` });
       setSelected(new Set());
-      router.refresh();
-    } else {
-      setFlash({ kind: 'err', text: res.data?.error ?? `运行失败（${res.status}）` });
+      qc.invalidateQueries({ queryKey: ['awaiting'] });
+      void jobsQ.refetch();
+    } catch (err) {
+      setFlash({ kind: 'err', text: err instanceof ApiError ? err.message : '运行失败' });
+    } finally {
+      setBusy(false);
     }
   }
 
   const noModels = providers.length === 0;
+  const stats = jobsQ.data?.stats ?? null;
+  const jobs = jobsQ.data?.jobs ?? [];
 
   return (
     <div className="space-y-4">
       {noModels ? (
         <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-sm">
           {providersError ?? '未配置可用模型。'}请到{' '}
-          <Link href="/settings" className="underline">
+          <Link to="/settings" className="underline">
             设置页
           </Link>{' '}
           添加并启用一个模型后再运行。

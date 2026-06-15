@@ -1,8 +1,13 @@
-'use client';
-
-import { useActionState, useTransition } from 'react';
+import { useState, type FormEvent } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, Minus } from 'lucide-react';
-import { PERMISSION_CATALOG, PERMISSION_GROUPS, hasPermission } from '@hatch-radar/shared';
+import {
+  hasPermission,
+  PERMISSION_CATALOG,
+  PERMISSION_GROUPS,
+  type CurrentUser,
+  type SessionInfo,
+} from '@hatch-radar/shared';
 import { Alert, AlertDescription } from '@hatch-radar/ui/components/alert';
 import { Badge } from '@hatch-radar/ui/components/badge';
 import { Button } from '@hatch-radar/ui/components/button';
@@ -10,25 +15,13 @@ import { Input } from '@hatch-radar/ui/components/input';
 import { Label } from '@hatch-radar/ui/components/label';
 import { Spinner } from '@hatch-radar/ui/components/spinner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@hatch-radar/ui/components/tabs';
-import {
-  revokeOtherSessionsAction,
-  revokeSessionAction,
-  updateOwnNameAction,
-} from '@/lib/admin/actions';
-import type { FormState, PublicUser } from '@/lib/auth/types';
-import { ChangePasswordForm } from './change-password-form';
+import { api, ApiError } from '@/api/client';
+import { useAuth } from '@/auth/auth-context';
 import { timeAgo } from '@/lib/format';
-
-interface SessionRow {
-  id: string;
-  userAgent: string | null;
-  ip: string | null;
-  lastSeenAt: number;
-  current: boolean;
-}
+import { ChangePasswordForm } from './change-password-form';
 
 /** 个人中心：资料（改名）/ 安全（改密 + 会话）/ 我的权限（只读）。 */
-export function PersonalCenter({ user, sessions }: { user: PublicUser; sessions: SessionRow[] }) {
+export function PersonalCenter({ user }: { user: CurrentUser }) {
   return (
     <Tabs defaultValue="profile" className="space-y-4">
       <TabsList>
@@ -38,7 +31,7 @@ export function PersonalCenter({ user, sessions }: { user: PublicUser; sessions:
       </TabsList>
 
       <TabsContent value="profile">
-        <ProfileForm name={user.name} email={user.email} />
+        <ProfileForm user={user} />
       </TabsContent>
 
       <TabsContent value="security" className="space-y-6">
@@ -48,7 +41,7 @@ export function PersonalCenter({ user, sessions }: { user: PublicUser; sessions:
         </section>
         <section className="space-y-3">
           <h2 className="text-sm font-medium">活跃会话</h2>
-          <SessionList sessions={sessions} />
+          <SessionList />
         </section>
       </TabsContent>
 
@@ -59,17 +52,36 @@ export function PersonalCenter({ user, sessions }: { user: PublicUser; sessions:
   );
 }
 
-function ProfileForm({ name, email }: { name: string; email: string }) {
-  const [state, action, pending] = useActionState<FormState, FormData>(updateOwnNameAction, {});
+function ProfileForm({ user }: { user: CurrentUser }) {
+  const { refresh } = useAuth();
+  const [name, setName] = useState(user.name);
+  const [state, setState] = useState<{ error?: string; ok?: boolean }>({});
+  const [pending, setPending] = useState(false);
+
+  async function onSubmit(e: FormEvent<HTMLFormElement>): Promise<void> {
+    e.preventDefault();
+    setState({});
+    setPending(true);
+    try {
+      await api.patch('/auth/profile', { name });
+      await refresh();
+      setState({ ok: true });
+    } catch (err) {
+      setState({ error: err instanceof ApiError ? err.message : '保存失败：服务暂时不可用' });
+    } finally {
+      setPending(false);
+    }
+  }
+
   return (
-    <form action={action} className="grid max-w-sm gap-4">
+    <form onSubmit={onSubmit} className="grid max-w-sm gap-4">
       <div className="grid gap-2">
         <Label htmlFor="account-email">邮箱</Label>
-        <Input id="account-email" value={email} disabled />
+        <Input id="account-email" value={user.email} disabled />
       </div>
       <div className="grid gap-2">
         <Label htmlFor="account-name">姓名</Label>
-        <Input id="account-name" name="name" defaultValue={name} required />
+        <Input id="account-name" value={name} onChange={(e) => setName(e.target.value)} required />
       </div>
       {state.error ? (
         <Alert variant="destructive">
@@ -89,9 +101,28 @@ function ProfileForm({ name, email }: { name: string; email: string }) {
   );
 }
 
-function SessionList({ sessions }: { sessions: SessionRow[] }) {
-  const [pending, start] = useTransition();
+function SessionList() {
+  const qc = useQueryClient();
+  const sessionsQ = useQuery({
+    queryKey: ['sessions'],
+    queryFn: () => api.get<SessionInfo[]>('/auth/sessions'),
+  });
+  const invalidate = () => qc.invalidateQueries({ queryKey: ['sessions'] });
+  const revokeOne = useMutation({
+    mutationFn: (id: string) => api.del(`/auth/sessions/${id}`),
+    onSuccess: invalidate,
+  });
+  const revokeOthers = useMutation({
+    mutationFn: () => api.post('/auth/sessions/revoke-others'),
+    onSuccess: invalidate,
+  });
+
+  const sessions = sessionsQ.data ?? [];
   const others = sessions.filter((s) => !s.current).length;
+  const pending = revokeOne.isPending || revokeOthers.isPending;
+
+  if (sessionsQ.isPending) return <Spinner className="size-5 text-muted-foreground" />;
+
   return (
     <div className="space-y-2">
       {sessions.map((s) => (
@@ -114,7 +145,7 @@ function SessionList({ sessions }: { sessions: SessionRow[] }) {
               variant="ghost"
               size="sm"
               disabled={pending}
-              onClick={() => start(() => revokeSessionAction(s.id).then(() => undefined))}
+              onClick={() => revokeOne.mutate(s.id)}
             >
               登出
             </Button>
@@ -126,7 +157,7 @@ function SessionList({ sessions }: { sessions: SessionRow[] }) {
           variant="outline"
           size="sm"
           disabled={pending}
-          onClick={() => start(() => revokeOtherSessionsAction().then(() => undefined))}
+          onClick={() => revokeOthers.mutate()}
         >
           登出其他所有会话
         </Button>
@@ -135,7 +166,7 @@ function SessionList({ sessions }: { sessions: SessionRow[] }) {
   );
 }
 
-function MyPermissions({ user }: { user: PublicUser }) {
+function MyPermissions({ user }: { user: CurrentUser }) {
   if (user.role === 'super_admin') {
     return (
       <p className="text-sm text-muted-foreground">

@@ -2,35 +2,31 @@
   "name": "@hatch-radar/web",
   "version": "0.1.0",
   "private": true,
-  "description": "Web 控制台：只读展示洞察 / 帖子 / 评论（PG 只读直查，写操作统一走 server 进程）",
+  "type": "module",
+  "description": "Web 控制台（Vite + React Router 同源 SPA）：洞察/帖子/分析/设置/账户，全部经 /api 调 server",
   "scripts": {
-    "dev": "next dev -p 47080",
-    "build": "next build",
-    "start": "next start -p 47080",
-    "typecheck": "tsc --noEmit",
-    "seed:admin": "tsx scripts/seed-admin.ts"
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview --port 47080",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@hatch-radar/auth": "workspace:*",
-    "@hatch-radar/config": "workspace:*",
-    "@hatch-radar/db": "workspace:*",
     "@hatch-radar/shared": "workspace:*",
     "@hatch-radar/ui": "workspace:*",
+    "@tanstack/react-query": "^5.0.0",
     "lucide-react": "catalog:",
-    "next": "^16.2.9",
-    "pg": "catalog:",
     "qrcode.react": "^4.2.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
-    "server-only": "^0.0.1",
-    "zod": "catalog:"
+    "react-router-dom": "^7.0.0"
   },
   "devDependencies": {
+    "@hatch-radar/config": "workspace:*",
     "@types/node": "catalog:",
-    "@types/pg": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
-    "tsx": "^4.20.6",
-    "typescript": "catalog:"
+    "@vitejs/plugin-react": "^5.0.0",
+    "typescript": "catalog:",
+    "vite": "^7.0.0"
   }
 }

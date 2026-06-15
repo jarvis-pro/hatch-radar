@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import { Link } from 'react-router-dom';
 import type { Insight } from '@hatch-radar/shared';
 import { Badge } from '@hatch-radar/ui/components/badge';
 import {
@@ -26,7 +26,7 @@ export function InsightCard({ insight }: { insight: Insight }) {
         </div>
         <CardTitle className="text-base leading-snug">
           <Link
-            href={`/insights/${insight.id}`}
+            to={`/insights/${insight.id}`}
             className="hover:text-primary after:absolute after:inset-0"
           >
             {insight.postTitle}

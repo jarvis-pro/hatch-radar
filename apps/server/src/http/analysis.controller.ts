@@ -13,6 +13,8 @@ import { RequirePermission } from '@/account/auth-user.decorator';
 import { SessionAuthGuard } from '@/account/session-auth.guard';
 import { ZodValidationPipe } from '@/common/zod-validation.pipe';
 import { JobsRepository } from '@/db/jobs.repository';
+import { ProvidersRepository } from '@/db/providers.repository';
+import { SettingsRepository } from '@/db/settings.repository';
 import { logger } from '@/logger';
 
 const runSchema = z.object({
@@ -23,8 +25,9 @@ const runSchema = z.object({
 /**
  * /api/analysis/* —— 手动运行入队 + 队列看板（鉴权）。
  *
- * - POST /api/analysis/run    手动运行：选中帖子按指定模型入队（trigger=manual）
- * - GET  /api/analysis/jobs   队列看板：各状态汇总 + 最近任务（供 web 轮询）
+ * - POST /api/analysis/run        手动运行：选中帖子按指定模型入队（trigger=manual）
+ * - GET  /api/analysis/jobs       队列看板：各状态汇总 + 最近任务（供 web 轮询）
+ * - GET  /api/analysis/providers  分析页模型下拉（启用模型 + active，无密钥；analyze:run 即可见）
  */
 @UseGuards(SessionAuthGuard)
 @RequirePermission('analyze:run')
@@ -33,6 +36,8 @@ export class AnalysisController {
   constructor(
     private readonly analysisConfig: AnalysisConfigService,
     private readonly jobs: JobsRepository,
+    private readonly providers: ProvidersRepository,
+    private readonly settings: SettingsRepository,
   ) {}
 
   @Post('run')
@@ -48,5 +53,15 @@ export class AnalysisController {
   @Get('jobs')
   async jobsView() {
     return { stats: await this.jobs.getJobStats(), jobs: await this.jobs.listRecentJobs(50) };
+  }
+
+  /** 分析页模型下拉：仅启用模型的 { id, label } + 当前 active（不含任何密钥）。 */
+  @Get('providers')
+  async providerOptions() {
+    const list = await this.providers.listProviders();
+    return {
+      providers: list.filter((p) => p.enabled).map((p) => ({ id: p.id, label: p.label })),
+      activeProviderId: await this.settings.getActiveProviderId(),
+    };
   }
 }

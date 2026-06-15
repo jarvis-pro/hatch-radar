@@ -1,7 +1,5 @@
-'use client';
-
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useNavigate } from 'react-router-dom';
 import { Search } from 'lucide-react';
 import { Button } from '@hatch-radar/ui/components/button';
 import { Input } from '@hatch-radar/ui/components/input';
@@ -56,7 +54,7 @@ export function FilterBar({
   searchPlaceholder,
   hasFilter,
 }: FilterBarProps) {
-  const router = useRouter();
+  const navigate = useNavigate();
   // 用户正在输入、尚未提交的搜索草稿（已提交值在 URL 上，即 searchValue）
   const [searchDraft, setSearchDraft] = useState(searchValue ?? '');
   // 外部导航（如点击标签 /?q=xxx）后，把搜索框同步到 URL 的最新值
@@ -79,7 +77,7 @@ export function FilterBar({
     <form
       onSubmit={(e) => {
         e.preventDefault();
-        router.push(hrefWith({ [searchName]: searchDraft.trim() }));
+        navigate(hrefWith({ [searchName]: searchDraft.trim() }));
       }}
       className="mb-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center"
     >
@@ -87,7 +85,7 @@ export function FilterBar({
         <Select
           key={s.name}
           value={s.value || ALL}
-          onValueChange={(v) => router.push(hrefWith({ [s.name]: v === ALL ? '' : v }))}
+          onValueChange={(v) => navigate(hrefWith({ [s.name]: v === ALL ? '' : v }))}
         >
           <SelectTrigger className="w-full sm:w-auto sm:min-w-34" aria-label={s.placeholder}>
             <SelectValue placeholder={s.placeholder} />
@@ -123,7 +121,7 @@ export function FilterBar({
             variant="ghost"
             onClick={() => {
               setSearchDraft('');
-              router.push(basePath);
+              navigate(basePath);
             }}
           >
             重置

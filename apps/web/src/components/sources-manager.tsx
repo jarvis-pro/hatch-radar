@@ -1,7 +1,5 @@
-'use client';
-
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { api, ApiError } from '@/api/client';
 import { Badge } from '@hatch-radar/ui/components/badge';
 import { Button } from '@hatch-radar/ui/components/button';
 import {
@@ -86,18 +84,25 @@ interface ApiData {
   id?: number;
 }
 
+/** 经同源 API 客户端发起请求（自带 cookie + CSRF 头；401 触发全局跳登录）。 */
 async function apiSend(
-  url: string,
-  method: string,
+  path: string,
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE',
   body?: Record<string, unknown>,
 ): Promise<{ ok: boolean; status: number; data: ApiData | null }> {
-  const resp = await fetch(url, {
-    method,
-    headers: body ? { 'content-type': 'application/json' } : undefined,
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const data = (await resp.json().catch(() => null)) as ApiData | null;
-  return { ok: resp.ok, status: resp.status, data };
+  const p = path.replace(/^\/api/, ''); // api 客户端再补 /api 前缀
+  try {
+    let data: ApiData | undefined;
+    if (method === 'GET') data = await api.get<ApiData>(p);
+    else if (method === 'POST') data = await api.post<ApiData>(p, body);
+    else if (method === 'PUT') data = await api.put<ApiData>(p, body);
+    else data = await api.del<ApiData>(p, body);
+    return { ok: true, status: 200, data: data ?? {} };
+  } catch (err) {
+    if (err instanceof ApiError)
+      return { ok: false, status: err.status, data: { error: err.message } };
+    return { ok: false, status: 0, data: { error: '网络错误' } };
+  }
 }
 
 interface SourceForm {
@@ -137,18 +142,19 @@ function CheckBadge({ c }: { c: ConnectorDTO }) {
 }
 
 /**
- * 数据来源设置（客户端）：采集连接器（Reddit 凭据）增改/测试 + 爬虫计划勾选启用。
- * 全部经 web 的 /api/sources 与 /api/source-connectors 代理转发 server；凭据仅脱敏展示。
+ * 数据来源设置：采集连接器（Reddit 凭据）增改/测试 + 爬虫计划勾选启用。
+ * 同源直连 /api/sources 与 /api/source-connectors（cookie + CSRF）；凭据仅脱敏展示。
  * Reddit 门禁：无「可用 reddit 连接器」时其来源的启用开关置灰（服务端亦强制）。
  */
 export function SourcesManager({
   initial,
   loadError,
+  onChanged,
 }: {
   initial: SourcesData | null;
   loadError: string | null;
+  onChanged: () => void;
 }) {
-  const router = useRouter();
   const [flash, setFlash] = useState<Flash | null>(null);
   const [testingId, setTestingId] = useState<number | null>(null);
   // 来源弹窗
@@ -212,7 +218,7 @@ export function SourcesManager({
     if (res.ok) {
       setSrcOpen(false);
       setFlash({ kind: 'ok', text: srcEditingId === null ? '已新增来源' : '已更新来源' });
-      router.refresh();
+      onChanged();
     } else {
       setFlash({ kind: 'err', text: res.data?.error ?? `保存失败（${res.status}）` });
     }
@@ -220,7 +226,7 @@ export function SourcesManager({
 
   async function toggleSource(s: SourceDTO) {
     const res = await apiSend(`/api/sources/${s.id}`, 'PUT', { enabled: !s.enabled });
-    if (res.ok) router.refresh();
+    if (res.ok) onChanged();
     else setFlash({ kind: 'err', text: res.data?.error ?? '操作失败' });
   }
 
@@ -229,7 +235,7 @@ export function SourcesManager({
     const res = await apiSend(`/api/sources/${s.id}`, 'DELETE');
     if (res.ok) {
       setFlash({ kind: 'ok', text: '已删除来源' });
-      router.refresh();
+      onChanged();
     } else {
       setFlash({ kind: 'err', text: res.data?.error ?? '删除失败' });
     }
@@ -291,7 +297,7 @@ export function SourcesManager({
             ? '已新增连接器，请点「测试」通过后方可启用其来源'
             : '已更新连接器',
       });
-      router.refresh();
+      onChanged();
     } else {
       setFlash({ kind: 'err', text: res.data?.error ?? `保存失败（${res.status}）` });
     }
@@ -299,7 +305,7 @@ export function SourcesManager({
 
   async function toggleConn(c: ConnectorDTO) {
     const res = await apiSend(`/api/source-connectors/${c.id}`, 'PUT', { enabled: !c.enabled });
-    if (res.ok) router.refresh();
+    if (res.ok) onChanged();
     else setFlash({ kind: 'err', text: res.data?.error ?? '操作失败' });
   }
 
@@ -308,7 +314,7 @@ export function SourcesManager({
     const res = await apiSend(`/api/source-connectors/${c.id}`, 'DELETE');
     if (res.ok) {
       setFlash({ kind: 'ok', text: '已删除连接器' });
-      router.refresh();
+      onChanged();
     } else {
       setFlash({ kind: 'err', text: res.data?.error ?? '删除失败' });
     }
@@ -323,7 +329,7 @@ export function SourcesManager({
     } else {
       setFlash({ kind: 'err', text: `测试失败：${res.data?.error ?? res.status}` });
     }
-    router.refresh();
+    onChanged();
   }
 
   return (

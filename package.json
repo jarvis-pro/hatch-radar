@@ -16,7 +16,7 @@
     "test": "pnpm --filter @hatch-radar/server test",
     "dev:web": "pnpm --filter @hatch-radar/web dev",
     "build:web": "pnpm --filter @hatch-radar/web build",
-    "start:web": "pnpm --filter @hatch-radar/web start",
+    "preview:web": "pnpm --filter @hatch-radar/web preview",
     "dev:mobile": "pnpm --filter @hatch-radar/mobile start",
     "db:generate": "pnpm --filter @hatch-radar/db db:generate",
     "db:migrate": "pnpm --filter @hatch-radar/db db:migrate",

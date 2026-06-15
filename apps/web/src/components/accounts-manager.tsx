@@ -1,8 +1,14 @@
-'use client';
-
-import { useActionState, useEffect, useState, useTransition } from 'react';
+import { useState, type FormEvent } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { MoreHorizontal, Plus } from 'lucide-react';
-import type { PermissionKey, UserRole } from '@hatch-radar/shared';
+import type {
+  AdminUserRow,
+  CurrentUser,
+  DeviceRow,
+  EnrollmentRow,
+  PermissionKey,
+  UserRole,
+} from '@hatch-radar/shared';
 import { Alert, AlertDescription } from '@hatch-radar/ui/components/alert';
 import {
   AlertDialog,
@@ -50,26 +56,10 @@ import {
   TableHeader,
   TableRow,
 } from '@hatch-radar/ui/components/table';
-import {
-  createUserAction,
-  deleteUserAction,
-  editUserAction,
-  resetPasswordAction,
-  setUserStatusAction,
-  type ActionResult,
-} from '@/lib/admin/actions';
-import type { AdminUserRow } from '@/lib/admin/queries';
-import type { DeviceRow, EnrollmentRow } from '@/lib/admin/device-queries';
-import type { FormState } from '@/lib/auth/types';
+import { api, ApiError } from '@/api/client';
+import { timeAgo } from '@/lib/format';
 import { DeviceManager } from './device-manager';
 import { PermissionEditor } from './permission-editor';
-import { timeAgo } from '@/lib/format';
-
-interface Actor {
-  id: string;
-  role: UserRole;
-  permissions: PermissionKey[];
-}
 
 type ConfirmKind = 'reset' | 'disable' | 'enable' | 'delete';
 
@@ -92,6 +82,10 @@ const CONFIRM_TEXT: Record<ConfirmKind, { title: string; desc: string; action: s
   },
 };
 
+function errText(err: unknown, fallback: string): string {
+  return err instanceof ApiError ? err.message : fallback;
+}
+
 /** 账户管理：列表 + 新建/编辑 Sheet + 启停/重置/删除（护栏在服务端，UI 同步置灰）。 */
 export function AccountsManager({
   users,
@@ -100,10 +94,11 @@ export function AccountsManager({
   enrollmentsByUser,
 }: {
   users: AdminUserRow[];
-  actor: Actor;
+  actor: CurrentUser;
   devicesByUser: Record<string, DeviceRow[]>;
   enrollmentsByUser: Record<string, EnrollmentRow[]>;
 }) {
+  const qc = useQueryClient();
   const [sheet, setSheet] = useState<AdminUserRow | 'new' | null>(null);
   const [deviceSheet, setDeviceSheet] = useState<AdminUserRow | null>(null);
   const [confirm, setConfirm] = useState<{ kind: ConfirmKind; user: AdminUserRow } | null>(null);
@@ -111,8 +106,9 @@ export function AccountsManager({
     null,
   );
   const [error, setError] = useState<string | null>(null);
-  const [pending, start] = useTransition();
+  const [pending, setPending] = useState(false);
 
+  const invalidate = () => qc.invalidateQueries({ queryKey: ['admin'] });
   const activeSupers = users.filter(
     (u) => u.role === 'super_admin' && u.status === 'active',
   ).length;
@@ -120,24 +116,32 @@ export function AccountsManager({
   const isSelf = (u: AdminUserRow) => u.id === actor.id;
   const lastSuper = (u: AdminUserRow) => u.role === 'super_admin' && activeSupers <= 1;
 
-  function runConfirm() {
+  async function runConfirm(): Promise<void> {
     if (!confirm) return;
     const { kind, user } = confirm;
-    start(async () => {
-      setError(null);
-      let res: ActionResult;
-      if (kind === 'reset') res = await resetPasswordAction(user.id);
-      else if (kind === 'delete') res = await deleteUserAction(user.id);
-      else res = await setUserStatusAction(user.id, kind === 'disable' ? 'disabled' : 'active');
+    setError(null);
+    setPending(true);
+    try {
+      if (kind === 'reset') {
+        const { tempPassword } = await api.post<{ tempPassword: string }>(
+          `/admin/users/${user.id}/reset-password`,
+        );
+        setResetResult({ email: user.email, tempPassword });
+      } else if (kind === 'delete') {
+        await api.del(`/admin/users/${user.id}`);
+      } else {
+        await api.post(`/admin/users/${user.id}/status`, {
+          status: kind === 'disable' ? 'disabled' : 'active',
+        });
+      }
       setConfirm(null);
-      if (!res.ok) {
-        setError(res.error ?? '操作失败');
-        return;
-      }
-      if (kind === 'reset' && res.tempPassword) {
-        setResetResult({ email: user.email, tempPassword: res.tempPassword });
-      }
-    });
+      invalidate();
+    } catch (err) {
+      setConfirm(null);
+      setError(errText(err, '操作失败'));
+    } finally {
+      setPending(false);
+    }
   }
 
   return (
@@ -247,7 +251,10 @@ export function AccountsManager({
               <AccountForm
                 target={sheet === 'new' ? null : sheet}
                 actor={actor}
-                onSuccess={() => setSheet(null)}
+                onSuccess={() => {
+                  setSheet(null);
+                  invalidate();
+                }}
               />
             </div>
           ) : null}
@@ -318,45 +325,75 @@ export function AccountsManager({
   );
 }
 
-/** 新建 / 编辑表单（同一组件按 target 是否为空切换 action）。 */
+/** 新建 / 编辑表单（同一组件按 target 是否为空切换接口）。 */
 function AccountForm({
   target,
   actor,
   onSuccess,
 }: {
   target: AdminUserRow | null;
-  actor: Actor;
+  actor: CurrentUser;
   onSuccess: () => void;
 }) {
   const isEdit = target != null;
-  const [state, formAction, pending] = useActionState<FormState, FormData>(
-    isEdit ? editUserAction : createUserAction,
-    {},
-  );
-  const [role, setRole] = useState<UserRole>(target?.role ?? 'admin');
   const canSuper = actor.role === 'super_admin';
-  const grantable = actor.role === 'super_admin' ? undefined : actor.permissions;
+  const grantable = canSuper ? undefined : actor.permissions;
 
-  useEffect(() => {
-    if (state.ok) onSuccess();
-  }, [state.ok, onSuccess]);
+  const [email, setEmail] = useState('');
+  const [name, setName] = useState(target?.name ?? '');
+  const [password, setPassword] = useState('');
+  const [requireChange, setRequireChange] = useState(true);
+  const [role, setRole] = useState<UserRole>(target?.role ?? 'admin');
+  const [perms, setPerms] = useState<PermissionKey[]>(target?.permissions ?? []);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+
+  async function onSubmit(e: FormEvent<HTMLFormElement>): Promise<void> {
+    e.preventDefault();
+    setError(null);
+    setPending(true);
+    const effectivePerms = role === 'super_admin' ? [] : perms;
+    try {
+      if (isEdit) {
+        await api.patch(`/admin/users/${target.id}`, { name, role, perms: effectivePerms });
+      } else {
+        await api.post('/admin/users', {
+          email,
+          name,
+          password,
+          role,
+          requireChange,
+          perms: effectivePerms,
+        });
+      }
+      onSuccess();
+    } catch (err) {
+      setError(errText(err, isEdit ? '保存失败' : '创建失败'));
+      setPending(false);
+    }
+  }
 
   return (
-    <form action={formAction} className="grid gap-4">
-      {isEdit ? <input type="hidden" name="userId" value={target.id} /> : null}
-
+    <form onSubmit={onSubmit} className="grid gap-4">
       <div className="grid gap-2">
         <Label htmlFor="email">邮箱</Label>
         {isEdit ? (
           <Input id="email" value={target.email} disabled />
         ) : (
-          <Input id="email" name="email" type="email" autoComplete="off" required />
+          <Input
+            id="email"
+            type="email"
+            autoComplete="off"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
         )}
       </div>
 
       <div className="grid gap-2">
         <Label htmlFor="name">姓名</Label>
-        <Input id="name" name="name" defaultValue={target?.name ?? ''} required />
+        <Input id="name" required value={name} onChange={(e) => setName(e.target.value)} />
       </div>
 
       {!isEdit ? (
@@ -364,13 +401,14 @@ function AccountForm({
           <Label htmlFor="password">初始密码（≥8 位）</Label>
           <Input
             id="password"
-            name="password"
             type="password"
             autoComplete="new-password"
             required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
           />
           <label className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Switch name="requireChange" defaultChecked />
+            <Switch checked={requireChange} onCheckedChange={setRequireChange} />
             要求首次登录改密
           </label>
         </div>
@@ -379,7 +417,6 @@ function AccountForm({
       <div className="grid gap-2">
         <Label>角色</Label>
         <RadioGroup
-          name="role"
           value={role}
           onValueChange={(v) => setRole(v as UserRole)}
           className="flex gap-4"
@@ -399,16 +436,16 @@ function AccountForm({
       <div className="grid gap-2">
         <Label>权限</Label>
         <PermissionEditor
-          key={`${target?.id ?? 'new'}-${role}`}
-          initial={role === 'super_admin' ? [] : (target?.permissions ?? [])}
+          value={role === 'super_admin' ? [] : perms}
+          onChange={setPerms}
           grantable={grantable}
           disabled={role === 'super_admin'}
         />
       </div>
 
-      {state.error ? (
+      {error ? (
         <Alert variant="destructive">
-          <AlertDescription>{state.error}</AlertDescription>
+          <AlertDescription>{error}</AlertDescription>
         </Alert>
       ) : null}
 

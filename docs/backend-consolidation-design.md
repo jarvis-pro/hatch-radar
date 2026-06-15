@@ -6,7 +6,7 @@
 > 人用会话、mobile 用设备签名，都在 server 一处校验；`API_TOKEN` 机器平面与「局域网信任」特判随之消失。
 > 本文是落地前的设计方案。
 
-- **状态**：设计待评审（未实现）
+- **状态**：✅ 已落地（分支 `refactor/backend-consolidation`，2026-06-15）——server 成为单一后端 + 鉴权权威，web 退为 Vite SPA 由 server 同源托管，`API_TOKEN` HTTP 平面退役；全量 typecheck / 37 测试 / SPA build / 同源 boot 冒烟均通过。
 - **日期**：2026-06-15
 - **前端形态**：已定改 **Vite + React Router 同源 SPA**（见 [[frontend-spa-migration-design]]）——这简化本文 K3/K4/§4.2/§6：SPA 与 `/api` 同源，httpOnly `radar_session` cookie 自动随请求发，**无 BFF / 无 Bearer 转发 / 无 SSR 跳，server 端到端持 cookie**。
 - **范围**：`apps/web`（去 PG 直连 / 去鉴权与账户业务，改为 server API 客户端）、`apps/server`（新增账户/会话/管理/只读数据模块 + 会话守卫）、`packages/db`（补 users/sessions 等 repository）、`packages/auth`/`packages/shared`（基本不动）

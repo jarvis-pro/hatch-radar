@@ -23,8 +23,8 @@
 | 调度          | `@nestjs/schedule`（`@Cron`）                                                                                               |
 | Reddit 数据源 | Reddit REST API（OAuth）                                                                                                    |
 | AI 分析       | 多模型可配：Anthropic（`@anthropic-ai/sdk`）/ OpenAI / DeepSeek；PostgreSQL 任务队列（`FOR UPDATE SKIP LOCKED`）+ Worker 池 |
-| 存储          | PostgreSQL（Prisma ORM；server 读写 / web 只读直查）；导出 `.sqlite` 与移动端 expo-sqlite 互通                              |
-| Web 控制台    | Next.js（App Router，standalone 产物 + Docker）                                                                             |
+| 存储          | PostgreSQL（Prisma ORM；**server 是唯一读写方**，web 不直连库）；导出 `.sqlite` 与移动端 expo-sqlite 互通                   |
+| Web 控制台    | Vite + React Router 同源 SPA（纯 CSR，经 `/api` 调 server；由 NestJS `ServeStaticModule` 同源托管 build 产物）              |
 | PC 端 UI 库   | shadcn/ui + Tailwind CSS v4（`packages/ui` 共享，仅限 Web/PC 子项目）                                                       |
 | 移动端        | React Native（Expo SDK 56 + expo-router + expo-sqlite）                                                                     |
 
@@ -84,11 +84,12 @@ pnpm dev:web            # http://localhost:47080
 
 ## Web 控制台
 
-- 只读展示洞察 / 帖子 / 评论：来源 / 版块 / 强度 / 分析状态筛选 + 关键词搜索 + 分页，响应式自适应手机
-- PG 只读直查（RSC 直接查库，连接级 `default_transaction_read_only=on`），`pg` 只在服务端、绝不进客户端 bundle；写操作统一走 server 进程
-- 连接串由 `DATABASE_URL` 指定，与 server 同一个库
-- 「设置」页（`/settings`）管理模型（增删改、选用 active、连通性测试，密钥仅脱敏展示）；「分析」页（`/analyze`）多选帖子 + 选模型运行，并实时轮询队列进度。写操作经 web 代理转发到 server 进程（`SERVER_API_URL`，默认 `http://localhost:47878`），server 设了 `API_TOKEN` 时 web 也需配同值——web 自身仍只读库
-- UI 组件来自 `@hatch-radar/ui`（shadcn/ui，见 `/ui-lab` 预览页）。新增组件在 `apps/web` 下执行
+- 展示洞察 / 帖子 / 评论：来源 / 版块 / 强度 / 分析状态筛选 + 关键词搜索 + 分页，响应式自适应手机
+- **纯前端 SPA**（Vite + React Router，无 SSR）：所有数据与写操作经同源 `/api/*` 调 server；浏览器自动带 httpOnly `radar_session` cookie，写请求带 `X-Radar-Csrf` 头（CSRF 兜底）。web 不连库、不持任何密钥
+- 鉴权：登录 `POST /api/auth/login` 由 server 下发 cookie；进站 `GET /api/auth/session` 取用户态做路由守卫 / 导航显隐（权威校验恒在 server）
+- 「设置」页（`/settings`）管理模型（增删改、选用 active、连通性测试，密钥仅脱敏展示）；「分析」页（`/analyze`）多选帖子 + 选模型运行，并实时轮询队列进度
+- dev：`pnpm dev:web`（Vite 47080）把 `/api` 代理到 server（47878）保持同源；prod：`pnpm build:web` 出 `dist/`，由 server 同源托管（单一部署物）
+- UI 组件来自 `@hatch-radar/ui`（shadcn/ui）。新增组件在 `apps/web` 下执行
   `pnpm dlx shadcn@latest add <component>`，CLI 会自动把组件写入 `packages/ui`，所有 PC 子项目共用
 
 Docker 部署：`docker compose up -d` 起 `db`（PostgreSQL）+ `web`（控制台，连同一个 PG）。
@@ -121,9 +122,9 @@ pnpm dev:web
 | `POST /api/analysis/run`       | 手动运行：选中帖子按指定模型入队（trigger=manual）                   |
 | `GET /api/analysis/jobs`       | 分析队列看板（状态汇总 + 最近任务）                                  |
 
-端口 `HTTP_PORT`（默认 47878），设 `API_TOKEN` 后导出与同步接口要求 `Authorization: Bearer <token>`。
+端口 `HTTP_PORT`（默认 47878），同进程既发 `/api`、又同源托管 web SPA。鉴权恒开、fail-closed（无 `API_TOKEN`、无局域网放行）：web 面向端点走会话 cookie + 能力闸（`SessionAuthGuard`），导出 / 同步走「设备签名 **或** 用户会话」双通道（`DeviceOrSessionGuard`），设备激活由一次性激活码自鉴权，`/api/health` 公开。
 
-**文件导出**（产物可 AirDrop 给手机）：在 web 控制台首页点「导出批次」，按条件（最近天数 / 最低强度 / 版块 / 上限）筛出有效数据，下载 `.sqlite`（移动端导入）或 `.json`；该入口经 web `/api/export` 代理到上表的 `/api/export/batch(.sqlite)`，复用 server 同一套 sqlite-writer，产物一致。
+**文件导出**（产物可 AirDrop 给手机）：在 web 控制台首页点「导出批次」，按条件（最近天数 / 最低强度 / 版块 / 上限）筛出有效数据，下载 `.sqlite`（移动端导入）或 `.json`；SPA 同源直连 `/api/export/batch(.sqlite)`（带会话 cookie），复用 server 同一套 sqlite-writer。
 
 ---
 
@@ -179,7 +180,7 @@ Reddit 来源需先在同页「采集连接器」配置 OAuth 凭据（加密入
 
 ## 项目结构
 
-pnpm workspace monorepo（多端规划见 `docs/multiplatform-refactor-spec.md`，本次重构见 `docs/server-nest-postgres-refactor-plan.md`）。根目录脚本约定：**裸命令（`dev` / `start` / `worker` / `test`）= 主后端 server，其它端用 `:app` 后缀（`dev:web` / `build:web` / `start:web` / `dev:mobile`）**，`db:*` 代理到 `@hatch-radar/db`。
+pnpm workspace monorepo（多端规划见 `docs/multiplatform-refactor-spec.md`，本次重构见 `docs/server-nest-postgres-refactor-plan.md`）。根目录脚本约定：**裸命令（`dev` / `start` / `worker` / `test`）= 主后端 server，其它端用 `:app` 后缀（`dev:web` / `build:web` / `preview:web` / `dev:mobile`）**，`db:*` 代理到 `@hatch-radar/db`。
 
 ```
 hatch-radar/
@@ -200,25 +201,30 @@ hatch-radar/
 │   │   │   ├── worker/         # 分析 Worker 池（FOR UPDATE SKIP LOCKED + 生命周期钩子）
 │   │   │   ├── sync/           # 同步操作校验与幂等应用（op_id 去重 + sync_ops 留痕）
 │   │   │   ├── export/         # 批次收集（读 PG）+ .sqlite/.json 写出（better-sqlite3）
-│   │   │   ├── common/         # DI 令牌、时间、zod 管道、Bearer 守卫、全局异常过滤器
+│   │   │   ├── account/        # 人鉴权权威：会话登录/校验/改密 + SessionAuthGuard（cookie + CSRF）
+│   │   │   ├── data/           # 只读数据端点（洞察/帖子/评论/统计，能力闸）
+│   │   │   ├── admin/          # 账户/权限/设备管理 + 审计（accounts:manage / audit:view）
+│   │   │   ├── auth/           # 设备激活 + 设备/会话双通道守卫（sync/export）
+│   │   │   ├── seed/ static/   # 首超管种子 + 同源托管 SPA dist
+│   │   │   ├── common/         # DI 令牌、时间、zod 管道、全局异常过滤器
 │   │   │   └── crypto.ts       # 模型密钥 AES-256-GCM 加解密│   │   ├── test/               # 队列并发认领 / 同步幂等集成测试（vitest，连本地 PG）
 │   │   └── .env.example
-│   ├── web/                    # Next.js 只读控制台（PG 只读直查）
-│   │   ├── src/app/            # 洞察/帖子列表与详情（App Router，全 RSC）
-│   │   ├── src/lib/            # PG 只读连接 + Prisma 查询 + 格式化
-│   │   ├── src/components/     # 徽标/卡片/分页/评论树
-│   │   └── Dockerfile          # 多阶段构建（node:20-bookworm-slim + standalone）
+│   ├── web/                    # Vite + React Router 同源 SPA（经 /api 调 server，由 server 托管 dist）
+│   │   ├── src/api/            # 同源 fetch 客户端（cookie + CSRF；401 跳登录）
+│   │   ├── src/auth/           # AuthProvider（GET /api/auth/session）+ 能力闸
+│   │   ├── src/pages/          # 路由页（洞察/帖子/分析/设置/账户/管理…）
+│   │   └── src/components/     # 徽标/卡片/分页/评论树/各类管理器
 │   └── mobile/                 # Expo 离线伴侣 App（expo-sqlite，保持不变）
 │       ├── app/                # expo-router：洞察列表 / 详情（含研判编辑）/ 工作台同步
 │       └── src/                # 本地库（共享 DDL + outbox/meta）、研判与导入合并、同步推送
 ├── packages/
 │   ├── shared/                 # 跨端共享：DB DDL（mobile/导出用）、行类型、洞察域类型、研判/导出/同步协议
-│   ├── db/                     # PostgreSQL 层：Prisma schema + 连接工厂 + 迁移 + PG⇄域映射（server/web 共用）
+│   ├── db/                     # PostgreSQL 层：Prisma schema + 连接工厂 + 迁移 + PG⇄域映射（server 唯一读写方）
 │   └── ui/                     # PC 端共享 UI 库：shadcn/ui + Tailwind v4（组件经 CLI 落入此包，RN 勿引）
 ├── docs/
 │   ├── multiplatform-refactor-spec.md          # 多端重构需求规格
 │   └── server-nest-postgres-refactor-plan.md   # NestJS + PostgreSQL 重构计划书
-├── docker-compose.yml          # db（PostgreSQL）+ web 控制台
+├── docker-compose.yml          # db（PostgreSQL）；server + web SPA 跑在宿主机单进程
 ├── pnpm-workspace.yaml
 ├── tsconfig.base.json
 └── package.json                # 根脚本统一代理到子包

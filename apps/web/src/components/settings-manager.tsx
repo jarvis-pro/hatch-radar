@@ -1,7 +1,4 @@
-'use client';
-
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { Badge } from '@hatch-radar/ui/components/badge';
 import { Button } from '@hatch-radar/ui/components/button';
 import {
@@ -30,6 +27,7 @@ import {
   TableHeader,
   TableRow,
 } from '@hatch-radar/ui/components/table';
+import { api, ApiError } from '@/api/client';
 
 /** 模型厂商 */
 export type ProviderKind = 'anthropic' | 'openai' | 'deepseek';
@@ -121,18 +119,25 @@ interface ApiData {
   id?: number;
 }
 
+/** 经同源 API 客户端发起请求（自带 cookie + CSRF 头；401 触发全局跳登录）。 */
 async function apiSend(
-  url: string,
-  method: string,
+  path: string,
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE',
   body?: Record<string, unknown>,
 ): Promise<{ ok: boolean; status: number; data: ApiData | null }> {
-  const resp = await fetch(url, {
-    method,
-    headers: body ? { 'content-type': 'application/json' } : undefined,
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const data = (await resp.json().catch(() => null)) as ApiData | null;
-  return { ok: resp.ok, status: resp.status, data };
+  const p = path.replace(/^\/api/, ''); // api 客户端再补 /api 前缀
+  try {
+    let data: ApiData | undefined;
+    if (method === 'GET') data = await api.get<ApiData>(p);
+    else if (method === 'POST') data = await api.post<ApiData>(p, body);
+    else if (method === 'PUT') data = await api.put<ApiData>(p, body);
+    else data = await api.del<ApiData>(p, body);
+    return { ok: true, status: 200, data: data ?? {} };
+  } catch (err) {
+    if (err instanceof ApiError)
+      return { ok: false, status: err.status, data: { error: err.message } };
+    return { ok: false, status: 0, data: { error: '网络错误' } };
+  }
 }
 
 /** 一把 Key 的状态徽标（含冷却剩余时间） */
@@ -149,17 +154,19 @@ function KeyStatusBadge({ k, now }: { k: ProviderKeyDTO; now: number }) {
 }
 
 /**
- * 模型设置（客户端）：模型清单 CRUD + 每条模型的多 Key 池（增删改 / 测试 / 复位）+ 选用 active。
- * 全部经 web 的 /api/settings 代理转发 server；密钥仅脱敏展示，明文绝不回传浏览器。
+ * 模型设置：模型清单 CRUD + 每条模型的多 Key 池（增删改 / 测试 / 复位）+ 选用 active。
+ * 同源直连 /api/settings（cookie + CSRF）；密钥仅脱敏展示，明文绝不回传浏览器。
+ * 变更后调用 onChanged() 让页面重新拉取（替代原 router.refresh()）。
  */
 export function SettingsManager({
   initial,
   loadError,
+  onChanged,
 }: {
   initial: SettingsData | null;
   loadError: string | null;
+  onChanged: () => void;
 }) {
-  const router = useRouter();
   const [flash, setFlash] = useState<Flash | null>(null);
   // 模型配置弹窗
   const [open, setOpen] = useState(false);
@@ -256,7 +263,7 @@ export function SettingsManager({
     if (res.ok) {
       setOpen(false);
       setFlash({ kind: 'ok', text: editingId === null ? '已新增模型' : '已更新模型' });
-      router.refresh();
+      onChanged();
     } else {
       setFlash({ kind: 'err', text: res.data?.error ?? `保存失败（${res.status}）` });
     }
@@ -267,7 +274,7 @@ export function SettingsManager({
     const res = await apiSend(`/api/settings/providers/${p.id}`, 'DELETE');
     if (res.ok) {
       setFlash({ kind: 'ok', text: '已删除' });
-      router.refresh();
+      onChanged();
     } else {
       setFlash({ kind: 'err', text: res.data?.error ?? '删除失败' });
     }
@@ -277,7 +284,7 @@ export function SettingsManager({
     const res = await apiSend(`/api/settings/providers/${p.id}`, 'PUT', { enabled: !p.enabled });
     if (res.ok) {
       setFlash({ kind: 'ok', text: p.enabled ? '已停用' : '已启用' });
-      router.refresh();
+      onChanged();
     } else {
       setFlash({ kind: 'err', text: res.data?.error ?? '操作失败' });
     }
@@ -291,7 +298,7 @@ export function SettingsManager({
         text:
           id === null ? '已停用自动分析' : `已设为当前模型，即时入队 ${res.data?.enqueued ?? 0} 篇`,
       });
-      router.refresh();
+      onChanged();
     } else {
       setFlash({ kind: 'err', text: res.data?.error ?? '操作失败' });
     }
@@ -346,7 +353,7 @@ export function SettingsManager({
     if (res.ok) {
       setKeyOpen(false);
       setFlash({ kind: 'ok', text: editingKeyId === null ? '已添加 Key' : '已更新 Key' });
-      router.refresh();
+      onChanged();
     } else {
       setFlash({ kind: 'err', text: res.data?.error ?? `保存失败（${res.status}）` });
     }
@@ -357,7 +364,7 @@ export function SettingsManager({
     const res = await apiSend(`/api/settings/providers/${providerId}/keys/${k.id}`, 'DELETE');
     if (res.ok) {
       setFlash({ kind: 'ok', text: '已删除 Key' });
-      router.refresh();
+      onChanged();
     } else {
       setFlash({ kind: 'err', text: res.data?.error ?? '删除失败' });
     }
@@ -367,7 +374,7 @@ export function SettingsManager({
     const res = await apiSend(`/api/settings/providers/${providerId}/keys/${k.id}`, 'PUT', {
       enabled: !k.enabled,
     });
-    if (res.ok) router.refresh();
+    if (res.ok) onChanged();
     else setFlash({ kind: 'err', text: res.data?.error ?? '操作失败' });
   }
 
@@ -377,7 +384,7 @@ export function SettingsManager({
     });
     if (res.ok) {
       setFlash({ kind: 'ok', text: '已复位为可用' });
-      router.refresh();
+      onChanged();
     } else {
       setFlash({ kind: 'err', text: res.data?.error ?? '操作失败' });
     }
