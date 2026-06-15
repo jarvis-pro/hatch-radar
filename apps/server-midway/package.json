@@ -1,0 +1,31 @@
+{
+  "name": "@hatch-radar/server-midway",
+  "version": "0.1.0",
+  "private": true,
+  "description": "工作台 API（MidwayJS 4.x，控制面）：HTTP + 鉴权 + 定时调度 + push 网关。领域逻辑在 @hatch-radar/core，分析执行在独立的 server-midway-worker 进程。与 NestJS 版 @hatch-radar/server 并排对比，换端口即可。",
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm --filter @hatch-radar/db db:migrate && node --env-file-if-exists=.env --watch --import @swc-node/register/esm-register src/main.ts",
+    "start": "pnpm --filter @hatch-radar/db db:migrate && node --env-file-if-exists=.env --import @swc-node/register/esm-register src/main.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@hatch-radar/config": "workspace:*",
+    "@hatch-radar/core": "workspace:*",
+    "@hatch-radar/db": "workspace:*",
+    "@hatch-radar/shared": "workspace:*",
+    "@midwayjs/bootstrap": "^4.2.1",
+    "@midwayjs/core": "^4.2.1",
+    "@midwayjs/cron": "^4.2.1",
+    "@midwayjs/koa": "^4.2.1",
+    "@midwayjs/logger": "^4.0.0",
+    "reflect-metadata": "^0.2.2",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@swc-node/register": "^1.11.1",
+    "@swc/core": "^1.15.41",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  }
+}
