@@ -8,6 +8,7 @@
  * 4. 导出批次协议类型（export.ts）
  * 5. App ⇄ 工作台同步协议类型（sync.ts）
  * 6. 账户角色与能力目录（permissions.ts，web/server 授权 + mobile UI 显隐共用）
+ * 7. 账户 / 会话 / 管理的跨端契约（account.ts）与通用 API 形状（api.ts，分页/筛选）
  *
  * better-sqlite3 等原生模块、AI SDK、抓取逻辑一律不进入本包。
  */
@@ -19,3 +20,5 @@ export * from './insights';
 export * from './triage';
 export * from './export';
 export * from './sync';
+export * from './account';
+export * from './api';

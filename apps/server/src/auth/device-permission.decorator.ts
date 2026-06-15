@@ -4,10 +4,10 @@ import type { PermissionKey, UserRole } from '@hatch-radar/shared';
 /** 路由所需的设备能力 key 的元数据键。 */
 export const DEVICE_PERMISSION = 'device_permission';
 
-/** 标注某路由在「设备通道」下所需的能力（service 令牌通道豁免，由 web 自行鉴权）。 */
+/** 标注某路由所需的能力（设备通道与会话通道共用：两条都按此 key 校验）。 */
 export const RequireDevicePermission = (key: PermissionKey) => SetMetadata(DEVICE_PERMISSION, key);
 
-/** 通过设备验签解析出的用户上下文（由 MachineOrDeviceGuard 附加到 req.deviceUser）。 */
+/** 通过设备验签解析出的用户上下文（由 DeviceOrSessionGuard 附加到 req.deviceUser）。 */
 export interface DeviceUserContext {
   id: string;
   role: UserRole;

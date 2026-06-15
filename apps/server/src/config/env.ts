@@ -1,12 +1,10 @@
 import { z } from 'zod';
 import { DEFAULT_DATABASE_URL, DEFAULT_HTTP_PORT } from '@hatch-radar/config';
 
-/** 局域网导出/同步 HTTP 服务配置（env 推导） */
+/** HTTP 服务配置（env 推导） */
 export interface HttpConfig {
   /** 监听端口；绑定 0.0.0.0 供局域网内的移动端访问 */
   port: number;
-  /** 可选访问令牌；设置后导出与同步接口要求 `Authorization: Bearer <token>` */
-  token?: string;
 }
 
 /** 分析 worker 池运行参数（env 推导） */
@@ -17,6 +15,14 @@ export interface WorkerConfig {
   jobTimeoutMs: number;
   /** running 心跳超时回收阈值（秒） */
   staleSeconds: number;
+}
+
+/** Web 会话生命周期参数（env 推导） */
+export interface SessionConfig {
+  /** 空闲过期窗（天）：每次活跃滑动续期到 now + 此值 */
+  idleDays: number;
+  /** 绝对过期窗（天）：自创建起的硬上限，滑动续期不得超过 */
+  absoluteDays: number;
 }
 
 /**
@@ -69,8 +75,17 @@ const envSchema = z.preprocess(
 
       /** 导出 HTTP 服务监听端口，默认 47878（DEFAULT_HTTP_PORT）；绑定 0.0.0.0 */
       HTTP_PORT: z.coerce.number().int().min(1).max(65535).default(DEFAULT_HTTP_PORT),
-      /** 可选访问令牌；设置后导出接口要求 Authorization: Bearer <token> */
-      API_TOKEN: z.string().trim().min(1).optional(),
+
+      // ── Web 会话 ───────────────────────────────────────────────────────
+
+      /** 会话空闲过期窗（天），默认 7，最小 1：活跃即滑动续期到 now + 此值 */
+      SESSION_IDLE_DAYS: z.coerce.number().int().min(1).default(7),
+      /** 会话绝对过期窗（天），默认 30，最小 1：自创建起硬上限，续期不得超过 */
+      SESSION_ABSOLUTE_DAYS: z.coerce.number().int().min(1).default(30),
+
+      /** 首个超级管理员种子（仅空库时创建；幂等）；不设则跳过种子 */
+      SUPER_ADMIN_EMAIL: z.string().trim().toLowerCase().optional(),
+      SUPER_ADMIN_PASSWORD: z.string().min(8).optional(),
 
       /** worker 进程连接 gateway 的 WebSocket 地址；不设则自动推导为 ws://localhost:<HTTP_PORT>/ws/worker */
       GATEWAY_URL: z.string().trim().optional(),
@@ -79,8 +94,16 @@ const envSchema = z.preprocess(
       analyzeBatchSize: env.ANALYZE_BATCH_SIZE,
       databaseUrl: env.DATABASE_URL,
       databasePoolMax: env.DATABASE_POOL_MAX ?? Math.max(10, env.WORKER_CONCURRENCY + 5),
-      http: { port: env.HTTP_PORT, token: env.API_TOKEN } satisfies HttpConfig,
+      http: { port: env.HTTP_PORT } satisfies HttpConfig,
       gatewayUrl: env.GATEWAY_URL,
+      session: {
+        idleDays: env.SESSION_IDLE_DAYS,
+        absoluteDays: env.SESSION_ABSOLUTE_DAYS,
+      } satisfies SessionConfig,
+      superAdmin:
+        env.SUPER_ADMIN_EMAIL && env.SUPER_ADMIN_PASSWORD
+          ? { email: env.SUPER_ADMIN_EMAIL, password: env.SUPER_ADMIN_PASSWORD }
+          : undefined,
       worker: {
         concurrency: env.WORKER_CONCURRENCY,
         jobTimeoutMs: env.WORKER_JOB_TIMEOUT_MS,

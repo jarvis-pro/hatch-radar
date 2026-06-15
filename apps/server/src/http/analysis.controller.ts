@@ -9,7 +9,8 @@ import {
 } from '@nestjs/common';
 import { z } from 'zod';
 import { AnalysisConfigService } from '@/analysis/analysis-config.service';
-import { BearerAuthGuard } from '@/common/bearer-auth.guard';
+import { RequirePermission } from '@/account/auth-user.decorator';
+import { SessionAuthGuard } from '@/account/session-auth.guard';
 import { ZodValidationPipe } from '@/common/zod-validation.pipe';
 import { JobsRepository } from '@/db/jobs.repository';
 import { logger } from '@/logger';
@@ -25,7 +26,8 @@ const runSchema = z.object({
  * - POST /api/analysis/run    手动运行：选中帖子按指定模型入队（trigger=manual）
  * - GET  /api/analysis/jobs   队列看板：各状态汇总 + 最近任务（供 web 轮询）
  */
-@UseGuards(BearerAuthGuard)
+@UseGuards(SessionAuthGuard)
+@RequirePermission('analyze:run')
 @Controller('analysis')
 export class AnalysisController {
   constructor(

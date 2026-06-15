@@ -6,7 +6,7 @@ import {
   RequireDevicePermission,
   type DeviceUserContext,
 } from '@/auth/device-permission.decorator';
-import { MachineOrDeviceGuard } from '@/auth/machine-or-device.guard';
+import { DeviceOrSessionGuard } from '@/auth/device-or-session.guard';
 import { ZodValidationPipe } from '@/common/zod-validation.pipe';
 import { pushEnvelopeSchema, SyncService } from '@/sync/sync.service';
 
@@ -15,7 +15,7 @@ import { pushEnvelopeSchema, SyncService } from '@/sync/sync.service';
  * 鉴权走双通道守卫：mobile 用设备签名（需 insights:triage 能力），并把本次同步归属到设备所属账户写审计。
  * 请求体上限由全局 body 限制把控（5MB，对应裸跑实现）。
  */
-@UseGuards(MachineOrDeviceGuard)
+@UseGuards(DeviceOrSessionGuard)
 @RequireDevicePermission('insights:triage')
 @Controller('sync')
 export class SyncController {

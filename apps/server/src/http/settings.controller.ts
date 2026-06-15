@@ -13,7 +13,8 @@ import {
 } from '@nestjs/common';
 import { z } from 'zod';
 import { AnalysisConfigService } from '@/analysis/analysis-config.service';
-import { BearerAuthGuard } from '@/common/bearer-auth.guard';
+import { RequirePermission } from '@/account/auth-user.decorator';
+import { SessionAuthGuard } from '@/account/session-auth.guard';
 import { nowSec } from '@/utils/time';
 import { ZodValidationPipe } from '@/common/zod-validation.pipe';
 import { isSecretConfigured } from '@/utils/crypto';
@@ -74,7 +75,8 @@ function normalizeBaseUrl(v: string | undefined): string | undefined {
  * 任意写操作后调用 reloadAnalysisConfig() 使配置即时生效（无需重启进程）；Key 增删/启停因
  * 每次分析实时查库，本就即时生效，故不强制 reload。
  */
-@UseGuards(BearerAuthGuard)
+@UseGuards(SessionAuthGuard)
+@RequirePermission('settings:manage')
 @Controller('settings')
 export class SettingsController {
   constructor(

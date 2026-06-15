@@ -8,7 +8,6 @@ import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/http-exception.filter';
 import { APP_ENV } from './common/tokens';
 import type { AppEnv } from './config/env';
-import { ProvidersRepository } from './db/providers.repository';
 import { SourceConnectorsRepository } from './db/source-connectors.repository';
 import { SourcesRepository } from './db/sources.repository';
 import { StatsRepository } from './db/stats.repository';
@@ -61,16 +60,6 @@ async function logStartup(app: NestExpressApplication, env: AppEnv): Promise<voi
     stats.pendingAnalysis,
     stats.insights,
   );
-
-  // 安全告警：已入库模型密钥但未设 API_TOKEN → 局域网内任何人都能调用写接口
-  // （增删模型 / 触发分析 / 改 baseUrl）。密钥本身已加密入库，但开放的写接口仍是风险面。
-  const providerCount = (await app.get(ProvidersRepository).listProviders()).length;
-  if (providerCount > 0 && !env.http.token) {
-    logger.warn(
-      '[安全] 已配置 %d 个模型且未设 API_TOKEN：局域网内写接口（设置/分析）对所有人开放，建议设置 API_TOKEN（见 .env.example）',
-      providerCount,
-    );
-  }
 }
 
 /**
@@ -92,22 +81,13 @@ async function bootstrap(): Promise<void> {
   app.enableShutdownHooks();
 
   const env = app.get<AppEnv>(APP_ENV);
-  // 机器平面收紧：服务绑定 0.0.0.0（局域网/外部可达），生产环境必须设 API_TOKEN，
-  // 否则导出/同步/设置等接口在无设备签名时对任何可达者开放——启动即拒，逼显式配置。
-  if (process.env.NODE_ENV === 'production' && !env.http.token) {
-    throw new Error(
-      '[安全] 生产环境必须设置 API_TOKEN：服务绑定 0.0.0.0，未设令牌则局域网/外部可裸调 web 代理通道接口',
-    );
-  }
-  // 绑定 0.0.0.0 供局域网内的移动端访问
+  // 鉴权恒开、fail-closed：人=会话 cookie、mobile=设备签名，均在 server 守卫一处校验
+  // （API_TOKEN 机器平面与局域网放行特判已退役，见 docs/backend-consolidation-design.md）。
+  // 绑定 0.0.0.0 供局域网内的移动端访问。
   await app.listen(env.http.port, '0.0.0.0');
 
   await logStartup(app, env);
-  logger.info(
-    '导出/同步服务已启动（端口 %d%s）',
-    env.http.port,
-    env.http.token ? '，已启用 Token 鉴权' : '',
-  );
+  logger.info('服务已启动（端口 %d，鉴权恒开：会话 / 设备签名）', env.http.port);
   for (const ip of lanAddresses()) {
     logger.info('  · 局域网地址: http://%s:%d', ip, env.http.port);
   }

@@ -1,8 +1,8 @@
 'use client';
 
 import { Monitor, Moon, Sun } from 'lucide-react';
-import { useTheme } from 'next-themes';
 
+import { useTheme } from '@hatch-radar/ui/components/theme-provider';
 import { Button } from '@hatch-radar/ui/components/button';
 import {
   DropdownMenu,
@@ -12,7 +12,7 @@ import {
 } from '@hatch-radar/ui/components/dropdown-menu';
 
 /**
- * 明暗主题切换按钮：浅色 / 深色 / 跟随系统（基于 next-themes，class 策略）。
+ * 明暗主题切换按钮：浅色 / 深色 / 跟随系统（基于自带 ThemeProvider，class 策略）。
  * 图标随 .dark class 切换（light 显示太阳，dark 显示月亮），无水合闪烁。
  */
 export function ModeToggle() {

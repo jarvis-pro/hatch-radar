@@ -35,3 +35,11 @@ export interface PostRow {
   /** 已尝试 AI 分析的次数；达到 3 次后不再重试 */
   analyze_attempts: number;
 }
+
+/** 工作台「待分析」帖子的状态：pending=未分析；restale=已分析但之后评论又变（建议重判） */
+export type AwaitingKind = 'pending' | 'restale';
+
+/** 待分析帖子行：帖子字段 + 工作台状态（kind） */
+export interface AwaitingPost extends PostRow {
+  kind: AwaitingKind;
+}

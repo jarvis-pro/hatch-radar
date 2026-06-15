@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { Controller, Get, Header, Query, StreamableFile, UseGuards } from '@nestjs/common';
 import type { ExportBatch, ExportFilter, Intensity } from '@hatch-radar/shared';
 import { RequireDevicePermission } from '@/auth/device-permission.decorator';
-import { MachineOrDeviceGuard } from '@/auth/machine-or-device.guard';
+import { DeviceOrSessionGuard } from '@/auth/device-or-session.guard';
 import { ExportService } from '@/export/export.service';
 import { defaultExportName, writeBatchSqlite } from '@/export/sqlite-writer';
 import { logger } from '@/logger';
@@ -31,7 +31,7 @@ function parseExportFilter(q: Record<string, string | undefined>): ExportFilter 
  * - GET /api/export/batch          JSON 批次；查询参数 since / minIntensity / subreddit / limit
  * - GET /api/export/batch.sqlite   同条件的独立 .sqlite 文件下载（StreamableFile 流式）
  */
-@UseGuards(MachineOrDeviceGuard)
+@UseGuards(DeviceOrSessionGuard)
 @RequireDevicePermission('export:run')
 @Controller('export')
 export class ExportController {
