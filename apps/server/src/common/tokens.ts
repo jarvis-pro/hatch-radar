@@ -10,3 +10,6 @@ export const APP_ENV = Symbol('APP_ENV');
 
 /** Prisma 数据库实例（AppDatabase），由 DatabaseModule 提供 */
 export const PRISMA = Symbol('PRISMA');
+
+/** 由 createCore() 装配出的全套领域实例（Core），由 CoreModule 提供 */
+export const CORE = Symbol('CORE');

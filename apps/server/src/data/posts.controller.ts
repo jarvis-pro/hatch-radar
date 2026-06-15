@@ -2,8 +2,7 @@ import { Controller, Get, NotFoundException, Param, Query, UseGuards } from '@ne
 import type { AwaitingPost, CommentRow, FilterOptions, Insight, Paged, PostRow } from '@hatch-radar/shared';
 import { RequirePermission } from '@/account/auth-user.decorator';
 import { SessionAuthGuard } from '@/account/session-auth.guard';
-import { DataService } from './data.service';
-import { parsePage, trimmed } from './query-parse';
+import { DataService, parsePage, trimmed } from '@hatch-radar/core';
 
 /**
  * /api/posts/* —— 只读帖子 / 评论浏览（需 posts:view）。

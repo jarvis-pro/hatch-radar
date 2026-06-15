@@ -1,7 +1,7 @@
 import { Controller, Get, UseGuards } from '@nestjs/common';
 import type { DbStats } from '@hatch-radar/shared';
 import { SessionAuthGuard } from '@/account/session-auth.guard';
-import { StatsRepository } from '@/db/stats.repository';
+import { StatsRepository } from '@hatch-radar/core';
 
 /**
  * GET /api/stats —— 概览计数（首页统计卡片）。任意登录用户可见，无特定能力闸。

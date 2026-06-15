@@ -8,13 +8,15 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { z } from 'zod';
-import { AnalysisConfigService } from '@/analysis/analysis-config.service';
 import { RequirePermission } from '@/account/auth-user.decorator';
 import { SessionAuthGuard } from '@/account/session-auth.guard';
 import { ZodValidationPipe } from '@/common/zod-validation.pipe';
-import { JobsRepository } from '@/db/jobs.repository';
-import { ProvidersRepository } from '@/db/providers.repository';
-import { SettingsRepository } from '@/db/settings.repository';
+import {
+  AnalysisConfigService,
+  JobsRepository,
+  ProvidersRepository,
+  SettingsRepository,
+} from '@hatch-radar/core';
 import { logger } from '@/logger';
 
 const runSchema = z.object({

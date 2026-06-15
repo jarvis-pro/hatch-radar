@@ -13,7 +13,7 @@ import { z } from 'zod';
 import { AuthUser, RequirePermission, type AuthedUser } from '@/account/auth-user.decorator';
 import { SessionAuthGuard } from '@/account/session-auth.guard';
 import { ZodValidationPipe } from '@/common/zod-validation.pipe';
-import { AdminService } from './admin.service';
+import { AdminService } from '@hatch-radar/core';
 
 const roleEnum = z.enum(['admin', 'super_admin']);
 

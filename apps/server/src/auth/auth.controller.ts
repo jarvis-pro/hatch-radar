@@ -1,7 +1,7 @@
 import { Body, Controller, Post, UnauthorizedException } from '@nestjs/common';
 import { z } from 'zod';
 import { ZodValidationPipe } from '@/common/zod-validation.pipe';
-import { DeviceAuthService } from './device-auth.service';
+import { DeviceAuthService } from '@hatch-radar/core';
 
 const enrollSchema = z.object({
   /** 管理员发的一次性激活码。 */

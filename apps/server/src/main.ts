@@ -3,16 +3,18 @@ import { networkInterfaces } from 'node:os';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Logger } from 'nestjs-pino';
-import { AnalysisConfigService } from './analysis/analysis-config.service';
+import {
+  AnalysisConfigService,
+  type AppEnv,
+  logger,
+  RuntimeSettingsService,
+  SourceConnectorsRepository,
+  SourcesRepository,
+  StatsRepository,
+} from '@hatch-radar/core';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/http-exception.filter';
 import { APP_ENV } from './common/tokens';
-import type { AppEnv } from './config/env';
-import { RuntimeSettingsService } from './config/runtime-settings.service';
-import { SourceConnectorsRepository } from './db/source-connectors.repository';
-import { SourcesRepository } from './db/sources.repository';
-import { StatsRepository } from './db/stats.repository';
-import { logger } from './logger';
 
 /** 枚举本机非回环 IPv4 地址，方便在手机上直接填写 */
 function lanAddresses(): string[] {

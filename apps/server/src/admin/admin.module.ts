@@ -1,17 +1,14 @@
 import { Module } from '@nestjs/common';
 import { AccountModule } from '@/account/account.module';
-import { RepositoriesModule } from '@/db/repositories.module';
 import { AdminController } from './admin.controller';
-import { AdminService } from './admin.service';
 import { AuditController } from './audit.controller';
 
 /**
  * 管理模块（后端归一 P2）：账户 / 权限 / 设备管理（accounts:manage）+ 审计日志（audit:view）。
- * 全部挂 SessionAuthGuard + 能力闸。
+ * 全部挂 SessionAuthGuard（import AccountModule 取守卫）+ 能力闸；AdminService 等由 CoreModule 全局提供。
  */
 @Module({
-  imports: [RepositoriesModule, AccountModule],
+  imports: [AccountModule],
   controllers: [AdminController, AuditController],
-  providers: [AdminService],
 })
 export class AdminModule {}

@@ -1,6 +1,5 @@
 import { Body, Controller, HttpCode, Post, UseGuards } from '@nestjs/common';
 import type { z } from 'zod';
-import { DeviceAuthService } from '@/auth/device-auth.service';
 import {
   DeviceUser,
   RequireDevicePermission,
@@ -8,7 +7,7 @@ import {
 } from '@/auth/device-permission.decorator';
 import { DeviceOrSessionGuard } from '@/auth/device-or-session.guard';
 import { ZodValidationPipe } from '@/common/zod-validation.pipe';
-import { pushEnvelopeSchema, SyncService } from '@/sync/sync.service';
+import { DeviceAuthService, pushEnvelopeSchema, SyncService } from '@hatch-radar/core';
 
 /**
  * POST /api/sync/push —— 接收移动端 outbox 操作并按 op_id 幂等应用（规格 §D）。

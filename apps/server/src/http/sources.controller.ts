@@ -15,15 +15,16 @@ import { z } from 'zod';
 import { RequirePermission } from '@/account/auth-user.decorator';
 import { SessionAuthGuard } from '@/account/session-auth.guard';
 import { ZodValidationPipe } from '@/common/zod-validation.pipe';
-import { isSecretConfigured } from '@/utils/crypto';
-import { nowSec } from '@/utils/time';
-import { CrawlerConfigService } from '@/crawler/crawler-config.service';
 import {
+  isSecretConfigured,
+  nowSec,
+  CrawlerConfigService,
   SourceConnectorsRepository,
   toConnectorDTO,
   type ConnectorInput,
-} from '@/db/source-connectors.repository';
-import { SourcesRepository, type SourcePlatform } from '@/db/sources.repository';
+  SourcesRepository,
+  type SourcePlatform,
+} from '@hatch-radar/core';
 import { logger } from '@/logger';
 
 const platformEnum = z.enum(['reddit', 'hackernews', 'rss']);

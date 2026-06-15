@@ -1,7 +1,7 @@
 import { Global, Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { loadEnv, type AppEnv } from '@hatch-radar/core';
 import { APP_ENV } from '@/common/tokens';
-import { loadEnv, type AppEnv } from './env';
 
 /**
  * 全局配置模块。

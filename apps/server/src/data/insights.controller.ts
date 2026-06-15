@@ -2,8 +2,7 @@ import { Controller, Get, NotFoundException, Param, Query, UseGuards } from '@ne
 import type { FilterOptions, Insight, Paged } from '@hatch-radar/shared';
 import { RequirePermission } from '@/account/auth-user.decorator';
 import { SessionAuthGuard } from '@/account/session-auth.guard';
-import { DataService } from './data.service';
-import { parseIntensity, parsePage, trimmed } from './query-parse';
+import { DataService, parseIntensity, parsePage, trimmed } from '@hatch-radar/core';
 
 /**
  * /api/insights/* —— 只读洞察浏览（需 insights:view）。

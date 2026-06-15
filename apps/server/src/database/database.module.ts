@@ -7,8 +7,8 @@ import {
   Injectable,
 } from '@nestjs/common';
 import { createDb, type AppDatabase, type DbHandle } from '@hatch-radar/db';
+import type { AppEnv } from '@hatch-radar/core';
 import { APP_ENV, PRISMA } from '@/common/tokens';
-import type { AppEnv } from '@/config/env';
 import { logger } from '@/logger';
 
 /** 注入令牌（内部）：数据库句柄（含连接，供优雅关闭） */

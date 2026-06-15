@@ -188,15 +188,12 @@ importers:
 
   apps/server:
     dependencies:
-      '@anthropic-ai/sdk':
-        specifier: ^0.104.1
-        version: 0.104.1(zod@4.4.3)
-      '@hatch-radar/auth':
-        specifier: workspace:*
-        version: link:../../packages/auth
       '@hatch-radar/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@hatch-radar/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@hatch-radar/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -221,40 +218,22 @@ importers:
       '@nestjs/serve-static':
         specifier: ^5.0.3
         version: 5.0.5(@nestjs/common@11.1.26(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.26)(express@5.2.1)
-      better-sqlite3:
-        specifier: 'catalog:'
-        version: 12.10.0
       nestjs-pino:
         specifier: ^4.6.1
         version: 4.6.1(@nestjs/common@11.1.26(reflect-metadata@0.2.2)(rxjs@7.8.2))(pino-http@11.0.0)(pino@10.3.1)(rxjs@7.8.2)
-      pg:
-        specifier: 'catalog:'
-        version: 8.21.0
-      pino:
-        specifier: ^10.3.1
-        version: 10.3.1
-      pino-http:
-        specifier: ^11.0.0
-        version: 11.0.0
-      pino-pretty:
-        specifier: ^13.1.3
-        version: 13.1.3
       reflect-metadata:
         specifier: ^0.2.2
         version: 0.2.2
-      rss-parser:
-        specifier: ^3.13.0
-        version: 3.13.0
       rxjs:
         specifier: ^7.8.2
         version: 7.8.2
-      ws:
-        specifier: ^8.21.0
-        version: 8.21.0
       zod:
         specifier: 'catalog:'
         version: 4.4.3
     devDependencies:
+      '@hatch-radar/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
       '@nestjs/testing':
         specifier: ^11.1.26
         version: 11.1.26(@nestjs/common@11.1.26(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.26)(@nestjs/platform-express@11.1.26)
@@ -264,21 +243,12 @@ importers:
       '@swc/core':
         specifier: ^1.15.41
         version: 1.15.41
-      '@types/better-sqlite3':
-        specifier: 'catalog:'
-        version: 7.6.13
       '@types/express':
         specifier: ^5.0.6
         version: 5.0.6
       '@types/node':
         specifier: 'catalog:'
         version: 25.9.2
-      '@types/pg':
-        specifier: 'catalog:'
-        version: 8.20.0
-      '@types/ws':
-        specifier: ^8.18.1
-        version: 8.18.1
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
@@ -484,6 +454,9 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
+      vitest:
+        specifier: ^4.1.8
+        version: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@25.9.2)(vite@8.0.16(@types/node@25.9.2)(esbuild@0.28.0)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
 
   packages/db:
     dependencies:
@@ -9834,9 +9807,7 @@ snapshots:
       metro-runtime: 0.84.4
     transitivePeerDependencies:
       - '@babel/core'
-      - bufferutil
       - supports-color
-      - utf-8-validate
 
   '@react-native/normalize-colors@0.85.3': {}
 

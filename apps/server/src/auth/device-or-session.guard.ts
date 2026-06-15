@@ -8,10 +8,9 @@ import {
 import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
 import { hasPermission, type PermissionKey } from '@hatch-radar/shared';
-import { AccountService } from '@/account/account.service';
+import { AccountService, DeviceAuthService } from '@hatch-radar/core';
 import { CSRF_HEADER, readSessionCookie } from '@/account/cookies';
 import type { AuthedUser } from '@/account/auth-user.decorator';
-import { DeviceAuthService } from './device-auth.service';
 import { DEVICE_PERMISSION } from './device-permission.decorator';
 
 /**

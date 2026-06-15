@@ -3,6 +3,7 @@ import { LoggerModule } from 'nestjs-pino';
 import { AccountModule } from './account/account.module';
 import { AdminModule } from './admin/admin.module';
 import { AppConfigModule } from './config/app-config.module';
+import { CoreModule } from './core/core.module';
 import { DataModule } from './data/data.module';
 import { DatabaseModule } from './database/database.module';
 import { GatewayModule } from './gateway/gateway.module';
@@ -19,19 +20,18 @@ function workerInProcess(): boolean {
 }
 
 /**
- * 主进程根模块：HTTP（导出/同步/设置/分析/健康）+ 定时调度 + （默认）同进程 worker。
+ * 主进程根模块：HTTP（导出/同步/设置/分析/健康）+ 定时调度 + push 网关 + （默认）同进程 worker。
  *
- * 全局模块 AppConfigModule（APP_ENV）/ DatabaseModule（PRISMA）一次导入处处可注入；
- * 各功能模块自行 import 所需 RepositoriesModule / AnalysisModule 等。
- * nestjs-pino 复用既有 pino 实例，框架日志与业务 `logger.*` 同路输出。
+ * 领域逻辑全在 @hatch-radar/core：CoreModule（@Global）用 createCore 一处装配、按类登记,处处可按类型注入；
+ * 各功能模块只留控制器/守卫与生命周期薄封装。SeedModule 须排在 SchedulerModule 之前（先播种再初始轮）。
  */
 @Module({
   imports: [
     LoggerModule.forRoot({ pinoHttp: { logger, autoLogging: false } }),
     AppConfigModule,
     DatabaseModule,
+    CoreModule,
     AccountModule,
-    // 须排在 SchedulerModule 之前：SeedRunner(OnApplicationBootstrap) 要在 scheduler 初始轮取数前播种来源
     SeedModule,
     DataModule,
     AdminModule,

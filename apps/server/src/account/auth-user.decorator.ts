@@ -1,11 +1,9 @@
 import { type ExecutionContext, SetMetadata, createParamDecorator } from '@nestjs/common';
-import type { CurrentUser, PermissionKey } from '@hatch-radar/shared';
+import type { PermissionKey } from '@hatch-radar/shared';
+import type { AuthedUser } from '@hatch-radar/core';
 
-/** 会话解析出的登录用户上下文（CurrentUser + 内部 sessionId，用于「登出其他会话」/ 标记当前会话）。 */
-export interface AuthedUser extends CurrentUser {
-  /** 当前会话 id（SessionAuthGuard 解析得出）。 */
-  sessionId: string;
-}
+/** 登录用户上下文类型（领域类型,定义在 @hatch-radar/core；此处转出供控制器/守卫沿用原导入路径）。 */
+export type { AuthedUser };
 
 /** 路由所需能力 key 的元数据键。 */
 export const REQUIRE_PERMISSION = 'require_permission';

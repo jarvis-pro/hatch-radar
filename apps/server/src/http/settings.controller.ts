@@ -12,24 +12,22 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { z } from 'zod';
-import { AnalysisConfigService } from '@/analysis/analysis-config.service';
 import { RequirePermission } from '@/account/auth-user.decorator';
 import { SessionAuthGuard } from '@/account/session-auth.guard';
+import { ZodValidationPipe } from '@/common/zod-validation.pipe';
 import {
+  AnalysisConfigService,
   RuntimeSettingsService,
   type RuntimeSettingsPatch,
-} from '@/config/runtime-settings.service';
-import { nowSec } from '@/utils/time';
-import { ZodValidationPipe } from '@/common/zod-validation.pipe';
-import { isSecretConfigured } from '@/utils/crypto';
-import {
+  nowSec,
+  isSecretConfigured,
   ProvidersRepository,
   toProviderDTO,
   type KeyInput,
   type KeyUpdate,
   type ProviderInput,
-} from '@/db/providers.repository';
-import { SettingsRepository } from '@/db/settings.repository';
+  SettingsRepository,
+} from '@hatch-radar/core';
 import { logger } from '@/logger';
 
 const providerKind = z.enum(['anthropic', 'openai', 'deepseek']);
