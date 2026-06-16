@@ -10,6 +10,9 @@ apps/api/data/
 .env
 .DS_Store
 
+# claude配置
+.claude/launch.json
+
 # Next.js
 .next/
 next-env.d.ts
