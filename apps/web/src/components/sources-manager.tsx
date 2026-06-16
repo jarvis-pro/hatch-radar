@@ -177,7 +177,11 @@ export function SourcesManager({
   }
 
   const { sources, connectors, redditUsable, secretConfigured } = initial;
-  const platforms: SourcePlatform[] = ['reddit', 'hackernews', 'rss'];
+  // 未创建任何 Reddit 连接器前不展示 Reddit 爬虫计划（HackerNews / RSS 不受影响）；
+  // 连接器一经创建即显示，未测通时其来源开关仍置灰（redditUsable 门禁）。
+  const redditConfigured = connectors.some((c) => c.platform === 'reddit');
+  const allPlatforms: SourcePlatform[] = ['reddit', 'hackernews', 'rss'];
+  const platforms = allPlatforms.filter((p) => p !== 'reddit' || redditConfigured);
 
   // ── 来源操作 ────────────────────────────────────────────────────────
 
@@ -333,7 +337,7 @@ export function SourcesManager({
   }
 
   return (
-    <section className="mt-10">
+    <section>
       <div className="mb-4">
         <h2 className="text-lg font-semibold tracking-tight">数据来源</h2>
         <p className="text-sm text-muted-foreground">
