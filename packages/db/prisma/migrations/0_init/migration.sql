@@ -1,5 +1,24 @@
+-- ─────────────────────────────────────────────────────────────────────────
+-- 整合基线迁移（squash）：将历史 8 个增量迁移合并为单一初始迁移。
+-- 由 `prisma migrate diff --from-empty --to-schema schema.prisma` 从 schema 终态
+-- 重新生成；末尾手工补回 Prisma schema 无法表达的部分唯一索引与 CHECK 约束。
+-- 整合前的迁移历史见 git。
+-- ─────────────────────────────────────────────────────────────────────────
+
 -- CreateSchema
 CREATE SCHEMA IF NOT EXISTS "public";
+
+-- CreateEnum
+CREATE TYPE "user_role" AS ENUM ('super_admin', 'admin');
+
+-- CreateEnum
+CREATE TYPE "user_status" AS ENUM ('active', 'disabled');
+
+-- CreateEnum
+CREATE TYPE "device_status" AS ENUM ('active', 'revoked');
+
+-- CreateEnum
+CREATE TYPE "enrollment_status" AS ENUM ('pending', 'consumed', 'revoked');
 
 -- CreateEnum
 CREATE TYPE "intensity" AS ENUM ('HIGH', 'MEDIUM', 'LOW');
@@ -11,7 +30,16 @@ CREATE TYPE "job_status" AS ENUM ('queued', 'running', 'succeeded', 'failed', 'c
 CREATE TYPE "job_trigger" AS ENUM ('auto', 'manual');
 
 -- CreateEnum
-CREATE TYPE "provider_kind" AS ENUM ('anthropic', 'openai', 'deepseek');
+CREATE TYPE "provider_kind" AS ENUM ('anthropic', 'openai', 'deepseek', 'claude_cli');
+
+-- CreateEnum
+CREATE TYPE "api_key_status" AS ENUM ('active', 'cooling', 'invalid');
+
+-- CreateEnum
+CREATE TYPE "source_platform" AS ENUM ('reddit', 'hackernews', 'rss');
+
+-- CreateEnum
+CREATE TYPE "connector_auth" AS ENUM ('oauth', 'scrape');
 
 -- CreateEnum
 CREATE TYPE "triage_status" AS ENUM ('pending', 'shortlisted', 'archived');
@@ -81,7 +109,6 @@ CREATE TABLE "model_providers" (
     "id" SERIAL NOT NULL,
     "provider" "provider_kind" NOT NULL,
     "label" TEXT NOT NULL,
-    "api_key" TEXT NOT NULL,
     "base_url" TEXT,
     "model" TEXT NOT NULL,
     "enabled" BOOLEAN NOT NULL DEFAULT true,
@@ -89,6 +116,55 @@ CREATE TABLE "model_providers" (
     "updated_at" BIGINT NOT NULL,
 
     CONSTRAINT "model_providers_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "provider_api_keys" (
+    "id" SERIAL NOT NULL,
+    "provider_id" INTEGER NOT NULL,
+    "label" TEXT NOT NULL DEFAULT '',
+    "api_key" TEXT NOT NULL,
+    "priority" INTEGER NOT NULL DEFAULT 0,
+    "enabled" BOOLEAN NOT NULL DEFAULT true,
+    "status" "api_key_status" NOT NULL DEFAULT 'active',
+    "cooldown_until" BIGINT,
+    "last_error" TEXT,
+    "created_at" BIGINT NOT NULL,
+    "updated_at" BIGINT NOT NULL,
+
+    CONSTRAINT "provider_api_keys_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "sources" (
+    "id" SERIAL NOT NULL,
+    "platform" "source_platform" NOT NULL,
+    "identifier" TEXT NOT NULL,
+    "label" TEXT NOT NULL DEFAULT '',
+    "config" JSONB,
+    "enabled" BOOLEAN NOT NULL DEFAULT true,
+    "created_at" BIGINT NOT NULL,
+    "updated_at" BIGINT NOT NULL,
+
+    CONSTRAINT "sources_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "source_connectors" (
+    "id" SERIAL NOT NULL,
+    "platform" "source_platform" NOT NULL,
+    "label" TEXT NOT NULL DEFAULT '',
+    "auth_kind" "connector_auth" NOT NULL,
+    "secret" TEXT NOT NULL,
+    "enabled" BOOLEAN NOT NULL DEFAULT true,
+    "priority" INTEGER NOT NULL DEFAULT 0,
+    "last_check_ok" BOOLEAN,
+    "last_check_at" BIGINT,
+    "last_check_error" TEXT,
+    "created_at" BIGINT NOT NULL,
+    "updated_at" BIGINT NOT NULL,
+
+    CONSTRAINT "source_connectors_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -140,6 +216,104 @@ CREATE TABLE "triage" (
     CONSTRAINT "triage_pkey" PRIMARY KEY ("insight_id")
 );
 
+-- CreateTable
+CREATE TABLE "users" (
+    "id" TEXT NOT NULL,
+    "email" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "password_hash" TEXT NOT NULL,
+    "role" "user_role" NOT NULL DEFAULT 'admin',
+    "status" "user_status" NOT NULL DEFAULT 'active',
+    "must_change_password" BOOLEAN NOT NULL DEFAULT false,
+    "last_login_at" BIGINT,
+    "created_by" TEXT,
+    "created_at" BIGINT NOT NULL,
+    "updated_at" BIGINT NOT NULL,
+
+    CONSTRAINT "users_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "user_permissions" (
+    "user_id" TEXT NOT NULL,
+    "permission" TEXT NOT NULL,
+    "granted_by" TEXT,
+    "granted_at" BIGINT NOT NULL,
+
+    CONSTRAINT "user_permissions_pkey" PRIMARY KEY ("user_id","permission")
+);
+
+-- CreateTable
+CREATE TABLE "sessions" (
+    "id" TEXT NOT NULL,
+    "user_id" TEXT NOT NULL,
+    "token_hash" TEXT NOT NULL,
+    "expires_at" BIGINT NOT NULL,
+    "last_seen_at" BIGINT NOT NULL,
+    "user_agent" TEXT,
+    "ip" TEXT,
+    "created_at" BIGINT NOT NULL,
+
+    CONSTRAINT "sessions_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "device_credentials" (
+    "id" TEXT NOT NULL,
+    "user_id" TEXT NOT NULL,
+    "device_name" TEXT NOT NULL,
+    "public_key" TEXT NOT NULL,
+    "status" "device_status" NOT NULL DEFAULT 'active',
+    "ttl_days" INTEGER NOT NULL DEFAULT 30,
+    "expires_at" BIGINT NOT NULL,
+    "last_seen_at" BIGINT,
+    "issued_by" TEXT,
+    "created_at" BIGINT NOT NULL,
+
+    CONSTRAINT "device_credentials_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "audit_logs" (
+    "id" SERIAL NOT NULL,
+    "actor_id" TEXT,
+    "action" TEXT NOT NULL,
+    "target_type" TEXT,
+    "target_id" TEXT,
+    "metadata" JSONB,
+    "ip" TEXT,
+    "created_at" BIGINT NOT NULL,
+
+    CONSTRAINT "audit_logs_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "device_enrollments" (
+    "id" TEXT NOT NULL,
+    "user_id" TEXT NOT NULL,
+    "device_name" TEXT NOT NULL,
+    "code_hash" TEXT NOT NULL,
+    "ttl_days" INTEGER NOT NULL DEFAULT 30,
+    "status" "enrollment_status" NOT NULL DEFAULT 'pending',
+    "expires_at" BIGINT NOT NULL,
+    "issued_by" TEXT,
+    "created_at" BIGINT NOT NULL,
+    "consumed_at" BIGINT,
+
+    CONSTRAINT "device_enrollments_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "login_attempts" (
+    "email" TEXT NOT NULL,
+    "failed_count" INTEGER NOT NULL DEFAULT 0,
+    "locked_until" BIGINT,
+    "last_attempt_at" BIGINT NOT NULL,
+    "updated_at" BIGINT NOT NULL,
+
+    CONSTRAINT "login_attempts_pkey" PRIMARY KEY ("email")
+);
+
 -- CreateIndex
 CREATE INDEX "idx_jobs_post" ON "analysis_jobs"("post_id");
 
@@ -159,6 +333,18 @@ CREATE INDEX "idx_insights_intensity" ON "insights"("intensity");
 CREATE INDEX "idx_insights_subreddit" ON "insights"("subreddit");
 
 -- CreateIndex
+CREATE INDEX "idx_provider_keys_provider" ON "provider_api_keys"("provider_id");
+
+-- CreateIndex
+CREATE INDEX "idx_sources_enabled" ON "sources"("platform", "enabled");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "uniq_sources_platform_ident" ON "sources"("platform", "identifier");
+
+-- CreateIndex
+CREATE INDEX "idx_connectors_platform" ON "source_connectors"("platform");
+
+-- CreateIndex
 CREATE INDEX "idx_posts_created" ON "posts"("created_utc");
 
 -- CreateIndex
@@ -167,6 +353,66 @@ CREATE INDEX "idx_posts_pending" ON "posts"("analyzed_at", "comment_pass");
 -- CreateIndex
 CREATE INDEX "idx_posts_subreddit" ON "posts"("subreddit");
 
+-- CreateIndex
+CREATE UNIQUE INDEX "idx_users_email" ON "users"("email");
+
+-- CreateIndex
+CREATE INDEX "idx_perm_user" ON "user_permissions"("user_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "idx_sessions_token" ON "sessions"("token_hash");
+
+-- CreateIndex
+CREATE INDEX "idx_sessions_user" ON "sessions"("user_id");
+
+-- CreateIndex
+CREATE INDEX "idx_sessions_expires" ON "sessions"("expires_at");
+
+-- CreateIndex
+CREATE INDEX "idx_devcred_user" ON "device_credentials"("user_id");
+
+-- CreateIndex
+CREATE INDEX "idx_audit_actor" ON "audit_logs"("actor_id");
+
+-- CreateIndex
+CREATE INDEX "idx_audit_created" ON "audit_logs"("created_at");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "idx_enroll_code" ON "device_enrollments"("code_hash");
+
+-- CreateIndex
+CREATE INDEX "idx_enroll_user" ON "device_enrollments"("user_id");
+
 -- AddForeignKey
 ALTER TABLE "comments" ADD CONSTRAINT "comments_post_id_posts_id_fk" FOREIGN KEY ("post_id") REFERENCES "posts"("id") ON DELETE CASCADE ON UPDATE NO ACTION;
 
+-- AddForeignKey
+ALTER TABLE "provider_api_keys" ADD CONSTRAINT "provider_api_keys_provider_id_fkey" FOREIGN KEY ("provider_id") REFERENCES "model_providers"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "user_permissions" ADD CONSTRAINT "user_permissions_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "sessions" ADD CONSTRAINT "sessions_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "device_credentials" ADD CONSTRAINT "device_credentials_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "device_enrollments" ADD CONSTRAINT "device_enrollments_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- 以下两处对象 Prisma schema 无法表达，由本基线迁移手工维护；prisma migrate diff
+-- 看不见它们，故 migrate dev 不会将其判为 drift 删除。整合自原迁移
+-- 20260614120000_jobs_active_partial_unique 与历史 triage 建表 CHECK 约束。
+-- ─────────────────────────────────────────────────────────────────────────
+
+-- 入队幂等的并发兜底：同一帖子在 queued/running 期间至多一条活跃任务。
+-- 失败/成功/取消的历史任务可同帖多条（重试跨轮留多条 failed），故用带 WHERE 谓词的
+-- 部分唯一索引而非整列唯一。（原迁移含历史重复活跃任务的回填清理，全新库无数据故省略。）
+CREATE UNIQUE INDEX "uniq_jobs_active_post"
+  ON "analysis_jobs" ("post_id")
+  WHERE "status" IN ('queued', 'running');
+
+-- 人工评分范围约束（与 @hatch-radar/shared TRIAGE_DDL、sync 的 zod min(1).max(5) 一致）。
+ALTER TABLE "triage" ADD CONSTRAINT "triage_rating_range" CHECK ("rating" >= 1 AND "rating" <= 5);

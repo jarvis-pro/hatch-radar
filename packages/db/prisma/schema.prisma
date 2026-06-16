@@ -47,7 +47,7 @@ model analysis_jobs {
   @@index([status, enqueued_at], map: "idx_jobs_status")
   // 另有部分唯一索引 uniq_jobs_active_post：UNIQUE(post_id) WHERE status IN (queued,running)，
   // 保证同帖同时至多一条活跃任务（入队幂等的并发兜底）。Prisma schema 无法表达部分索引，
-  // 故由迁移 20260614120000_jobs_active_partial_unique 单独管理，勿删。
+  // 故由迁移 0_init（整合基线）末尾手工维护，勿删。
 }
 
 /// 应用配置键值表：存放运行期可调设置（如默认模型、抓取参数）。
@@ -265,7 +265,7 @@ model sync_ops {
 }
 
 /// 人工筛选：「闭环工作台」对洞察的人工评审结果，与 insights 一对一。
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// rating 受 CHECK 约束 triage_rating_range（1–5）限定；Prisma 无法表达 CHECK，由迁移 0_init（整合基线）末尾手工维护，勿删。
 model triage {
   /// 对应洞察 id（insights.id），同时作主键。
   insight_id Int           @id
