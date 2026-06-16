@@ -4,6 +4,11 @@
 **/.next
 **/.expo
 
+# mobile 是 RN 端，后端镜像用不到其源码 / 原生工程；
+# 仅保留 package.json 供 pnpm workspace 校验 lockfile（--frozen-lockfile）
+apps/mobile/*
+!apps/mobile/package.json
+
 # 数据与密钥绝不进镜像
 **/data
 **/logs

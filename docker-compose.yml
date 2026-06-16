@@ -1,23 +1,32 @@
-# 本地开发基础设施编排（仅数据库 + 可选 DB UI；后端两进程跑在宿主机，不进容器）。
+# 本地开发 / 部署编排。两种用法，由 compose profile 切换：
 #
-# - db：PostgreSQL，api / worker 的唯一主存储。单机/局域网工具，数据卷用本地命名卷即可；
-#   生产换托管 PG 只需改 DATABASE_URL。首次初始化（空卷）时经 docker/initdb/ 顺带建出
-#   集成测试库 hatch_radar_test（vitest 直连，见 apps/api/vitest.config.ts）。
-# - adminer（可选）：轻量 Web 版 DB 管理 UI，仅 `--profile tools` 启动，开发期查数据 / 跑 SQL 用
-#   （Prisma 视角的浏览另有 `pnpm db:studio`，跑在宿主机）。
+#   ① 轻量开发（默认）：只起基础设施，后端两进程跑在宿主机享原生热重载与本机 claude 登录态。
+#        docker compose up -d db                  # 仅 PostgreSQL（最常用）
+#        docker compose --profile tools up -d     # 库 + adminer（DB UI）
+#        # 然后宿主机：pnpm start / pnpm worker / pnpm dev:web
 #
-# 后端拆为两个进程，均跑在工作台宿主机上（直连本机 47432）、不进容器：
-#   - api（控制面，单实例）：发 /api + 鉴权 + 调度 + push 网关，并同源托管 web 控制台 SPA
-#     （vite build 产物，见 apps/web/dist）。爬取 + AI 密钥 + 鉴权权威都在此。
-#   - worker（数据面，可横扩）：经 PG 队列认领 + WS 连 api 网关跑 AI 分析写回。
+#   ② 全栈容器化（profile full）：db + api + worker×2 + web 全进容器，一键起全套。
+#        docker compose --profile full up -d --build   # web 由 api 同源托管，访问 http://localhost:47878
 #
-# 端口映射用 47xxx 段避免与同机其它项目冲突：47432（PG）、47900（adminer）。
+# ── 服务 ────────────────────────────────────────────────────────────────────
+# - db：PostgreSQL，api / worker 的唯一主存储。数据卷用本地命名卷；生产换托管 PG 只改 DATABASE_URL。
+#   首次初始化（空卷）经 docker/initdb/ 顺带建出集成测试库 hatch_radar_test（vitest 直连）。
+#   无 profile → 任何用法下都会起（全栈也复用它）。
+# - adminer（profile tools）：轻量 Web 版 DB 管理 UI（Prisma 视角浏览另有宿主机 `pnpm db:studio`）。
+# - api（profile full，单实例）：HTTP /api + 鉴权 + 调度 + push 网关 + 同源托管 web SPA；
+#   启动前自动 prisma migrate deploy（故由它建表、worker 等它就绪）。爬取 + AI 密钥 + 鉴权权威都在此。
+# - worker（profile full，横扩 2 份）：经 PG 队列认领 + WS 连 api 网关跑 AI 分析写回。
 #
-# 常用命令：
-#   docker compose up -d db                  # 仅起库（最常用）
-#   docker compose --profile tools up -d     # 库 + adminer（http://localhost:47900，Server 填 db）
-#   docker compose down                      # 停容器，保留数据卷
-#   docker compose down -v                   # 停并删数据卷（连 hatch_radar_test 一起，下次起重新初始化）
+# 注：容器化 worker 跑 AI 须用「API Key 模式」provider（Web 设置页配 + 根 .env 填 SETTINGS_SECRET）；
+#     claude_cli 订阅模式依赖宿主机已登录的 claude，仅适合宿主机单 worker，容器内不可用。
+#
+# 端口（47xxx 段避冲突）：47878（api/web）、47432（PG）、47900（adminer）。
+#
+# 常用运维：
+#   docker compose --profile full up -d --build   # 起 / 重建全栈（改代码后加 --build）
+#   docker compose --profile full logs -f api     # 跟随 api 日志
+#   docker compose down                           # 停容器，保留数据卷
+#   docker compose down -v                        # 停并删数据卷（连 hatch_radar_test，下次起重新初始化）
 #   docker compose exec db createdb -U radar hatch_radar_test   # 老卷补建测试库（仅当库不存在时）
 #
 # 日志：进程把（结构化 JSON）日志打到 stdout，由 Docker 的 json-file driver
@@ -31,6 +40,26 @@ x-logging: &default-logging
   options:
     max-size: '20m' # 单文件上限，超过即切
     max-file: '14' # 最多保留 14 个，循环覆盖
+
+# api 与 worker 共用同一镜像（见根 Dockerfile，跑 TS 源），仅启动命令 / 端口不同。
+# 仅 profile full 启用；不写 profile 的 db 在任何用法下都会起。
+x-backend: &backend
+  build:
+    context: .
+    dockerfile: Dockerfile
+  image: hatch-radar-backend:local
+  profiles: ['full']
+  restart: unless-stopped
+  logging: *default-logging
+
+# api / worker 共享的运行期环境变量。
+x-backend-env: &backend-env
+  # 容器内连 db 服务（compose 网络内 db:5432）；覆盖宿主机 .env 里的 localhost:47432
+  DATABASE_URL: postgres://radar:radar@db:5432/hatch_radar
+  # 共享项从宿主机 .env 透传（compose 自动读根 .env 插值）；未设用默认。
+  # SETTINGS_SECRET 留空则禁用 AI 分析（仅爬取），worker 跑 AI 须在根 .env 填它。
+  SETTINGS_SECRET: ${SETTINGS_SECRET:-}
+  LOG_LEVEL: ${LOG_LEVEL:-info}
 
 services:
   db:
@@ -67,6 +96,54 @@ services:
         condition: service_healthy
     restart: unless-stopped
     logging: *default-logging
+
+  # 控制面 api（单实例）：HTTP /api + 同源托管 web SPA。启动前自动 migrate deploy → 建表。
+  api:
+    <<: *backend
+    command: ['pnpm', 'start']
+    ports:
+      - '47878:47878'
+    environment:
+      <<: *backend-env
+      # web build 产物在镜像内此路径，由 serve-static 同源托管
+      WEB_DIST_DIR: /app/apps/web/dist
+      # 首个超管种子（仅空库首启创建）；不填则无账户可登录，按需在根 .env 设
+      SUPER_ADMIN_EMAIL: ${SUPER_ADMIN_EMAIL:-}
+      SUPER_ADMIN_PASSWORD: ${SUPER_ADMIN_PASSWORD:-}
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      # /api/health 不鉴权；通了即已 listen（migrate 已完成）。用 node 自带 fetch，免装 curl。
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://localhost:47878/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+
+  # 数据面 worker（横扩 2 份）：PG 队列认领 + WS 连 api 网关跑 AI 分析写回。
+  # 等 api 健康（migrate 完成、表就绪）再起，避免空库认领报错。
+  worker:
+    <<: *backend
+    command: ['pnpm', 'worker']
+    environment:
+      <<: *backend-env
+      # 容器内连 api 网关（服务名 api）；不设会按 localhost 推导而连不到
+      GATEWAY_URL: ws://api:47878/ws/worker
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-2}
+    depends_on:
+      db:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    deploy:
+      replicas: 2
 
 volumes:
   radar-pg:

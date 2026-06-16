@@ -98,13 +98,23 @@ pnpm dev:web            # http://localhost:47080
 - UI 组件来自 `@hatch-radar/ui`（shadcn/ui）。新增组件在 `apps/web` 下执行
   `pnpm dlx shadcn@latest add <component>`，CLI 会自动把组件写入 `packages/ui`，所有 PC 子项目共用
 
-Docker 部署：`docker compose up -d` 仅起 `db`（PostgreSQL）；api 与 worker 两进程跑在宿主机直连本机 47432。
+Docker 部署有两种用法，由 compose profile 切换：
+
+**① 轻量开发（默认）**：仅起 `db`，api / worker 跑在宿主机享原生热重载与本机 claude 登录态。
 
 ```bash
-docker compose up -d db         # 仅起库
+docker compose up -d db         # 仅起库（PostgreSQL）
 pnpm start                      # 控制面 api（同源托管 web SPA 的 build 产物）
 pnpm worker                     # 数据面 worker（可多开横向扩）
 ```
+
+**② 全栈容器化（`--profile full`）**：db + api + worker×2 + web 全进容器，一键起全套；web 由 api 同源托管，访问 `http://localhost:47878`。
+
+```bash
+docker compose --profile full up -d --build   # 起 / 重建全栈（首次或改代码后加 --build）
+```
+
+> 全栈下 worker 跑 AI 须用 API Key 模式 provider（设置页配 + 根 `.env` 填 `SETTINGS_SECRET`）；claude_cli 订阅模式依赖宿主机登录态、仅适合轻量开发。api / worker 共用一个镜像（根 `Dockerfile`，跑 TS 源），仅启动命令不同。
 
 > api（爬取 + AI + 密钥 + 鉴权权威）按规格跑在工作台宿主机上。并发瓶颈已交给 PG 异步驱动 + 连接池：
 > 定时器写库与局域网多人操作真正并行，不再串行在单条事件循环上；分析执行的水平扩在 worker 这层。
@@ -220,7 +230,8 @@ hatch-radar/
 │   └── ui/                     # PC 端共享 UI 库：shadcn/ui + Tailwind v4（组件经 CLI 落入此包，RN 勿引）
 ├── docs/                       # 设计与计划文档
 ├── .env.example                # 根级共享配置（DATABASE_URL/SETTINGS_SECRET + LOG_LEVEL/HTTP_PORT/POOL）：api/worker/迁移共用
-├── docker-compose.yml          # db（PostgreSQL）；api + worker 两进程跑在宿主机
+├── docker-compose.yml          # 默认仅 db；profile full 起全栈（api+worker×2+web），profile tools 加 adminer
+├── Dockerfile                  # api / worker 共用后端镜像（跑 TS 源 + 构建 web SPA）
 ├── pnpm-workspace.yaml
 └── package.json                # 根脚本统一代理到子包
 ```
