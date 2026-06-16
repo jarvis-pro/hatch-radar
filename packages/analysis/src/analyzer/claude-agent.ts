@@ -1,5 +1,6 @@
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import type { CommentRow, InsightResult, PostRow } from '@hatch-radar/shared';
+import type { AnalysisOutcome } from './analyze';
 import { buildContext } from './context';
 import { INSIGHT_JSON_SCHEMA } from './insight-schema';
 import { SYSTEM_PROMPT, buildUserPrompt, normalizeInsight } from './prompt';
@@ -79,7 +80,7 @@ export async function analyzeWithClaudeAgent(
   post: PostRow,
   comments: CommentRow[],
   signal?: AbortSignal,
-): Promise<InsightResult> {
+): Promise<AnalysisOutcome> {
   signal?.throwIfAborted();
   const { controller, dispose } = linkAbort(signal);
   try {
@@ -96,7 +97,29 @@ export async function analyzeWithClaudeAgent(
       },
     })) {
       const insight = insightFromMessage(message);
-      if (insight) return insight;
+      if (insight) {
+        const u = (
+          message as {
+            usage?: {
+              input_tokens?: number;
+              output_tokens?: number;
+              cache_creation_input_tokens?: number;
+              cache_read_input_tokens?: number;
+            };
+          }
+        ).usage;
+        return {
+          insight,
+          usage: u
+            ? {
+                inputTokens: u.input_tokens ?? 0,
+                outputTokens: u.output_tokens ?? 0,
+                cacheWriteTokens: u.cache_creation_input_tokens ?? 0,
+                cacheReadTokens: u.cache_read_input_tokens ?? 0,
+              }
+            : null,
+        };
+      }
     }
     throw new Error('Claude 订阅模式 query 结束但未收到 result 消息');
   } finally {

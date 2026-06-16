@@ -125,13 +125,13 @@ export class WorkerService {
     const ac = new AbortController();
     const { jobTimeoutMs } = await this.runtimeSettings.getWorkerTuning();
     try {
-      const { saved } = await withTimeout(
+      const { saved, usage } = await withTimeout(
         this.analysis.analyzeAndPersist(processor, post, commentsData, ac.signal),
         jobTimeoutMs,
         () => ac.abort(new Error('job 超时，中止底层调用')),
       );
       await this.posts.markAnalyzed(post.id, nowSec());
-      await this.jobs.succeedJob(job.id, nowSec());
+      await this.jobs.succeedJob(job.id, nowSec(), usage);
       if (saved) {
         logger.info(`  ✓ [job#${job.id}] r/${post.subreddit}「${post.title.slice(0, 40)}」已落库`);
       }

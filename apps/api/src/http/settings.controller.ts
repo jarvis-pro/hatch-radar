@@ -40,6 +40,9 @@ const createSchema = z.object({
   baseUrl: z.string().trim().optional(),
   model: z.string().trim().min(1),
   enabled: z.boolean().optional(),
+  /** token 单价（美元 / 1M tokens）；省略=不设，用于成本核算 */
+  inputPrice: z.number().nonnegative().nullable().optional(),
+  outputPrice: z.number().nonnegative().nullable().optional(),
 });
 
 const updateSchema = z.object({
@@ -49,6 +52,9 @@ const updateSchema = z.object({
   baseUrl: z.string().trim().optional(),
   model: z.string().trim().min(1).optional(),
   enabled: z.boolean().optional(),
+  /** token 单价（美元 / 1M tokens）；null=清除、省略=不改 */
+  inputPrice: z.number().nonnegative().nullable().optional(),
+  outputPrice: z.number().nonnegative().nullable().optional(),
 });
 
 const createKeySchema = z.object({
@@ -185,6 +191,8 @@ export class SettingsController {
       if (dto.label !== undefined) fields.label = dto.label;
       if (dto.model !== undefined) fields.model = dto.model;
       if (dto.enabled !== undefined) fields.enabled = dto.enabled;
+      if (dto.inputPrice !== undefined) fields.inputPrice = dto.inputPrice;
+      if (dto.outputPrice !== undefined) fields.outputPrice = dto.outputPrice;
       await this.providers.updateProvider(id, fields, nowSec());
       await this.analysisConfig.reloadAnalysisConfig();
       logger.info(`[设置] 更新模型 #${id}（订阅模式）`);

@@ -4,6 +4,7 @@ import { AccountPage } from '@/pages/account';
 import { AccountsPage } from '@/pages/admin-accounts';
 import { AuditPage } from '@/pages/admin-audit';
 import { AnalyzePage } from '@/pages/analyze';
+import { DashboardPage } from '@/pages/dashboard';
 import { InsightDetailPage } from '@/pages/insight-detail';
 import { InsightsPage } from '@/pages/insights';
 import { LoginPage } from '@/pages/login';
@@ -11,6 +12,7 @@ import { NotFoundPage } from '@/pages/not-found';
 import { PasswordPage } from '@/pages/password';
 import { PostDetailPage } from '@/pages/post-detail';
 import { PostsPage } from '@/pages/posts';
+import { QueuePage } from '@/pages/queue';
 import { SettingsPage } from '@/pages/settings';
 
 /**
@@ -23,10 +25,12 @@ export const router = createBrowserRouter([
     element: <ProtectedLayout />,
     children: [
       { index: true, element: <InsightsPage /> },
+      { path: 'dashboard', element: <DashboardPage /> },
       { path: 'posts', element: <PostsPage /> },
       { path: 'posts/:id', element: <PostDetailPage /> },
       { path: 'insights/:id', element: <InsightDetailPage /> },
       { path: 'analyze', element: <AnalyzePage /> },
+      { path: 'queue', element: <QueuePage /> },
       { path: 'settings', element: <SettingsPage /> },
       { path: 'account', element: <AccountPage /> },
       { path: 'account/password', element: <PasswordPage /> },

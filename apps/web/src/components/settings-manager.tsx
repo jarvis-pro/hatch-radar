@@ -57,6 +57,10 @@ export interface ProviderDTO {
   model: string;
   baseUrl: string | null;
   enabled: boolean;
+  /** 输入 token 单价（$ /1M），未配置为 null */
+  inputPrice: number | null;
+  /** 输出 token 单价（$ /1M），未配置为 null */
+  outputPrice: number | null;
   keys: ProviderKeyDTO[];
   createdAt: number;
   updatedAt: number;
@@ -100,6 +104,9 @@ interface FormState {
   model: string;
   baseUrl: string;
   enabled: boolean;
+  /** token 单价（$ /1M），字符串便于输入；空串=不设 */
+  inputPrice: string;
+  outputPrice: string;
 }
 
 const EMPTY_FORM: FormState = {
@@ -109,6 +116,8 @@ const EMPTY_FORM: FormState = {
   model: PROVIDER_DEFAULTS.anthropic.model,
   baseUrl: PROVIDER_DEFAULTS.anthropic.baseUrl,
   enabled: true,
+  inputPrice: '',
+  outputPrice: '',
 };
 
 interface KeyFormState {
@@ -227,6 +236,8 @@ export function SettingsManager({
       model: p.model,
       baseUrl: p.baseUrl ?? '',
       enabled: p.enabled,
+      inputPrice: p.inputPrice != null ? String(p.inputPrice) : '',
+      outputPrice: p.outputPrice != null ? String(p.outputPrice) : '',
     });
     setOpen(true);
   }
@@ -262,6 +273,12 @@ export function SettingsManager({
       });
       return;
     }
+    const ip = form.inputPrice.trim();
+    const op = form.outputPrice.trim();
+    if ((ip !== '' && !(Number(ip) >= 0)) || (op !== '' && !(Number(op) >= 0))) {
+      setFlash({ kind: 'err', text: 'token 单价需为非负数' });
+      return;
+    }
     setBusy(true);
     const body: Record<string, unknown> = {
       provider: form.provider,
@@ -269,6 +286,8 @@ export function SettingsManager({
       model: form.model.trim(),
       baseUrl: form.baseUrl.trim() || undefined,
       enabled: form.enabled,
+      inputPrice: ip === '' ? null : Number(ip),
+      outputPrice: op === '' ? null : Number(op),
     };
     if (form.apiKey.trim()) body.apiKey = form.apiKey.trim();
     const res =
@@ -419,7 +438,7 @@ export function SettingsManager({
     <>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h1 className="text-lg font-semibold tracking-tight">模型设置</h1>
+          <h2 className="text-lg font-semibold tracking-tight">模型设置</h2>
           <p className="text-sm text-muted-foreground">
             配置 Anthropic / OpenAI / DeepSeek（API Key），或 Claude 订阅模式（复用本机已登录的
             Claude Code，无需 Key）；API Key
@@ -482,6 +501,11 @@ export function SettingsManager({
                   <span className="font-mono text-xs text-muted-foreground">{p.model}</span>
                   {p.baseUrl ? (
                     <span className="font-mono text-xs text-muted-foreground">{p.baseUrl}</span>
+                  ) : null}
+                  {p.inputPrice != null || p.outputPrice != null ? (
+                    <span className="text-xs text-muted-foreground">
+                      单价 ${p.inputPrice ?? '?'} / ${p.outputPrice ?? '?'} /1M
+                    </span>
                   ) : null}
                   {activeProviderId === p.id ? <Badge>当前</Badge> : null}
                 </div>
@@ -670,6 +694,35 @@ export function SettingsManager({
                 />
               </div>
             ) : null}
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="sm-inprice">输入单价（$ /1M tokens，可选）</Label>
+                <Input
+                  id="sm-inprice"
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={form.inputPrice}
+                  onChange={(e) => setForm((f) => ({ ...f, inputPrice: e.target.value }))}
+                  placeholder="如 3"
+                  className="font-mono"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="sm-outprice">输出单价（$ /1M tokens，可选）</Label>
+                <Input
+                  id="sm-outprice"
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={form.outputPrice}
+                  onChange={(e) => setForm((f) => ({ ...f, outputPrice: e.target.value }))}
+                  placeholder="如 15"
+                  className="font-mono"
+                />
+              </div>
+            </div>
 
             {needKeyOnSave ? (
               <div className="space-y-1.5">

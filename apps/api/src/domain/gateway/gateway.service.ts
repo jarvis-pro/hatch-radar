@@ -77,6 +77,18 @@ export class GatewayService {
     return this.registry.size;
   }
 
+  /** 在线 worker 运行状态快照（剔除 socket），供看板展示 */
+  getWorkerStatuses(): Array<Omit<WorkerState, 'socket'>> {
+    return [...this.registry.values()].map((s) => ({
+      workerId: s.workerId,
+      concurrency: s.concurrency,
+      activeJobs: s.activeJobs,
+      cpu: s.cpu,
+      memory: s.memory,
+      lastHeartbeat: s.lastHeartbeat,
+    }));
+  }
+
   private onConnect(ws: WebSocket): void {
     ws.on('message', (raw) => {
       let msg: WorkerMessage;

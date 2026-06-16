@@ -1,3 +1,4 @@
+import type { NamedCount } from '@hatch-radar/shared';
 import type { AppDatabase } from '../internal';
 import { PENDING_ANALYSIS_PREDICATE } from './posts.repository';
 
@@ -36,6 +37,23 @@ export class StatsRepository {
       comments: Number(row?.comments ?? 0),
       pendingAnalysis: Number(row?.pending ?? 0),
       insights: Number(row?.insights ?? 0),
+    };
+  }
+
+  /** 洞察分布：按强度计数 + Top 版块（看板用） */
+  async getInsightBreakdown(): Promise<{ byIntensity: NamedCount[]; topSubreddits: NamedCount[] }> {
+    const [intensity, subs] = await Promise.all([
+      this.db.insights.groupBy({ by: ['intensity'], _count: { _all: true } }),
+      this.db.insights.groupBy({
+        by: ['subreddit'],
+        _count: { _all: true },
+        orderBy: { _count: { subreddit: 'desc' } },
+        take: 8,
+      }),
+    ]);
+    return {
+      byIntensity: intensity.map((i) => ({ name: i.intensity, count: i._count._all })),
+      topSubreddits: subs.map((s) => ({ name: s.subreddit, count: s._count._all })),
     };
   }
 }

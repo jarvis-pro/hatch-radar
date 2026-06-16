@@ -1,4 +1,5 @@
-import type { CommentRow, InsightResult, PostRow } from '@hatch-radar/shared';
+import type { CommentRow, PostRow } from '@hatch-radar/shared';
+import type { AnalysisOutcome } from './analyze';
 import { buildContext } from './context';
 import { INSIGHT_JSON_SCHEMA } from './insight-schema';
 import { JSON_OUTPUT_DIRECTIVE, SYSTEM_PROMPT, buildUserPrompt, normalizeInsight } from './prompt';
@@ -22,6 +23,15 @@ export interface OpenAICompatibleConfig {
 /** chat/completions 响应中本项目关心的字段子集 */
 interface ChatCompletion {
   choices?: Array<{ message?: { content?: string } }>;
+  /** token 用量（OpenAI / DeepSeek 均返回），用于成本核算 */
+  usage?: {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+    /** OpenAI：prompt 中命中缓存的 token（prompt_tokens 已含之） */
+    prompt_tokens_details?: { cached_tokens?: number };
+    /** DeepSeek：命中缓存的 prompt token */
+    prompt_cache_hit_tokens?: number;
+  };
 }
 
 const MAX_RETRIES = 3;
@@ -111,7 +121,7 @@ export async function analyzeWithOpenAICompatible(
   post: PostRow,
   comments: CommentRow[],
   signal?: AbortSignal,
-): Promise<InsightResult> {
+): Promise<AnalysisOutcome> {
   const useJsonSchema = cfg.provider === 'openai';
   const body: Record<string, unknown> = {
     model: cfg.model,
@@ -136,7 +146,20 @@ export async function analyzeWithOpenAICompatible(
   if (!content) {
     throw new Error(`${cfg.provider} 未返回内容`);
   }
-  return normalizeInsight(parseLooseJson(content));
+  const u = data.usage;
+  // prompt_tokens 含缓存命中；非缓存输入 = prompt_tokens - 命中。OpenAI 自动缓存无独立写入计费。
+  const cacheRead = u?.prompt_tokens_details?.cached_tokens ?? u?.prompt_cache_hit_tokens ?? 0;
+  return {
+    insight: normalizeInsight(parseLooseJson(content)),
+    usage: u
+      ? {
+          inputTokens: Math.max(0, (u.prompt_tokens ?? 0) - cacheRead),
+          outputTokens: u.completion_tokens ?? 0,
+          cacheWriteTokens: 0,
+          cacheReadTokens: cacheRead,
+        }
+      : null,
+  };
 }
 
 /**

@@ -5,6 +5,7 @@ import {
   Get,
   HttpCode,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { z } from 'zod';
@@ -13,7 +14,10 @@ import { SessionAuthGuard } from '@/account/session-auth.guard';
 import { ZodValidationPipe } from '@/common/zod-validation.pipe';
 import {
   AnalysisConfigService,
+  type JobStatus,
+  type JobTrigger,
   JobsRepository,
+  parsePage,
   ProvidersRepository,
   SettingsRepository,
 } from '@/domain';
@@ -23,6 +27,9 @@ const runSchema = z.object({
   postIds: z.array(z.string().min(1)).min(1).max(500),
   providerId: z.number().int(),
 });
+
+const JOB_STATUSES = ['queued', 'running', 'succeeded', 'failed', 'canceled'] as const;
+const JOB_TRIGGERS = ['auto', 'manual'] as const;
 
 /**
  * /api/analysis/* —— 手动运行入队 + 队列看板（鉴权）。
@@ -55,6 +62,22 @@ export class AnalysisController {
   @Get('jobs')
   async jobsView() {
     return { stats: await this.jobs.getJobStats(), jobs: await this.jobs.listRecentJobs(50) };
+  }
+
+  /** 队列分页 + 分类筛选（status / trigger）；附状态汇总供筛选标签计数。供「队列」页全宽表格。 */
+  @Get('jobs/list')
+  async jobsList(@Query() q: Record<string, string | undefined>) {
+    const status = (JOB_STATUSES as readonly string[]).includes(q.status ?? '')
+      ? (q.status as JobStatus)
+      : undefined;
+    const trigger = (JOB_TRIGGERS as readonly string[]).includes(q.trigger ?? '')
+      ? (q.trigger as JobTrigger)
+      : undefined;
+    const [stats, page] = await Promise.all([
+      this.jobs.getJobStats(),
+      this.jobs.listJobsPaged({ status, trigger }, parsePage(q.page)),
+    ]);
+    return { stats, ...page };
   }
 
   /** 分析页模型下拉：仅启用模型的 { id, label } + 当前 active（不含任何密钥）。 */

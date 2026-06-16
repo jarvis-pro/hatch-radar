@@ -42,6 +42,14 @@ model analysis_jobs {
   finished_at  BigInt?
   /// 心跳时间戳；worker 周期性刷新，用于检测并回收僵死任务。
   heartbeat_at BigInt?
+  /// 非缓存输入 token 数（成功时由 worker 从模型响应 usage 写入；未采集/失败为空）。
+  input_tokens Int?
+  /// 输出 token 数（同上）。
+  output_tokens Int?
+  /// 写入缓存的输入 token 数（Anthropic cache_creation；OpenAI/DeepSeek 无独立写入计费故为 0）。
+  cache_write_tokens Int?
+  /// 命中缓存的输入 token 数（Anthropic cache_read / OpenAI cached / DeepSeek cache_hit）。
+  cache_read_tokens Int?
 
   @@index([post_id], map: "idx_jobs_post")
   @@index([status, enqueued_at], map: "idx_jobs_status")
@@ -126,6 +134,10 @@ model model_providers {
   model      String
   /// 是否启用，停用后不参与调度。
   enabled    Boolean       @default(true)
+  /// 输入 token 单价（美元 / 1M tokens）；为空表示未配置，该模型的任务只显示 token 用量不折算成本。
+  input_price  Float?
+  /// 输出 token 单价（美元 / 1M tokens）；同上。成本 = (in/1e6)*input_price + (out/1e6)*output_price。
+  output_price Float?
   created_at BigInt
   updated_at BigInt
   /// 可用 API Key 池（一对多）：调用时按 priority 选健康的一把，失败即切换。

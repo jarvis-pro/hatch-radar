@@ -17,6 +17,14 @@ export function timeAgo(unixSec: number): string {
   return fmtDate(unixSec);
 }
 
+/** 秒数 → 紧凑时长，如 '45 秒' / '1 分 23 秒' / '2 时 5 分' */
+export function fmtDuration(sec: number): string {
+  const s = Math.max(0, Math.floor(sec));
+  if (s < 60) return `${s} 秒`;
+  if (s < 3600) return `${Math.floor(s / 60)} 分 ${s % 60} 秒`;
+  return `${Math.floor(s / 3600)} 时 ${Math.floor((s % 3600) / 60)} 分`;
+}
+
 /** 版块展示名：Reddit 加 r/ 前缀，其他来源直接用频道名 */
 export function channelLabel(source: string, subreddit: string): string {
   return source === 'reddit' ? `r/${subreddit}` : subreddit;

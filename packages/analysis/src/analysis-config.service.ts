@@ -1,5 +1,10 @@
-import type { CommentRow, InsightResult, PostRow } from '@hatch-radar/shared';
-import { createProcessor, type AnalysisConfig, type PostProcessor } from './analyzer/analyze';
+import type { CommentRow, PostRow } from '@hatch-radar/shared';
+import {
+  createProcessor,
+  type AnalysisConfig,
+  type AnalysisOutcome,
+  type PostProcessor,
+} from './analyzer/analyze';
 import { testAnthropic } from './analyzer/anthropic';
 import { testClaudeAgent } from './analyzer/claude-agent';
 import { testOpenAICompatible } from './analyzer/openai-compatible';
@@ -154,7 +159,7 @@ export class AnalysisConfigService {
     post: PostRow,
     comments: CommentRow[],
     signal?: AbortSignal,
-  ): Promise<InsightResult> {
+  ): Promise<AnalysisOutcome> {
     const keys = await this.providers.listUsableKeys(provider.id, nowSec());
     if (keys.length === 0) {
       throw new Error(

@@ -2,7 +2,7 @@ import type { CommentRow, PostRow } from '@hatch-radar/shared';
 import { InsightsRepository } from '@hatch-radar/db';
 import { nowSec } from '@hatch-radar/kernel';
 import { logger } from '@hatch-radar/kernel';
-import type { PostProcessor } from './analyzer/analyze';
+import type { PostProcessor, TokenUsage } from './analyzer/analyze';
 
 /**
  * 「分析并落库」的编排服务：由 worker 处理单条 analysis job 时调用。
@@ -24,15 +24,15 @@ export class AnalysisService {
     post: PostRow,
     comments: CommentRow[],
     signal?: AbortSignal,
-  ): Promise<{ saved: boolean }> {
-    const insight = await processor.analyze(post, comments, signal);
+  ): Promise<{ saved: boolean; usage: TokenUsage | null }> {
+    const { insight, usage } = await processor.analyze(post, comments, signal);
     if (insight.pain_points.length === 0 && insight.opportunities.length === 0) {
-      return { saved: false };
+      return { saved: false, usage };
     }
     await this.insights.saveInsight(post, processor.model, insight, nowSec());
     logger.info(
       `  ✓ r/${post.subreddit}「${post.title.slice(0, 48)}」→ 痛点 ${insight.pain_points.length} / 机会 ${insight.opportunities.length}`,
     );
-    return { saved: true };
+    return { saved: true, usage };
   }
 }

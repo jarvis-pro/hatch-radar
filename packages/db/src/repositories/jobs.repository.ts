@@ -1,3 +1,4 @@
+import { PAGE_SIZE, type CostByModel, type Paged, type ThroughputPoint } from '@hatch-radar/shared';
 import { toJobRow, type AppDatabase, type JobPg, type JobRow, type Prisma } from '../internal';
 
 /** 任务触发来源：auto=定时调度入队，manual=管理员在工作台手动入队 */
@@ -10,6 +11,20 @@ export type { JobRow };
 const DEFAULT_MAX_ATTEMPTS = 3;
 /** 错误信息落库长度上限，避免异常堆栈撑爆字段 */
 const MAX_ERROR_CHARS = 500;
+
+/**
+ * 各 provider 缓存 token 相对「输入单价」的计费倍率（厂商固定口径，非自定义）：
+ * - anthropic / claude_cli：写入缓存 1.25×、命中 0.1×
+ * - openai：自动缓存无独立写入计费（0），命中约 0.5×
+ * - deepseek：命中约 0.1×、无独立写入计费
+ * 未知 provider 回退 1×（按普通输入计）。普通输入与输出各按其单价 1× 计。
+ */
+const CACHE_MULT: Record<string, { write: number; read: number }> = {
+  anthropic: { write: 1.25, read: 0.1 },
+  claude_cli: { write: 1.25, read: 0.1 },
+  openai: { write: 0, read: 0.5 },
+  deepseek: { write: 0, read: 0.1 },
+};
 
 /** 队列看板行：任务字段 + 帖子标题（左连接，帖子归档后为 null） */
 export interface JobView {
@@ -24,6 +39,25 @@ export interface JobView {
   enqueued_at: number;
   started_at: number | null;
   finished_at: number | null;
+  /** 非缓存输入 token 数（成功且采集到时有值，否则 null） */
+  input_tokens: number | null;
+  /** 输出 token 数（同上） */
+  output_tokens: number | null;
+  /** 写入缓存的输入 token 数 */
+  cache_write_tokens: number | null;
+  /** 命中缓存的输入 token 数 */
+  cache_read_tokens: number | null;
+}
+
+/** 队列分页筛选条件（均可空 = 不限） */
+export interface JobFilter {
+  status?: JobStatus;
+  trigger?: JobTrigger;
+}
+
+/** 队列任务视图：JobView + 展示期按 provider 单价折算的成本（无 provider/未配单价/未采集 token → null） */
+export interface QueueJobView extends JobView {
+  cost: number | null;
 }
 
 /** listRecentJobs 的原始行（时间戳为 bigint，待折回 number） */
@@ -144,10 +178,27 @@ export class JobsRepository {
    * @param jobId 任务 ID
    * @param now 完成 Unix 时间戳（秒）
    */
-  async succeedJob(jobId: number, now: number): Promise<void> {
+  async succeedJob(
+    jobId: number,
+    now: number,
+    usage?: {
+      inputTokens: number;
+      outputTokens: number;
+      cacheWriteTokens: number;
+      cacheReadTokens: number;
+    } | null,
+  ): Promise<void> {
     await this.db.analysis_jobs.update({
       where: { id: jobId },
-      data: { status: 'succeeded', finished_at: BigInt(now), error: null },
+      data: {
+        status: 'succeeded',
+        finished_at: BigInt(now),
+        error: null,
+        input_tokens: usage?.inputTokens ?? null,
+        output_tokens: usage?.outputTokens ?? null,
+        cache_write_tokens: usage?.cacheWriteTokens ?? null,
+        cache_read_tokens: usage?.cacheReadTokens ?? null,
+      },
     });
   }
 
@@ -240,7 +291,8 @@ export class JobsRepository {
   async listRecentJobs(limit: number): Promise<JobView[]> {
     const rows = await this.db.$queryRaw<JobViewRaw[]>`
       SELECT j.id, j.post_id, p.title AS post_title, j.model, j.trigger, j.status,
-             j.attempts, j.error, j.enqueued_at, j.started_at, j.finished_at
+             j.attempts, j.error, j.enqueued_at, j.started_at, j.finished_at,
+             j.input_tokens, j.output_tokens, j.cache_write_tokens, j.cache_read_tokens
       FROM analysis_jobs j
       LEFT JOIN posts p ON p.id = j.post_id
       ORDER BY j.id DESC
@@ -252,5 +304,197 @@ export class JobsRepository {
       started_at: r.started_at === null ? null : Number(r.started_at),
       finished_at: r.finished_at === null ? null : Number(r.finished_at),
     }));
+  }
+
+  /**
+   * 队列分页查询（按状态 / 来源筛选，id 倒序）。供「任务队列」页全宽表格分类查看用。
+   * 帖子标题二次查询补齐（analysis_jobs 与 posts 软引用、无 FK 关系，不能 include）。
+   */
+  async listJobsPaged(filter: JobFilter, page: number): Promise<Paged<QueueJobView>> {
+    const where: Prisma.analysis_jobsWhereInput = {};
+    if (filter.status) where.status = filter.status;
+    if (filter.trigger) where.trigger = filter.trigger;
+
+    const total = await this.db.analysis_jobs.count({ where });
+    const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+    const pageNum = Math.min(Math.max(1, page), pageCount);
+    const rows = await this.db.analysis_jobs.findMany({
+      where,
+      orderBy: { id: 'desc' },
+      skip: (pageNum - 1) * PAGE_SIZE,
+      take: PAGE_SIZE,
+    });
+
+    // 标题二次查询（软引用，帖子归档后为 null）
+    const postIds = [...new Set(rows.map((r) => r.post_id))];
+    const posts =
+      postIds.length === 0
+        ? []
+        : await this.db.posts.findMany({
+            where: { id: { in: postIds } },
+            select: { id: true, title: true },
+          });
+    const titleById = new Map(posts.map((p) => [p.id, p.title]));
+
+    // 成本展示期计算：按任务的 provider 当前单价折算；provider 已删 / 未配单价 / 未采集 token → null
+    const providerIds = [
+      ...new Set(rows.map((r) => r.provider_id).filter((id): id is number => id != null)),
+    ];
+    const prices =
+      providerIds.length === 0
+        ? []
+        : await this.db.model_providers.findMany({
+            where: { id: { in: providerIds } },
+            select: { id: true, provider: true, input_price: true, output_price: true },
+          });
+    const priceById = new Map(prices.map((p) => [p.id, p]));
+    // 精确成本：普通输入/输出按各自单价，缓存写入/命中按输入单价 × 厂商固定倍率（CACHE_MULT）
+    const costOf = (r: (typeof rows)[number]): number | null => {
+      if (r.provider_id == null || r.input_tokens == null) return null;
+      const price = priceById.get(r.provider_id);
+      if (!price || price.input_price == null || price.output_price == null) return null;
+      const mult = CACHE_MULT[price.provider] ?? { write: 1, read: 1 };
+      return (
+        (r.input_tokens * price.input_price +
+          (r.cache_write_tokens ?? 0) * price.input_price * mult.write +
+          (r.cache_read_tokens ?? 0) * price.input_price * mult.read +
+          (r.output_tokens ?? 0) * price.output_price) /
+        1_000_000
+      );
+    };
+
+    return {
+      items: rows.map((r) => ({
+        id: r.id,
+        post_id: r.post_id,
+        post_title: titleById.get(r.post_id) ?? null,
+        model: r.model,
+        trigger: r.trigger,
+        status: r.status,
+        attempts: r.attempts,
+        error: r.error,
+        enqueued_at: Number(r.enqueued_at),
+        started_at: r.started_at === null ? null : Number(r.started_at),
+        finished_at: r.finished_at === null ? null : Number(r.finished_at),
+        input_tokens: r.input_tokens,
+        output_tokens: r.output_tokens,
+        cache_write_tokens: r.cache_write_tokens,
+        cache_read_tokens: r.cache_read_tokens,
+        cost: costOf(r),
+      })),
+      total,
+      page: pageNum,
+      pageCount,
+    };
+  }
+
+  /**
+   * 成本统计（finished_at ≥ sinceSec 的成功任务）：按 (provider, model) 汇总四类 token，
+   * 按各 provider 单价 + 缓存倍率（CACHE_MULT）折算成本；未配单价的模型 cost 为 null。
+   */
+  async getCostStats(sinceSec: number): Promise<{
+    totals: {
+      inputTokens: number;
+      outputTokens: number;
+      cacheWriteTokens: number;
+      cacheReadTokens: number;
+      cost: number | null;
+    };
+    byModel: CostByModel[];
+  }> {
+    const groups = await this.db.analysis_jobs.groupBy({
+      by: ['provider_id', 'model'],
+      where: {
+        status: 'succeeded',
+        finished_at: { gte: BigInt(sinceSec) },
+        input_tokens: { not: null },
+      },
+      _sum: {
+        input_tokens: true,
+        output_tokens: true,
+        cache_write_tokens: true,
+        cache_read_tokens: true,
+      },
+      _count: { _all: true },
+    });
+    const providerIds = [
+      ...new Set(groups.map((g) => g.provider_id).filter((id): id is number => id != null)),
+    ];
+    const prices =
+      providerIds.length === 0
+        ? []
+        : await this.db.model_providers.findMany({
+            where: { id: { in: providerIds } },
+            select: { id: true, provider: true, input_price: true, output_price: true },
+          });
+    const priceById = new Map(prices.map((p) => [p.id, p]));
+
+    const byModel: CostByModel[] = groups
+      .map((g) => {
+        const inputTokens = g._sum.input_tokens ?? 0;
+        const outputTokens = g._sum.output_tokens ?? 0;
+        const cacheWriteTokens = g._sum.cache_write_tokens ?? 0;
+        const cacheReadTokens = g._sum.cache_read_tokens ?? 0;
+        const price = g.provider_id != null ? priceById.get(g.provider_id) : undefined;
+        let cost: number | null = null;
+        if (price && price.input_price != null && price.output_price != null) {
+          const m = CACHE_MULT[price.provider] ?? { write: 1, read: 1 };
+          cost =
+            (inputTokens * price.input_price +
+              cacheWriteTokens * price.input_price * m.write +
+              cacheReadTokens * price.input_price * m.read +
+              outputTokens * price.output_price) /
+            1_000_000;
+        }
+        return {
+          provider: price?.provider ?? 'unknown',
+          model: g.model,
+          jobs: g._count._all,
+          inputTokens,
+          outputTokens,
+          cacheWriteTokens,
+          cacheReadTokens,
+          cost,
+        };
+      })
+      .sort((a, b) => (b.cost ?? 0) - (a.cost ?? 0) || b.inputTokens - a.inputTokens);
+
+    const totals = byModel.reduce(
+      (acc, m) => ({
+        inputTokens: acc.inputTokens + m.inputTokens,
+        outputTokens: acc.outputTokens + m.outputTokens,
+        cacheWriteTokens: acc.cacheWriteTokens + m.cacheWriteTokens,
+        cacheReadTokens: acc.cacheReadTokens + m.cacheReadTokens,
+        cost: m.cost == null ? acc.cost : (acc.cost ?? 0) + m.cost,
+      }),
+      {
+        inputTokens: 0,
+        outputTokens: 0,
+        cacheWriteTokens: 0,
+        cacheReadTokens: 0,
+        cost: null as number | null,
+      },
+    );
+    return { totals, byModel };
+  }
+
+  /** 近 days 天每日完成的分析任务数（0 填充的密集序列，服务端按统一时区分桶）。 */
+  async getThroughput(days: number): Promise<ThroughputPoint[]> {
+    return this.db.$queryRaw<ThroughputPoint[]>`
+      SELECT to_char(d.day, 'YYYY-MM-DD') AS date, COALESCE(c.n, 0)::int AS count
+      FROM generate_series(
+        date_trunc('day', now()) - make_interval(days => ${days - 1}),
+        date_trunc('day', now()),
+        interval '1 day'
+      ) AS d(day)
+      LEFT JOIN (
+        SELECT date_trunc('day', to_timestamp(finished_at::double precision)) AS day, count(*) AS n
+        FROM analysis_jobs
+        WHERE status = 'succeeded'
+          AND finished_at >= extract(epoch FROM (now() - make_interval(days => ${days})))
+        GROUP BY 1
+      ) AS c ON c.day = d.day
+      ORDER BY d.day
+    `;
   }
 }

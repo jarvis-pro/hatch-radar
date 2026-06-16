@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
-import type { CommentRow, InsightResult, PostRow } from '@hatch-radar/shared';
+import type { CommentRow, PostRow } from '@hatch-radar/shared';
+import type { AnalysisOutcome } from './analyze';
 import { buildContext } from './context';
 import { INSIGHT_JSON_SCHEMA } from './insight-schema';
 import { SYSTEM_PROMPT, buildUserPrompt, normalizeInsight } from './prompt';
@@ -35,7 +36,7 @@ export async function analyzeWithAnthropic(
   post: PostRow,
   comments: CommentRow[],
   signal?: AbortSignal,
-): Promise<InsightResult> {
+): Promise<AnalysisOutcome> {
   const response = await client.messages.create(
     {
       model,
@@ -55,7 +56,15 @@ export async function analyzeWithAnthropic(
   if (!textBlock) {
     throw new Error(`模型未返回文本内容 (stop_reason=${response.stop_reason})`);
   }
-  return normalizeInsight(JSON.parse(textBlock.text));
+  return {
+    insight: normalizeInsight(JSON.parse(textBlock.text)),
+    usage: {
+      inputTokens: response.usage.input_tokens,
+      outputTokens: response.usage.output_tokens,
+      cacheWriteTokens: response.usage.cache_creation_input_tokens ?? 0,
+      cacheReadTokens: response.usage.cache_read_input_tokens ?? 0,
+    },
+  };
 }
 
 /**

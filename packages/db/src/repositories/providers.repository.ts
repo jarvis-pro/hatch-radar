@@ -20,6 +20,9 @@ export interface ProviderInput {
   baseUrl?: string | null;
   model: string;
   enabled?: boolean;
+  /** 输入/输出 token 单价（美元 / 1M tokens）；undefined=不改，null=清除 */
+  inputPrice?: number | null;
+  outputPrice?: number | null;
 }
 
 /** 新建一把 Key 的输入（apiKey 为明文，入库前加密） */
@@ -61,6 +64,10 @@ export interface ProviderDTO {
   model: string;
   baseUrl: string | null;
   enabled: boolean;
+  /** 输入 token 单价（美元 / 1M tokens），未配置为 null */
+  inputPrice: number | null;
+  /** 输出 token 单价（美元 / 1M tokens），未配置为 null */
+  outputPrice: number | null;
   /** Key 池（已脱敏，按 priority 升序） */
   keys: ProviderKeyDTO[];
   createdAt: number;
@@ -111,6 +118,8 @@ export function toProviderDTO({ provider, keys }: ProviderWithKeys): ProviderDTO
     model: provider.model,
     baseUrl: provider.base_url,
     enabled: provider.enabled,
+    inputPrice: provider.input_price,
+    outputPrice: provider.output_price,
     keys: keys.map(toProviderKeyDTO),
     createdAt: provider.created_at,
     updatedAt: provider.updated_at,
@@ -183,6 +192,8 @@ export class ProvidersRepository {
           base_url: input.baseUrl ?? null,
           model: input.model,
           enabled: input.enabled !== false,
+          input_price: input.inputPrice ?? null,
+          output_price: input.outputPrice ?? null,
           created_at: BigInt(now),
           updated_at: BigInt(now),
         },
@@ -218,6 +229,8 @@ export class ProvidersRepository {
     if (fields.baseUrl !== undefined) data.base_url = fields.baseUrl ?? null;
     if (fields.model !== undefined) data.model = fields.model;
     if (fields.enabled !== undefined) data.enabled = fields.enabled;
+    if (fields.inputPrice !== undefined) data.input_price = fields.inputPrice;
+    if (fields.outputPrice !== undefined) data.output_price = fields.outputPrice;
     if (Object.keys(data).length === 0) return false;
     data.updated_at = BigInt(now);
     const res = await this.db.model_providers.updateMany({ where: { id }, data });
@@ -242,6 +255,8 @@ export class ProvidersRepository {
       if (fields.baseUrl !== undefined) data.base_url = fields.baseUrl ?? null;
       if (fields.model !== undefined) data.model = fields.model;
       if (fields.enabled !== undefined) data.enabled = fields.enabled;
+      if (fields.inputPrice !== undefined) data.input_price = fields.inputPrice;
+      if (fields.outputPrice !== undefined) data.output_price = fields.outputPrice;
       const res = await tx.model_providers.updateMany({ where: { id }, data });
       if (res.count === 0) return false;
       await tx.provider_api_keys.deleteMany({ where: { provider_id: id } });

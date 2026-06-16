@@ -15,6 +15,26 @@ export type AnalysisConfig =
   | OpenAICompatibleConfig;
 
 /**
+ * 单次分析的 token 用量（用于精确成本核算）；某些 provider 不报告时整体为 null。
+ * 区分缓存：缓存写入 / 命中计费倍率与普通输入不同（如 Anthropic 写 1.25× 读 0.1×）。
+ */
+export interface TokenUsage {
+  /** 非缓存输入 token */
+  inputTokens: number;
+  outputTokens: number;
+  /** 写入缓存的输入 token（无独立写入计费的 provider 为 0） */
+  cacheWriteTokens: number;
+  /** 命中缓存的输入 token */
+  cacheReadTokens: number;
+}
+
+/** 处理器单次分析的产出：结构化洞察 + token 用量（usage 缺报时为 null） */
+export interface AnalysisOutcome {
+  insight: InsightResult;
+  usage: TokenUsage | null;
+}
+
+/**
  * 单篇帖子的处理器：屏蔽 Anthropic / OpenAI / DeepSeek 的差异，**只负责产出结构化结果**。
  *
  * 落库/标记/计失败由调用方（AnalysisService / WorkerService）完成——处理器保持无副作用、
@@ -29,7 +49,7 @@ export interface PostProcessor {
    * 分析单篇帖子，返回结构化结果（失败时抛出，由调用方计入失败并重试）。
    * @param signal 可选中止信号；job 超时时触发，使底层 AI 调用立即 abort，不空耗连接与额度
    */
-  analyze(post: PostRow, comments: CommentRow[], signal?: AbortSignal): Promise<InsightResult>;
+  analyze(post: PostRow, comments: CommentRow[], signal?: AbortSignal): Promise<AnalysisOutcome>;
 }
 
 /**
