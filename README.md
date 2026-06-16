@@ -69,6 +69,8 @@ pnpm db:migrate           # prisma migrate deploy 应用迁移建出全部表
 ```
 
 > dev / start 脚本在进程启动前自动执行 `prisma migrate deploy`（幂等）；首次/CI 可用上面的命令显式建表。
+>
+> 集成测试库 `hatch_radar_test` 在 compose **首次初始化数据卷**时自动建出（见 `docker/initdb/`），测试经 `pnpm --filter @hatch-radar/api test` 直连；若曾 `docker compose down -v` 重建过卷，按需补建：`docker compose exec db createdb -U radar hatch_radar_test`。
 
 ### 4. 启动
 

@@ -1,17 +1,31 @@
-# 本地基础设施（仅数据库）。
+# 本地开发基础设施编排（仅数据库 + 可选 DB UI；后端两进程跑在宿主机，不进容器）。
 #
 # - db：PostgreSQL，api / worker 的唯一主存储。单机/局域网工具，数据卷用本地命名卷即可；
-#   生产换托管 PG 只需改 DATABASE_URL。
+#   生产换托管 PG 只需改 DATABASE_URL。首次初始化（空卷）时经 docker/initdb/ 顺带建出
+#   集成测试库 hatch_radar_test（vitest 直连，见 apps/api/vitest.config.ts）。
+# - adminer（可选）：轻量 Web 版 DB 管理 UI，仅 `--profile tools` 启动，开发期查数据 / 跑 SQL 用
+#   （Prisma 视角的浏览另有 `pnpm db:studio`，跑在宿主机）。
 #
 # 后端拆为两个进程，均跑在工作台宿主机上（直连本机 47432）、不进容器：
 #   - api（控制面，单实例）：发 /api + 鉴权 + 调度 + push 网关，并同源托管 web 控制台 SPA
 #     （vite build 产物，见 apps/web/dist）。爬取 + AI 密钥 + 鉴权权威都在此。
 #   - worker（数据面，可横扩）：经 PG 队列认领 + WS 连 api 网关跑 AI 分析写回。
 #
-# 端口映射用 47xxx 段避免与同机其它项目冲突；主机侧映射 47432（PG）。
+# 端口映射用 47xxx 段避免与同机其它项目冲突：47432（PG）、47900（adminer）。
+#
+# 常用命令：
+#   docker compose up -d db                  # 仅起库（最常用）
+#   docker compose --profile tools up -d     # 库 + adminer（http://localhost:47900，Server 填 db）
+#   docker compose down                      # 停容器，保留数据卷
+#   docker compose down -v                   # 停并删数据卷（连 hatch_radar_test 一起，下次起重新初始化）
+#   docker compose exec db createdb -U radar hatch_radar_test   # 老卷补建测试库（仅当库不存在时）
 #
 # 日志：进程把（结构化 JSON）日志打到 stdout，由 Docker 的 json-file driver
 # 负责落盘 + 轮转 + 保留（见 &default-logging）。
+
+# 固定项目名（与目录名一致）：容器 / 卷 / 网络前缀稳定，不随克隆目录名漂移。
+name: hatch-radar
+
 x-logging: &default-logging
   driver: json-file
   options:
@@ -29,11 +43,28 @@ services:
       - '47432:5432'
     volumes:
       - radar-pg:/var/lib/postgresql/data
+      # 首次初始化（空卷）时执行：建集成测试库 hatch_radar_test（见 docker/initdb/）
+      - ./docker/initdb:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U radar -d hatch_radar']
       interval: 5s
       timeout: 5s
       retries: 10
+    restart: unless-stopped
+    logging: *default-logging
+
+  # 可选 DB 管理 UI；默认不启动，需要时 `docker compose --profile tools up -d`。
+  # 访问 http://localhost:47900，登录页 System=PostgreSQL、Server=db、用户/密码=radar/radar。
+  adminer:
+    image: adminer:5
+    profiles: ['tools']
+    ports:
+      - '47900:8080'
+    environment:
+      ADMINER_DEFAULT_SERVER: db # 登录页预填服务名（同 compose 网络内可解析）
+    depends_on:
+      db:
+        condition: service_healthy
     restart: unless-stopped
     logging: *default-logging
 
