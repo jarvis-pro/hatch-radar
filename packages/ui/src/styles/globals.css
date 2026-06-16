@@ -1,11 +1,14 @@
 /*
- * @hatch-radar/ui 全局样式：Tailwind v4 + shadcn/ui 主题（baseColor: neutral）
+ * @hatch-radar/ui 全局样式 —— 设计系统「Signal」（信号情报控制台）
  *
- * 消费方（Next.js 应用）在根 layout 里 `import '@hatch-radar/ui/globals.css'` 即可。
+ * 色彩三层、职责分明、互不串台（详见 docs/web-redesign-design.md §3）：
+ *   A. 品牌色 --primary（靛紫，跨明暗一致）+ --signal（青色，专用于「实时/在线/扫掠」）
+ *   B. 语义强度 --intensity-high/medium/low（红/琥珀/翠绿，内容含义，全站统一）
+ *   C. 中性色：chroma 对齐品牌 hue(277) 微着色（非纯灰），整体冷调、成体系
+ *
+ * - 字体：Inter（UI）/ JetBrains Mono（数值·ID·成本），由 apps/web main.tsx 经 @fontsource 自托管
+ * - 深色模式：class 策略（.dark），由自带 ThemeProvider 控制；首屏防闪在 index.html 早注入脚本
  * - @source 保证 Tailwind 扫描到本包源码里的类名（workspace 包默认不在应用扫描范围内）
- * - 深色模式用 class 策略（.dark），由消费方的 next-themes 控制：
- *   ThemeProvider 默认 defaultTheme="system"，跟随系统的同时支持手动切换（浅色/深色/系统）；
- *   见 components/theme-provider.tsx 与 components/mode-toggle.tsx
  */
 
 @import 'tailwindcss';
@@ -17,73 +20,108 @@
 
 :root {
   --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+
+  /* 中性面（亮色：近白冷调，卡片纯白浮于其上） */
+  --background: oklch(0.99 0.004 277);
+  --foreground: oklch(0.21 0.02 277);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground: oklch(0.21 0.02 277);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --popover-foreground: oklch(0.21 0.02 277);
+
+  /* 品牌靛紫 + 中性语义 */
+  --primary: oklch(0.55 0.21 277);
+  --primary-foreground: oklch(0.98 0.01 277);
+  --secondary: oklch(0.967 0.008 277);
+  --secondary-foreground: oklch(0.32 0.03 277);
+  --muted: oklch(0.967 0.008 277);
+  --muted-foreground: oklch(0.52 0.022 277);
+  --accent: oklch(0.95 0.018 277);
+  --accent-foreground: oklch(0.4 0.08 277);
+  --destructive: oklch(0.58 0.22 25);
+  --destructive-foreground: oklch(0.98 0.01 25);
+  --border: oklch(0.91 0.009 277);
+  --input: oklch(0.91 0.009 277);
+  --ring: oklch(0.55 0.21 277);
+
+  /* 信号色（实时/在线/扫掠） */
+  --signal: oklch(0.62 0.13 215);
+  --signal-foreground: oklch(0.99 0.01 215);
+
+  /* 语义强度色（内容含义，全站统一） */
+  --intensity-high: oklch(0.62 0.22 25);
+  --intensity-high-foreground: oklch(0.99 0.01 25);
+  --intensity-medium: oklch(0.7 0.15 65);
+  --intensity-medium-foreground: oklch(0.99 0.01 65);
+  --intensity-low: oklch(0.66 0.14 162);
+  --intensity-low-foreground: oklch(0.99 0.01 162);
+
+  /* 图表：品牌对齐的多色（靛/青/紫/琥珀/翠） */
+  --chart-1: oklch(0.55 0.21 277);
+  --chart-2: oklch(0.62 0.13 215);
+  --chart-3: oklch(0.58 0.2 310);
+  --chart-4: oklch(0.7 0.15 65);
+  --chart-5: oklch(0.66 0.14 162);
+
+  /* 侧边栏：略区别于内容面，激活态用品牌微染 */
+  --sidebar: oklch(0.975 0.006 277);
+  --sidebar-foreground: oklch(0.21 0.02 277);
+  --sidebar-primary: oklch(0.55 0.21 277);
+  --sidebar-primary-foreground: oklch(0.98 0.01 277);
+  --sidebar-accent: oklch(0.94 0.022 277);
+  --sidebar-accent-foreground: oklch(0.4 0.1 277);
+  --sidebar-border: oklch(0.91 0.009 277);
+  --sidebar-ring: oklch(0.55 0.21 277);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  /* 中性面（暗色：深冷炭，卡片/浮层逐级抬升亮度） */
+  --background: oklch(0.17 0.012 277);
+  --foreground: oklch(0.95 0.006 277);
+  --card: oklch(0.205 0.014 277);
+  --card-foreground: oklch(0.95 0.006 277);
+  --popover: oklch(0.225 0.016 277);
+  --popover-foreground: oklch(0.95 0.006 277);
+
+  /* 品牌靛紫（暗色提亮一档，保持一致识别） */
+  --primary: oklch(0.62 0.2 277);
+  --primary-foreground: oklch(0.98 0.012 277);
+  --secondary: oklch(0.27 0.016 277);
+  --secondary-foreground: oklch(0.95 0.006 277);
+  --muted: oklch(0.27 0.014 277);
+  --muted-foreground: oklch(0.71 0.022 277);
+  --accent: oklch(0.31 0.028 277);
+  --accent-foreground: oklch(0.96 0.012 277);
+  --destructive: oklch(0.7 0.19 25);
+  --destructive-foreground: oklch(0.98 0.01 25);
+  --border: oklch(1 0 0 / 9%);
+  --input: oklch(1 0 0 / 13%);
+  --ring: oklch(0.62 0.2 277);
+
+  --signal: oklch(0.74 0.14 215);
+  --signal-foreground: oklch(0.16 0.02 215);
+
+  --intensity-high: oklch(0.68 0.2 25);
+  --intensity-high-foreground: oklch(0.16 0.02 25);
+  --intensity-medium: oklch(0.78 0.15 70);
+  --intensity-medium-foreground: oklch(0.18 0.02 70);
+  --intensity-low: oklch(0.74 0.14 162);
+  --intensity-low-foreground: oklch(0.16 0.02 162);
+
+  --chart-1: oklch(0.62 0.2 277);
+  --chart-2: oklch(0.74 0.14 215);
+  --chart-3: oklch(0.66 0.2 310);
+  --chart-4: oklch(0.78 0.15 70);
+  --chart-5: oklch(0.74 0.14 162);
+
+  --sidebar: oklch(0.19 0.014 277);
+  --sidebar-foreground: oklch(0.92 0.008 277);
+  --sidebar-primary: oklch(0.62 0.2 277);
+  --sidebar-primary-foreground: oklch(0.98 0.012 277);
+  --sidebar-accent: oklch(0.3 0.04 277);
+  --sidebar-accent-foreground: oklch(0.93 0.02 277);
+  --sidebar-border: oklch(1 0 0 / 8%);
+  --sidebar-ring: oklch(0.62 0.2 277);
 }
 
 @theme inline {
@@ -91,6 +129,15 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+
+  /* 字体：UI / 等宽数值（@fontsource 自托管，缺失时回退系统栈） */
+  --font-sans:
+    'Inter Variable', 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
+    'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --font-mono:
+    'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, 'SF Mono', 'Cascadia Code',
+    'Roboto Mono', monospace;
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -110,6 +157,16 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+
+  --color-signal: var(--signal);
+  --color-signal-foreground: var(--signal-foreground);
+  --color-intensity-high: var(--intensity-high);
+  --color-intensity-high-foreground: var(--intensity-high-foreground);
+  --color-intensity-medium: var(--intensity-medium);
+  --color-intensity-medium-foreground: var(--intensity-medium-foreground);
+  --color-intensity-low: var(--intensity-low);
+  --color-intensity-low-foreground: var(--intensity-low-foreground);
+
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
@@ -131,5 +188,58 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-feature-settings: 'cv11', 'ss01';
+    /* 等宽数字默认开（金额/ID/计数对齐）；正文走比例字宽 */
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+}
+
+/*
+ * 设计系统辅助：海拔阴影 + 雷达扫掠 / 信号脉冲动效（详见方案 §3.2 / §3.4）。
+ * 克制使用：扫掠仅登录页，脉冲仅「在线/实时」指示器。
+ */
+@layer components {
+  /* L2 浮层（命令面板 / 关键弹窗）：比默认 shadow 更有层次 */
+  .shadow-elevated {
+    box-shadow:
+      0 16px 40px -12px color-mix(in oklab, var(--foreground) 24%, transparent),
+      0 6px 14px -6px color-mix(in oklab, var(--foreground) 16%, transparent);
+  }
+}
+
+@keyframes radar-sweep {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes signal-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(0.78);
+  }
+}
+
+/* 雷达扫掠光束（登录页品牌区） */
+.radar-sweep {
+  animation: radar-sweep 4s linear infinite;
+  transform-origin: center;
+}
+
+/* 信号脉冲点（系统脉搏 / 在线 Worker） */
+.signal-pulse {
+  animation: signal-pulse 1.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .radar-sweep,
+  .signal-pulse {
+    animation: none;
   }
 }
