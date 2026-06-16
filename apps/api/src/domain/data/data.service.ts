@@ -144,9 +144,17 @@ export class DataService {
   /**
    * 工作台「待分析」列表：已抓过评论、且 未产出洞察（pending）或 已分析但评论在分析后又变（restale）。
    * pending 排在前，再按热度（score + 评论数）降序分页。JOIN + CASE + 算术排序 → $queryRaw。
+   *
+   * 已有活跃任务（queued/running，含 auto 调度入队）的帖子排除在外——它们已在队列中处理，
+   * 不应再出现在待选清单里被重复勾选（与队列看板互补：待选 = 纯待办，进行中看队列）。
    */
   async listAwaitingManualResult(page: number): Promise<Paged<AwaitingPost>> {
-    const where = Prisma.sql`p.comments_fetched_at IS NOT NULL AND (i.post_id IS NULL OR p.comments_changed_at > i.created_at)`;
+    const where = Prisma.sql`p.comments_fetched_at IS NOT NULL
+      AND (i.post_id IS NULL OR p.comments_changed_at > i.created_at)
+      AND NOT EXISTS (
+        SELECT 1 FROM analysis_jobs aj
+        WHERE aj.post_id = p.id AND aj.status IN ('queued', 'running')
+      )`;
     const totalRows = await this.db.$queryRaw<[{ n: number }]>`
       SELECT count(*)::int AS n FROM posts p LEFT JOIN insights i ON i.post_id = p.id WHERE ${where}
     `;

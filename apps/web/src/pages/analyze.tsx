@@ -57,20 +57,19 @@ function AnalyzeView() {
     title: p.title,
     channel: channelLabel(p.source, p.subreddit),
     kind: p.kind,
+    score: p.score,
+    numComments: p.num_comments,
+    createdUtc: p.created_utc,
   }));
 
   return (
     <>
-      <h1 className="mb-1 text-lg font-semibold tracking-tight">
+      <h1 className="mb-4 text-lg font-semibold tracking-tight">
         分析运行{' '}
         <span className="text-sm font-normal text-muted-foreground">
           选中帖子 + 选模型 → 运行；交由队列后台处理
         </span>
       </h1>
-      <p className="mb-4 text-sm text-muted-foreground">
-        待分析{' '}
-        <span className="font-medium text-foreground tabular-nums">{result?.total ?? '…'}</span>
-      </p>
 
       {awaitingQ.isPending ? (
         <Skeleton className="h-64 w-full" />
@@ -80,18 +79,20 @@ function AnalyzeView() {
           providers={providers}
           defaultProviderId={activeProviderId}
           providersError={providersError}
+          total={result?.total ?? 0}
+          pagination={
+            result ? (
+              <Pagination
+                page={result.page}
+                pageCount={result.pageCount}
+                total={result.total}
+                basePath="/analyze"
+                query={{}}
+              />
+            ) : null
+          }
         />
       )}
-
-      {result ? (
-        <Pagination
-          page={result.page}
-          pageCount={result.pageCount}
-          total={result.total}
-          basePath="/analyze"
-          query={{}}
-        />
-      ) : null}
     </>
   );
 }

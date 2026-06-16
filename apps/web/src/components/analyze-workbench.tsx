@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { Badge } from '@hatch-radar/ui/components/badge';
 import { Button } from '@hatch-radar/ui/components/button';
+import { ButtonGroup } from '@hatch-radar/ui/components/button-group';
+import { Checkbox } from '@hatch-radar/ui/components/checkbox';
 import {
   Select,
   SelectContent,
@@ -10,15 +12,27 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@hatch-radar/ui/components/select';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@hatch-radar/ui/components/table';
 import { api, ApiError } from '@/api/client';
-import { AnalyzeRow } from '@/components/analyze-row';
+import { timeAgo } from '@/lib/format';
 
-/** 工作台单条帖子 */
+/** 工作台单条待分析帖子（含热度信息，便于判断是否值得分析） */
 export interface WorkbenchItem {
   id: string;
   title: string;
   channel: string;
+  /** pending=未分析；restale=已分析但评论又变（建议重判） */
   kind: 'pending' | 'restale';
+  score: number;
+  numComments: number;
+  createdUtc: number;
 }
 
 /** 可选模型（启用的模型配置投影） */
@@ -27,55 +41,26 @@ export interface ProviderOption {
   label: string;
 }
 
-type JobStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'canceled';
-
-interface JobStats {
-  queued: number;
-  running: number;
-  succeeded: number;
-  failed: number;
-  canceled: number;
-}
-
-interface RecentJob {
-  id: number;
-  post_title: string | null;
-  model: string;
-  trigger: 'auto' | 'manual';
-  status: JobStatus;
-  error: string | null;
-}
-
-const STATUS_META: Record<
-  JobStatus,
-  { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }
-> = {
-  queued: { label: '排队', variant: 'outline' },
-  running: { label: '运行中', variant: 'default' },
-  succeeded: { label: '成功', variant: 'secondary' },
-  failed: { label: '失败', variant: 'destructive' },
-  canceled: { label: '已取消', variant: 'outline' },
-};
-
-interface Flash {
-  kind: 'ok' | 'err';
-  text: string;
-}
-
 /**
- * 分析工作台：多选帖子 + 选模型 → 运行（入队），并实时轮询队列进度（react-query 3s）。
- * 同源直连 /api/analysis（cookie + CSRF）；运行成功后让待分析列表与队列看板刷新。
+ * 分析工作台：待分析帖子表格（行级勾选 + 表头全选）+ 选模型运行。
+ * 运行方式两种：① 表头组合控件「选模型 + 运行选中」批量入队；② 每行「运行」按钮单条入队。
+ * 已入队帖子由后端从列表排除——入队后该行消失即为反馈（不再弹无意义的入队提示）。
+ * 队列进度在顶部导航「队列」红点 + /queue 页查看，本页不再重复展示。
  */
 export function AnalyzeWorkbench({
   items,
   providers,
   defaultProviderId,
   providersError,
+  total,
+  pagination,
 }: {
   items: WorkbenchItem[];
   providers: ProviderOption[];
   defaultProviderId: number | null;
   providersError: string | null;
+  total: number;
+  pagination: ReactNode;
 }) {
   const qc = useQueryClient();
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -86,14 +71,9 @@ export function AnalyzeWorkbench({
         ? String(providers[0].id)
         : '',
   );
-  const [busy, setBusy] = useState(false);
-  const [flash, setFlash] = useState<Flash | null>(null);
-
-  const jobsQ = useQuery({
-    queryKey: ['analysis-jobs'],
-    queryFn: () => api.get<{ stats: JobStats; jobs: RecentJob[] }>('/analysis/jobs'),
-    refetchInterval: 3000,
-  });
+  const [batchBusy, setBatchBusy] = useState(false);
+  const [runningId, setRunningId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   function toggle(id: string) {
     setSelected((prev) => {
@@ -110,33 +90,53 @@ export function AnalyzeWorkbench({
     );
   }
 
+  /** 入队（批量 / 单条共用）：成功后刷新待分析列表与导航队列红点 */
+  async function enqueue(ids: string[]): Promise<void> {
+    await api.post('/analysis/run', { postIds: ids, providerId: Number(providerId) });
+    qc.invalidateQueries({ queryKey: ['awaiting'] });
+    qc.invalidateQueries({ queryKey: ['queue-inflight'] });
+  }
+
   async function runSelected() {
     const ids = [...selected];
     if (ids.length === 0 || !providerId) return;
-    setBusy(true);
-    setFlash(null);
+    setBatchBusy(true);
+    setError(null);
     try {
-      const data = await api.post<{ enqueued?: number }>('/analysis/run', {
-        postIds: ids,
-        providerId: Number(providerId),
-      });
-      setFlash({ kind: 'ok', text: `已入队 ${data?.enqueued ?? ids.length} 篇，模型处理中…` });
+      await enqueue(ids);
       setSelected(new Set());
-      qc.invalidateQueries({ queryKey: ['awaiting'] });
-      void jobsQ.refetch();
     } catch (err) {
-      setFlash({ kind: 'err', text: err instanceof ApiError ? err.message : '运行失败' });
+      setError(err instanceof ApiError ? err.message : '运行失败');
     } finally {
-      setBusy(false);
+      setBatchBusy(false);
+    }
+  }
+
+  async function runOne(id: string) {
+    if (!providerId) return;
+    setRunningId(id);
+    setError(null);
+    try {
+      await enqueue([id]);
+      setSelected((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : '运行失败');
+    } finally {
+      setRunningId(null);
     }
   }
 
   const noModels = providers.length === 0;
-  const stats = jobsQ.data?.stats ?? null;
-  const jobs = jobsQ.data?.jobs ?? [];
+  const allSelected = items.length > 0 && selected.size === items.length;
+  const someSelected = selected.size > 0 && !allSelected;
+  const runDisabled = !providerId || batchBusy;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {noModels ? (
         <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-sm">
           {providersError ?? '未配置可用模型。'}请到{' '}
@@ -145,99 +145,122 @@ export function AnalyzeWorkbench({
           </Link>{' '}
           添加并启用一个模型后再运行。
         </div>
-      ) : (
-        <div className="flex flex-wrap items-center gap-2">
-          <Select value={providerId} onValueChange={setProviderId}>
-            <SelectTrigger className="w-auto min-w-44" aria-label="选择模型">
-              <SelectValue placeholder="选择模型" />
-            </SelectTrigger>
-            <SelectContent>
-              {providers.map((p) => (
-                <SelectItem key={p.id} value={String(p.id)}>
-                  {p.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button onClick={runSelected} disabled={busy || selected.size === 0 || !providerId}>
-            {busy ? '运行中…' : `运行选中（${selected.size}）`}
-          </Button>
-          {items.length > 0 ? (
-            <Button variant="ghost" size="sm" onClick={toggleAll}>
-              {selected.size === items.length ? '清空' : '全选本页'}
-            </Button>
-          ) : null}
-          {flash ? (
-            <span
-              className={`text-xs ${flash.kind === 'ok' ? 'text-muted-foreground' : 'text-destructive'}`}
-            >
-              {flash.text}
-            </span>
-          ) : null}
-        </div>
-      )}
+      ) : null}
+      {error ? <p className="text-sm text-destructive">{error}</p> : null}
 
-      {items.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-          暂无待分析帖子。server 抓取并补全评论后，这里会列出待分析与建议重判的帖子。
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {items.map((it) => (
-            <AnalyzeRow
-              key={it.id}
-              title={it.title}
-              channel={it.channel}
-              kind={it.kind}
-              selected={selected.has(it.id)}
-              onToggle={() => toggle(it.id)}
-            />
-          ))}
-        </div>
-      )}
-
-      <QueuePanel stats={stats} jobs={jobs} />
-    </div>
-  );
-}
-
-/** 队列看板：状态汇总 + 最近任务（每 3s 刷新） */
-function QueuePanel({ stats, jobs }: { stats: JobStats | null; jobs: RecentJob[] }) {
-  return (
-    <div className="rounded-lg border p-3">
-      <div className="mb-2 flex flex-wrap items-center gap-2">
-        <span className="text-sm font-medium">队列</span>
-        {stats ? (
-          <span className="flex flex-wrap gap-1.5 text-xs">
-            <Badge variant="outline">排队 {stats.queued}</Badge>
-            <Badge>运行中 {stats.running}</Badge>
-            <Badge variant="secondary">成功 {stats.succeeded}</Badge>
-            {stats.failed > 0 ? <Badge variant="destructive">失败 {stats.failed}</Badge> : null}
+      <div className="rounded-lg border">
+        {/* 表头工具栏：计数 + 组合控件（选模型 | 运行选中） */}
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b p-2.5">
+          <span className="text-sm font-medium">
+            待分析 <span className="tabular-nums text-muted-foreground">{total}</span>
+            {selected.size > 0 ? (
+              <span className="ml-2 text-xs font-normal text-muted-foreground">
+                已选 {selected.size}
+              </span>
+            ) : null}
           </span>
+          {!noModels ? (
+            <ButtonGroup>
+              <Select value={providerId} onValueChange={setProviderId}>
+                <SelectTrigger className="min-w-40" aria-label="选择模型">
+                  <SelectValue placeholder="选择模型" />
+                </SelectTrigger>
+                <SelectContent>
+                  {providers.map((p) => (
+                    <SelectItem key={p.id} value={String(p.id)}>
+                      {p.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button onClick={runSelected} disabled={selected.size === 0 || runDisabled}>
+                {batchBusy ? '运行中…' : '运行选中'}
+              </Button>
+            </ButtonGroup>
+          ) : null}
+        </div>
+
+        {items.length === 0 ? (
+          <div className="p-8 text-center text-sm text-muted-foreground">
+            暂无待分析帖子。server 抓取并补全评论后，这里会列出待分析与建议重判的帖子。
+          </div>
         ) : (
-          <span className="text-xs text-muted-foreground">加载中…</span>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-10">
+                    <Checkbox
+                      checked={allSelected ? true : someSelected ? 'indeterminate' : false}
+                      onCheckedChange={() => toggleAll()}
+                      aria-label="全选本页"
+                    />
+                  </TableHead>
+                  <TableHead>标题</TableHead>
+                  <TableHead className="hidden w-36 sm:table-cell">频道</TableHead>
+                  <TableHead className="w-16 text-right">赞</TableHead>
+                  <TableHead className="w-16 text-right">评论</TableHead>
+                  <TableHead className="hidden w-24 md:table-cell">发布</TableHead>
+                  <TableHead className="w-20 text-right">操作</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {items.map((it) => {
+                  const isSel = selected.has(it.id);
+                  return (
+                    <TableRow
+                      key={it.id}
+                      data-state={isSel ? 'selected' : undefined}
+                      className="cursor-pointer"
+                      onClick={() => toggle(it.id)}
+                    >
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <Checkbox
+                          checked={isSel}
+                          onCheckedChange={() => toggle(it.id)}
+                          aria-label="选择此帖以运行分析"
+                        />
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        <span className="line-clamp-2">{it.title}</span>
+                        {it.kind === 'restale' ? (
+                          <Badge variant="secondary" className="mt-1">
+                            评论已更新 · 建议重判
+                          </Badge>
+                        ) : null}
+                      </TableCell>
+                      <TableCell className="hidden text-muted-foreground sm:table-cell">
+                        {it.channel}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums text-muted-foreground">
+                        {it.score}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums text-muted-foreground">
+                        {it.numComments}
+                      </TableCell>
+                      <TableCell className="hidden text-xs text-muted-foreground md:table-cell">
+                        {timeAgo(it.createdUtc)}
+                      </TableCell>
+                      <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={runDisabled || runningId === it.id}
+                          onClick={() => runOne(it.id)}
+                        >
+                          {runningId === it.id ? '…' : '运行'}
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
         )}
       </div>
-      {jobs.length === 0 ? (
-        <p className="text-xs text-muted-foreground">暂无任务记录。</p>
-      ) : (
-        <ul className="space-y-1">
-          {jobs.slice(0, 8).map((j) => (
-            <li key={j.id} className="flex items-center gap-2 text-xs">
-              <Badge variant={STATUS_META[j.status].variant}>{STATUS_META[j.status].label}</Badge>
-              <span className="min-w-0 flex-1 truncate text-muted-foreground">
-                {j.post_title ?? j.id}
-              </span>
-              <span className="shrink-0 font-mono text-muted-foreground">{j.model}</span>
-              {j.status === 'failed' && j.error ? (
-                <span className="shrink-0 max-w-40 truncate text-destructive" title={j.error}>
-                  {j.error}
-                </span>
-              ) : null}
-            </li>
-          ))}
-        </ul>
-      )}
+
+      {pagination}
     </div>
   );
 }
