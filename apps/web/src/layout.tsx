@@ -1,17 +1,16 @@
-import { Link, Navigate, Outlet, useLocation } from 'react-router-dom';
-import { Radar } from 'lucide-react';
-import { ModeToggle } from '@hatch-radar/ui/components/mode-toggle';
+import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { Spinner } from '@hatch-radar/ui/components/spinner';
+import { SidebarInset, SidebarProvider } from '@hatch-radar/ui/components/sidebar';
 import { useAuth } from '@/auth/auth-context';
-import { SiteNav } from '@/components/site-nav';
-import { UserMenu } from '@/components/user-menu';
+import { AppSidebar } from '@/components/app-sidebar';
+import { TopBar } from '@/components/top-bar';
 
 /**
- * 受保护布局（根路由守卫）：
+ * 受保护布局（根路由守卫 + 应用外壳）：
  * - loading → 居中加载态（进站会话自检中）；
  * - 未登录 → 跳 /login?next=（细校验在 server，这里只看用户态）；
  * - 强制改密且不在改密页 → 跳 /account/password；
- * - 否则渲染顶栏（按权限显隐导航）+ Outlet。
+ * - 否则渲染持久侧边栏（按权限分组显隐）+ 上下文栏 + Outlet。
  */
 export function ProtectedLayout() {
   const { status, user } = useAuth();
@@ -33,28 +32,14 @@ export function ProtectedLayout() {
   }
 
   return (
-    <div className="flex min-h-dvh flex-col antialiased">
-      <header className="sticky top-0 z-30 border-b bg-background/80 backdrop-blur">
-        <div className="mx-auto flex h-14 w-full max-w-5xl items-center justify-between gap-4 px-4">
-          <Link to="/" className="flex items-center gap-2 font-semibold tracking-tight">
-            <Radar className="size-5 text-primary" />
-            Hatch Radar
-          </Link>
-          <div className="flex items-center gap-1">
-            <SiteNav user={user} />
-            <ModeToggle />
-            <UserMenu user={user} />
-          </div>
+    <SidebarProvider>
+      <AppSidebar user={user} />
+      <SidebarInset className="min-w-0">
+        <TopBar user={user} />
+        <div className="mx-auto w-full max-w-[1600px] flex-1 px-4 py-6 sm:px-6 lg:px-8">
+          <Outlet />
         </div>
-      </header>
-      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6">
-        <Outlet />
-      </main>
-      <footer className="border-t">
-        <div className="mx-auto w-full max-w-5xl px-4 py-6 text-sm text-muted-foreground">
-          控制台 · 数据由工作台 server 进程（爬取 + AI 分析）产出
-        </div>
-      </footer>
-    </div>
+      </SidebarInset>
+    </SidebarProvider>
   );
 }

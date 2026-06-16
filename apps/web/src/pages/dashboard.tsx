@@ -1,5 +1,6 @@
 import { type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { Clock, Cpu, FileText, Server, Sparkles } from 'lucide-react';
 import type {
   CostByModel,
   DashboardData,
@@ -8,9 +9,12 @@ import type {
   WorkerStatus,
 } from '@hatch-radar/shared';
 import { Skeleton } from '@hatch-radar/ui/components/skeleton';
+import { cn } from '@hatch-radar/ui/lib/utils';
 import { api, ApiError } from '@/api/client';
 import { RequirePerm } from '@/auth/require-perm';
 import { LoadError } from '@/components/empty';
+import { PageHeader } from '@/components/page-header';
+import { StatCard } from '@/components/stat-card';
 import { fmtDuration } from '@/lib/format';
 
 /** 成本（美元）→ 紧凑展示 */
@@ -19,21 +23,11 @@ function fmtCost(cost: number | null): string {
   return `$${cost < 1 ? cost.toFixed(4) : cost.toFixed(2)}`;
 }
 
-/** KPI 卡片 */
-function StatCard({ label, value }: { label: string; value: ReactNode }) {
-  return (
-    <div className="rounded-lg border p-4">
-      <div className="text-2xl font-semibold tabular-nums">{value}</div>
-      <div className="mt-0.5 text-xs text-muted-foreground">{label}</div>
-    </div>
-  );
-}
-
 /** 版块容器 */
-function Section({ title, children }: { title: string; children: ReactNode }) {
+function Section({ title, children }: { title: ReactNode; children: ReactNode }) {
   return (
-    <section className="rounded-lg border">
-      <div className="border-b px-4 py-2.5 text-sm font-medium">{title}</div>
+    <section className="rounded-xl border bg-card">
+      <div className="border-b px-4 py-3 text-sm font-medium">{title}</div>
       <div className="p-4">{children}</div>
     </section>
   );
@@ -58,9 +52,12 @@ function BarRow({
     <div className="flex items-center gap-3 text-xs">
       <div className="w-24 shrink-0 truncate text-muted-foreground">{label}</div>
       <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
-        <div className={`h-full rounded-full ${barClass}`} style={{ width: `${pct}%` }} />
+        <div
+          className={cn('h-full rounded-full transition-all', barClass)}
+          style={{ width: `${pct}%` }}
+        />
       </div>
-      <div className="w-20 shrink-0 text-right tabular-nums">
+      <div className="w-20 shrink-0 text-right font-mono tabular-nums">
         {valueText ?? value.toLocaleString()}
       </div>
     </div>
@@ -75,11 +72,11 @@ function ThroughputChart({ points }: { points: ThroughputPoint[] }) {
       {points.map((p) => (
         <div
           key={p.date}
-          className="flex h-full flex-1 items-end"
+          className="group flex h-full flex-1 items-end"
           title={`${p.date}：${p.count} 篇`}
         >
           <div
-            className="w-full rounded-t bg-primary/80"
+            className="w-full rounded-t bg-signal/60 transition-colors group-hover:bg-signal"
             style={{ height: `${Math.max(p.count > 0 ? 4 : 0, (p.count / max) * 100)}%` }}
           />
         </div>
@@ -89,9 +86,9 @@ function ThroughputChart({ points }: { points: ThroughputPoint[] }) {
 }
 
 const INTENSITY_BAR: Record<string, string> = {
-  HIGH: 'bg-destructive',
-  MEDIUM: 'bg-primary',
-  LOW: 'bg-muted-foreground/40',
+  HIGH: 'bg-intensity-high',
+  MEDIUM: 'bg-intensity-medium',
+  LOW: 'bg-intensity-low',
 };
 const INTENSITY_LABEL: Record<string, string> = { HIGH: '高', MEDIUM: '中', LOW: '低' };
 
@@ -99,29 +96,44 @@ const INTENSITY_LABEL: Record<string, string> = { HIGH: '高', MEDIUM: '中', LO
 function WorkerCard({ w }: { w: WorkerStatus }) {
   const stale = w.lastHeartbeatAgo > 20;
   return (
-    <div className="rounded-lg border p-3 text-xs">
+    <div className="rounded-lg border bg-background p-3 text-xs">
       <div className="flex items-center justify-between gap-2">
-        <span className="truncate font-mono font-medium" title={w.workerId}>
-          {w.workerId}
+        <span className="inline-flex min-w-0 items-center gap-1.5">
+          <span
+            className={cn(
+              'size-1.5 shrink-0 rounded-full',
+              stale ? 'bg-destructive' : 'signal-pulse bg-signal',
+            )}
+          />
+          <span className="truncate font-mono font-medium" title={w.workerId}>
+            {w.workerId}
+          </span>
         </span>
-        <span className={stale ? 'text-destructive' : 'text-muted-foreground'}>
+        <span
+          className={cn(
+            'shrink-0 tabular-nums',
+            stale ? 'text-destructive' : 'text-muted-foreground',
+          )}
+        >
           心跳 {fmtDuration(w.lastHeartbeatAgo)}前
         </span>
       </div>
       <div className="mt-2 grid grid-cols-3 gap-2 text-center">
         <div>
-          <div className="text-sm font-semibold tabular-nums">
+          <div className="font-mono text-sm font-semibold tabular-nums">
             {w.activeJobs}
             <span className="text-muted-foreground">/{w.concurrency}</span>
           </div>
           <div className="text-[11px] text-muted-foreground">活跃/并发</div>
         </div>
         <div>
-          <div className="text-sm font-semibold tabular-nums">{Math.round(w.cpu)}%</div>
+          <div className="font-mono text-sm font-semibold tabular-nums">{Math.round(w.cpu)}%</div>
           <div className="text-[11px] text-muted-foreground">CPU</div>
         </div>
         <div>
-          <div className="text-sm font-semibold tabular-nums">{Math.round(w.memory)}%</div>
+          <div className="font-mono text-sm font-semibold tabular-nums">
+            {Math.round(w.memory)}%
+          </div>
           <div className="text-[11px] text-muted-foreground">内存</div>
         </div>
       </div>
@@ -140,7 +152,16 @@ function DashboardView() {
     return <LoadError message={q.error instanceof ApiError ? q.error.message : undefined} />;
   }
   if (q.isPending) {
-    return <Skeleton className="h-[36rem] w-full" />;
+    return (
+      <div className="space-y-6">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-[88px] w-full rounded-xl" />
+          ))}
+        </div>
+        <Skeleton className="h-[28rem] w-full rounded-xl" />
+      </div>
+    );
   }
   const d = q.data;
   const inflight = d.queue.queued + d.queue.running;
@@ -165,23 +186,43 @@ function DashboardView() {
   const subMax = Math.max(1, ...d.insights.topSubreddits.map((s: NamedCount) => s.count));
 
   return (
-    <div className="space-y-5">
-      <h1 className="text-lg font-semibold tracking-tight">
-        看板{' '}
-        <span className="text-sm font-normal text-muted-foreground">运行概览，每 5 秒刷新</span>
-      </h1>
+    <div className="space-y-6">
+      <PageHeader
+        title={
+          <span className="flex items-center gap-2.5">
+            看板
+            <span className="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-normal text-muted-foreground">
+              <span className="signal-pulse size-1.5 rounded-full bg-signal" />
+              实时
+            </span>
+          </span>
+        }
+        description="数据工厂运行概览 · 每 5 秒刷新"
+      />
 
       {/* KPI */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatCard label="帖子" value={d.overview.posts.toLocaleString()} />
-        <StatCard label="洞察" value={d.overview.insights.toLocaleString()} />
-        <StatCard label="待分析" value={d.overview.pendingAnalysis.toLocaleString()} />
-        <StatCard label="在线 Worker" value={d.workers.length} />
+        <StatCard label="帖子" icon={FileText} value={d.overview.posts.toLocaleString()} />
+        <StatCard label="洞察" icon={Sparkles} value={d.overview.insights.toLocaleString()} />
+        <StatCard label="待分析" icon={Clock} value={d.overview.pendingAnalysis.toLocaleString()} />
+        <StatCard
+          label="在线 Worker"
+          icon={Server}
+          value={d.workers.length}
+          hint={inflight > 0 ? `在飞 ${inflight}` : '空闲'}
+        />
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-2">
         {/* Worker 状态 */}
-        <Section title={`Worker 状态（在线 ${d.workers.length}）`}>
+        <Section
+          title={
+            <span className="flex items-center gap-2">
+              <Cpu className="size-4 text-muted-foreground" />
+              Worker 状态（在线 {d.workers.length}）
+            </span>
+          }
+        >
           {d.workers.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               暂无在线 Worker。启动 worker 进程后会连上网关并在此展示。
@@ -197,11 +238,11 @@ function DashboardView() {
 
         {/* 队列概况 */}
         <Section title={`队列概况（在飞 ${inflight}）`}>
-          <div className="grid grid-cols-5 divide-x rounded-md border text-center">
+          <div className="grid grid-cols-5 divide-x rounded-lg border text-center">
             {queueCells.map((c) => (
-              <div key={c.label} className="px-1 py-2">
-                <div className="text-base font-semibold tabular-nums">{c.value}</div>
-                <div className="text-[11px] text-muted-foreground">{c.label}</div>
+              <div key={c.label} className="px-1 py-3">
+                <div className="font-mono text-base font-semibold tabular-nums">{c.value}</div>
+                <div className="mt-0.5 text-[11px] text-muted-foreground">{c.label}</div>
               </div>
             ))}
           </div>
@@ -217,12 +258,16 @@ function DashboardView() {
       <Section title={`Token / 成本（近 ${d.cost.windowDays} 天）`}>
         <div className="mb-4 flex flex-wrap items-end gap-x-8 gap-y-3">
           <div>
-            <div className="text-2xl font-semibold tabular-nums">{fmtCost(d.cost.totalCost)}</div>
+            <div className="font-mono text-2xl font-semibold tabular-nums">
+              {fmtCost(d.cost.totalCost)}
+            </div>
             <div className="text-xs text-muted-foreground">总成本</div>
           </div>
           {tokenCells.map((c) => (
             <div key={c.label}>
-              <div className="text-base font-semibold tabular-nums">{c.value.toLocaleString()}</div>
+              <div className="font-mono text-base font-semibold tabular-nums">
+                {c.value.toLocaleString()}
+              </div>
               <div className="text-xs text-muted-foreground">{c.label} token</div>
             </div>
           ))}
@@ -251,7 +296,7 @@ function DashboardView() {
       </Section>
 
       {/* 洞察分布 */}
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-2">
         <Section title="洞察强度分布">
           {d.insights.byIntensity.length === 0 ? (
             <p className="text-sm text-muted-foreground">暂无洞察。</p>

@@ -15,6 +15,7 @@ import { api, ApiError } from '@/api/client';
 import { RequirePerm } from '@/auth/require-perm';
 import { EmptyState, LoadError } from '@/components/empty';
 import { FilterBar } from '@/components/filter-bar';
+import { PageHeader } from '@/components/page-header';
 import { Pagination } from '@/components/pagination';
 import { parsePage, timeAgo } from '@/lib/format';
 import { buildQuery } from '@/lib/qs';
@@ -33,8 +34,11 @@ function AuditView() {
   });
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-lg font-semibold tracking-tight">审计日志</h1>
+    <div>
+      <PageHeader
+        title="审计日志"
+        description="账户 / 权限 / 密钥 / 分析 / 导出 / 设备等敏感操作的追溯"
+      />
 
       <FilterBar
         basePath="/admin/audit"

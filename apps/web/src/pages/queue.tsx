@@ -22,6 +22,7 @@ import {
 import { api, ApiError } from '@/api/client';
 import { RequirePerm } from '@/auth/require-perm';
 import { EmptyState, LoadError } from '@/components/empty';
+import { PageHeader } from '@/components/page-header';
 import { Pagination } from '@/components/pagination';
 import { fmtDate, fmtDuration, parsePage, timeAgo } from '@/lib/format';
 import { buildQuery } from '@/lib/qs';
@@ -249,12 +250,10 @@ function QueueView() {
 
   return (
     <>
-      <h1 className="mb-4 text-lg font-semibold tracking-tight">
-        任务队列{' '}
-        <span className="text-sm font-normal text-muted-foreground">
-          全系统分析任务（手动 + 自动调度），每 3 秒刷新 · 点击任意行看详情
-        </span>
-      </h1>
+      <PageHeader
+        title="任务队列"
+        description="全系统分析任务（手动 + 自动调度）· 每 3 秒刷新 · 点击任意行看详情"
+      />
 
       <div className="mb-4 space-y-2">
         <div className="flex flex-wrap items-center gap-1.5">

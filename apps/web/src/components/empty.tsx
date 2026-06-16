@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Inbox, TriangleAlert } from 'lucide-react';
 import {
   Empty,
@@ -13,12 +14,14 @@ interface EmptyStateProps {
   title: string;
   /** 可选的辅助说明，提示用户后续操作 */
   hint?: string;
+  /** 可选的「下一步行动」区（按钮/链接） */
+  action?: ReactNode;
 }
 
 /** 列表为空时的占位提示 */
-export function EmptyState({ title, hint }: EmptyStateProps) {
+export function EmptyState({ title, hint, action }: EmptyStateProps) {
   return (
-    <Empty className="border">
+    <Empty className="rounded-xl border border-dashed bg-card/40">
       <EmptyHeader>
         <EmptyMedia variant="icon">
           <Inbox />
@@ -26,6 +29,7 @@ export function EmptyState({ title, hint }: EmptyStateProps) {
         <EmptyTitle>{title}</EmptyTitle>
         {hint ? <EmptyDescription>{hint}</EmptyDescription> : null}
       </EmptyHeader>
+      {action ? <EmptyContent>{action}</EmptyContent> : null}
     </Empty>
   );
 }

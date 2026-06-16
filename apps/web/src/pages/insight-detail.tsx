@@ -1,7 +1,7 @@
 import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowRight, ExternalLink, Lightbulb, Star } from 'lucide-react';
-import type { Insight, Intensity, PostRow, Triage } from '@hatch-radar/shared';
+import type { Insight, PostRow, Triage } from '@hatch-radar/shared';
 import { Badge } from '@hatch-radar/ui/components/badge';
 import { Card } from '@hatch-radar/ui/components/card';
 import { Separator } from '@hatch-radar/ui/components/separator';
@@ -9,16 +9,15 @@ import { Skeleton } from '@hatch-radar/ui/components/skeleton';
 import { cn } from '@hatch-radar/ui/lib/utils';
 import { api, ApiError } from '@/api/client';
 import { RequirePerm } from '@/auth/require-perm';
-import { AnalyzedBadge, IntensityBadge, SourceBadge, TriageStatusBadge } from '@/components/badges';
+import {
+  AnalyzedBadge,
+  INTENSITY_BORDER_L,
+  IntensityBadge,
+  SourceBadge,
+  TriageStatusBadge,
+} from '@/components/badges';
 import { EmptyState, LoadError } from '@/components/empty';
 import { channelLabel, fmtDate, permalinkUrl } from '@/lib/format';
-
-/** 痛点卡片左侧强度色条（Tailwind 调色板，经 className 注入，不写自定义 CSS） */
-const PAIN_ACCENT: Record<Intensity, string> = {
-  HIGH: 'border-l-red-500',
-  MEDIUM: 'border-l-amber-500',
-  LOW: 'border-l-emerald-500',
-};
 
 /** 评分星级（1-5，实心至 value，其余描边） */
 function RatingStars({ value }: { value: number }) {
@@ -53,12 +52,12 @@ function InsightDetailView() {
       <LoadError message={detailQ.error instanceof ApiError ? detailQ.error.message : undefined} />
     );
   }
-  if (detailQ.isPending) return <Skeleton className="h-96 w-full" />;
+  if (detailQ.isPending) return <Skeleton className="mx-auto h-96 max-w-3xl" />;
 
   const { insight, triage, post } = detailQ.data;
 
   return (
-    <Card className="gap-0 p-4 sm:p-6">
+    <Card className="mx-auto max-w-3xl gap-0 p-4 sm:p-6">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
         <IntensityBadge intensity={insight.intensity} />
         <SourceBadge source={insight.source} />
@@ -66,7 +65,7 @@ function InsightDetailView() {
         <time>{fmtDate(insight.createdAt)}</time>
         <span>· 模型 {insight.model}</span>
       </div>
-      <h1 className="mt-3 text-xl leading-snug font-semibold tracking-tight">
+      <h1 className="mt-3 text-2xl leading-snug font-semibold tracking-tight">
         {insight.postTitle}
       </h1>
 
@@ -139,7 +138,10 @@ function InsightDetailView() {
           {insight.painPoints.map((pain, idx) => (
             <li
               key={idx}
-              className={cn('rounded-lg border border-l-4 p-3', PAIN_ACCENT[pain.intensity])}
+              className={cn(
+                'rounded-lg border border-l-4 bg-card p-3',
+                INTENSITY_BORDER_L[pain.intensity],
+              )}
             >
               <div className="flex items-start gap-2">
                 <IntensityBadge intensity={pain.intensity} />
@@ -162,9 +164,9 @@ function InsightDetailView() {
       ) : (
         <ul className="space-y-3">
           {insight.opportunities.map((opp, idx) => (
-            <li key={idx} className="rounded-lg border p-3">
+            <li key={idx} className="rounded-lg border bg-card p-3">
               <h3 className="flex items-center gap-1.5 font-medium">
-                <Lightbulb className="size-4 text-amber-500" />
+                <Lightbulb className="size-4 text-intensity-medium" />
                 {opp.title}
               </h3>
               <p className="mt-1 text-sm">{opp.description}</p>

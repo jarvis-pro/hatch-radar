@@ -10,6 +10,7 @@ import {
   type WorkbenchItem,
 } from '@/components/analyze-workbench';
 import { LoadError } from '@/components/empty';
+import { PageHeader } from '@/components/page-header';
 import { Pagination } from '@/components/pagination';
 import { channelLabel, parsePage } from '@/lib/format';
 import { buildQuery } from '@/lib/qs';
@@ -64,12 +65,7 @@ function AnalyzeView() {
 
   return (
     <>
-      <h1 className="mb-4 text-lg font-semibold tracking-tight">
-        分析运行{' '}
-        <span className="text-sm font-normal text-muted-foreground">
-          选中帖子 + 选模型 → 运行；交由队列后台处理
-        </span>
-      </h1>
+      <PageHeader title="分析运行" description="选中帖子 + 选模型 → 运行；交由队列后台处理" />
 
       {awaitingQ.isPending ? (
         <Skeleton className="h-64 w-full" />

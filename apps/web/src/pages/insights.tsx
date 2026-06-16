@@ -1,7 +1,7 @@
 import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { Clock, FileText, MessageSquare, Sparkles, type LucideIcon } from 'lucide-react';
 import type { DbStats, FilterOptions, Insight, Paged } from '@hatch-radar/shared';
-import { Card } from '@hatch-radar/ui/components/card';
 import { Skeleton } from '@hatch-radar/ui/components/skeleton';
 import { api, ApiError } from '@/api/client';
 import { RequirePerm } from '@/auth/require-perm';
@@ -9,7 +9,9 @@ import { EmptyState, LoadError } from '@/components/empty';
 import { ExportBatchButton } from '@/components/export-batch';
 import { FilterBar } from '@/components/filter-bar';
 import { InsightCard } from '@/components/insight-card';
+import { PageHeader } from '@/components/page-header';
 import { Pagination } from '@/components/pagination';
+import { StatCard } from '@/components/stat-card';
 import { INTENSITY_LABELS, parseIntensity, parsePage, sourceLabel } from '@/lib/format';
 import { buildQuery } from '@/lib/qs';
 
@@ -37,28 +39,35 @@ function InsightsView() {
 
   const options = optionsQ.data ?? { sources: [], subreddits: [] };
   const stats = statsQ.data;
-  const statItems = [
-    { label: '洞察', value: stats?.insights },
-    { label: '帖子', value: stats?.posts },
-    { label: '评论', value: stats?.comments },
-    { label: '待分析', value: stats?.pendingAnalysis },
+  const statItems: { label: string; value: number | undefined; icon: LucideIcon }[] = [
+    { label: '洞察', value: stats?.insights, icon: Sparkles },
+    { label: '帖子', value: stats?.posts, icon: FileText },
+    { label: '评论', value: stats?.comments, icon: MessageSquare },
+    { label: '待分析', value: stats?.pendingAnalysis, icon: Clock },
   ];
 
   return (
     <>
-      <div className="mb-4 flex items-center justify-between gap-2">
-        <h1 className="text-lg font-semibold tracking-tight">洞察</h1>
-        <ExportBatchButton subreddits={options.subreddits} />
-      </div>
+      <PageHeader
+        title="洞察"
+        description="社区痛点与产品机会，按来源 / 版块 / 强度筛选研判"
+        actions={<ExportBatchButton subreddits={options.subreddits} />}
+      />
 
-      <section className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <section className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
         {statItems.map((s) => (
-          <Card key={s.label} className="gap-1 p-4">
-            <span className="text-2xl font-semibold tabular-nums">
-              {s.value ?? <Skeleton className="inline-block h-7 w-10 align-middle" />}
-            </span>
-            <span className="text-sm text-muted-foreground">{s.label}</span>
-          </Card>
+          <StatCard
+            key={s.label}
+            label={s.label}
+            icon={s.icon}
+            value={
+              s.value != null ? (
+                s.value.toLocaleString()
+              ) : (
+                <Skeleton className="inline-block h-7 w-12 align-middle" />
+              )
+            }
+          />
         ))}
       </section>
 

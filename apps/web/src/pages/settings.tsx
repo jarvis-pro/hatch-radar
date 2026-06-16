@@ -4,6 +4,7 @@ import { Skeleton } from '@hatch-radar/ui/components/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@hatch-radar/ui/components/tabs';
 import { api, ApiError } from '@/api/client';
 import { RequirePerm } from '@/auth/require-perm';
+import { PageHeader } from '@/components/page-header';
 import {
   RuntimeSettingsManager,
   type RuntimeSettingsData,
@@ -58,7 +59,7 @@ function SettingsView() {
 
   return (
     <>
-      <h1 className="mb-4 text-lg font-semibold tracking-tight">设置</h1>
+      <PageHeader title="设置" description="模型与密钥 · 数据来源 · 运行参数" />
 
       <Tabs value={tab} onValueChange={selectTab} className="space-y-6">
         <TabsList>

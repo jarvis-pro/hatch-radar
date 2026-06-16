@@ -15,6 +15,7 @@ import { RequirePerm } from '@/auth/require-perm';
 import { AnalyzedBadge, SourceBadge } from '@/components/badges';
 import { EmptyState, LoadError } from '@/components/empty';
 import { FilterBar } from '@/components/filter-bar';
+import { PageHeader } from '@/components/page-header';
 import { Pagination } from '@/components/pagination';
 import { channelLabel, parsePage, sourceLabel, timeAgo } from '@/lib/format';
 import { buildQuery } from '@/lib/qs';
@@ -46,10 +47,7 @@ function PostsView() {
 
   return (
     <>
-      <h1 className="mb-4 text-lg font-semibold tracking-tight">
-        帖子{' '}
-        <span className="text-sm font-normal text-muted-foreground">原始数据，30 天后归档</span>
-      </h1>
+      <PageHeader title="帖子" description="原始抓取数据，30 天后归档；可在此挑选帖子发起分析" />
 
       <FilterBar
         basePath="/posts"
