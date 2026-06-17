@@ -12,3 +12,14 @@ export * from './analyzer/analyze';
 export * from './analyzer/prompt';
 export { insightFromMessage } from './analyzer/claude-agent';
 export { buildContext } from './analyzer/context';
+
+// 翻译能力（translator 引擎 + 落库编排）
+export * from './translation.service';
+export {
+  looksChinese,
+  translateItems,
+  type TranslateConfig,
+  type TranslateItem,
+  type TranslatedItem,
+} from './translator/translate';
+export { translationFromMessage } from './translator/claude-agent';
