@@ -1,4 +1,13 @@
 import { useState } from 'react';
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@hatch-radar/ui/components/alert-dialog';
 import { Badge } from '@hatch-radar/ui/components/badge';
 import { Button } from '@hatch-radar/ui/components/button';
 import {
@@ -18,6 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@hatch-radar/ui/components/select';
+import { Spinner } from '@hatch-radar/ui/components/spinner';
 import { Switch } from '@hatch-radar/ui/components/switch';
 import {
   Table,
@@ -27,7 +37,9 @@ import {
   TableHeader,
   TableRow,
 } from '@hatch-radar/ui/components/table';
+import { toast } from '@hatch-radar/ui/components/sonner';
 import { api, ApiError } from '@/api/client';
+import { EmptyState, LoadError } from '@/components/empty';
 
 /** 模型厂商（claude_cli = Claude 订阅模式，复用本机已登录的 claude，无 API Key） */
 export type ProviderKind = 'anthropic' | 'openai' | 'deepseek' | 'claude_cli';
@@ -128,10 +140,16 @@ interface KeyFormState {
 
 const EMPTY_KEY_FORM: KeyFormState = { apiKey: '', label: '', priority: 0 };
 
-interface Flash {
-  kind: 'ok' | 'err';
-  text: string;
-}
+/**
+ * 受控确认弹窗：
+ * - rebaseClear：编辑模型时改了 base 地址，保存会清空该模型现有全部 Key（高危，二次确认）
+ * - deleteProvider：删除模型及其全部 Key
+ * - deleteKey：删除单把 Key
+ */
+type Confirm =
+  | { kind: 'rebaseClear' }
+  | { kind: 'deleteProvider'; provider: ProviderDTO }
+  | { kind: 'deleteKey'; providerId: number; k: ProviderKeyDTO };
 
 interface ApiData {
   error?: string;
@@ -188,7 +206,6 @@ export function SettingsManager({
   loadError: string | null;
   onChanged: () => void;
 }) {
-  const [flash, setFlash] = useState<Flash | null>(null);
   // 模型配置弹窗
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -203,13 +220,12 @@ export function SettingsManager({
   const [keyForm, setKeyForm] = useState<KeyFormState>(EMPTY_KEY_FORM);
   const [keyBusy, setKeyBusy] = useState(false);
   const [testingKeyId, setTestingKeyId] = useState<number | null>(null);
+  // 受控确认弹窗（删除 / 高危改 base）
+  const [confirm, setConfirm] = useState<Confirm | null>(null);
+  const [confirmBusy, setConfirmBusy] = useState(false);
 
   if (loadError || !initial) {
-    return (
-      <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
-        {loadError ?? '加载失败'}
-      </div>
-    );
+    return <LoadError message={loadError ?? undefined} />;
   }
 
   const { providers, activeProviderId, secretConfigured } = initial;
@@ -256,30 +272,12 @@ export function SettingsManager({
     );
   }
 
-  async function save() {
-    if (!form.label.trim() || !form.model.trim()) {
-      setFlash({ kind: 'err', text: '名称与模型不能为空' });
-      return;
-    }
-    if (usesApiKey(form.provider) && !secretConfigured) {
-      setFlash({ kind: 'err', text: '未配置 SETTINGS_SECRET，无法保存带密钥的模型' });
-      return;
-    }
-    if (needKeyOnSave && !form.apiKey.trim()) {
-      setFlash({
-        kind: 'err',
-        text:
-          editingId === null ? '新增模型必须填写首把 API Key' : '修改 base 地址必须重填 API Key',
-      });
-      return;
-    }
+  /** 真正落库的保存（校验通过、必要时已二次确认后调用） */
+  async function doSave() {
     const ip = form.inputPrice.trim();
     const op = form.outputPrice.trim();
-    if ((ip !== '' && !(Number(ip) >= 0)) || (op !== '' && !(Number(op) >= 0))) {
-      setFlash({ kind: 'err', text: 'token 单价需为非负数' });
-      return;
-    }
     setBusy(true);
+    setConfirmBusy(true);
     const body: Record<string, unknown> = {
       provider: form.provider,
       label: form.label.trim(),
@@ -295,47 +293,78 @@ export function SettingsManager({
         ? await apiSend('/api/settings/providers', 'POST', body)
         : await apiSend(`/api/settings/providers/${editingId}`, 'PUT', body);
     setBusy(false);
+    setConfirmBusy(false);
     if (res.ok) {
       setOpen(false);
-      setFlash({ kind: 'ok', text: editingId === null ? '已新增模型' : '已更新模型' });
+      setConfirm(null);
+      toast.success(editingId === null ? '已新增模型' : '已更新模型');
       onChanged();
     } else {
-      setFlash({ kind: 'err', text: res.data?.error ?? `保存失败（${res.status}）` });
+      toast.error(res.data?.error ?? `保存失败（${res.status}）`);
     }
   }
 
-  async function remove(p: ProviderDTO) {
-    if (!window.confirm(`删除模型「${p.label}」及其全部 Key？`)) return;
+  /** 校验后保存；改了 base 地址会清空旧 Key，先走二次确认 */
+  function save() {
+    if (!form.label.trim() || !form.model.trim()) {
+      toast.error('名称与模型不能为空');
+      return;
+    }
+    if (usesApiKey(form.provider) && !secretConfigured) {
+      toast.error('未配置 SETTINGS_SECRET，无法保存带密钥的模型');
+      return;
+    }
+    if (needKeyOnSave && !form.apiKey.trim()) {
+      toast.error(
+        editingId === null ? '新增模型必须填写首把 API Key' : '修改 base 地址必须重填 API Key',
+      );
+      return;
+    }
+    const ip = form.inputPrice.trim();
+    const op = form.outputPrice.trim();
+    if ((ip !== '' && !(Number(ip) >= 0)) || (op !== '' && !(Number(op) >= 0))) {
+      toast.error('token 单价需为非负数');
+      return;
+    }
+    if (baseUrlChanged) {
+      setConfirm({ kind: 'rebaseClear' });
+      return;
+    }
+    void doSave();
+  }
+
+  async function removeProvider(p: ProviderDTO) {
+    setConfirmBusy(true);
     const res = await apiSend(`/api/settings/providers/${p.id}`, 'DELETE');
+    setConfirmBusy(false);
     if (res.ok) {
-      setFlash({ kind: 'ok', text: '已删除' });
+      setConfirm(null);
+      toast.success('已删除');
       onChanged();
     } else {
-      setFlash({ kind: 'err', text: res.data?.error ?? '删除失败' });
+      toast.error(res.data?.error ?? '删除失败');
     }
   }
 
   async function toggleEnabled(p: ProviderDTO) {
     const res = await apiSend(`/api/settings/providers/${p.id}`, 'PUT', { enabled: !p.enabled });
     if (res.ok) {
-      setFlash({ kind: 'ok', text: p.enabled ? '已停用' : '已启用' });
+      toast.success(p.enabled ? '已停用' : '已启用');
       onChanged();
     } else {
-      setFlash({ kind: 'err', text: res.data?.error ?? '操作失败' });
+      toast.error(res.data?.error ?? '操作失败');
     }
   }
 
   async function setActive(id: number | null) {
     const res = await apiSend('/api/settings/active', 'PUT', { providerId: id });
     if (res.ok) {
-      setFlash({
-        kind: 'ok',
-        text:
-          id === null ? '已停用自动分析' : `已设为当前模型，即时入队 ${res.data?.enqueued ?? 0} 篇`,
-      });
+      toast.success(
+        id === null ? '已停用自动分析' : `已设为当前模型，即时入队 ${res.data?.enqueued ?? 0} 篇`,
+      );
       onChanged();
     } else {
-      setFlash({ kind: 'err', text: res.data?.error ?? '操作失败' });
+      toast.error(res.data?.error ?? '操作失败');
     }
   }
 
@@ -344,9 +373,9 @@ export function SettingsManager({
     const res = await apiSend(`/api/settings/providers/${p.id}/test`, 'POST');
     setTestingId(null);
     if (res.ok && res.data?.ok) {
-      setFlash({ kind: 'ok', text: `「${p.label}」连接正常` });
+      toast.success(`「${p.label}」连接正常`);
     } else {
-      setFlash({ kind: 'err', text: `「${p.label}」连接失败：${res.data?.error ?? res.status}` });
+      toast.error(`「${p.label}」连接失败：${res.data?.error ?? res.status}`);
     }
   }
 
@@ -369,7 +398,7 @@ export function SettingsManager({
   async function saveKey() {
     if (keyProviderId === null) return;
     if (editingKeyId === null && !keyForm.apiKey.trim()) {
-      setFlash({ kind: 'err', text: '请填写 API Key' });
+      toast.error('请填写 API Key');
       return;
     }
     setKeyBusy(true);
@@ -387,21 +416,23 @@ export function SettingsManager({
     setKeyBusy(false);
     if (res.ok) {
       setKeyOpen(false);
-      setFlash({ kind: 'ok', text: editingKeyId === null ? '已添加 Key' : '已更新 Key' });
+      toast.success(editingKeyId === null ? '已添加 Key' : '已更新 Key');
       onChanged();
     } else {
-      setFlash({ kind: 'err', text: res.data?.error ?? `保存失败（${res.status}）` });
+      toast.error(res.data?.error ?? `保存失败（${res.status}）`);
     }
   }
 
   async function removeKey(providerId: number, k: ProviderKeyDTO) {
-    if (!window.confirm(`删除 Key「${k.label || k.keyMasked}」？`)) return;
+    setConfirmBusy(true);
     const res = await apiSend(`/api/settings/providers/${providerId}/keys/${k.id}`, 'DELETE');
+    setConfirmBusy(false);
     if (res.ok) {
-      setFlash({ kind: 'ok', text: '已删除 Key' });
+      setConfirm(null);
+      toast.success('已删除 Key');
       onChanged();
     } else {
-      setFlash({ kind: 'err', text: res.data?.error ?? '删除失败' });
+      toast.error(res.data?.error ?? '删除失败');
     }
   }
 
@@ -410,7 +441,7 @@ export function SettingsManager({
       enabled: !k.enabled,
     });
     if (res.ok) onChanged();
-    else setFlash({ kind: 'err', text: res.data?.error ?? '操作失败' });
+    else toast.error(res.data?.error ?? '操作失败');
   }
 
   async function resetKey(providerId: number, k: ProviderKeyDTO) {
@@ -418,10 +449,10 @@ export function SettingsManager({
       reset: true,
     });
     if (res.ok) {
-      setFlash({ kind: 'ok', text: '已复位为可用' });
+      toast.success('已复位为可用');
       onChanged();
     } else {
-      setFlash({ kind: 'err', text: res.data?.error ?? '操作失败' });
+      toast.error(res.data?.error ?? '操作失败');
     }
   }
 
@@ -429,9 +460,16 @@ export function SettingsManager({
     setTestingKeyId(k.id);
     const res = await apiSend(`/api/settings/providers/${providerId}/keys/${k.id}/test`, 'POST');
     setTestingKeyId(null);
-    if (res.ok && res.data?.ok)
-      setFlash({ kind: 'ok', text: `Key「${k.label || k.keyMasked}」连接正常` });
-    else setFlash({ kind: 'err', text: `Key 连接失败：${res.data?.error ?? res.status}` });
+    if (res.ok && res.data?.ok) toast.success(`Key「${k.label || k.keyMasked}」连接正常`);
+    else toast.error(`Key 连接失败：${res.data?.error ?? res.status}`);
+  }
+
+  /** 执行受控确认弹窗里被确认的操作 */
+  function runConfirm() {
+    if (!confirm) return;
+    if (confirm.kind === 'rebaseClear') void doSave();
+    else if (confirm.kind === 'deleteProvider') void removeProvider(confirm.provider);
+    else void removeKey(confirm.providerId, confirm.k);
   }
 
   return (
@@ -447,14 +485,6 @@ export function SettingsManager({
         </div>
         <Button onClick={openCreate}>新增模型</Button>
       </div>
-
-      {flash ? (
-        <p
-          className={`mb-3 text-sm ${flash.kind === 'ok' ? 'text-foreground' : 'text-destructive'}`}
-        >
-          {flash.text}
-        </p>
-      ) : null}
 
       {!secretConfigured ? (
         <div className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-sm">
@@ -482,9 +512,11 @@ export function SettingsManager({
       </div>
 
       {providers.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-          还没有配置任何模型。点击右上角「新增模型」添加一个。
-        </div>
+        <EmptyState
+          title="还没有配置任何模型"
+          hint="添加一个模型后即可选用它做自动分析。"
+          action={<Button onClick={openCreate}>新增模型</Button>}
+        />
       ) : (
         <div className="space-y-4">
           {providers.map((p) => (
@@ -531,7 +563,12 @@ export function SettingsManager({
                   <Button variant="ghost" size="sm" onClick={() => openEdit(p)}>
                     编辑
                   </Button>
-                  <Button variant="ghost" size="sm" onClick={() => remove(p)}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive hover:text-destructive"
+                    onClick={() => setConfirm({ kind: 'deleteProvider', provider: p })}
+                  >
                     删除
                   </Button>
                 </div>
@@ -616,7 +653,14 @@ export function SettingsManager({
                               >
                                 编辑
                               </Button>
-                              <Button variant="ghost" size="sm" onClick={() => removeKey(p.id, k)}>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-destructive hover:text-destructive"
+                                onClick={() =>
+                                  setConfirm({ kind: 'deleteKey', providerId: p.id, k })
+                                }
+                              >
                                 删除
                               </Button>
                             </TableCell>
@@ -828,6 +872,64 @@ export function SettingsManager({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* 受控确认弹窗：删除模型 / 删除 Key / 高危改 base 清空 Key */}
+      <AlertDialog open={confirm !== null} onOpenChange={(o) => !o && setConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {confirm?.kind === 'rebaseClear'
+                ? '改 base 地址会清空全部 Key'
+                : confirm?.kind === 'deleteProvider'
+                  ? '删除模型'
+                  : confirm?.kind === 'deleteKey'
+                    ? '删除 API Key'
+                    : ''}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirm?.kind === 'rebaseClear' ? (
+                <>
+                  你修改了该模型的 API 基地址。保存将
+                  <span className="font-medium text-foreground">清空该模型现有的全部 Key</span>
+                  ，仅保留这次新填的这把，且不可恢复。确定继续？
+                </>
+              ) : confirm?.kind === 'deleteProvider' ? (
+                <>
+                  将永久删除模型{' '}
+                  <span className="font-medium text-foreground">{confirm.provider.label}</span>{' '}
+                  及其全部 Key，且不可恢复。
+                </>
+              ) : confirm?.kind === 'deleteKey' ? (
+                <>
+                  将永久删除 Key{' '}
+                  <span className="font-medium text-foreground">
+                    {confirm.k.label || confirm.k.keyMasked}
+                  </span>
+                  ，且不可恢复。
+                </>
+              ) : null}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={confirmBusy}>取消</AlertDialogCancel>
+            <Button
+              variant="destructive"
+              disabled={confirmBusy}
+              className="gap-2"
+              onClick={runConfirm}
+            >
+              {confirmBusy ? <Spinner /> : null}
+              {confirm?.kind === 'rebaseClear'
+                ? '保存并清空 Key'
+                : confirm?.kind === 'deleteProvider'
+                  ? '删除模型'
+                  : confirm?.kind === 'deleteKey'
+                    ? '删除 Key'
+                    : ''}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

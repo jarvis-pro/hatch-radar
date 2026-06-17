@@ -1,7 +1,21 @@
 import { useState } from 'react';
-import { api, ApiError } from '@/api/client';
+import { ChevronRight } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@hatch-radar/ui/components/alert-dialog';
 import { Badge } from '@hatch-radar/ui/components/badge';
 import { Button } from '@hatch-radar/ui/components/button';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@hatch-radar/ui/components/collapsible';
 import {
   Dialog,
   DialogContent,
@@ -19,6 +33,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@hatch-radar/ui/components/select';
+import { Spinner } from '@hatch-radar/ui/components/spinner';
 import { Switch } from '@hatch-radar/ui/components/switch';
 import {
   Table,
@@ -28,6 +43,9 @@ import {
   TableHeader,
   TableRow,
 } from '@hatch-radar/ui/components/table';
+import { toast } from '@hatch-radar/ui/components/sonner';
+import { api, ApiError } from '@/api/client';
+import { EmptyState, LoadError } from '@/components/empty';
 
 export type SourcePlatform = 'reddit' | 'hackernews' | 'rss';
 
@@ -73,10 +91,10 @@ const PLATFORM_PLACEHOLDER: Record<SourcePlatform, string> = {
   rss: 'RSS feed 完整 URL',
 };
 
-interface Flash {
-  kind: 'ok' | 'err';
-  text: string;
-}
+/** 受控确认弹窗：删除来源 / 删除连接器（均不可恢复） */
+type Confirm =
+  | { kind: 'deleteSource'; source: SourceDTO }
+  | { kind: 'deleteConn'; conn: ConnectorDTO };
 
 interface ApiData {
   error?: string;
@@ -155,7 +173,6 @@ export function SourcesManager({
   loadError: string | null;
   onChanged: () => void;
 }) {
-  const [flash, setFlash] = useState<Flash | null>(null);
   const [testingId, setTestingId] = useState<number | null>(null);
   // 来源弹窗
   const [srcOpen, setSrcOpen] = useState(false);
@@ -167,13 +184,12 @@ export function SourcesManager({
   const [connEditingId, setConnEditingId] = useState<number | null>(null);
   const [connForm, setConnForm] = useState<ConnForm>(EMPTY_CONN);
   const [connBusy, setConnBusy] = useState(false);
+  // 受控确认弹窗（删除来源 / 删除连接器）
+  const [confirm, setConfirm] = useState<Confirm | null>(null);
+  const [confirmBusy, setConfirmBusy] = useState(false);
 
   if (loadError || !initial) {
-    return (
-      <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
-        {loadError ?? '加载失败'}
-      </div>
-    );
+    return <LoadError message={loadError ?? undefined} />;
   }
 
   const { sources, connectors, redditUsable, secretConfigured } = initial;
@@ -204,7 +220,7 @@ export function SourcesManager({
 
   async function saveSource() {
     if (!srcForm.identifier.trim()) {
-      setFlash({ kind: 'err', text: '标识不能为空' });
+      toast.error('标识不能为空');
       return;
     }
     setSrcBusy(true);
@@ -221,27 +237,29 @@ export function SourcesManager({
     setSrcBusy(false);
     if (res.ok) {
       setSrcOpen(false);
-      setFlash({ kind: 'ok', text: srcEditingId === null ? '已新增来源' : '已更新来源' });
+      toast.success(srcEditingId === null ? '已新增来源' : '已更新来源');
       onChanged();
     } else {
-      setFlash({ kind: 'err', text: res.data?.error ?? `保存失败（${res.status}）` });
+      toast.error(res.data?.error ?? `保存失败（${res.status}）`);
     }
   }
 
   async function toggleSource(s: SourceDTO) {
     const res = await apiSend(`/api/sources/${s.id}`, 'PUT', { enabled: !s.enabled });
     if (res.ok) onChanged();
-    else setFlash({ kind: 'err', text: res.data?.error ?? '操作失败' });
+    else toast.error(res.data?.error ?? '操作失败');
   }
 
   async function removeSource(s: SourceDTO) {
-    if (!window.confirm(`删除来源「${s.label || s.identifier}」？`)) return;
+    setConfirmBusy(true);
     const res = await apiSend(`/api/sources/${s.id}`, 'DELETE');
+    setConfirmBusy(false);
     if (res.ok) {
-      setFlash({ kind: 'ok', text: '已删除来源' });
+      setConfirm(null);
+      toast.success('已删除来源');
       onChanged();
     } else {
-      setFlash({ kind: 'err', text: res.data?.error ?? '删除失败' });
+      toast.error(res.data?.error ?? '删除失败');
     }
   }
 
@@ -268,7 +286,7 @@ export function SourcesManager({
       );
       if (missing.length > 0) {
         setConnBusy(false);
-        setFlash({ kind: 'err', text: `Reddit 凭据缺少：${missing.join(' / ')}` });
+        toast.error(`Reddit 凭据缺少：${missing.join(' / ')}`);
         return;
       }
       res = await apiSend('/api/source-connectors', 'POST', {
@@ -294,33 +312,31 @@ export function SourcesManager({
     setConnBusy(false);
     if (res.ok) {
       setConnOpen(false);
-      setFlash({
-        kind: 'ok',
-        text:
-          connEditingId === null
-            ? '已新增连接器，请点「测试」通过后方可启用其来源'
-            : '已更新连接器',
-      });
+      toast.success(
+        connEditingId === null ? '已新增连接器，请点「测试」通过后方可启用其来源' : '已更新连接器',
+      );
       onChanged();
     } else {
-      setFlash({ kind: 'err', text: res.data?.error ?? `保存失败（${res.status}）` });
+      toast.error(res.data?.error ?? `保存失败（${res.status}）`);
     }
   }
 
   async function toggleConn(c: ConnectorDTO) {
     const res = await apiSend(`/api/source-connectors/${c.id}`, 'PUT', { enabled: !c.enabled });
     if (res.ok) onChanged();
-    else setFlash({ kind: 'err', text: res.data?.error ?? '操作失败' });
+    else toast.error(res.data?.error ?? '操作失败');
   }
 
   async function removeConn(c: ConnectorDTO) {
-    if (!window.confirm(`删除连接器「${c.label || c.summary}」？`)) return;
+    setConfirmBusy(true);
     const res = await apiSend(`/api/source-connectors/${c.id}`, 'DELETE');
+    setConfirmBusy(false);
     if (res.ok) {
-      setFlash({ kind: 'ok', text: '已删除连接器' });
+      setConfirm(null);
+      toast.success('已删除连接器');
       onChanged();
     } else {
-      setFlash({ kind: 'err', text: res.data?.error ?? '删除失败' });
+      toast.error(res.data?.error ?? '删除失败');
     }
   }
 
@@ -329,11 +345,18 @@ export function SourcesManager({
     const res = await apiSend(`/api/source-connectors/${c.id}/test`, 'POST');
     setTestingId(null);
     if (res.ok && res.data?.ok) {
-      setFlash({ kind: 'ok', text: `连接器「${c.label || c.summary}」测试通过` });
+      toast.success(`连接器「${c.label || c.summary}」测试通过`);
     } else {
-      setFlash({ kind: 'err', text: `测试失败：${res.data?.error ?? res.status}` });
+      toast.error(`测试失败：${res.data?.error ?? res.status}`);
     }
     onChanged();
+  }
+
+  /** 执行受控确认弹窗里被确认的删除 */
+  function runConfirm() {
+    if (!confirm) return;
+    if (confirm.kind === 'deleteSource') void removeSource(confirm.source);
+    else void removeConn(confirm.conn);
   }
 
   return (
@@ -341,36 +364,107 @@ export function SourcesManager({
       <div className="mb-4">
         <h2 className="text-lg font-semibold tracking-tight">数据来源</h2>
         <p className="text-sm text-muted-foreground">
-          监控哪些来源走数据表勾选；Reddit
-          采集凭据在「采集连接器」配置并测试通过后，其来源才可启用。
+          勾选要监控的来源即纳入定时抓取。HackerNews / RSS 开箱即用；Reddit 需配置采集连接器（官方
+          API 已停用，当前多不可用）。
         </p>
       </div>
 
-      {flash ? (
-        <p
-          className={`mb-3 text-sm ${flash.kind === 'ok' ? 'text-foreground' : 'text-destructive'}`}
-        >
-          {flash.text}
-        </p>
-      ) : null}
-
-      {/* 采集连接器 */}
-      <div className="mb-6 rounded-lg border">
+      {/* 数据来源（爬虫计划）—— 主区置顶；HackerNews / RSS 开箱即用 */}
+      <div className="rounded-lg border">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b p-3">
-          <span className="font-medium">采集连接器</span>
+          <span className="font-medium">爬虫计划（勾选启用）</span>
+          <Button variant="outline" size="sm" onClick={openAddSource}>
+            新建来源
+          </Button>
+        </div>
+        <div className="space-y-4 p-3">
+          {platforms.map((platform) => {
+            const group = sources.filter((s) => s.platform === platform);
+            const redditBlocked = platform === 'reddit' && !redditUsable;
+            return (
+              <div key={platform}>
+                <div className="mb-1 flex flex-wrap items-center gap-2 text-sm font-medium">
+                  {PLATFORM_LABEL[platform]}
+                  {redditBlocked ? (
+                    <span className="text-xs font-normal text-muted-foreground">
+                      · 连接器未测通，暂不可启用
+                    </span>
+                  ) : null}
+                </div>
+                {group.length === 0 ? (
+                  <EmptyState title={`暂无 ${PLATFORM_LABEL[platform]} 来源`} />
+                ) : (
+                  <div className="overflow-x-auto rounded-md border">
+                    <Table>
+                      <TableBody>
+                        {group.map((s) => (
+                          <TableRow key={s.id}>
+                            <TableCell className="w-16">
+                              <Switch
+                                checked={s.enabled}
+                                disabled={redditBlocked && !s.enabled}
+                                onCheckedChange={() => toggleSource(s)}
+                                aria-label={s.enabled ? '停用' : '启用'}
+                              />
+                            </TableCell>
+                            <TableCell className="font-medium">{s.label || s.identifier}</TableCell>
+                            <TableCell className="font-mono text-xs text-muted-foreground">
+                              {s.identifier}
+                            </TableCell>
+                            <TableCell className="text-right whitespace-nowrap">
+                              <Button variant="ghost" size="sm" onClick={() => openEditSource(s)}>
+                                编辑
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-destructive hover:text-destructive"
+                                onClick={() => setConfirm({ kind: 'deleteSource', source: s })}
+                              >
+                                删除
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 采集连接器 —— 降权：Reddit 官方 API 已停用，默认折叠收起，不占主视野 */}
+      <Collapsible defaultOpen={connectors.length > 0} className="mt-6 rounded-lg border">
+        <div className="flex flex-wrap items-center justify-between gap-2 p-3">
+          <CollapsibleTrigger className="group flex min-w-0 flex-1 items-center gap-2 text-left">
+            <ChevronRight className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-90" />
+            <span className="font-medium">采集连接器</span>
+            <span className="truncate text-xs font-normal text-muted-foreground">
+              Reddit 凭据 · 官方 API 已停用，当前非必填
+            </span>
+          </CollapsibleTrigger>
           <Button variant="outline" size="sm" disabled={!secretConfigured} onClick={openAddConn}>
             新建连接器
           </Button>
         </div>
-        <div className="p-3">
-          <p className="mb-2 text-xs text-muted-foreground">
-            ⚠️ Reddit 官方 API 有作废风险（停发免费 key、起诉爬虫）；爬虫方案见
-            <code className="font-mono"> docs/runtime-config-design.md §1.3</code>。
+        <CollapsibleContent className="space-y-3 border-t p-3">
+          <p className="text-xs text-muted-foreground">
+            Reddit 官方已停发免费 key
+            并对爬虫采取法律行动；官方通道不可用时后续将切到爬虫方案。HackerNews / RSS 不受此影响。
           </p>
           {connectors.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              还没有连接器。Reddit 来源需先在此配置 OAuth 凭据并测试通过。
-            </p>
+            <EmptyState
+              title="还没有连接器"
+              hint="Reddit 来源需先在此配置 OAuth 凭据并测试通过后才能启用。"
+              action={
+                <Button size="sm" disabled={!secretConfigured} onClick={openAddConn}>
+                  新建连接器
+                </Button>
+              }
+            />
           ) : (
             <div className="overflow-x-auto rounded-md border">
               <Table>
@@ -414,7 +508,12 @@ export function SourcesManager({
                         <Button variant="ghost" size="sm" onClick={() => openEditConn(c)}>
                           编辑
                         </Button>
-                        <Button variant="ghost" size="sm" onClick={() => removeConn(c)}>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => setConfirm({ kind: 'deleteConn', conn: c })}
+                        >
                           删除
                         </Button>
                       </TableCell>
@@ -424,70 +523,8 @@ export function SourcesManager({
               </Table>
             </div>
           )}
-        </div>
-      </div>
-
-      {/* 爬虫计划 */}
-      <div className="rounded-lg border">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b p-3">
-          <span className="font-medium">爬虫计划（勾选启用）</span>
-          <Button variant="outline" size="sm" onClick={openAddSource}>
-            新建来源
-          </Button>
-        </div>
-        <div className="space-y-4 p-3">
-          {platforms.map((platform) => {
-            const group = sources.filter((s) => s.platform === platform);
-            const redditBlocked = platform === 'reddit' && !redditUsable;
-            return (
-              <div key={platform}>
-                <div className="mb-1 flex items-center gap-2 text-sm font-medium">
-                  {PLATFORM_LABEL[platform]}
-                  {redditBlocked ? (
-                    <span className="text-xs font-normal text-muted-foreground">
-                      （无可用 Reddit 连接器，先去上方配置并测试通过）
-                    </span>
-                  ) : null}
-                </div>
-                {group.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">无</p>
-                ) : (
-                  <div className="overflow-x-auto rounded-md border">
-                    <Table>
-                      <TableBody>
-                        {group.map((s) => (
-                          <TableRow key={s.id}>
-                            <TableCell className="w-16">
-                              <Switch
-                                checked={s.enabled}
-                                disabled={redditBlocked && !s.enabled}
-                                onCheckedChange={() => toggleSource(s)}
-                                aria-label={s.enabled ? '停用' : '启用'}
-                              />
-                            </TableCell>
-                            <TableCell className="font-medium">{s.label || s.identifier}</TableCell>
-                            <TableCell className="font-mono text-xs text-muted-foreground">
-                              {s.identifier}
-                            </TableCell>
-                            <TableCell className="text-right whitespace-nowrap">
-                              <Button variant="ghost" size="sm" onClick={() => openEditSource(s)}>
-                                编辑
-                              </Button>
-                              <Button variant="ghost" size="sm" onClick={() => removeSource(s)}>
-                                删除
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
+        </CollapsibleContent>
+      </Collapsible>
 
       {/* 来源弹窗 */}
       <Dialog open={srcOpen} onOpenChange={setSrcOpen}>
@@ -659,6 +696,56 @@ export function SourcesManager({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* 受控确认弹窗：删除来源 / 删除连接器 */}
+      <AlertDialog open={confirm !== null} onOpenChange={(o) => !o && setConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {confirm?.kind === 'deleteSource'
+                ? '删除来源'
+                : confirm?.kind === 'deleteConn'
+                  ? '删除连接器'
+                  : ''}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirm?.kind === 'deleteSource' ? (
+                <>
+                  将永久删除来源{' '}
+                  <span className="font-medium text-foreground">
+                    {confirm.source.label || confirm.source.identifier}
+                  </span>
+                  ，且不可恢复。
+                </>
+              ) : confirm?.kind === 'deleteConn' ? (
+                <>
+                  将永久删除连接器{' '}
+                  <span className="font-medium text-foreground">
+                    {confirm.conn.label || confirm.conn.summary}
+                  </span>
+                  ，其下 Reddit 来源将随之不可用，且不可恢复。
+                </>
+              ) : null}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={confirmBusy}>取消</AlertDialogCancel>
+            <Button
+              variant="destructive"
+              disabled={confirmBusy}
+              className="gap-2"
+              onClick={runConfirm}
+            >
+              {confirmBusy ? <Spinner /> : null}
+              {confirm?.kind === 'deleteSource'
+                ? '删除来源'
+                : confirm?.kind === 'deleteConn'
+                  ? '删除连接器'
+                  : ''}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </section>
   );
 }

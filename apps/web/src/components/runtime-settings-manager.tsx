@@ -3,7 +3,9 @@ import { Badge } from '@hatch-radar/ui/components/badge';
 import { Button } from '@hatch-radar/ui/components/button';
 import { Input } from '@hatch-radar/ui/components/input';
 import { Label } from '@hatch-radar/ui/components/label';
+import { toast } from '@hatch-radar/ui/components/sonner';
 import { api, ApiError } from '@/api/client';
+import { LoadError } from '@/components/empty';
 
 /** 运行期参数键（与 server RuntimeSettingKey 对应） */
 export type RuntimeSettingKey =
@@ -79,11 +81,6 @@ const FIELD_META: FieldMeta[] = [
 /** 分组顺序（去重保序） */
 const GROUPS = [...new Set(FIELD_META.map((f) => f.group))];
 
-interface Flash {
-  kind: 'ok' | 'err';
-  text: string;
-}
-
 /** 由有效态生成草稿：每项填入当前 DB 值（这些参数已首启播种，始终有值） */
 function seedDraft(data: RuntimeSettingsData): Record<RuntimeSettingKey, string> {
   const out = {} as Record<RuntimeSettingKey, string>;
@@ -109,7 +106,6 @@ export function RuntimeSettingsManager({
     initial ? seedDraft(initial) : ({} as Record<RuntimeSettingKey, string>),
   );
   const [busy, setBusy] = useState(false);
-  const [flash, setFlash] = useState<Flash | null>(null);
 
   // 重新拉取（保存后 / 切换）时把草稿同步到最新有效态；编辑期间 initial 引用稳定，不打断输入
   useEffect(() => {
@@ -117,11 +113,7 @@ export function RuntimeSettingsManager({
   }, [initial]);
 
   if (loadError || !initial) {
-    return (
-      <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
-        {loadError ?? '加载失败'}
-      </div>
-    );
+    return <LoadError message={loadError ?? undefined} />;
   }
   const data = initial;
 
@@ -136,22 +128,22 @@ export function RuntimeSettingsManager({
       if (cur === String(data[f.key].value)) continue; // 相对当前态无改动 → 不提交
       const n = Number(cur);
       if (cur === '' || !Number.isInteger(n) || n < f.min) {
-        setFlash({ kind: 'err', text: `「${f.label}」需为 ≥ ${f.min} 的整数` });
+        toast.error(`「${f.label}」需为 ≥ ${f.min} 的整数`);
         return;
       }
       patch[f.key] = n;
     }
     if (Object.keys(patch).length === 0) {
-      setFlash({ kind: 'ok', text: '没有改动' });
+      toast.info('没有改动');
       return;
     }
     setBusy(true);
     try {
       await api.put('/settings/runtime', patch);
-      setFlash({ kind: 'ok', text: '已保存，立即生效' });
+      toast.success('已保存，立即生效');
       onChanged();
     } catch (err) {
-      setFlash({ kind: 'err', text: err instanceof ApiError ? err.message : '保存失败' });
+      toast.error(err instanceof ApiError ? err.message : '保存失败');
     } finally {
       setBusy(false);
     }
@@ -166,64 +158,54 @@ export function RuntimeSettingsManager({
         </p>
       </div>
 
-      {flash ? (
-        <p
-          className={`mb-3 text-sm ${flash.kind === 'ok' ? 'text-foreground' : 'text-destructive'}`}
-        >
-          {flash.text}
-        </p>
-      ) : null}
-
-      <div className="space-y-4">
+      <div className="space-y-7">
         {GROUPS.map((group) => (
-          <div key={group} className="rounded-lg border">
-            <div className="border-b px-3 py-2 text-sm font-medium text-muted-foreground">
+          <section key={group}>
+            <h3 className="mb-1 text-xs font-medium tracking-wide text-muted-foreground">
               {group}
-            </div>
-            <div className="divide-y">
-              {FIELD_META.filter((f) => f.group === group).map((f) => {
-                const state = data[f.key];
-                const changedFromDefault = state.value !== state.defaultValue;
-                const atDefault = draft[f.key].trim() === String(state.defaultValue);
-                return (
-                  <div
-                    key={f.key}
-                    className="flex flex-wrap items-center justify-between gap-3 p-3"
-                  >
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <Label htmlFor={`rs-${f.key}`}>{f.label}</Label>
-                        {changedFromDefault ? <Badge variant="secondary">已改</Badge> : null}
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        {f.hint} · 默认 {state.defaultValue}
-                        {f.unit}
-                      </p>
-                    </div>
+            </h3>
+            {FIELD_META.filter((f) => f.group === group).map((f) => {
+              const state = data[f.key];
+              const changedFromDefault = state.value !== state.defaultValue;
+              const atDefault = draft[f.key].trim() === String(state.defaultValue);
+              return (
+                <div
+                  key={f.key}
+                  className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-2.5"
+                >
+                  <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <Input
-                        id={`rs-${f.key}`}
-                        type="number"
-                        min={f.min}
-                        value={draft[f.key]}
-                        onChange={(e) => set(f.key, e.target.value)}
-                        className="w-32 font-mono"
-                      />
-                      <span className="w-12 text-xs text-muted-foreground">{f.unit}</span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        disabled={atDefault}
-                        onClick={() => set(f.key, String(state.defaultValue))}
-                      >
-                        恢复默认
-                      </Button>
+                      <Label htmlFor={`rs-${f.key}`}>{f.label}</Label>
+                      {changedFromDefault ? <Badge variant="secondary">已改</Badge> : null}
                     </div>
+                    <p className="text-xs text-muted-foreground">
+                      {f.hint} · 默认 {state.defaultValue}
+                      {f.unit}
+                    </p>
                   </div>
-                );
-              })}
-            </div>
-          </div>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id={`rs-${f.key}`}
+                      type="number"
+                      min={f.min}
+                      value={draft[f.key]}
+                      onChange={(e) => set(f.key, e.target.value)}
+                      className="w-28 font-mono"
+                    />
+                    <span className="w-10 text-xs text-muted-foreground">{f.unit}</span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={atDefault}
+                      onClick={() => set(f.key, String(state.defaultValue))}
+                    >
+                      恢复默认
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </section>
         ))}
       </div>
 
