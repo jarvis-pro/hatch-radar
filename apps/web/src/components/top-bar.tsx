@@ -1,6 +1,6 @@
 import { Fragment, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Search } from 'lucide-react';
+import { Command, Search } from 'lucide-react';
 import type { CurrentUser } from '@hatch-radar/shared';
 import {
   Breadcrumb,
@@ -10,7 +10,6 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from '@hatch-radar/ui/components/breadcrumb';
-import { Button } from '@hatch-radar/ui/components/button';
 import { Separator } from '@hatch-radar/ui/components/separator';
 import { SidebarTrigger } from '@hatch-radar/ui/components/sidebar';
 import { ModeToggle } from '@hatch-radar/ui/components/mode-toggle';
@@ -98,15 +97,16 @@ export function TopBar({ user }: { user: CurrentUser }) {
           <button
             type="button"
             onClick={() => setCmdOpen(true)}
-            className="flex h-8 cursor-pointer items-center gap-2 rounded-md border border-input bg-muted/40 px-3 text-sm text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground sm:w-52"
+            aria-label="搜索 / 跳转（⌘K）"
+            className="flex h-8 cursor-pointer items-center gap-2 rounded-md border bg-transparent px-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground sm:pr-1.5"
           >
-            <Search className="size-3.5 shrink-0" />
-            <span className="hidden flex-1 text-left sm:block">搜索 / 跳转…</span>
-            <kbd className="ml-auto hidden shrink-0 rounded border bg-background/80 px-1.5 font-mono text-[10px] leading-relaxed text-muted-foreground sm:inline-block">
-              ⌘K
+            <Search className="size-4 shrink-0" />
+            <span className="hidden sm:inline">搜索</span>
+            <kbd className="hidden shrink-0 items-center gap-px rounded border bg-muted px-1 py-0.5 font-mono text-[10px] font-medium leading-none sm:inline-flex">
+              <Command className="size-2" aria-hidden="true" />K
             </kbd>
           </button>
-          {can(user, 'insights:view') ? <SystemPulse /> : null}
+          {can(user, 'insights:view') && pathname !== '/' ? <SystemPulse /> : null}
           <ModeToggle />
         </div>
       </div>
