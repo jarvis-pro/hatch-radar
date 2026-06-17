@@ -39,9 +39,8 @@ const config: ExpoConfig = {
   android: {
     package: IS_DEV ? 'com.anonymous.hatchradarmobile.dev' : 'com.anonymous.hatchradarmobile',
     adaptiveIcon: {
-      backgroundColor: '#E6F4FE',
+      backgroundColor: '#5959E8',
       foregroundImage: './assets/android-icon-foreground.png',
-      backgroundImage: './assets/android-icon-background.png',
       monochromeImage: './assets/android-icon-monochrome.png',
     },
     predictiveBackGestureEnabled: false,
