@@ -1,5 +1,6 @@
 import type { TokenUsage } from '../analyzer/analyze';
 import { translateBatchWithClaudeAgent } from './claude-agent';
+import { translateBatchWithAzure, type AzureTranslateConfig } from './azure-client';
 
 /** 待译条目（worker 从 translations 仓储取出未翻译条目后投喂） */
 export interface TranslateItem {
@@ -21,10 +22,11 @@ export interface TranslatedItem {
 }
 
 /**
- * 已解析的翻译方式配置。v1 仅支持 `claude_cli`（订阅额度、零边际成本、最高质量、原生保结构）；
- * 其余 provider（API-Key MT 溢出）留待 P2，届时在此 union 与 {@link translateBatch} 扩展。
+ * 已解析的翻译方式配置（discriminated union，按 provider 分发）：
+ * - `claude_cli`：订阅额度、零边际成本、最高质量、原生保结构（默认 / 高质量重译档）
+ * - `azure`：Azure AI Translator 机翻，按字符计费、走 Key 池故障转移（走量降额度档）
  */
-export type TranslateConfig = { provider: 'claude_cli'; model: string };
+export type TranslateConfig = { provider: 'claude_cli'; model: string } | AzureTranslateConfig;
 
 /** 单批最多条数 / 字符数：控制单次 query 体量，避免上下文超限（超出即多批） */
 const MAX_ITEMS_PER_BATCH = 40;
@@ -83,6 +85,8 @@ function translateBatch(
   switch (config.provider) {
     case 'claude_cli':
       return translateBatchWithClaudeAgent(config.model, items, signal);
+    case 'azure':
+      return translateBatchWithAzure(config, items, signal);
   }
 }
 

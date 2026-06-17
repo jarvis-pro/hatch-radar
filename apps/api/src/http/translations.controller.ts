@@ -32,7 +32,7 @@ const enqueueSchema = z.object({ providerId: z.number().int().positive().optiona
  * /api/translations/* —— 帖子内容翻译：查询某帖翻译进度（按钮三态）+ 入队翻译（首次/增量）。
  *
  * 译文按 content_hash 寻址，故「增量」= 评论刷新后新增的未翻条目，由进度查询自然得出（无需额外检测）。
- * 默认走 claude_cli（订阅额度、零边际成本）；翻译 provider 未单独配置时回落 active provider。
+ * 翻译走 claude_cli（订阅额度、零边际成本）或 azure（机翻、按字符计费）；未单独配置时回落 active provider。
  */
 @UseGuards(SessionAuthGuard)
 @Controller('translations')
@@ -83,8 +83,8 @@ export class TranslationsController {
   }
 
   /**
-   * GET /api/translations/providers —— 可选翻译模型（启用的 claude_cli）+ 当前默认。
-   * 默认 = translation_provider_id ?? active（须为启用的 claude_cli）；为 null 时前端弹窗让用户选。
+   * GET /api/translations/providers —— 可选翻译模型（启用的 claude_cli / azure）+ 当前默认。
+   * 默认 = translation_provider_id ?? active（须为启用的 claude_cli / azure）；为 null 时前端弹窗让用户选。
    * 仅返回 id/label/model（无密钥），analyze:run 即可读。
    */
   @Get('providers')
@@ -94,7 +94,7 @@ export class TranslationsController {
     providers: { id: number; label: string; model: string }[];
   }> {
     const usable = (await this.providers.listProviders()).filter(
-      (p) => p.enabled && p.provider === 'claude_cli',
+      (p) => p.enabled && (p.provider === 'claude_cli' || p.provider === 'azure'),
     );
     const resolved =
       (await this.settings.getTranslationProviderId()) ??
@@ -108,7 +108,7 @@ export class TranslationsController {
 
   /**
    * POST /api/translations/posts/:id —— 入队翻译该帖未翻译内容（首次或增量），202。
-   * provider 解析：入参 providerId（前端弹窗选定）> translation_provider_id > active；v1 仅 claude_cli。
+   * provider 解析：入参 providerId（前端弹窗选定）> translation_provider_id > active；支持 claude_cli / azure。
    * 同帖已有活跃翻译任务时去重（enqueued=false）。
    */
   @Post('posts/:id')
@@ -139,7 +139,7 @@ export class TranslationsController {
 
   /**
    * 解析本次翻译用 provider：优先入参 chosenId（前端弹窗选定），否则
-   * translation_provider_id ?? active。校验存在 / 启用 / claude_cli，不满足即 400。
+   * translation_provider_id ?? active。校验存在 / 启用 / 类型（claude_cli | azure），不满足即 400。
    */
   private async resolveTranslationProvider(chosenId?: number) {
     const providerId =
@@ -155,9 +155,9 @@ export class TranslationsController {
     if (!provider || !provider.enabled) {
       throw new BadRequestException('翻译模型不存在或已停用');
     }
-    if (provider.provider !== 'claude_cli') {
+    if (provider.provider !== 'claude_cli' && provider.provider !== 'azure') {
       throw new BadRequestException(
-        `翻译暂仅支持 claude_cli（订阅模式），当前为 ${provider.provider}`,
+        `翻译暂仅支持 claude_cli（订阅）/ azure（机翻），当前为 ${provider.provider}`,
       );
     }
     return provider;

@@ -30,7 +30,7 @@ import {
 } from '@/domain';
 import { logger } from '@/logger';
 
-const providerKind = z.enum(['anthropic', 'openai', 'deepseek', 'claude_cli']);
+const providerKind = z.enum(['anthropic', 'openai', 'deepseek', 'claude_cli', 'azure']);
 
 const createSchema = z.object({
   provider: providerKind,
@@ -38,6 +38,8 @@ const createSchema = z.object({
   /** claude_cli 订阅模式无需 Key（复用本机登录态）；其余 provider 在 handler 内强制必填 */
   apiKey: z.string().trim().min(1).optional(),
   baseUrl: z.string().trim().optional(),
+  /** Azure Translator 资源区域（如 eastasia）；仅 azure 用 */
+  region: z.string().trim().optional(),
   model: z.string().trim().min(1),
   enabled: z.boolean().optional(),
   /** token 单价（美元 / 1M tokens）；省略=不设，用于成本核算 */
@@ -50,6 +52,8 @@ const updateSchema = z.object({
   label: z.string().trim().min(1).optional(),
   apiKey: z.string().trim().optional(),
   baseUrl: z.string().trim().optional(),
+  /** Azure Translator 资源区域；仅 azure 用，'' 清除 */
+  region: z.string().trim().optional(),
   model: z.string().trim().min(1).optional(),
   enabled: z.boolean().optional(),
   /** token 单价（美元 / 1M tokens）；null=清除、省略=不改 */
@@ -311,6 +315,9 @@ export class SettingsController {
       const row = await this.providers.getProvider(dto.providerId);
       if (!row) throw new NotFoundException('模型配置不存在');
       if (!row.enabled) throw new BadRequestException('该模型已停用，无法设为 active');
+      if (row.provider === 'azure') {
+        throw new BadRequestException('azure（机翻）仅用于翻译，不能设为分析 active 模型');
+      }
       // 订阅模式（claude_cli）无 Key；其余 provider 须有可用 Key 才能设为 active
       if (
         row.provider !== 'claude_cli' &&
@@ -333,7 +340,7 @@ export class SettingsController {
 
   /**
    * PUT /api/settings/translation-provider —— 选用翻译模型 { providerId: number|null }。
-   * 与分析 active 解耦（可单独指更省额度的档）；清空则翻译回落 active provider。v1 仅 claude_cli。
+   * 与分析 active 解耦（可单独指更省额度的档）；清空则翻译回落 active provider。支持 claude_cli / azure。
    */
   @Put('translation-provider')
   async setTranslationProvider(
@@ -343,8 +350,14 @@ export class SettingsController {
       const row = await this.providers.getProvider(dto.providerId);
       if (!row) throw new NotFoundException('模型配置不存在');
       if (!row.enabled) throw new BadRequestException('该模型已停用，无法用于翻译');
-      if (row.provider !== 'claude_cli') {
-        throw new BadRequestException('翻译暂仅支持 claude_cli（订阅模式）');
+      if (row.provider !== 'claude_cli' && row.provider !== 'azure') {
+        throw new BadRequestException('翻译暂仅支持 claude_cli（订阅）/ azure（机翻）');
+      }
+      if (
+        row.provider === 'azure' &&
+        (await this.providers.countUsableKeys(dto.providerId, nowSec())) === 0
+      ) {
+        throw new BadRequestException('该 Azure 翻译模型无可用 API Key，请先添加或复位');
       }
     }
     await this.settings.setTranslationProviderId(dto.providerId);

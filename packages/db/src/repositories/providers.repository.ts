@@ -18,6 +18,8 @@ export interface ProviderInput {
   provider: ProviderKind;
   label: string;
   baseUrl?: string | null;
+  /** Azure Translator 资源区域（如 eastasia）；仅 azure 用，写 Ocp-Apim-Subscription-Region 头。undefined=不改，null/''=清除 */
+  region?: string | null;
   model: string;
   enabled?: boolean;
   /** 输入/输出 token 单价（美元 / 1M tokens）；undefined=不改，null=清除 */
@@ -63,6 +65,8 @@ export interface ProviderDTO {
   label: string;
   model: string;
   baseUrl: string | null;
+  /** Azure Translator 资源区域；仅 azure 非空 */
+  region: string | null;
   enabled: boolean;
   /** 输入 token 单价（美元 / 1M tokens），未配置为 null */
   inputPrice: number | null;
@@ -117,6 +121,7 @@ export function toProviderDTO({ provider, keys }: ProviderWithKeys): ProviderDTO
     label: provider.label,
     model: provider.model,
     baseUrl: provider.base_url,
+    region: provider.region,
     enabled: provider.enabled,
     inputPrice: provider.input_price,
     outputPrice: provider.output_price,
@@ -190,6 +195,7 @@ export class ProvidersRepository {
           provider: input.provider,
           label: input.label,
           base_url: input.baseUrl ?? null,
+          region: input.region ? input.region : null,
           model: input.model,
           enabled: input.enabled !== false,
           input_price: input.inputPrice ?? null,
@@ -227,6 +233,7 @@ export class ProvidersRepository {
     if (fields.provider !== undefined) data.provider = fields.provider;
     if (fields.label !== undefined) data.label = fields.label;
     if (fields.baseUrl !== undefined) data.base_url = fields.baseUrl ?? null;
+    if (fields.region !== undefined) data.region = fields.region ? fields.region : null;
     if (fields.model !== undefined) data.model = fields.model;
     if (fields.enabled !== undefined) data.enabled = fields.enabled;
     if (fields.inputPrice !== undefined) data.input_price = fields.inputPrice;
@@ -253,6 +260,7 @@ export class ProvidersRepository {
       if (fields.provider !== undefined) data.provider = fields.provider;
       if (fields.label !== undefined) data.label = fields.label;
       if (fields.baseUrl !== undefined) data.base_url = fields.baseUrl ?? null;
+      if (fields.region !== undefined) data.region = fields.region ? fields.region : null;
       if (fields.model !== undefined) data.model = fields.model;
       if (fields.enabled !== undefined) data.enabled = fields.enabled;
       if (fields.inputPrice !== undefined) data.input_price = fields.inputPrice;

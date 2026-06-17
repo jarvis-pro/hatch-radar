@@ -157,13 +157,15 @@ model insights {
 /// API 密钥已拆到子表 provider_api_keys（一条接入可挂多把 Key 做故障转移），本表不再存密钥。
 model model_providers {
   id         Int           @id @default(autoincrement())
-  /// 提供方类型：anthropic/openai/deepseek（API Key 模式）/ claude_cli（订阅模式，无 Key/base_url）。
+  /// 提供方类型：anthropic/openai/deepseek（API Key 模式）/ claude_cli（订阅模式）/ azure（Azure Translator 机翻，仅翻译用）。
   provider   provider_kind
   /// 展示名称，供 UI 区分同类多个配置。
   label      String
   /// 自定义 API base url；为空用提供方默认地址。
   base_url   String?
-  /// 默认调用的模型名。
+  /// Azure Translator 资源区域（如 eastasia）→ Ocp-Apim-Subscription-Region 头；仅 azure 用，其余为空。
+  region     String?
+  /// 默认调用的模型名（azure 无模型概念，存占位即可，实际 api-version 在客户端固定 3.0）。
   model      String
   /// 是否启用，停用后不参与调度。
   enabled    Boolean       @default(true)
@@ -562,6 +564,9 @@ enum provider_kind {
   /// Claude 订阅模式：经 @anthropic-ai/claude-agent-sdk 复用 worker 本机已登录的 claude（Claude Code），
   /// 吃订阅计划额度、无需 API Key（故无 Key 池 / base_url）。
   claude_cli
+  /// Azure AI Translator（机翻）：仅用于内容翻译（非分析），按字符计费；密钥走 Key 池、
+  /// region 存 model_providers.region；端点默认全局（api.cognitive.microsofttranslator.com），可由 base_url 覆盖。
+  azure
 }
 
 /// 模型 API Key 运行期健康态。
