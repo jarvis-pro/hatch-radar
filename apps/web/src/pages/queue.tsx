@@ -29,13 +29,18 @@ import { buildQuery } from '@/lib/qs';
 
 type JobStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'canceled';
 type JobTrigger = 'auto' | 'manual';
+type JobKind = 'analysis' | 'translation';
 
-/** 队列任务行（投影自后端 /analysis/jobs/list 的 JobView） */
+/** 队列任务行（投影自后端 /analysis/jobs/list 的 QueueJobView） */
 interface QueueJob {
   id: number;
   post_id: string;
   post_title: string | null;
   model: string;
+  /** 任务类型：analysis=AI 分析 / translation=内容翻译 */
+  job_type: JobKind;
+  /** provider 类型（claude_cli/azure/anthropic/…）；provider 已删/无则 null。翻译行据此显示 provider */
+  provider: string | null;
   trigger: JobTrigger;
   status: JobStatus;
   attempts: number;
@@ -96,6 +101,33 @@ const TRIGGER_FILTERS: { value: JobTrigger | null; label: string }[] = [
   { value: 'auto', label: '自动' },
   { value: 'manual', label: '手动' },
 ];
+
+/** 类型筛选标签（缺省 = 全部类型，含分析与翻译） */
+const TYPE_FILTERS: { value: JobKind | null; label: string }[] = [
+  { value: null, label: '全部类型' },
+  { value: 'analysis', label: '分析' },
+  { value: 'translation', label: '翻译' },
+];
+
+/** 任务类型中文标签 */
+const TYPE_LABEL: Record<JobKind, string> = { analysis: '分析', translation: '翻译' };
+
+/** 翻译 provider 紧凑标签（azure 机翻 / claude_cli 订阅） */
+const TRANSLATION_PROVIDER_LABEL: Record<string, string> = {
+  azure: 'Azure 机翻',
+  claude_cli: 'Claude 订阅',
+};
+
+/**
+ * 「模型」列展示文案：分析任务显示模型 ID；翻译任务显示 provider（azure 的 model 是占位符，
+ * 真正有意义的是 provider 维度），未知 provider 回退原始 model。
+ */
+function modelLabel(j: QueueJob): string {
+  if (j.job_type === 'translation') {
+    return (j.provider && TRANSLATION_PROVIDER_LABEL[j.provider]) ?? j.model;
+  }
+  return j.model;
+}
 
 /** 排队等待（秒）：从入队到开始；仍在排队时为「至今」。无法判定返回 null */
 function waitSeconds(j: QueueJob, now: number): number | null {
@@ -160,8 +192,11 @@ function JobDetailDialog({
                   {STATUS_META[job.status].label}
                 </Badge>
               </DetailRow>
+              <DetailRow label="类型">{TYPE_LABEL[job.job_type]}</DetailRow>
               <DetailRow label="模型">
-                <span className="font-mono text-xs">{job.model}</span>
+                <span className={job.job_type === 'translation' ? 'text-xs' : 'font-mono text-xs'}>
+                  {modelLabel(job)}
+                </span>
               </DetailRow>
               <DetailRow label="来源">{job.trigger === 'auto' ? '自动调度' : '手动运行'}</DetailRow>
               <DetailRow label="尝试次数">第 {job.attempts} 次</DetailRow>
@@ -216,15 +251,18 @@ function QueueView() {
   const triggerRaw = sp.get('trigger');
   const trigger: JobTrigger | undefined =
     triggerRaw === 'auto' || triggerRaw === 'manual' ? triggerRaw : undefined;
+  const jobTypeRaw = sp.get('jobType');
+  const jobType: JobKind | undefined =
+    jobTypeRaw === 'analysis' || jobTypeRaw === 'translation' ? jobTypeRaw : undefined;
   const page = parsePage(sp.get('page'));
   const now = Math.floor(Date.now() / 1000);
   const [detailJob, setDetailJob] = useState<QueueJob | null>(null);
 
   const listQ = useQuery({
-    queryKey: ['queue-jobs', status, trigger, page],
+    queryKey: ['queue-jobs', status, trigger, jobType, page],
     queryFn: () =>
       api.get<JobsListResponse>(
-        `/analysis/jobs/list${buildQuery({ status, trigger, page: page > 1 ? page : undefined })}`,
+        `/analysis/jobs/list${buildQuery({ status, trigger, jobType, page: page > 1 ? page : undefined })}`,
       ),
     refetchInterval: 3000,
     // 切筛选 / 翻页时保留上一次数据继续展示，直到新数据到达再平滑替换，避免骨架屏导致的布局闪烁
@@ -246,13 +284,13 @@ function QueueView() {
   const data = listQ.data;
   const stats = data?.stats ?? null;
   const items = data?.items ?? [];
-  const hasFilter = Boolean(status || trigger);
+  const hasFilter = Boolean(status || trigger || jobType);
 
   return (
     <>
       <PageHeader
         title="任务队列"
-        description="全系统分析任务（手动 + 自动调度）· 每 3 秒刷新 · 点击任意行看详情"
+        description="全系统分析与翻译任务（手动 + 自动调度）· 每 3 秒刷新 · 点击任意行看详情"
       />
 
       <div className="mb-4 space-y-2">
@@ -268,6 +306,16 @@ function QueueView() {
                     <span className="ml-1 tabular-nums text-muted-foreground">{count}</span>
                   ) : null}
                 </Link>
+              </Button>
+            );
+          })}
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          {TYPE_FILTERS.map((t) => {
+            const active = (t.value ?? undefined) === jobType;
+            return (
+              <Button key={t.label} asChild variant={active ? 'secondary' : 'ghost'} size="sm">
+                <Link to={filterHref({ jobType: t.value ?? undefined })}>{t.label}</Link>
               </Button>
             );
           })}
@@ -308,6 +356,7 @@ function QueueView() {
                 <TableRow>
                   <TableHead className="w-20">状态</TableHead>
                   <TableHead>标题</TableHead>
+                  <TableHead className="w-14">类型</TableHead>
                   <TableHead className="w-40">模型</TableHead>
                   <TableHead className="w-16">来源</TableHead>
                   <TableHead className="w-28">耗时</TableHead>
@@ -343,8 +392,17 @@ function QueueView() {
                           </p>
                         ) : null}
                       </TableCell>
-                      <TableCell className="font-mono text-xs text-muted-foreground">
-                        {j.model}
+                      <TableCell className="text-xs text-muted-foreground">
+                        {TYPE_LABEL[j.job_type]}
+                      </TableCell>
+                      <TableCell
+                        className={
+                          j.job_type === 'translation'
+                            ? 'text-xs text-muted-foreground'
+                            : 'font-mono text-xs text-muted-foreground'
+                        }
+                      >
+                        {modelLabel(j)}
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">
                         {j.trigger === 'auto' ? '自动' : '手动'}
@@ -377,7 +435,7 @@ function QueueView() {
             pageCount={data.pageCount}
             total={data.total}
             basePath="/queue"
-            query={{ status, trigger }}
+            query={{ status, trigger, jobType }}
           />
         </>
       )}

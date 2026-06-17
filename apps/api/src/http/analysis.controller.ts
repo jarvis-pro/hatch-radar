@@ -14,6 +14,7 @@ import { SessionAuthGuard } from '@/account/session-auth.guard';
 import { ZodValidationPipe } from '@/common/zod-validation.pipe';
 import {
   AnalysisConfigService,
+  type JobKind,
   type JobStatus,
   type JobTrigger,
   JobsRepository,
@@ -64,7 +65,10 @@ export class AnalysisController {
     return { stats: await this.jobs.getJobStats(), jobs: await this.jobs.listRecentJobs(50) };
   }
 
-  /** 队列分页 + 分类筛选（status / trigger）；附状态汇总供筛选标签计数。供「队列」页全宽表格。 */
+  /**
+   * 队列分页 + 分类筛选（status / trigger / jobType）；附状态汇总供筛选标签计数。供「队列」页全宽表格。
+   * jobType 缺省/非法 → 'all'（含分析与翻译）；状态汇总与明细同口径按 jobType 过滤。
+   */
   @Get('jobs/list')
   async jobsList(@Query() q: Record<string, string | undefined>) {
     const status = (JOB_STATUSES as readonly string[]).includes(q.status ?? '')
@@ -73,9 +77,11 @@ export class AnalysisController {
     const trigger = (JOB_TRIGGERS as readonly string[]).includes(q.trigger ?? '')
       ? (q.trigger as JobTrigger)
       : undefined;
+    const jobType: JobKind | 'all' =
+      q.jobType === 'analysis' || q.jobType === 'translation' ? q.jobType : 'all';
     const [stats, page] = await Promise.all([
-      this.jobs.getJobStats(),
-      this.jobs.listJobsPaged({ status, trigger }, parsePage(q.page)),
+      this.jobs.getJobStats(jobType),
+      this.jobs.listJobsPaged({ status, trigger, jobType }, parsePage(q.page)),
     ]);
     return { stats, ...page };
   }

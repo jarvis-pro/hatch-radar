@@ -70,6 +70,8 @@ export interface JobView {
   post_id: string;
   post_title: string | null;
   model: string;
+  /** 任务类型：analysis=AI 分析 / translation=内容翻译（同一物理表区分） */
+  job_type: JobKind;
   trigger: JobTrigger;
   status: JobStatus;
   attempts: number;
@@ -91,11 +93,15 @@ export interface JobView {
 export interface JobFilter {
   status?: JobStatus;
   trigger?: JobTrigger;
+  /** 任务类型过滤：'analysis'（缺省，向后兼容旧行为）/ 'translation' / 'all'（不限类型） */
+  jobType?: JobKind | 'all';
 }
 
 /** 队列任务视图：JobView + 展示期按 provider 单价折算的成本（无 provider/未配单价/未采集 token → null） */
 export interface QueueJobView extends JobView {
   cost: number | null;
+  /** provider 类型（anthropic/openai/deepseek/claude_cli/azure）；provider 已删/无则 null。翻译行据此在「模型」列显示 provider 而非占位 model */
+  provider: string | null;
 }
 
 /** listRecentJobs 的原始行（时间戳为 bigint，待折回 number） */
@@ -261,6 +267,20 @@ export class JobsRepository {
     return row != null;
   }
 
+  /**
+   * 该帖最近一条翻译任务的失败原因（供 web 在帖子页显式回报翻译失败）。
+   * 仅当最近一条翻译任务为 failed 时返回其 error；被后续成功/重试覆盖则为 null。
+   * @param postId 目标帖子 ID
+   */
+  async getRecentTranslationError(postId: string): Promise<string | null> {
+    const row = await this.db.analysis_jobs.findFirst({
+      where: { post_id: postId, job_type: 'translation' },
+      orderBy: [{ enqueued_at: 'desc' }, { id: 'desc' }],
+      select: { status: true, error: true },
+    });
+    return row?.status === 'failed' ? (row.error ?? null) : null;
+  }
+
   /** 取任务类型（worker 收到 Gateway 分发的最小 job 信息后，据此路由到分析 / 翻译执行）。 */
   async getJobType(jobId: number): Promise<JobKind | null> {
     const row = await this.db.analysis_jobs.findUnique({
@@ -382,11 +402,14 @@ export class JobsRepository {
     return res.count;
   }
 
-  /** 各状态任务数汇总，用于启动 / worker 日志与队列看板 */
-  async getJobStats(): Promise<Record<JobStatus, number>> {
+  /**
+   * 各状态任务数汇总，用于启动 / worker 日志与队列看板。
+   * @param jobType 统计的任务类型——'analysis'（缺省，向后兼容）/ 'translation' / 'all'（不限类型）
+   */
+  async getJobStats(jobType: JobKind | 'all' = 'analysis'): Promise<Record<JobStatus, number>> {
     const rows = await this.db.analysis_jobs.groupBy({
       by: ['status'],
-      where: { job_type: 'analysis' },
+      where: jobType === 'all' ? {} : { job_type: jobType },
       _count: { _all: true },
     });
     const stats: Record<JobStatus, number> = {
@@ -403,7 +426,7 @@ export class JobsRepository {
   /** 取最近的任务（按 id 倒序），供 web 队列看板轮询展示 */
   async listRecentJobs(limit: number): Promise<JobView[]> {
     const rows = await this.db.$queryRaw<JobViewRaw[]>`
-      SELECT j.id, j.post_id, p.title AS post_title, j.model, j.trigger, j.status,
+      SELECT j.id, j.post_id, p.title AS post_title, j.model, j.job_type, j.trigger, j.status,
              j.attempts, j.error, j.enqueued_at, j.started_at, j.finished_at,
              j.input_tokens, j.output_tokens, j.cache_write_tokens, j.cache_read_tokens
       FROM analysis_jobs j
@@ -425,7 +448,9 @@ export class JobsRepository {
    * 帖子标题二次查询补齐（analysis_jobs 与 posts 软引用、无 FK 关系，不能 include）。
    */
   async listJobsPaged(filter: JobFilter, page: number): Promise<Paged<QueueJobView>> {
-    const where: Prisma.analysis_jobsWhereInput = { job_type: 'analysis' };
+    const jobType = filter.jobType ?? 'analysis';
+    const where: Prisma.analysis_jobsWhereInput = {};
+    if (jobType !== 'all') where.job_type = jobType;
     if (filter.status) where.status = filter.status;
     if (filter.trigger) where.trigger = filter.trigger;
 
@@ -483,6 +508,7 @@ export class JobsRepository {
         post_id: r.post_id,
         post_title: titleById.get(r.post_id) ?? null,
         model: r.model,
+        job_type: r.job_type,
         trigger: r.trigger,
         status: r.status,
         attempts: r.attempts,
@@ -495,6 +521,7 @@ export class JobsRepository {
         cache_write_tokens: r.cache_write_tokens,
         cache_read_tokens: r.cache_read_tokens,
         cost: costOf(r),
+        provider: r.provider_id != null ? (priceById.get(r.provider_id)?.provider ?? null) : null,
       })),
       total,
       page: pageNum,

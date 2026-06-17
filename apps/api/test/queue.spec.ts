@@ -153,4 +153,42 @@ describe('JobsRepository（队列并发认领 / 幂等入队 / 僵死回收）',
     expect(stats.failed).toBe(1);
     expect(stats.queued).toBe(1);
   });
+
+  it('jobType 过滤：getJobStats / listJobsPaged 按 analysis / translation / all 分流，翻译行回填 provider', async () => {
+    const t = nowSec();
+    // 两条分析任务 + 一条翻译任务（引用 azure provider，校验 listJobsPaged 回填 provider 维度）
+    await jobs.enqueueJobs(['a1', 'a2'], 1, 'm', 'auto', t);
+    const azure = await db.model_providers.create({
+      data: {
+        provider: 'azure',
+        label: 'Azure 机翻',
+        model: 'azure-translator',
+        input_price: null,
+        output_price: null,
+        created_at: BigInt(0),
+        updated_at: BigInt(0),
+      },
+    });
+    expect(await jobs.enqueueTranslationJob('t1', azure.id, 'azure-translator', t)).toBe(true);
+
+    // getJobStats：缺省只数分析（向后兼容），'translation' 只数翻译，'all' 全数
+    expect((await jobs.getJobStats()).queued).toBe(2);
+    expect((await jobs.getJobStats('translation')).queued).toBe(1);
+    expect((await jobs.getJobStats('all')).queued).toBe(3);
+
+    // listJobsPaged：缺省只出分析行
+    const analysisPage = await jobs.listJobsPaged({}, 1);
+    expect(analysisPage.total).toBe(2);
+    expect(analysisPage.items.every((j) => j.job_type === 'analysis')).toBe(true);
+
+    // 'translation'：只出翻译行，回填 provider=azure，成本为 null（azure 无 token 计费 → 显「—」）
+    const translationPage = await jobs.listJobsPaged({ jobType: 'translation' }, 1);
+    expect(translationPage.total).toBe(1);
+    expect(translationPage.items[0]!.job_type).toBe('translation');
+    expect(translationPage.items[0]!.provider).toBe('azure');
+    expect(translationPage.items[0]!.cost).toBeNull();
+
+    // 'all'：分析 + 翻译都出
+    expect((await jobs.listJobsPaged({ jobType: 'all' }, 1)).total).toBe(3);
+  });
 });
