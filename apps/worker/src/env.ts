@@ -19,8 +19,8 @@ const workerEnvSchema = z.preprocess(
     .object({
       ...baseEnvShape,
 
-      /** 分析 worker 并发认领数，默认 2，最小 1（纯 env，不入库；影响连接池下限） */
-      WORKER_CONCURRENCY: z.coerce.number().int().min(1).default(2),
+      /** 分析 worker 并发认领数，默认 20，最小 1（纯 env，不入库；影响连接池下限） */
+      WORKER_CONCURRENCY: z.coerce.number().int().min(1).default(20),
 
       /** api 监听端口；仅用于推导默认网关地址，默认 47878（DEFAULT_HTTP_PORT） */
       HTTP_PORT: z.coerce.number().int().min(1).max(65535).default(DEFAULT_HTTP_PORT),

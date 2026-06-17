@@ -136,7 +136,7 @@ services:
       <<: *backend-env
       # 容器内连 api 网关（服务名 api）；不设会按 localhost 推导而连不到
       GATEWAY_URL: ws://api:47878/ws/worker
-      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-2}
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-20}
     depends_on:
       db:
         condition: service_healthy
