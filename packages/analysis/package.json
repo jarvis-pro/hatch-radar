@@ -11,6 +11,8 @@
     }
   },
   "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -24,6 +26,7 @@
   "devDependencies": {
     "@hatch-radar/config": "workspace:*",
     "@types/node": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vitest": "^4.1.8"
   }
 }
