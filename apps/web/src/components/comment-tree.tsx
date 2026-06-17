@@ -3,6 +3,7 @@ import type { CommentRow } from '@hatch-radar/shared';
 import { ArrowUp, ChevronRight } from 'lucide-react';
 import { cn } from '@hatch-radar/ui/lib/utils';
 import { commentAvatarDataUri } from '@/lib/avatar';
+import { useTranslationView } from '@/translation/post-translation';
 import { decodeEntities, timeAgo } from '@/lib/format';
 
 /** 评论树节点：包装一条评论及其按 parent_id 关联的子回复。 */
@@ -39,6 +40,9 @@ function CommentItem({ node }: { node: CommentNode }) {
   const { row, children } = node;
   const [collapsed, setCollapsed] = useState(false);
   const hasChildren = children.length > 0;
+  const tr = useTranslationView();
+  // 有中文译文且开启「显示中文」时显示译文，否则回退原文
+  const body = (tr.showZh ? tr.get(row.body_hash) : undefined) ?? row.body;
   return (
     <li>
       {/* 头部：折叠键 + 头像字母 + 昵称（醒目）+ 次级元信息，与正文清晰分层 */}
@@ -79,7 +83,7 @@ function CommentItem({ node }: { node: CommentNode }) {
       </div>
       {!collapsed ? (
         <p className="mt-1.5 ml-7 text-sm leading-relaxed whitespace-pre-wrap break-words text-foreground/90">
-          {decodeEntities(row.body)}
+          {decodeEntities(body)}
         </p>
       ) : null}
       {hasChildren && !collapsed ? (

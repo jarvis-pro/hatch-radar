@@ -9,6 +9,8 @@ import { RequirePerm } from '@/auth/require-perm';
 import { AnalyzedBadge, SourceBadge } from '@/components/badges';
 import { CommentTree } from '@/components/comment-tree';
 import { EmptyState, LoadError } from '@/components/empty';
+import { TranslationButton } from '@/components/translation-button';
+import { TranslationViewProvider, usePostTranslation } from '@/translation/post-translation';
 import { channelLabel, decodeEntities, fmtDate, permalinkUrl } from '@/lib/format';
 
 function PostDetailView() {
@@ -22,6 +24,7 @@ function PostDetailView() {
     queryFn: () => api.get<CommentRow[]>(`/posts/${id}/comments`),
     enabled: detailQ.isSuccess,
   });
+  const tr = usePostTranslation(id);
 
   if (detailQ.isError) {
     const status = detailQ.error instanceof ApiError ? detailQ.error.status : 0;
@@ -44,26 +47,33 @@ function PostDetailView() {
 
   return (
     <div className="mx-auto max-w-5xl lg:grid lg:grid-cols-[minmax(0,1fr)_17rem] lg:items-start lg:gap-8">
-      {/* 主列：标题 + 正文 + 评论树（限宽阅读列） */}
-      <article className="min-w-0 space-y-5">
-        <header>
-          <h1 className="text-xl leading-snug font-semibold tracking-tight">{post.title}</h1>
-          {post.selftext ? (
-            <div className="mt-3 text-sm leading-relaxed whitespace-pre-wrap break-words text-foreground/90">
-              {decodeEntities(post.selftext)}
-            </div>
-          ) : null}
-        </header>
+      {/* 主列：标题 + 正文 + 评论树（限宽阅读列）；译文视图向下传给评论树 */}
+      <TranslationViewProvider value={tr.view}>
+        <article className="min-w-0 space-y-5">
+          <header className="space-y-2">
+            <h1 className="text-xl leading-snug font-semibold tracking-tight">
+              {(tr.showZh ? tr.view.get(post.title_hash) : undefined) ?? post.title}
+            </h1>
+            <TranslationButton t={tr} />
+            {post.selftext ? (
+              <div className="text-sm leading-relaxed whitespace-pre-wrap break-words text-foreground/90">
+                {decodeEntities(
+                  (tr.showZh ? tr.view.get(post.selftext_hash) : undefined) ?? post.selftext,
+                )}
+              </div>
+            ) : null}
+          </header>
 
-        <section>
-          <h2 className="mb-3 text-base font-semibold">评论（{comments.length}）</h2>
-          {commentsQ.isPending ? (
-            <Spinner className="size-5 text-muted-foreground" />
-          ) : (
-            <CommentTree comments={comments} />
-          )}
-        </section>
-      </article>
+          <section>
+            <h2 className="mb-3 text-base font-semibold">评论（{comments.length}）</h2>
+            {commentsQ.isPending ? (
+              <Spinner className="size-5 text-muted-foreground" />
+            ) : (
+              <CommentTree comments={comments} />
+            )}
+          </section>
+        </article>
+      </TranslationViewProvider>
 
       {/* 右栏：来源 / 作者 / 热度 / 分析状态 + 跳转链接 */}
       <aside className="mt-6 space-y-4 lg:mt-0 lg:sticky lg:top-20">
