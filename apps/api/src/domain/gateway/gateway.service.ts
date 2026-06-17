@@ -51,10 +51,20 @@ export class GatewayService {
     logger.info('[gateway] WebSocket 服务已启动（路径: /ws/worker）');
   }
 
-  /** 关闭网关（对应 NestJS onApplicationShutdown）。 */
+  /** 关闭网关（在 NestJS beforeApplicationShutdown 调用——必须早于 HTTP 服务器关闭，见下）。 */
   stop(): void {
     if (this.evictTimer) clearInterval(this.evictTimer);
     if (this.fallbackTimer) clearInterval(this.fallbackTimer);
+    // 主动断开所有 worker 连接，原因有二：
+    // 1) wsServer.close() 只停止接受新连接，不关已建立的连接；优雅退出期间进程仍活、ws 库还会自动回 pong，
+    //    worker 既收不到 close 也无法靠 ping/pong 探活察觉，直到进程真正退出才发 FIN。
+    // 2) WS 是挂在 HTTP 服务器上的长连接，httpServer.close() 会一直等所有连接结束；若不先断开，就与
+    //    「NestJS 在 dispose(关 http) 之后才跑 onApplicationShutdown」死锁。故本方法挂 beforeApplicationShutdown
+    //    （早于 dispose），并用 terminate() 立即断开（不走关闭握手，避免无响应 worker 拖住退出）。
+    //    worker 收到 close 后即走重连。
+    for (const ws of this.wsServer?.clients ?? []) {
+      ws.terminate();
+    }
     this.wsServer?.close();
   }
 
@@ -114,8 +124,12 @@ export class GatewayService {
     const workerId = this.socketToId.get(ws);
     if (!workerId) return;
     this.socketToId.delete(ws);
-    this.registry.delete(workerId);
-    logger.warn(`[gateway] worker 断连: ${workerId}`);
+    // 仅当注册表项仍指向该 socket 时才移除：worker 重连会以同一 workerId 注册新 socket，
+    // 旧（半开）socket 的迟到 close 不得误删已被新连接覆盖的注册。
+    if (this.registry.get(workerId)?.socket === ws) {
+      this.registry.delete(workerId);
+      logger.warn(`[gateway] worker 断连: ${workerId}`);
+    }
     // 遗留 running 任务由 WorkerService 的僵死回收机制（heartbeat 超时）兜底
   }
 
