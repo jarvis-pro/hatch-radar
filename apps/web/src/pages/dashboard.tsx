@@ -298,39 +298,56 @@ function WorkerCard({ w }: { w: WorkerStatus }) {
   );
 }
 
-/** 队列状态配色（排队=靛 / 运行中=signal / 成功=翠 / 失败=红 / 已取消=灰） */
-const QUEUE_STATES = [
-  { key: 'queued', label: '排队', color: 'var(--chart-1)' },
-  { key: 'running', label: '运行中', color: 'var(--signal)' },
-  { key: 'succeeded', label: '成功', color: 'var(--intensity-low)' },
-  { key: 'failed', label: '失败', color: 'var(--intensity-high)' },
-  { key: 'canceled', label: '已取消', color: 'var(--muted-foreground)' },
-] as const;
-
-/** 队列概况：排队/运行中（实时）+ 成功/失败（累计）四态计数；「已取消」恒为 0（无取消入口）故不展示。 */
+/**
+ * 队列概况：实时「排队 / 运行中」为主（运行中有任务时脉冲），累计「成功 / 失败」降为脚注。
+ * 分层呈现避免四数等重并列把累计虚荣数顶到最显眼；「已取消」恒为 0（无取消入口）不展示。
+ */
 function QueueOverview({ queue }: { queue: DashboardData['queue'] }) {
-  const cells = QUEUE_STATES.filter((s) => s.key !== 'canceled').map((s) => ({
-    ...s,
-    value: queue[s.key],
-  }));
   return (
-    <div className="grid grid-cols-4 gap-2 text-center">
-      {cells.map((c) => (
-        <div key={c.key}>
-          <div className="flex items-center justify-center gap-1.5">
-            <span className="size-2 shrink-0 rounded-[2px]" style={{ background: c.color }} />
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-2">
+        <div className="rounded-lg border bg-background p-3">
+          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            <span className="size-1.5 shrink-0 rounded-full" style={{ background: 'var(--chart-1)' }} />
+            排队
+          </div>
+          <div className="mt-1 font-mono text-xl font-semibold tabular-nums">
+            {queue.queued.toLocaleString()}
+          </div>
+        </div>
+        <div className="rounded-lg border bg-background p-3">
+          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
             <span
               className={cn(
-                'font-mono text-base font-semibold tabular-nums',
-                c.key === 'failed' && c.value > 0 ? 'text-intensity-high' : undefined,
+                'size-1.5 shrink-0 rounded-full bg-signal',
+                queue.running > 0 && 'signal-pulse',
               )}
-            >
-              {c.value.toLocaleString()}
-            </span>
+            />
+            运行中
           </div>
-          <div className="mt-0.5 text-[11px] text-muted-foreground">{c.label}</div>
+          <div className="mt-1 font-mono text-xl font-semibold tabular-nums">
+            {queue.running.toLocaleString()}
+          </div>
         </div>
-      ))}
+      </div>
+      <div className="flex items-center justify-between border-t pt-2.5 text-[11px] text-muted-foreground">
+        <span>累计</span>
+        <span className="tabular-nums">
+          成功{' '}
+          <span className="font-mono font-medium text-foreground">
+            {queue.succeeded.toLocaleString()}
+          </span>
+          {' · 失败 '}
+          <span
+            className={cn(
+              'font-mono font-medium',
+              queue.failed > 0 ? 'text-intensity-high' : 'text-foreground',
+            )}
+          >
+            {queue.failed.toLocaleString()}
+          </span>
+        </span>
+      </div>
     </div>
   );
 }
