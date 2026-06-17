@@ -26,10 +26,11 @@ export class DashboardController {
   @Get()
   async get(): Promise<DashboardData> {
     const now = nowSec();
-    const [overview, queue, costStats, throughput, insights] = await Promise.all([
+    const [overview, queue, costStats, dailyCost, throughput, insights] = await Promise.all([
       this.stats.getStats(),
       this.jobs.getJobStats(),
       this.jobs.getCostStats(now - COST_WINDOW_DAYS * 86_400),
+      this.jobs.getDailyCost(COST_WINDOW_DAYS),
       this.jobs.getThroughput(THROUGHPUT_DAYS),
       this.stats.getInsightBreakdown(),
     ]);
@@ -53,6 +54,7 @@ export class DashboardController {
         cacheWriteTokens: costStats.totals.cacheWriteTokens,
         cacheReadTokens: costStats.totals.cacheReadTokens,
         byModel: costStats.byModel,
+        daily: dailyCost,
       },
       throughput,
       insights,

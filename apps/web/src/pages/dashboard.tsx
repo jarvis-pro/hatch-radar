@@ -1,13 +1,27 @@
-import { type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Clock, Cpu, FileText, Server, Sparkles } from 'lucide-react';
-import type {
-  CostByModel,
-  DashboardData,
-  NamedCount,
-  ThroughputPoint,
-  WorkerStatus,
-} from '@hatch-radar/shared';
+import {
+  Activity,
+  ArrowDownRight,
+  ArrowUpRight,
+  Clock,
+  Cpu,
+  Flame,
+  ServerOff,
+  Sparkles,
+  TriangleAlert,
+  type LucideIcon,
+} from 'lucide-react';
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
+import type { DashboardData, ThroughputPoint, WorkerStatus } from '@hatch-radar/shared';
+import {
+  ChartContainer,
+  ChartLegend,
+  ChartLegendContent,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from '@hatch-radar/ui/components/chart';
 import { Skeleton } from '@hatch-radar/ui/components/skeleton';
 import { cn } from '@hatch-radar/ui/lib/utils';
 import { api, ApiError } from '@/api/client';
@@ -22,6 +36,29 @@ function fmtCost(cost: number | null): string {
   if (cost == null) return '—';
   return `$${cost < 1 ? cost.toFixed(4) : cost.toFixed(2)}`;
 }
+
+/** 紧凑数字（12345 → 12.3K），用于 token 量纵轴刻度 */
+const compactInt = new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 });
+/** 'YYYY-MM-DD' → 'M/D'（横轴刻度） */
+function fmtDayShort(date: string): string {
+  const [, m, d] = date.split('-');
+  return `${Number(m)}/${Number(d)}`;
+}
+/** 'YYYY-MM-DD' → 'M 月 D 日'（tooltip 标题） */
+function fmtDayLong(date: string): string {
+  const [, m, d] = date.split('-');
+  return `${Number(m)} 月 ${Number(d)} 日`;
+}
+
+/** 每日 token 用量堆叠柱配色（chart-1..4 = 输入/输出/缓存写/缓存读） */
+const COST_CHART_CONFIG = {
+  inputTokens: { label: '输入', color: 'var(--chart-1)' },
+  outputTokens: { label: '输出', color: 'var(--chart-2)' },
+  cacheWriteTokens: { label: '缓存写入', color: 'var(--chart-3)' },
+  cacheReadTokens: { label: '缓存命中', color: 'var(--chart-4)' },
+} satisfies ChartConfig;
+/** 走势图可选时间窗（天） */
+const COST_RANGES = [7, 14, 30] as const;
 
 /** 版块容器 */
 function Section({ title, children }: { title: ReactNode; children: ReactNode }) {
@@ -64,35 +101,162 @@ function BarRow({
   );
 }
 
-/** 吞吐趋势：每日完成数竖向柱图（数据已是 0 填充的密集序列） */
+/** 吞吐配色：完成=signal 青 / 失败=destructive 红 */
+const THROUGHPUT_CONFIG = {
+  succeeded: { label: '完成', color: 'var(--signal)' },
+  failed: { label: '失败', color: 'var(--destructive)' },
+} satisfies ChartConfig;
+
+/**
+ * 吞吐趋势：每日「完成 / 失败」堆叠柱（单轴）。与成本面板同为柱状，全页趋势图形态统一；
+ * 洞察产出趋势不在此叠加（避免柱+线双轴的视觉割裂与误导），已由「今日产出」「洞察分布」承载。
+ */
 function ThroughputChart({ points }: { points: ThroughputPoint[] }) {
-  const max = Math.max(1, ...points.map((p) => p.count));
   return (
-    <div className="flex h-32 items-end gap-1">
-      {points.map((p) => (
-        <div
-          key={p.date}
-          className="group flex h-full flex-1 items-end"
-          title={`${p.date}：${p.count} 篇`}
-        >
-          <div
-            className="w-full rounded-t bg-signal/60 transition-colors group-hover:bg-signal"
-            style={{ height: `${Math.max(p.count > 0 ? 4 : 0, (p.count / max) * 100)}%` }}
-          />
-        </div>
+    <ChartContainer config={THROUGHPUT_CONFIG} className="aspect-auto h-56 w-full">
+      <BarChart accessibilityLayer data={points} margin={{ top: 8, right: 8, left: 0 }}>
+        <CartesianGrid vertical={false} />
+        <XAxis
+          dataKey="date"
+          tickLine={false}
+          axisLine={false}
+          tickMargin={8}
+          minTickGap={20}
+          tickFormatter={fmtDayShort}
+        />
+        <YAxis tickLine={false} axisLine={false} width={28} allowDecimals={false} />
+        <ChartTooltip
+          cursor={false}
+          content={
+            <ChartTooltipContent
+              labelFormatter={(label) => fmtDayLong(String(label))}
+              formatter={(value, name, item) => (
+                <div className="flex w-full items-center gap-2">
+                  <span
+                    className="size-2.5 shrink-0 rounded-[2px]"
+                    style={{ background: item.color }}
+                  />
+                  <span className="text-muted-foreground">
+                    {THROUGHPUT_CONFIG[name as keyof typeof THROUGHPUT_CONFIG]?.label ?? name}
+                  </span>
+                  <span className="ml-auto font-mono font-medium tabular-nums text-foreground">
+                    {Number(value).toLocaleString()}
+                  </span>
+                </div>
+              )}
+            />
+          }
+        />
+        <ChartLegend content={<ChartLegendContent />} />
+        <Bar dataKey="succeeded" stackId="t" fill="var(--color-succeeded)" />
+        <Bar dataKey="failed" stackId="t" fill="var(--color-failed)" radius={[3, 3, 0, 0]} />
+      </BarChart>
+    </ChartContainer>
+  );
+}
+
+const INTENSITY_LABEL: Record<string, string> = { HIGH: '高', MEDIUM: '中', LOW: '低' };
+/** 强度语义色（红/琥珀/翠，全站统一） */
+const INTENSITY_FILL: Record<string, string> = {
+  HIGH: 'var(--intensity-high)',
+  MEDIUM: 'var(--intensity-medium)',
+  LOW: 'var(--intensity-low)',
+};
+/** 强度有序：高 > 中 > 低（条形按此从上到下排序，保证 ordinal 读法） */
+const INTENSITY_RANK: Record<string, number> = { HIGH: 0, MEDIUM: 1, LOW: 2 };
+/**
+ * Top 版块：横向条形榜（按洞察数降序，单色品牌条 + 右侧计数）。取代旧甜甜圈——
+ * 榜单是「排序」而非「分类」，单色即可，既免去多类目撞色，又与强度条统一为横向条语汇。
+ */
+function SubredditBars({ data }: { data: { key: string; name: string; value: number }[] }) {
+  const max = Math.max(1, ...data.map((d) => d.value));
+  return (
+    <div className="space-y-2">
+      {data.map((d) => (
+        <BarRow
+          key={d.key}
+          label={
+            <span className="font-mono" title={d.name}>
+              {d.name}
+            </span>
+          }
+          value={d.value}
+          max={max}
+        />
       ))}
     </div>
   );
 }
 
-const INTENSITY_BAR: Record<string, string> = {
-  HIGH: 'bg-intensity-high',
-  MEDIUM: 'bg-intensity-medium',
-  LOW: 'bg-intensity-low',
-};
-const INTENSITY_LABEL: Record<string, string> = { HIGH: '高', MEDIUM: '中', LOW: '低' };
+/**
+ * 洞察强度分布：三条同基线横向条（高 > 中 > 低 顺序，条长＝相对最大档，右侧「计数 · 占比」）。
+ * 取代旧甜甜圈——3 个有序值用同基线条比角度更易精确比较，且占比最小的「高」也清晰可读。
+ */
+function IntensityBars({
+  data,
+}: {
+  data: { key: string; name: string; value: number; fill: string }[];
+}) {
+  const total = data.reduce((s, d) => s + d.value, 0);
+  const max = Math.max(1, ...data.map((d) => d.value));
+  return (
+    <div className="space-y-3.5">
+      {data.map((d) => {
+        const share = total > 0 ? Math.round((d.value / total) * 100) : 0;
+        return (
+          <div key={d.key} className="flex items-center gap-3 text-xs">
+            <div className="w-6 shrink-0 text-muted-foreground">{d.name}</div>
+            <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full rounded-full transition-all"
+                style={{ width: `${(d.value / max) * 100}%`, background: d.fill }}
+              />
+            </div>
+            <div className="w-24 shrink-0 text-right tabular-nums">
+              <span className="font-mono font-medium">{d.value.toLocaleString()}</span>
+              <span className="text-muted-foreground"> · {share}%</span>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
-/** Worker 单卡 */
+/** 利用率细条：标签 + 数值 + 进度条；负载分级着色（≥85% 红 / ≥60% 琥珀 / 否则 signal），可被 barClass 覆盖 */
+function Meter({
+  label,
+  value,
+  max,
+  display,
+  barClass,
+}: {
+  label: string;
+  value: number;
+  max: number;
+  display: string;
+  barClass?: string;
+}) {
+  const pct = max > 0 ? Math.min(100, (value / max) * 100) : 0;
+  const tone =
+    barClass ?? (pct >= 85 ? 'bg-intensity-high' : pct >= 60 ? 'bg-intensity-medium' : 'bg-signal');
+  return (
+    <div>
+      <div className="flex items-center justify-between text-[11px]">
+        <span className="text-muted-foreground">{label}</span>
+        <span className="font-mono tabular-nums">{display}</span>
+      </div>
+      <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted">
+        <div
+          className={cn('h-full rounded-full transition-all', tone)}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+/** Worker 单卡：心跳状态 + 并发饱和度条；CPU/内存降为小字读数（不再常驻进度条）。 */
 function WorkerCard({ w }: { w: WorkerStatus }) {
   const stale = w.lastHeartbeatAgo > 20;
   return (
@@ -115,28 +279,270 @@ function WorkerCard({ w }: { w: WorkerStatus }) {
             stale ? 'text-destructive' : 'text-muted-foreground',
           )}
         >
-          心跳 {fmtDuration(w.lastHeartbeatAgo)}前
+          {fmtDuration(w.lastHeartbeatAgo)}前
         </span>
       </div>
-      <div className="mt-2 grid grid-cols-3 gap-2 text-center">
-        <div>
-          <div className="font-mono text-sm font-semibold tabular-nums">
-            {w.activeJobs}
-            <span className="text-muted-foreground">/{w.concurrency}</span>
-          </div>
-          <div className="text-[11px] text-muted-foreground">活跃/并发</div>
-        </div>
-        <div>
-          <div className="font-mono text-sm font-semibold tabular-nums">{Math.round(w.cpu)}%</div>
-          <div className="text-[11px] text-muted-foreground">CPU</div>
-        </div>
-        <div>
-          <div className="font-mono text-sm font-semibold tabular-nums">
-            {Math.round(w.memory)}%
-          </div>
-          <div className="text-[11px] text-muted-foreground">内存</div>
+      <div className="mt-2.5">
+        <Meter
+          label="并发"
+          value={w.activeJobs}
+          max={w.concurrency}
+          display={`${w.activeJobs}/${w.concurrency}`}
+          barClass="bg-primary"
+        />
+        <div className="mt-2 text-[11px] tabular-nums text-muted-foreground">
+          CPU {Math.round(w.cpu)}% · 内存 {Math.round(w.memory)}%
         </div>
       </div>
+    </div>
+  );
+}
+
+/** 队列状态配色（排队=靛 / 运行中=signal / 成功=翠 / 失败=红 / 已取消=灰） */
+const QUEUE_STATES = [
+  { key: 'queued', label: '排队', color: 'var(--chart-1)' },
+  { key: 'running', label: '运行中', color: 'var(--signal)' },
+  { key: 'succeeded', label: '成功', color: 'var(--intensity-low)' },
+  { key: 'failed', label: '失败', color: 'var(--intensity-high)' },
+  { key: 'canceled', label: '已取消', color: 'var(--muted-foreground)' },
+] as const;
+
+/** 队列概况：排队/运行中（实时）+ 成功/失败（累计）四态计数；「已取消」恒为 0（无取消入口）故不展示。 */
+function QueueOverview({ queue }: { queue: DashboardData['queue'] }) {
+  const cells = QUEUE_STATES.filter((s) => s.key !== 'canceled').map((s) => ({
+    ...s,
+    value: queue[s.key],
+  }));
+  return (
+    <div className="grid grid-cols-4 gap-2 text-center">
+      {cells.map((c) => (
+        <div key={c.key}>
+          <div className="flex items-center justify-center gap-1.5">
+            <span className="size-2 shrink-0 rounded-[2px]" style={{ background: c.color }} />
+            <span
+              className={cn(
+                'font-mono text-base font-semibold tabular-nums',
+                c.key === 'failed' && c.value > 0 ? 'text-intensity-high' : undefined,
+              )}
+            >
+              {c.value.toLocaleString()}
+            </span>
+          </div>
+          <div className="mt-0.5 text-[11px] text-muted-foreground">{c.label}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Token / 成本面板：窗口总计 + 每日走势（token 用量堆叠柱 + 成本折线，双轴，可切 7/14/30 天）
+ * + 按模型拆分。全部模型都未配单价时，自动隐藏成本折线/右轴，退化为纯 token 用量走势。
+ */
+// 导出供 /preview-shell 临时预览（TEMP，截图后随预览路由一并移除）；正式仅本文件内部使用
+export function CostPanel({ cost }: { cost: DashboardData['cost'] }) {
+  const [range, setRange] = useState<number>(cost.windowDays);
+  const data = cost.daily.slice(-range);
+  const hasTokens = data.some(
+    (p) => p.inputTokens + p.outputTokens + p.cacheWriteTokens + p.cacheReadTokens > 0,
+  );
+  const modelMax = Math.max(1, ...cost.byModel.map((m) => m.inputTokens + m.outputTokens));
+  const tokenCells: { label: string; value: number }[] = [
+    { label: '输入', value: cost.inputTokens },
+    { label: '输出', value: cost.outputTokens },
+    { label: '缓存写入', value: cost.cacheWriteTokens },
+    { label: '缓存命中', value: cost.cacheReadTokens },
+  ];
+
+  const title = (
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <span>Token / 成本（近 {cost.windowDays} 天）</span>
+      <div className="flex items-center gap-0.5 rounded-md border p-0.5">
+        {COST_RANGES.filter((r) => r <= cost.windowDays).map((r) => (
+          <button
+            key={r}
+            type="button"
+            onClick={() => setRange(r)}
+            className={cn(
+              'rounded px-2 py-0.5 text-xs font-medium tabular-nums transition-colors',
+              range === r
+                ? 'bg-primary text-primary-foreground'
+                : 'text-muted-foreground hover:text-foreground',
+            )}
+          >
+            {r} 天
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
+  return (
+    <Section title={title}>
+      {/* 窗口总计 */}
+      <div className="mb-4 flex flex-wrap items-end gap-x-8 gap-y-3">
+        <div>
+          <div className="font-mono text-2xl font-semibold tabular-nums">
+            {fmtCost(cost.totalCost)}
+          </div>
+          <div className="text-xs text-muted-foreground">总成本</div>
+        </div>
+        {tokenCells.map((c) => (
+          <div key={c.label}>
+            <div className="font-mono text-base font-semibold tabular-nums">
+              {c.value.toLocaleString()}
+            </div>
+            <div className="text-xs text-muted-foreground">{c.label} token</div>
+          </div>
+        ))}
+      </div>
+
+      {/* 每日走势：token 用量堆叠柱（当天成本在 tooltip 标题显示） */}
+      {!hasTokens ? (
+        <p className="text-sm text-muted-foreground">
+          窗口内暂无带 token 记录的任务。重启 worker 并在设置页配单价后，新任务会在此统计。
+        </p>
+      ) : (
+        <ChartContainer config={COST_CHART_CONFIG} className="aspect-auto h-64 w-full">
+          <BarChart accessibilityLayer data={data} margin={{ top: 8, right: 8, left: 0 }}>
+            <CartesianGrid vertical={false} />
+            <XAxis
+              dataKey="date"
+              tickLine={false}
+              axisLine={false}
+              tickMargin={8}
+              minTickGap={24}
+              tickFormatter={fmtDayShort}
+            />
+            <YAxis
+              tickLine={false}
+              axisLine={false}
+              width={40}
+              tickFormatter={(v) => compactInt.format(v as number)}
+            />
+            <ChartTooltip
+              cursor={false}
+              content={
+                <ChartTooltipContent
+                  labelFormatter={(label, payload) => {
+                    const c = (payload?.[0]?.payload as { cost?: number | null } | undefined)?.cost;
+                    return `${fmtDayLong(String(label))}${c != null ? ` · ${fmtCost(c)}` : ''}`;
+                  }}
+                  formatter={(value, name, item) => (
+                    <div className="flex w-full items-center gap-2">
+                      <span
+                        className="size-2.5 shrink-0 rounded-[2px]"
+                        style={{ background: item.color }}
+                      />
+                      <span className="text-muted-foreground">
+                        {COST_CHART_CONFIG[name as keyof typeof COST_CHART_CONFIG]?.label ?? name}
+                      </span>
+                      <span className="ml-auto font-mono font-medium tabular-nums text-foreground">
+                        {Number(value).toLocaleString()}
+                      </span>
+                    </div>
+                  )}
+                />
+              }
+            />
+            <ChartLegend content={<ChartLegendContent />} />
+            <Bar dataKey="inputTokens" stackId="t" fill="var(--color-inputTokens)" />
+            <Bar dataKey="outputTokens" stackId="t" fill="var(--color-outputTokens)" />
+            <Bar dataKey="cacheWriteTokens" stackId="t" fill="var(--color-cacheWriteTokens)" />
+            <Bar
+              dataKey="cacheReadTokens"
+              stackId="t"
+              fill="var(--color-cacheReadTokens)"
+              radius={[3, 3, 0, 0]}
+            />
+          </BarChart>
+        </ChartContainer>
+      )}
+
+      {/* 按模型拆分（token 量条 + 折算成本） */}
+      {cost.byModel.length > 0 && (
+        <div className="mt-4 space-y-1.5 border-t pt-4">
+          {cost.byModel.map((m) => (
+            <BarRow
+              key={`${m.provider}/${m.model}`}
+              label={
+                <span title={`${m.provider} · ${m.jobs} 次`} className="font-mono">
+                  {m.model}
+                </span>
+              }
+              value={m.inputTokens + m.outputTokens}
+              max={modelMax}
+              valueText={fmtCost(m.cost)}
+            />
+          ))}
+        </div>
+      )}
+    </Section>
+  );
+}
+
+/** 今日 vs 昨日 的同比 hint：中性箭头 + 绝对差（产出涨跌是日常波动，不用红绿强信号；告警归告警条）。 */
+function DeltaHint({ today, prev }: { today: number; prev: number }) {
+  const diff = today - prev;
+  if (diff === 0) return <span className="text-muted-foreground">较昨日持平</span>;
+  const up = diff > 0;
+  const Icon = up ? ArrowUpRight : ArrowDownRight;
+  return (
+    <span className="inline-flex items-center gap-0.5 text-muted-foreground">
+      <Icon className="size-3 shrink-0" />
+      较昨日 {up ? '+' : '−'}
+      {Math.abs(diff).toLocaleString()}
+    </span>
+  );
+}
+
+/**
+ * 异常告警条：仅在有「需要动手」的异常时渲染（无 Worker＝停摆 / 今日有失败任务），否则返回 null。
+ * 把要处理的事顶到第一屏——取代旧看板「全是中性等重聚合、要人用眼睛 diff」的缺陷。
+ */
+function AlertBar({
+  workers,
+  todayFailed,
+  pending,
+}: {
+  workers: number;
+  todayFailed: number;
+  pending: number;
+}) {
+  const alerts: { key: string; level: 'danger' | 'warning'; icon: LucideIcon; text: string }[] = [];
+  if (workers === 0) {
+    alerts.push({
+      key: 'no-worker',
+      level: 'danger',
+      icon: ServerOff,
+      text: `无在线 Worker，分析已停摆${pending > 0 ? ` · 积压 ${pending.toLocaleString()}` : ''}`,
+    });
+  }
+  if (todayFailed > 0) {
+    alerts.push({
+      key: 'failed',
+      level: 'warning',
+      icon: TriangleAlert,
+      text: `今日 ${todayFailed.toLocaleString()} 个分析任务失败`,
+    });
+  }
+  if (alerts.length === 0) return null;
+  return (
+    <div className="space-y-2">
+      {alerts.map((a) => (
+        <div
+          key={a.key}
+          className={cn(
+            'flex items-center gap-2.5 rounded-lg border px-3.5 py-2.5 text-sm',
+            a.level === 'danger'
+              ? 'border-destructive/30 bg-destructive/10 text-destructive'
+              : 'border-intensity-medium/30 bg-intensity-medium/10 text-intensity-medium',
+          )}
+        >
+          <a.icon className="size-4 shrink-0" />
+          <span>{a.text}</span>
+        </div>
+      ))}
     </div>
   );
 }
@@ -165,167 +571,144 @@ function DashboardView() {
   }
   const d = q.data;
   const inflight = d.queue.queued + d.queue.running;
-  const queueCells: { label: string; value: number }[] = [
-    { label: '排队', value: d.queue.queued },
-    { label: '运行中', value: d.queue.running },
-    { label: '成功', value: d.queue.succeeded },
-    { label: '失败', value: d.queue.failed },
-    { label: '已取消', value: d.queue.canceled },
-  ];
-  const tokenCells: { label: string; value: number }[] = [
-    { label: '输入', value: d.cost.inputTokens },
-    { label: '输出', value: d.cost.outputTokens },
-    { label: '缓存写入', value: d.cost.cacheWriteTokens },
-    { label: '缓存命中', value: d.cost.cacheReadTokens },
-  ];
-  const modelMax = Math.max(
-    1,
-    ...d.cost.byModel.map((m: CostByModel) => m.inputTokens + m.outputTokens),
-  );
-  const intensityMax = Math.max(1, ...d.insights.byIntensity.map((i: NamedCount) => i.count));
-  const subMax = Math.max(1, ...d.insights.topSubreddits.map((s: NamedCount) => s.count));
+  // 今日/昨日产出直接取吞吐序列末两天（密集 14 天序列，末位＝今日）；缺昨日则省略同比
+  const today = d.throughput[d.throughput.length - 1];
+  const prev = d.throughput[d.throughput.length - 2];
+  const ins = (p?: ThroughputPoint) => (p ? p.insightsHigh + p.insightsMedium + p.insightsLow : 0);
+  const todayFailed = today?.failed ?? 0;
+  const intensityData = d.insights.byIntensity
+    .map((i) => ({
+      key: i.name,
+      name: INTENSITY_LABEL[i.name] ?? i.name,
+      value: i.count,
+      fill: INTENSITY_FILL[i.name] ?? 'var(--chart-1)',
+    }))
+    .sort((a, b) => (INTENSITY_RANK[a.key] ?? 99) - (INTENSITY_RANK[b.key] ?? 99));
+  const subredditData = d.insights.topSubreddits.map((s) => ({
+    key: s.name,
+    name: s.name,
+    value: s.count,
+  }));
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title={
-          <span className="flex items-center gap-2.5">
-            看板
-            <span className="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-normal text-muted-foreground">
-              <span className="signal-pulse size-1.5 rounded-full bg-signal" />
-              实时
-            </span>
+        title="看板"
+        description="数据工厂运行概览 · 每 5 秒刷新"
+        actions={
+          <span className="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-normal text-muted-foreground">
+            <span className="signal-pulse size-1.5 rounded-full bg-signal" />
+            实时
           </span>
         }
-        description="数据工厂运行概览 · 每 5 秒刷新"
       />
 
-      {/* KPI */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatCard label="帖子" icon={FileText} value={d.overview.posts.toLocaleString()} />
-        <StatCard label="洞察" icon={Sparkles} value={d.overview.insights.toLocaleString()} />
-        <StatCard label="待分析" icon={Clock} value={d.overview.pendingAnalysis.toLocaleString()} />
-        <StatCard
-          label="在线 Worker"
-          icon={Server}
-          value={d.workers.length}
-          hint={inflight > 0 ? `在飞 ${inflight}` : '空闲'}
-        />
-      </div>
+      {/* 异常告警（仅在有异常时出现） */}
+      <AlertBar
+        workers={d.workers.length}
+        todayFailed={todayFailed}
+        pending={d.overview.pendingAnalysis}
+      />
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Worker 状态 */}
-        <Section
-          title={
-            <span className="flex items-center gap-2">
-              <Cpu className="size-4 text-muted-foreground" />
-              Worker 状态（在线 {d.workers.length}）
-            </span>
-          }
-        >
-          {d.workers.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              暂无在线 Worker。启动 worker 进程后会连上网关并在此展示。
-            </p>
-          ) : (
-            <div className="grid gap-2 sm:grid-cols-2">
-              {d.workers.map((w) => (
-                <WorkerCard key={w.workerId} w={w} />
-              ))}
-            </div>
-          )}
-        </Section>
-
-        {/* 队列概况 */}
-        <Section title={`队列概况（在飞 ${inflight}）`}>
-          <div className="grid grid-cols-5 divide-x rounded-lg border text-center">
-            {queueCells.map((c) => (
-              <div key={c.label} className="px-1 py-3">
-                <div className="font-mono text-base font-semibold tabular-nums">{c.value}</div>
-                <div className="mt-0.5 text-[11px] text-muted-foreground">{c.label}</div>
-              </div>
-            ))}
-          </div>
-        </Section>
+      {/* 今日产出 */}
+      <div>
+        <div className="mb-3 text-sm font-medium text-muted-foreground">今日产出</div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <StatCard
+            label="新增洞察"
+            icon={Sparkles}
+            value={ins(today).toLocaleString()}
+            hint={prev ? <DeltaHint today={ins(today)} prev={ins(prev)} /> : undefined}
+          />
+          <StatCard
+            label="高强度信号"
+            icon={Flame}
+            value={
+              <span className="text-intensity-high">
+                {(today?.insightsHigh ?? 0).toLocaleString()}
+              </span>
+            }
+            hint={
+              prev ? (
+                <DeltaHint today={today?.insightsHigh ?? 0} prev={prev.insightsHigh} />
+              ) : undefined
+            }
+          />
+          <StatCard
+            label="已完成分析"
+            icon={Activity}
+            value={(today?.succeeded ?? 0).toLocaleString()}
+            hint={
+              prev ? <DeltaHint today={today?.succeeded ?? 0} prev={prev.succeeded} /> : undefined
+            }
+          />
+          <StatCard
+            label="待分析积压"
+            icon={Clock}
+            value={d.overview.pendingAnalysis.toLocaleString()}
+            hint="当前待处理"
+          />
+        </div>
       </div>
 
       {/* 吞吐趋势 */}
-      <Section title="吞吐趋势（近 14 天每日完成分析数）">
+      <Section title="吞吐趋势（近 14 天每日完成 / 失败）">
         <ThroughputChart points={d.throughput} />
       </Section>
 
       {/* 成本 / token */}
-      <Section title={`Token / 成本（近 ${d.cost.windowDays} 天）`}>
-        <div className="mb-4 flex flex-wrap items-end gap-x-8 gap-y-3">
-          <div>
-            <div className="font-mono text-2xl font-semibold tabular-nums">
-              {fmtCost(d.cost.totalCost)}
-            </div>
-            <div className="text-xs text-muted-foreground">总成本</div>
-          </div>
-          {tokenCells.map((c) => (
-            <div key={c.label}>
-              <div className="font-mono text-base font-semibold tabular-nums">
-                {c.value.toLocaleString()}
-              </div>
-              <div className="text-xs text-muted-foreground">{c.label} token</div>
-            </div>
-          ))}
-        </div>
-        {d.cost.byModel.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            窗口内暂无带 token 记录的任务。重启 worker 并在设置页配单价后，新任务会在此统计。
-          </p>
-        ) : (
-          <div className="space-y-1.5">
-            {d.cost.byModel.map((m) => (
-              <BarRow
-                key={`${m.provider}/${m.model}`}
-                label={
-                  <span title={`${m.provider} · ${m.jobs} 次`} className="font-mono">
-                    {m.model}
-                  </span>
-                }
-                value={m.inputTokens + m.outputTokens}
-                max={modelMax}
-                valueText={fmtCost(m.cost)}
-              />
-            ))}
-          </div>
-        )}
-      </Section>
+      <CostPanel cost={d.cost} />
 
       {/* 洞察分布 */}
       <div className="grid gap-6 lg:grid-cols-2">
         <Section title="洞察强度分布">
-          {d.insights.byIntensity.length === 0 ? (
+          {intensityData.length === 0 ? (
             <p className="text-sm text-muted-foreground">暂无洞察。</p>
           ) : (
-            <div className="space-y-1.5">
-              {d.insights.byIntensity.map((i) => (
-                <BarRow
-                  key={i.name}
-                  label={INTENSITY_LABEL[i.name] ?? i.name}
-                  value={i.count}
-                  max={intensityMax}
-                  barClass={INTENSITY_BAR[i.name] ?? 'bg-primary'}
-                />
-              ))}
-            </div>
+            <IntensityBars data={intensityData} />
           )}
         </Section>
 
         <Section title="Top 版块（按洞察数）">
-          {d.insights.topSubreddits.length === 0 ? (
+          {subredditData.length === 0 ? (
             <p className="text-sm text-muted-foreground">暂无洞察。</p>
           ) : (
-            <div className="space-y-1.5">
-              {d.insights.topSubreddits.map((s) => (
-                <BarRow key={s.name} label={s.name} value={s.count} max={subMax} />
-              ))}
-            </div>
+            <SubredditBars data={subredditData} />
           )}
         </Section>
+      </div>
+
+      {/* 系统健康（运维，置于页尾——价值在前、基础设施在后） */}
+      <div>
+        <div className="mb-3 text-sm font-medium text-muted-foreground">系统健康</div>
+        <div className="grid gap-6 lg:grid-cols-2">
+          {/* Worker 状态 */}
+          <Section
+            title={
+              <span className="flex items-center gap-2">
+                <Cpu className="size-4 text-muted-foreground" />
+                Worker 状态（在线 {d.workers.length}）
+              </span>
+            }
+          >
+            {d.workers.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                暂无在线 Worker。启动 worker 进程后会连上网关并在此展示。
+              </p>
+            ) : (
+              <div className="grid gap-2 sm:grid-cols-2">
+                {d.workers.map((w) => (
+                  <WorkerCard key={w.workerId} w={w} />
+                ))}
+              </div>
+            )}
+          </Section>
+
+          {/* 队列概况 */}
+          <Section title={`队列概况（在飞 ${inflight}）`}>
+            <QueueOverview queue={d.queue} />
+          </Section>
+        </div>
       </div>
     </div>
   );

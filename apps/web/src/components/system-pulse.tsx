@@ -25,7 +25,7 @@ export function SystemPulse() {
 
   return (
     <Link
-      to="/dashboard"
+      to="/"
       title="系统脉搏 · 点击查看看板"
       className="hidden items-center gap-2.5 rounded-md border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground md:inline-flex"
     >

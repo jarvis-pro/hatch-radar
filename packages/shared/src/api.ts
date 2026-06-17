@@ -56,10 +56,28 @@ export interface CostByModel {
   cost: number | null;
 }
 
-/** 看板：某日完成的分析数（YYYY-MM-DD） */
+/** 看板：某日吞吐与产出（YYYY-MM-DD，0 填充的密集序列） */
 export interface ThroughputPoint {
   date: string;
-  count: number;
+  /** 当天完成（成功）的分析数 */
+  succeeded: number;
+  /** 当天失败的分析数 */
+  failed: number;
+  /** 当天产出的高强度洞察数（洞察总数 = high + medium + low） */
+  insightsHigh: number;
+  insightsMedium: number;
+  insightsLow: number;
+}
+
+/** 看板：某日的 token 用量与折算成本（YYYY-MM-DD，0 填充的密集序列） */
+export interface DailyCostPoint {
+  date: string;
+  /** 当天折算成本（美元）；当天没有任何带单价的模型 → null（只统计用量、不折算） */
+  cost: number | null;
+  inputTokens: number;
+  outputTokens: number;
+  cacheWriteTokens: number;
+  cacheReadTokens: number;
 }
 
 /** 看板：名称 + 计数（强度分布 / Top 版块共用） */
@@ -83,6 +101,8 @@ export interface DashboardData {
     cacheWriteTokens: number;
     cacheReadTokens: number;
     byModel: CostByModel[];
+    /** 窗口内每日 token 用量与成本（密集序列，前端可按 7/14/30 天切片画走势） */
+    daily: DailyCostPoint[];
   };
   throughput: ThroughputPoint[];
   insights: { byIntensity: NamedCount[]; topSubreddits: NamedCount[] };
