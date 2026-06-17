@@ -2,7 +2,8 @@ import { useState } from 'react';
 import type { CommentRow } from '@hatch-radar/shared';
 import { ArrowUp, ChevronRight } from 'lucide-react';
 import { cn } from '@hatch-radar/ui/lib/utils';
-import { timeAgo } from '@/lib/format';
+import { commentAvatarDataUri } from '@/lib/avatar';
+import { decodeEntities, timeAgo } from '@/lib/format';
 
 /** 评论树节点：包装一条评论及其按 parent_id 关联的子回复。 */
 interface CommentNode {
@@ -24,6 +25,13 @@ function buildTree(rows: CommentRow[]): CommentNode[] {
     if (parent) parent.children.push(node);
     else roots.push(node);
   }
+  // 展示用时间倒序：每层兄弟按发布时间从新到旧，优先看最近评论（父→子嵌套结构保留）。
+  // 仅影响 web 展示——AI 分析是独立路径（packages/analysis/.../context.ts，按得分排序），不受此影响。
+  const sortByNewest = (nodes: CommentNode[]): void => {
+    nodes.sort((a, b) => b.row.created_utc - a.row.created_utc);
+    for (const n of nodes) sortByNewest(n.children);
+  };
+  sortByNewest(roots);
   return roots;
 }
 
@@ -33,32 +41,49 @@ function CommentItem({ node }: { node: CommentNode }) {
   const hasChildren = children.length > 0;
   return (
     <li>
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+      {/* 头部：折叠键 + 头像字母 + 昵称（醒目）+ 次级元信息，与正文清晰分层 */}
+      <div className="flex items-center gap-2">
         {hasChildren ? (
           <button
             type="button"
             onClick={() => setCollapsed((c) => !c)}
             aria-label={collapsed ? '展开回复' : '折叠回复'}
-            className="-ml-1 inline-flex size-4 items-center justify-center rounded hover:bg-accent hover:text-foreground"
+            className="-ml-1 inline-flex size-4 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
           >
             <ChevronRight
               className={cn('size-3.5 transition-transform', !collapsed && 'rotate-90')}
             />
           </button>
-        ) : null}
-        <span className="font-medium text-foreground">{row.author ?? '[已删除]'}</span>
+        ) : (
+          <span className="inline-block size-4 shrink-0" aria-hidden />
+        )}
+        <img
+          src={commentAvatarDataUri(row.author ?? '[deleted]')}
+          alt=""
+          aria-hidden
+          className="size-5 shrink-0 rounded-full bg-muted"
+        />
+        <span className="truncate text-sm font-medium text-foreground">
+          {row.author ?? '[已删除]'}
+        </span>
+        <span className="shrink-0 text-xs text-muted-foreground">{timeAgo(row.created_utc)}</span>
         {row.score > 0 ? (
-          <span className="inline-flex items-center gap-0.5 tabular-nums">
+          <span className="inline-flex shrink-0 items-center gap-0.5 text-xs tabular-nums text-muted-foreground">
             <ArrowUp className="size-3" />
             {row.score}
           </span>
         ) : null}
-        <time>{timeAgo(row.created_utc)}</time>
-        {collapsed && hasChildren ? <span>· {children.length} 条回复已折叠</span> : null}
+        {collapsed && hasChildren ? (
+          <span className="shrink-0 text-xs text-muted-foreground">· {children.length} 条回复</span>
+        ) : null}
       </div>
-      <p className="mt-1 text-sm whitespace-pre-wrap break-words">{row.body}</p>
+      {!collapsed ? (
+        <p className="mt-1.5 ml-7 text-sm leading-relaxed whitespace-pre-wrap break-words text-foreground/90">
+          {decodeEntities(row.body)}
+        </p>
+      ) : null}
       {hasChildren && !collapsed ? (
-        <ul className="mt-3 space-y-3 border-l pl-4">
+        <ul className="mt-3 ml-2.5 space-y-4 border-l pl-4">
           {children.map((child) => (
             <CommentItem key={child.row.id} node={child} />
           ))}
@@ -78,7 +103,7 @@ export function CommentTree({ comments }: { comments: CommentRow[] }) {
     );
   }
   return (
-    <ul className="space-y-3">
+    <ul className="space-y-4">
       {buildTree(comments).map((node) => (
         <CommentItem key={node.row.id} node={node} />
       ))}

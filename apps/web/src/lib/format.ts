@@ -30,6 +30,24 @@ export function channelLabel(source: string, subreddit: string): string {
   return source === 'reddit' ? `r/${subreddit}` : subreddit;
 }
 
+const entityCache = new Map<string, string>();
+let entityDecoder: HTMLTextAreaElement | null = null;
+/**
+ * 解码 HTML 实体（如 &#x2F; → /、&amp; → &）。抓取层 decodeHtml 漏解的实体（含已入库旧数据）
+ * 在展示层兜底。用 textarea 原生解码——只解实体、不解析标签（RCDATA），不引入 XSS；
+ * 按原文记忆化避免重渲染重复解码；无 '&' 时快速返回原串。
+ */
+export function decodeEntities(text: string): string {
+  if (!text || !text.includes('&')) return text;
+  const cached = entityCache.get(text);
+  if (cached !== undefined) return cached;
+  const el = (entityDecoder ??= document.createElement('textarea'));
+  el.innerHTML = text;
+  const out = el.value;
+  entityCache.set(text, out);
+  return out;
+}
+
 /** permalink → 可点击的完整 URL（Reddit 存的是相对路径） */
 export function permalinkUrl(permalink: string): string {
   return permalink.startsWith('http') ? permalink : `https://reddit.com${permalink}`;
