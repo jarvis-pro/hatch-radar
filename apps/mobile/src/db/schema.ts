@@ -1,4 +1,4 @@
-import { DDL, TRIAGE_DDL } from '@hatch-radar/shared';
+import { DDL, TRANSLATIONS_EXPORT_DDL, TRIAGE_DDL } from '@hatch-radar/shared';
 import * as SQLite from 'expo-sqlite';
 
 /**
@@ -54,6 +54,8 @@ export function getDb(): SQLite.SQLiteDatabase {
   db.execSync(DDL);
   db.execSync(TRIAGE_DDL);
   db.execSync(MOBILE_DDL);
+  // 译文表（content 按 entity_kind+entity_id 寻址）：新表，对存量库无痛、无需 ALTER
+  db.execSync(TRANSLATIONS_EXPORT_DDL);
   migrate(db);
   return db;
 }

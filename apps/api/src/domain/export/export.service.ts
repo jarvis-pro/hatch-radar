@@ -13,6 +13,7 @@ import {
   type CommentRow,
   type ExportBatch,
   type ExportFilter,
+  type ExportTranslation,
   type PostRow,
 } from '@hatch-radar/shared';
 import { nowSec } from '@hatch-radar/kernel';
@@ -86,6 +87,37 @@ export class ExportService {
       if (cs) for (const c of cs) commentRows.push(toCommentRow(c));
     }
 
+    // 本批帖子/评论涉及的内容哈希 → 取已完成译文（按 content_hash），随导出带给移动端做中文优先渲染。
+    const hashes = [
+      ...new Set(
+        [
+          ...postRows.flatMap((p) => [p.title_hash, p.selftext_hash]),
+          ...commentRows.map((c) => c.body_hash),
+        ].filter((h): h is string => h != null),
+      ),
+    ];
+    const doneRows = hashes.length
+      ? await this.db.$queryRaw<{ content_hash: string; text: string }[]>`
+          SELECT content_hash, text FROM translations
+          WHERE status = 'done' AND text IS NOT NULL AND content_hash IN (${Prisma.join(hashes)})
+        `
+      : [];
+    const zhByHash = new Map(doneRows.map((r) => [r.content_hash, r.text]));
+    // 按实体（帖子标题/正文、评论正文）展开：移动端用 post.id / comment.id 直接贴中文，无需重算哈希
+    const translations: ExportTranslation[] = [];
+    for (const p of postRows) {
+      const tZh = p.title_hash ? zhByHash.get(p.title_hash) : undefined;
+      if (tZh != null) translations.push({ entity_kind: 'post_title', entity_id: p.id, text: tZh });
+      const sZh = p.selftext_hash ? zhByHash.get(p.selftext_hash) : undefined;
+      if (sZh != null)
+        translations.push({ entity_kind: 'post_selftext', entity_id: p.id, text: sZh });
+    }
+    for (const c of commentRows) {
+      const bZh = c.body_hash ? zhByHash.get(c.body_hash) : undefined;
+      if (bZh != null)
+        translations.push({ entity_kind: 'comment_body', entity_id: c.id, text: bZh });
+    }
+
     return {
       meta: {
         formatVersion: EXPORT_FORMAT_VERSION,
@@ -95,11 +127,13 @@ export class ExportService {
           insights: insightRows.length,
           posts: postRows.length,
           comments: commentRows.length,
+          translations: translations.length,
         },
       },
       insights: insightRows.map(toInsightRow),
       posts: postRows,
       comments: commentRows,
+      translations,
     };
   }
 }

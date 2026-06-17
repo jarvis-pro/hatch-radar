@@ -21,6 +21,8 @@ export function ExportBatchButton({ subreddits }: { subreddits: string[] }) {
   const [limit, setLimit] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // .sqlite（移动端目标）下载前的二次确认：提示未翻译内容在移动端将显示原文
+  const [confirming, setConfirming] = useState(false);
 
   async function download(): Promise<void> {
     setBusy(true);
@@ -146,9 +148,44 @@ export function ExportBatchButton({ subreddits }: { subreddits: string[] }) {
 
         {error ? <p className="text-xs text-destructive">{error}</p> : null}
 
-        <Button className="w-full" onClick={download} disabled={busy}>
-          {busy ? '导出中…' : '下载'}
-        </Button>
+        {confirming ? (
+          <div className="space-y-2 rounded-md border border-border bg-muted/40 p-2.5">
+            <p className="text-xs text-muted-foreground">
+              .sqlite 仅含<strong>已翻译</strong>的中文；未翻译的帖子/评论在移动端将显示原文。
+              如需移动端中文阅读，建议先在帖子详情页翻译后再导出。仍要直接导出？
+            </p>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="flex-1"
+                onClick={() => setConfirming(false)}
+                disabled={busy}
+              >
+                取消
+              </Button>
+              <Button
+                size="sm"
+                className="flex-1"
+                onClick={() => {
+                  setConfirming(false);
+                  void download();
+                }}
+                disabled={busy}
+              >
+                {busy ? '导出中…' : '仍要导出'}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <Button
+            className="w-full"
+            onClick={() => (format === 'sqlite' ? setConfirming(true) : void download())}
+            disabled={busy}
+          >
+            {busy ? '导出中…' : '下载'}
+          </Button>
+        )}
       </PopoverContent>
     </Popover>
   );

@@ -93,3 +93,30 @@ export function getComments(postId: string): CommentRow[] {
     [postId],
   );
 }
+
+/** 某帖的中文译文（标题/正文 + 各评论），随导出批次（v2+）携带，按实体 id 寻址 */
+export interface PostTranslations {
+  /** 帖子标题译文 */
+  title?: string;
+  /** 帖子正文译文 */
+  selftext?: string;
+  /** 评论译文：commentId → 中文 */
+  comments: Record<string, string>;
+}
+
+/** 取某帖已导入的中文译文（无则各项为空）；移动端中文优先渲染用 */
+export function getPostTranslations(postId: string): PostTranslations {
+  const rows = getDb().getAllSync<{ entity_kind: string; entity_id: string; text: string }>(
+    `SELECT entity_kind, entity_id, text FROM translations
+     WHERE (entity_kind IN ('post_title', 'post_selftext') AND entity_id = ?)
+        OR (entity_kind = 'comment_body' AND entity_id IN (SELECT id FROM comments WHERE post_id = ?))`,
+    [postId, postId],
+  );
+  const out: PostTranslations = { comments: {} };
+  for (const r of rows) {
+    if (r.entity_kind === 'post_title') out.title = r.text;
+    else if (r.entity_kind === 'post_selftext') out.selftext = r.text;
+    else out.comments[r.entity_id] = r.text;
+  }
+  return out;
+}

@@ -1,7 +1,12 @@
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import Database from 'better-sqlite3';
-import { DDL, EXPORT_META_DDL, type ExportBatch } from '@hatch-radar/shared';
+import {
+  DDL,
+  EXPORT_META_DDL,
+  TRANSLATIONS_EXPORT_DDL,
+  type ExportBatch,
+} from '@hatch-radar/shared';
 
 /**
  * 导出产物写入层（**server 端仅存的 better-sqlite3 用途**）。
@@ -41,6 +46,7 @@ export function writeBatchSqlite(batch: ExportBatch, file: string): string {
   try {
     out.exec(DDL);
     out.exec(EXPORT_META_DDL);
+    out.exec(TRANSLATIONS_EXPORT_DDL);
     const insertMeta = out.prepare(`INSERT INTO export_meta (key, value) VALUES (?, ?)`);
     const insertInsight = out.prepare(
       `INSERT INTO insights (id, post_id, source, subreddit, post_title, permalink, model, intensity, pain_points, opportunities, tags, created_at)
@@ -53,6 +59,10 @@ export function writeBatchSqlite(batch: ExportBatch, file: string): string {
     const insertComment = out.prepare(
       `INSERT INTO comments (id, post_id, parent_id, author, body, score, depth, created_utc, fetched_at)
        VALUES (@id, @post_id, @parent_id, @author, @body, @score, @depth, @created_utc, @fetched_at)`,
+    );
+    const insertTranslation = out.prepare(
+      `INSERT OR REPLACE INTO translations (entity_kind, entity_id, text)
+       VALUES (@entity_kind, @entity_id, @text)`,
     );
     out.transaction(() => {
       insertMeta.run('format_version', String(batch.meta.formatVersion));
@@ -83,6 +93,7 @@ export function writeBatchSqlite(batch: ExportBatch, file: string): string {
         });
       }
       for (const row of batch.comments) insertComment.run(row);
+      for (const row of batch.translations) insertTranslation.run(row);
     })();
   } finally {
     out.close();

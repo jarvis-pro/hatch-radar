@@ -4,7 +4,13 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
-import { getComments, getInsight, getPost } from '@/db/queries';
+import {
+  getComments,
+  getInsight,
+  getPost,
+  getPostTranslations,
+  type PostTranslations,
+} from '@/db/queries';
 import { getTriage } from '@/db/triage';
 import { channelLabel, fmtDate, timeAgo } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -20,7 +26,7 @@ import {
   type LucideIcon,
 } from 'lucide-react-native';
 import { useCallback, useMemo, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native';
 
 /** 强度 → 痛点卡左缘强调条颜色 */
 const ACCENT_CLASS: Record<Intensity, string> = {
@@ -38,12 +44,15 @@ export default function InsightDetailScreen() {
     if (!insight) return null;
     const post = getPost(insight.postId);
     const comments = post ? getComments(post.id) : [];
-    return { insight, post, comments };
+    const translations: PostTranslations = post ? getPostTranslations(post.id) : { comments: {} };
+    return { insight, post, comments, translations };
   }, [insightId]);
 
   // 研判数据单独成状态：编辑器每次落库后刷新视图
   const [triage, setTriage] = useState(() => getTriage(insightId));
   const refreshTriage = useCallback(() => setTriage(getTriage(insightId)), [insightId]);
+  // 中文优先开关：有译文时默认显示中文，可切回原文
+  const [showZh, setShowZh] = useState(true);
 
   if (!data) {
     return (
@@ -55,7 +64,11 @@ export default function InsightDetailScreen() {
       </View>
     );
   }
-  const { insight, post, comments } = data;
+  const { insight, post, comments, translations } = data;
+  const hasTr =
+    !!translations.title ||
+    !!translations.selftext ||
+    Object.keys(translations.comments).length > 0;
 
   return (
     <KeyboardAvoidingView
@@ -71,8 +84,20 @@ export default function InsightDetailScreen() {
               {channelLabel(insight.source, insight.subreddit)}
             </Text>
             <Text className="text-xs text-muted-foreground">{fmtDate(insight.createdAt)}</Text>
+            {hasTr ? (
+              <Pressable
+                onPress={() => setShowZh((v) => !v)}
+                className="rounded-md border border-border px-2 py-0.5"
+              >
+                <Text className="text-xs text-muted-foreground">
+                  {showZh ? '显示原文' : '显示中文'}
+                </Text>
+              </Pressable>
+            ) : null}
           </View>
-          <Text className="text-xl font-bold leading-snug">{insight.postTitle}</Text>
+          <Text className="text-xl font-bold leading-snug">
+            {(showZh ? translations.title : undefined) ?? insight.postTitle}
+          </Text>
           {insight.tags.length > 0 ? (
             <View className="flex-row flex-wrap gap-1.5">
               {insight.tags.map((tag) => (
@@ -133,7 +158,9 @@ export default function InsightDetailScreen() {
             <Card className="gap-0 border-0 bg-muted/60 py-3.5 shadow-none">
               <CardContent className="gap-2 px-4">
                 {post.selftext ? (
-                  <Text className="text-sm leading-6">{post.selftext}</Text>
+                  <Text className="text-sm leading-6">
+                    {(showZh ? translations.selftext : undefined) ?? post.selftext}
+                  </Text>
                 ) : (
                   <Text className="text-sm text-muted-foreground">（外链帖，无正文）</Text>
                 )}
@@ -158,7 +185,13 @@ export default function InsightDetailScreen() {
             {comments.length === 0 ? (
               <Text className="text-sm text-muted-foreground">批次中没有该帖的评论。</Text>
             ) : (
-              comments.map((c) => <CommentItem key={c.id} comment={c} />)
+              comments.map((c) => (
+                <CommentItem
+                  key={c.id}
+                  comment={c}
+                  zh={showZh ? translations.comments[c.id] : undefined}
+                />
+              ))
             )}
           </Section>
         ) : null}
@@ -195,8 +228,8 @@ function Section({
   );
 }
 
-/** 评论：线程式缩进（最多 4 级），子级带引导线 */
-function CommentItem({ comment }: { comment: CommentRow }) {
+/** 评论：线程式缩进（最多 4 级），子级带引导线；zh 有值时显示中文译文 */
+function CommentItem({ comment, zh }: { comment: CommentRow; zh?: string }) {
   return (
     <View
       className={cn('gap-1', comment.depth > 0 && 'border-l-2 border-border pl-3')}
@@ -206,7 +239,7 @@ function CommentItem({ comment }: { comment: CommentRow }) {
         <Text className="text-xs font-medium text-foreground">{comment.author ?? '[已删除]'}</Text>
         {comment.score > 0 ? ` · ▲ ${comment.score}` : ''} · {timeAgo(comment.created_utc)}
       </Text>
-      <Text className="text-sm leading-5">{comment.body}</Text>
+      <Text className="text-sm leading-5">{zh ?? comment.body}</Text>
     </View>
   );
 }

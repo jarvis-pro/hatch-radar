@@ -40,6 +40,9 @@ const INSERT_COMMENT = `INSERT OR REPLACE INTO comments
   (id, post_id, parent_id, author, body, score, depth, created_utc, fetched_at)
   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
+const INSERT_TRANSLATION = `INSERT OR REPLACE INTO translations
+  (entity_kind, entity_id, text) VALUES (?, ?, ?)`;
+
 function assertVersion(version: number): void {
   if (!Number.isInteger(version) || version < 1) {
     throw new Error('批次缺少有效的格式版本，可能不是 hatch-radar 导出文件');
@@ -131,6 +134,10 @@ export function importBatch(batch: ExportBatch): ImportResult {
         i.created_at,
       ]);
     }
+    // 译文（v2+；v1 批次无此字段 → 跳过）：按实体 id 贴中文，移动端中文优先渲染用
+    for (const t of batch.translations ?? []) {
+      db.runSync(INSERT_TRANSLATION, [t.entity_kind, t.entity_id, t.text]);
+    }
   });
 
   markImported();
@@ -155,7 +162,8 @@ export function importSqliteFile(path: string): ImportResult {
     const versionRow = db.getFirstSync<{ value: string }>(
       `SELECT value FROM batch.export_meta WHERE key = 'format_version'`,
     );
-    assertVersion(Number(versionRow?.value));
+    const version = Number(versionRow?.value);
+    assertVersion(version);
 
     const ids = db.getAllSync<{ id: number }>(`SELECT id FROM batch.insights`).map((r) => r.id);
     const existing = countExistingInsights(ids);
@@ -178,6 +186,10 @@ export function importSqliteFile(path: string): ImportResult {
           analyze_attempts    = excluded.analyze_attempts`);
       db.execSync(`INSERT OR REPLACE INTO comments SELECT * FROM batch.comments`);
       db.execSync(`INSERT OR REPLACE INTO insights SELECT * FROM batch.insights`);
+      // v2+ 批次带 translations 表（v1 无该表 → 跳过，避免 SELECT 不存在的表报错）
+      if (version >= 2) {
+        db.execSync(`INSERT OR REPLACE INTO translations SELECT * FROM batch.translations`);
+      }
     });
 
     markImported();
