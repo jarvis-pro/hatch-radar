@@ -216,6 +216,59 @@
   }
 }
 
+/* 回波点：波束扫到 → 瞬间点亮 → 缓慢衰减（动画延迟对齐到波束到达该角度的时刻） */
+@keyframes radar-flare {
+  0% {
+    opacity: 0.12;
+    transform: scale(0.8);
+  }
+  2% {
+    opacity: 1;
+    transform: scale(1.8);
+  }
+  16% {
+    opacity: 0.7;
+  }
+  40% {
+    opacity: 0.18;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0.12;
+    transform: scale(0.8);
+  }
+}
+
+/* 回波被点亮时向外扩散的探测环 */
+@keyframes radar-ping {
+  0% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  3% {
+    opacity: 0.55;
+    transform: scale(0.5);
+  }
+  65%,
+  100% {
+    opacity: 0;
+    transform: scale(2.6);
+  }
+}
+
+/* 盘面周期性向外发射的声呐环（呼吸感） */
+@keyframes radar-emit {
+  0% {
+    opacity: 0.5;
+    transform: scale(0.05);
+  }
+  80%,
+  100% {
+    opacity: 0;
+    transform: scale(1);
+  }
+}
+
 @keyframes signal-pulse {
   0%,
   100% {
@@ -228,10 +281,53 @@
   }
 }
 
-/* 雷达扫掠光束（登录页品牌区） */
-.radar-sweep {
+/* 雷达余晖扫掠（登录页背景）：锥形渐变拖尾 + 前缘锐利光束。色相走品牌紫 --primary */
+.radar-trail {
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    transparent 205deg,
+    color-mix(in oklab, var(--primary) 5%, transparent) 290deg,
+    color-mix(in oklab, var(--primary) 18%, transparent) 345deg,
+    color-mix(in oklab, var(--primary) 45%, transparent) 358deg,
+    transparent 360deg
+  );
   animation: radar-sweep 4s linear infinite;
+}
+.radar-trail::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 2px;
+  height: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(to top, transparent, var(--primary) 20%, var(--primary));
+  box-shadow:
+    0 0 10px var(--primary),
+    0 0 4px var(--primary);
+}
+
+/* 回波点 / 探测环 / 声呐环：均绕自身中心缩放 */
+.radar-blip,
+.radar-ping,
+.radar-emit {
+  transform-box: fill-box;
   transform-origin: center;
+}
+.radar-blip {
+  opacity: 0.12;
+  filter: drop-shadow(0 0 4px var(--primary));
+  animation: radar-flare 4s linear infinite both;
+}
+.radar-ping {
+  opacity: 0;
+  animation: radar-ping 4s linear infinite both;
+}
+.radar-emit {
+  opacity: 0;
+  animation: radar-emit 4s linear infinite both;
 }
 
 /* 信号脉冲点（系统脉搏 / 在线 Worker） */
@@ -240,8 +336,18 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .radar-sweep,
+  .radar-trail,
+  .radar-blip,
+  .radar-ping,
+  .radar-emit,
   .signal-pulse {
     animation: none;
+  }
+  /* 静态构图：光束停在 45°，回波稳定可见 */
+  .radar-trail {
+    transform: rotate(45deg);
+  }
+  .radar-blip {
+    opacity: 0.6;
   }
 }
