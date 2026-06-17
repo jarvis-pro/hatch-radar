@@ -308,7 +308,10 @@ function QueueOverview({ queue }: { queue: DashboardData['queue'] }) {
       <div className="grid grid-cols-2 gap-2">
         <div className="rounded-lg border bg-background p-3">
           <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-            <span className="size-1.5 shrink-0 rounded-full" style={{ background: 'var(--chart-1)' }} />
+            <span
+              className="size-1.5 shrink-0 rounded-full"
+              style={{ background: 'var(--chart-1)' }}
+            />
             排队
           </div>
           <div className="mt-1 font-mono text-xl font-semibold tabular-nums">
@@ -353,11 +356,10 @@ function QueueOverview({ queue }: { queue: DashboardData['queue'] }) {
 }
 
 /**
- * Token / 成本面板：窗口总计 + 每日走势（token 用量堆叠柱 + 成本折线，双轴，可切 7/14/30 天）
- * + 按模型拆分。全部模型都未配单价时，自动隐藏成本折线/右轴，退化为纯 token 用量走势。
+ * Token / 成本面板：窗口总计（总成本大数字 + 各类 token）+ 每日 token 用量堆叠柱（当天成本在
+ * tooltip 标题显示，可切 7/14/30 天）+ 按模型拆分。全部模型都未配单价时退化为纯 token 用量走势。
  */
-// 导出供 /preview-shell 临时预览（TEMP，截图后随预览路由一并移除）；正式仅本文件内部使用
-export function CostPanel({ cost }: { cost: DashboardData['cost'] }) {
+function CostPanel({ cost }: { cost: DashboardData['cost'] }) {
   const [range, setRange] = useState<number>(cost.windowDays);
   const data = cost.daily.slice(-range);
   const hasTokens = data.some(
@@ -572,7 +574,12 @@ function DashboardView() {
   });
 
   if (q.isError) {
-    return <LoadError message={q.error instanceof ApiError ? q.error.message : undefined} />;
+    return (
+      <LoadError
+        message={q.error instanceof ApiError ? q.error.message : undefined}
+        onRetry={() => void q.refetch()}
+      />
+    );
   }
   if (q.isPending) {
     return (
@@ -610,7 +617,7 @@ function DashboardView() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="看板"
+        title="数据看板"
         description="数据工厂运行概览 · 每 5 秒刷新"
         actions={
           <span className="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-normal text-muted-foreground">

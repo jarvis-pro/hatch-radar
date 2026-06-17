@@ -11,6 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from '@hatch-radar/ui/components/table';
+import { cn } from '@hatch-radar/ui/lib/utils';
 import { api, ApiError } from '@/api/client';
 import { RequirePerm } from '@/auth/require-perm';
 import { EmptyState, LoadError } from '@/components/empty';
@@ -19,6 +20,29 @@ import { PageHeader } from '@/components/page-header';
 import { Pagination } from '@/components/pagination';
 import { parsePage, timeAgo } from '@/lib/format';
 import { buildQuery } from '@/lib/qs';
+
+/** 失败 / 删除 / 吊销 / 停用 / 取消等负向、敏感事件——审计里最该一眼揪出的。 */
+const ACTION_NEGATIVE = /\.(failed|locked|delete|revoke|disable|cancel)$/;
+
+/** 审计动作 → 语义色分类（负向红 / 登录青 / 账户靛 / 设备翠 / 其它中性）。 */
+function actionClass(action: string): string {
+  if (ACTION_NEGATIVE.test(action))
+    return 'border-destructive/30 bg-destructive/10 text-destructive';
+  if (action.startsWith('auth.')) return 'border-signal/30 bg-signal/12 text-signal';
+  if (action.startsWith('account.')) return 'border-primary/30 bg-primary/12 text-primary';
+  if (action.startsWith('device.'))
+    return 'border-intensity-low/30 bg-intensity-low/12 text-intensity-low';
+  return 'text-muted-foreground';
+}
+
+/** 审计动作徽标：等宽 + 按类别语义着色。 */
+function ActionBadge({ action }: { action: string }) {
+  return (
+    <Badge variant="outline" className={cn('font-mono text-xs font-normal', actionClass(action))}>
+      {action}
+    </Badge>
+  );
+}
 
 function AuditView() {
   const [sp] = useSearchParams();
@@ -49,7 +73,10 @@ function AuditView() {
       />
 
       {auditQ.isError ? (
-        <LoadError message={auditQ.error instanceof ApiError ? auditQ.error.message : undefined} />
+        <LoadError
+          message={auditQ.error instanceof ApiError ? auditQ.error.message : undefined}
+          onRetry={() => void auditQ.refetch()}
+        />
       ) : auditQ.isPending ? (
         <Skeleton className="h-64 w-full" />
       ) : auditQ.data.items.length === 0 ? (
@@ -59,36 +86,36 @@ function AuditView() {
         />
       ) : (
         <>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="whitespace-nowrap">时间</TableHead>
-                <TableHead>操作者</TableHead>
-                <TableHead>动作</TableHead>
-                <TableHead>对象</TableHead>
-                <TableHead>IP</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {auditQ.data.items.map((r) => (
-                <TableRow key={r.id}>
-                  <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
-                    {timeAgo(r.createdAt)}
-                  </TableCell>
-                  <TableCell className="text-sm">{r.actorEmail ?? '系统'}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className="font-mono text-xs">
-                      {r.action}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {r.targetType ? `${r.targetType}:${r.targetId ?? ''}` : '—'}
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{r.ip ?? '—'}</TableCell>
+          <div className="overflow-x-auto rounded-lg border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="whitespace-nowrap">时间</TableHead>
+                  <TableHead>操作者</TableHead>
+                  <TableHead>动作</TableHead>
+                  <TableHead>对象</TableHead>
+                  <TableHead>IP</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {auditQ.data.items.map((r) => (
+                  <TableRow key={r.id}>
+                    <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+                      {timeAgo(r.createdAt)}
+                    </TableCell>
+                    <TableCell className="text-sm">{r.actorEmail ?? '系统'}</TableCell>
+                    <TableCell>
+                      <ActionBadge action={r.action} />
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {r.targetType ? `${r.targetType}:${r.targetId ?? ''}` : '—'}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{r.ip ?? '—'}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
           <Pagination
             page={auditQ.data.page}
             pageCount={auditQ.data.pageCount}

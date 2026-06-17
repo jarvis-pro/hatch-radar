@@ -40,6 +40,7 @@ function AnalyzeView() {
     return (
       <LoadError
         message={awaitingQ.error instanceof ApiError ? awaitingQ.error.message : undefined}
+        onRetry={() => void awaitingQ.refetch()}
       />
     );
   }
@@ -65,7 +66,7 @@ function AnalyzeView() {
 
   return (
     <>
-      <PageHeader title="分析运行" description="选中帖子 + 选模型 → 运行；交由队列后台处理" />
+      <PageHeader title="发起分析" description="选中帖子 + 选模型 → 运行；交由队列后台处理" />
 
       {awaitingQ.isPending ? (
         <Skeleton className="h-64 w-full" />

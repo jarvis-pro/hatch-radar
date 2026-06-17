@@ -31,7 +31,16 @@ function AccountsView() {
 
   const firstError = usersQ.error ?? devicesQ.error ?? enrollQ.error;
   if (firstError) {
-    return <LoadError message={firstError instanceof ApiError ? firstError.message : undefined} />;
+    return (
+      <LoadError
+        message={firstError instanceof ApiError ? firstError.message : undefined}
+        onRetry={() => {
+          void usersQ.refetch();
+          void devicesQ.refetch();
+          void enrollQ.refetch();
+        }}
+      />
+    );
   }
   if (!user || !usersQ.data || !devicesQ.data || !enrollQ.data) {
     return <Spinner className="size-6 text-muted-foreground" />;

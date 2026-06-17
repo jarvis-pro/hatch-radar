@@ -59,7 +59,7 @@ function SettingsView() {
 
   return (
     <>
-      <PageHeader title="设置" description="模型与密钥 · 数据来源 · 运行参数" />
+      <PageHeader title="系统设置" description="模型与密钥 · 数据来源 · 运行参数" />
 
       <Tabs value={tab} onValueChange={selectTab} className="space-y-6">
         <TabsList>

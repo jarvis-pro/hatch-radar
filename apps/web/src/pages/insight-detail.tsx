@@ -49,7 +49,10 @@ function InsightDetailView() {
     return status === 404 ? (
       <EmptyState title="洞察不存在" hint="该洞察可能已被删除。" />
     ) : (
-      <LoadError message={detailQ.error instanceof ApiError ? detailQ.error.message : undefined} />
+      <LoadError
+        message={detailQ.error instanceof ApiError ? detailQ.error.message : undefined}
+        onRetry={() => void detailQ.refetch()}
+      />
     );
   }
   if (detailQ.isPending) return <Skeleton className="mx-auto h-96 max-w-3xl" />;
@@ -97,7 +100,7 @@ function InsightDetailView() {
         <div className="mt-3 flex flex-wrap gap-1.5">
           {insight.tags.map((tag) => (
             <Badge key={tag} asChild variant="secondary" className="font-normal">
-              <Link to={`/?q=${encodeURIComponent(tag)}`}>{tag}</Link>
+              <Link to={`/insights?q=${encodeURIComponent(tag)}`}>{tag}</Link>
             </Badge>
           ))}
         </div>

@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { MoreHorizontal, Plus } from 'lucide-react';
+import { Copy, MoreHorizontal, Plus } from 'lucide-react';
 import type {
   AdminUserRow,
   CurrentUser,
@@ -46,6 +46,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@hatch-radar/ui/components/sheet';
+import { toast } from '@hatch-radar/ui/components/sonner';
 import { Spinner } from '@hatch-radar/ui/components/spinner';
 import { Switch } from '@hatch-radar/ui/components/switch';
 import {
@@ -159,86 +160,90 @@ export function AccountsManager({
         </Alert>
       ) : null}
 
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>昵称 / 邮箱</TableHead>
-            <TableHead>角色</TableHead>
-            <TableHead>状态</TableHead>
-            <TableHead>权限</TableHead>
-            <TableHead>设备</TableHead>
-            <TableHead>最近登录</TableHead>
-            <TableHead className="w-10" />
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {users.map((u) => (
-            <TableRow key={u.id}>
-              <TableCell>
-                <div className="font-medium">{u.name}</div>
-                <div className="text-xs text-muted-foreground">{u.email}</div>
-              </TableCell>
-              <TableCell>
-                <Badge variant={u.role === 'super_admin' ? 'default' : 'secondary'}>
-                  {u.role === 'super_admin' ? '超级管理员' : '普通管理员'}
-                </Badge>
-              </TableCell>
-              <TableCell>
-                {u.status === 'active' ? (
-                  <span className="text-sm text-muted-foreground">活跃</span>
-                ) : (
-                  <Badge variant="outline">停用</Badge>
-                )}
-              </TableCell>
-              <TableCell className="text-sm text-muted-foreground">
-                {u.role === 'super_admin' ? '全部' : `${u.permissions.length} 项`}
-              </TableCell>
-              <TableCell className="text-sm text-muted-foreground tabular-nums">
-                {u.deviceCount > 0 ? `${u.deviceCount} 台` : '—'}
-              </TableCell>
-              <TableCell className="text-sm text-muted-foreground">
-                {u.lastLoginAt ? timeAgo(u.lastLoginAt) : '从未'}
-              </TableCell>
-              <TableCell>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" disabled={!manageable(u)}>
-                      <MoreHorizontal className="size-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => setSheet(u)}>编辑</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setDeviceSheet(u)}>管理设备</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setConfirm({ kind: 'reset', user: u })}>
-                      重置密码
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    {u.status === 'active' ? (
-                      <DropdownMenuItem
-                        disabled={isSelf(u) || lastSuper(u)}
-                        onClick={() => setConfirm({ kind: 'disable', user: u })}
-                      >
-                        停用
-                      </DropdownMenuItem>
-                    ) : (
-                      <DropdownMenuItem onClick={() => setConfirm({ kind: 'enable', user: u })}>
-                        启用
-                      </DropdownMenuItem>
-                    )}
-                    <DropdownMenuItem
-                      variant="destructive"
-                      disabled={isSelf(u) || lastSuper(u)}
-                      onClick={() => setConfirm({ kind: 'delete', user: u })}
-                    >
-                      删除
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </TableCell>
+      <div className="overflow-x-auto rounded-lg border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>昵称 / 邮箱</TableHead>
+              <TableHead>角色</TableHead>
+              <TableHead>状态</TableHead>
+              <TableHead>权限</TableHead>
+              <TableHead>设备</TableHead>
+              <TableHead>最近登录</TableHead>
+              <TableHead className="w-10" />
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          </TableHeader>
+          <TableBody>
+            {users.map((u) => (
+              <TableRow key={u.id}>
+                <TableCell>
+                  <div className="font-medium">{u.name}</div>
+                  <div className="text-xs text-muted-foreground">{u.email}</div>
+                </TableCell>
+                <TableCell>
+                  <Badge variant={u.role === 'super_admin' ? 'default' : 'secondary'}>
+                    {u.role === 'super_admin' ? '超级管理员' : '普通管理员'}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  {u.status === 'active' ? (
+                    <span className="text-sm text-muted-foreground">活跃</span>
+                  ) : (
+                    <Badge variant="outline">停用</Badge>
+                  )}
+                </TableCell>
+                <TableCell className="text-sm text-muted-foreground">
+                  {u.role === 'super_admin' ? '全部' : `${u.permissions.length} 项`}
+                </TableCell>
+                <TableCell className="text-sm text-muted-foreground tabular-nums">
+                  {u.deviceCount > 0 ? `${u.deviceCount} 台` : '—'}
+                </TableCell>
+                <TableCell className="text-sm text-muted-foreground">
+                  {u.lastLoginAt ? timeAgo(u.lastLoginAt) : '从未'}
+                </TableCell>
+                <TableCell>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" disabled={!manageable(u)}>
+                        <MoreHorizontal className="size-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => setSheet(u)}>编辑</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setDeviceSheet(u)}>
+                        管理设备
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setConfirm({ kind: 'reset', user: u })}>
+                        重置密码
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      {u.status === 'active' ? (
+                        <DropdownMenuItem
+                          disabled={isSelf(u) || lastSuper(u)}
+                          onClick={() => setConfirm({ kind: 'disable', user: u })}
+                        >
+                          停用
+                        </DropdownMenuItem>
+                      ) : (
+                        <DropdownMenuItem onClick={() => setConfirm({ kind: 'enable', user: u })}>
+                          启用
+                        </DropdownMenuItem>
+                      )}
+                      <DropdownMenuItem
+                        variant="destructive"
+                        disabled={isSelf(u) || lastSuper(u)}
+                        onClick={() => setConfirm({ kind: 'delete', user: u })}
+                      >
+                        删除
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
 
       <Sheet open={sheet !== null} onOpenChange={(o) => !o && setSheet(null)}>
         <SheetContent className="overflow-y-auto sm:max-w-md">
@@ -298,8 +303,22 @@ export function AccountsManager({
               ，对方首次登录后须立即改密。此密码仅此一次显示。
             </DialogDescription>
           </DialogHeader>
-          <div className="rounded bg-muted px-3 py-2 font-mono text-sm break-all select-all">
-            {resetResult?.tempPassword}
+          <div className="flex items-center gap-2">
+            <code className="flex-1 rounded bg-muted px-3 py-2 font-mono text-sm break-all select-all">
+              {resetResult?.tempPassword}
+            </code>
+            <Button
+              variant="outline"
+              size="icon"
+              aria-label="复制临时密码"
+              onClick={() => {
+                if (!resetResult) return;
+                void navigator.clipboard.writeText(resetResult.tempPassword);
+                toast.success('临时密码已复制');
+              }}
+            >
+              <Copy className="size-4" />
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

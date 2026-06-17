@@ -2,24 +2,26 @@ import type { ReactNode } from 'react';
 
 /** PageHeader props */
 interface PageHeaderProps {
-  /** 页面标题：仅渲染为 sr-only <h1> 保留无障碍语义；可见标题已由顶栏面包屑承担 */
+  /** 页面标题（可见 H1，进页面的视觉焦点） */
   title: ReactNode;
-  /** 页面说明 —— 现在是本区域唯一的可见主文案 */
+  /** 页面说明（H1 下方次级文案） */
   description?: ReactNode;
   /** 右侧操作区（导出 / 实时指示等） */
   actions?: ReactNode;
 }
 
 /**
- * 页面引导区：视觉上只保留「说明文案 + 右侧操作」。大标题已撤——区段名由顶栏面包屑给出
- * （见 top-bar.tsx），以此消除「面包屑 + 页内大 H1」的重复并回收纵向空间。title 仍以
- * sr-only <h1> 渲染，保留无障碍语义与文档大纲。
+ * 页面引导区：可见页面标题（H1）+ 说明文案 + 右侧操作。
+ * 顶栏面包屑负责「我在哪 / 导航返回」，页内 H1 负责「进页面的焦点」——二者职责不同，
+ * 标题做大做重以建立层级（见 docs/web-design-audit.md P2.1）。
  */
 export function PageHeader({ title, description, actions }: PageHeaderProps) {
   return (
     <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-      <div className="min-w-0">
-        <h1 className="sr-only">{title}</h1>
+      <div className="min-w-0 space-y-1">
+        <h1 className="text-2xl leading-tight font-semibold tracking-tight text-balance">
+          {title}
+        </h1>
         {description ? (
           <p className="text-sm text-balance text-muted-foreground">{description}</p>
         ) : null}

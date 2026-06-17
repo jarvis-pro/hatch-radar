@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Plus } from 'lucide-react';
+import { Copy, Plus } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import type { DeviceRow, EnrollmentRow } from '@hatch-radar/shared';
 import { Alert, AlertDescription } from '@hatch-radar/ui/components/alert';
@@ -25,6 +25,7 @@ import {
 import { Input } from '@hatch-radar/ui/components/input';
 import { Label } from '@hatch-radar/ui/components/label';
 import { Spinner } from '@hatch-radar/ui/components/spinner';
+import { toast } from '@hatch-radar/ui/components/sonner';
 import { api, ApiError } from '@/api/client';
 import { timeAgo } from '@/lib/format';
 
@@ -227,8 +228,22 @@ export function DeviceManager({
               </div>
             </div>
           ) : null}
-          <div className="rounded bg-muted px-3 py-2 text-center font-mono text-lg tracking-wider select-all">
-            {code}
+          <div className="flex items-center gap-2">
+            <code className="flex-1 rounded bg-muted px-3 py-2 text-center font-mono text-lg tracking-wider select-all">
+              {code}
+            </code>
+            <Button
+              variant="outline"
+              size="icon"
+              aria-label="复制激活码"
+              onClick={() => {
+                if (!code) return;
+                void navigator.clipboard.writeText(code);
+                toast.success('激活码已复制');
+              }}
+            >
+              <Copy className="size-4" />
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

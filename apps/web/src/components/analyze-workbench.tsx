@@ -20,6 +20,8 @@ import {
   TableHeader,
   TableRow,
 } from '@hatch-radar/ui/components/table';
+import { toast } from '@hatch-radar/ui/components/sonner';
+import { Spinner } from '@hatch-radar/ui/components/spinner';
 import { api, ApiError } from '@/api/client';
 import { timeAgo } from '@/lib/format';
 
@@ -73,7 +75,6 @@ export function AnalyzeWorkbench({
   );
   const [batchBusy, setBatchBusy] = useState(false);
   const [runningId, setRunningId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   function toggle(id: string) {
     setSelected((prev) => {
@@ -101,12 +102,12 @@ export function AnalyzeWorkbench({
     const ids = [...selected];
     if (ids.length === 0 || !providerId) return;
     setBatchBusy(true);
-    setError(null);
     try {
       await enqueue(ids);
       setSelected(new Set());
+      toast.success(`已入队 ${ids.length} 篇 → 队列`);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : '运行失败');
+      toast.error(err instanceof ApiError ? err.message : '运行失败');
     } finally {
       setBatchBusy(false);
     }
@@ -115,7 +116,6 @@ export function AnalyzeWorkbench({
   async function runOne(id: string) {
     if (!providerId) return;
     setRunningId(id);
-    setError(null);
     try {
       await enqueue([id]);
       setSelected((prev) => {
@@ -123,8 +123,9 @@ export function AnalyzeWorkbench({
         next.delete(id);
         return next;
       });
+      toast.success('已入队 1 篇 → 队列');
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : '运行失败');
+      toast.error(err instanceof ApiError ? err.message : '运行失败');
     } finally {
       setRunningId(null);
     }
@@ -146,7 +147,6 @@ export function AnalyzeWorkbench({
           添加并启用一个模型后再运行。
         </div>
       ) : null}
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
 
       <div className="rounded-lg border">
         {/* 表头工具栏：计数 + 组合控件（选模型 | 运行选中） */}
@@ -248,7 +248,7 @@ export function AnalyzeWorkbench({
                           disabled={runDisabled || runningId === it.id}
                           onClick={() => runOne(it.id)}
                         >
-                          {runningId === it.id ? '…' : '运行'}
+                          {runningId === it.id ? <Spinner /> : '运行'}
                         </Button>
                       </TableCell>
                     </TableRow>

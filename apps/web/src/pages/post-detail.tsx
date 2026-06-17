@@ -33,7 +33,10 @@ function PostDetailView() {
         hint="原始帖子 30 天后归档，其洞察仍可在洞察页查看。"
       />
     ) : (
-      <LoadError message={detailQ.error instanceof ApiError ? detailQ.error.message : undefined} />
+      <LoadError
+        message={detailQ.error instanceof ApiError ? detailQ.error.message : undefined}
+        onRetry={() => void detailQ.refetch()}
+      />
     );
   }
   if (detailQ.isPending) return <Skeleton className="h-96 w-full" />;
@@ -42,7 +45,7 @@ function PostDetailView() {
   const comments = commentsQ.data ?? [];
 
   return (
-    <Card className="gap-0 p-4 sm:p-6">
+    <Card className="mx-auto max-w-3xl gap-0 p-4 sm:p-6">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
         <SourceBadge source={post.source} />
         <span>{channelLabel(post.source, post.subreddit)}</span>
@@ -91,7 +94,7 @@ function PostDetailView() {
       </div>
 
       {post.selftext ? (
-        <div className="mt-4 rounded-md bg-muted p-3 text-sm whitespace-pre-wrap break-words">
+        <div className="mt-4 text-sm leading-relaxed whitespace-pre-wrap break-words text-foreground/90">
           {post.selftext}
         </div>
       ) : null}

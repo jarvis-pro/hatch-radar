@@ -23,9 +23,7 @@ export function StatCard({ label, value, icon: Icon, hint, className }: StatCard
   return (
     <div className={cn('rounded-xl border bg-card p-4', className)}>
       <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-          {label}
-        </span>
+        <span className="text-xs font-medium text-muted-foreground">{label}</span>
         {Icon ? <Icon className="size-4 text-muted-foreground/50" /> : null}
       </div>
       <div className="mt-2 font-mono text-2xl font-semibold tabular-nums">{value}</div>

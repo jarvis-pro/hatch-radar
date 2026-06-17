@@ -285,7 +285,10 @@ function QueueView() {
       </div>
 
       {listQ.isError ? (
-        <LoadError message={listQ.error instanceof ApiError ? listQ.error.message : undefined} />
+        <LoadError
+          message={listQ.error instanceof ApiError ? listQ.error.message : undefined}
+          onRetry={() => void listQ.refetch()}
+        />
       ) : listQ.isPending ? (
         <Skeleton className="h-96 w-full" />
       ) : !data || items.length === 0 ? (
@@ -317,7 +320,11 @@ function QueueView() {
                   const exec = execSeconds(j, now);
                   return (
                     <TableRow key={j.id} className="cursor-pointer" onClick={() => setDetailJob(j)}>
-                      <TableCell>
+                      <TableCell
+                        className={
+                          j.status === 'failed' ? 'border-l-2 border-l-destructive' : undefined
+                        }
+                      >
                         <Badge variant={STATUS_META[j.status].variant}>
                           {STATUS_META[j.status].label}
                         </Badge>

@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import type { CommentRow } from '@hatch-radar/shared';
-import { ArrowUp } from 'lucide-react';
+import { ArrowUp, ChevronRight } from 'lucide-react';
+import { cn } from '@hatch-radar/ui/lib/utils';
 import { timeAgo } from '@/lib/format';
 
 /** 评论树节点：包装一条评论及其按 parent_id 关联的子回复。 */
@@ -27,9 +29,23 @@ function buildTree(rows: CommentRow[]): CommentNode[] {
 
 function CommentItem({ node }: { node: CommentNode }) {
   const { row, children } = node;
+  const [collapsed, setCollapsed] = useState(false);
+  const hasChildren = children.length > 0;
   return (
     <li>
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+        {hasChildren ? (
+          <button
+            type="button"
+            onClick={() => setCollapsed((c) => !c)}
+            aria-label={collapsed ? '展开回复' : '折叠回复'}
+            className="-ml-1 inline-flex size-4 items-center justify-center rounded hover:bg-accent hover:text-foreground"
+          >
+            <ChevronRight
+              className={cn('size-3.5 transition-transform', !collapsed && 'rotate-90')}
+            />
+          </button>
+        ) : null}
         <span className="font-medium text-foreground">{row.author ?? '[已删除]'}</span>
         {row.score > 0 ? (
           <span className="inline-flex items-center gap-0.5 tabular-nums">
@@ -38,9 +54,10 @@ function CommentItem({ node }: { node: CommentNode }) {
           </span>
         ) : null}
         <time>{timeAgo(row.created_utc)}</time>
+        {collapsed && hasChildren ? <span>· {children.length} 条回复已折叠</span> : null}
       </div>
       <p className="mt-1 text-sm whitespace-pre-wrap break-words">{row.body}</p>
-      {children.length > 0 ? (
+      {hasChildren && !collapsed ? (
         <ul className="mt-3 space-y-3 border-l pl-4">
           {children.map((child) => (
             <CommentItem key={child.row.id} node={child} />
@@ -51,7 +68,7 @@ function CommentItem({ node }: { node: CommentNode }) {
   );
 }
 
-/** 嵌套评论树（评论为空时渲染占位文案） */
+/** 嵌套评论树（评论为空时渲染占位文案；有子回复的节点可折叠）。 */
 export function CommentTree({ comments }: { comments: CommentRow[] }) {
   if (comments.length === 0) {
     return (

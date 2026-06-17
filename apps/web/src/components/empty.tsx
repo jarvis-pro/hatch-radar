@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import { Inbox, TriangleAlert } from 'lucide-react';
+import { Inbox, RefreshCw, TriangleAlert } from 'lucide-react';
+import { Button } from '@hatch-radar/ui/components/button';
 import {
   Empty,
   EmptyContent,
@@ -34,8 +35,8 @@ export function EmptyState({ title, hint, action }: EmptyStateProps) {
   );
 }
 
-/** 数据加载失败时的占位提示（server 不可达 / 接口报错；控制台经 /api 取数）。 */
-export function LoadError({ message }: { message?: string }) {
+/** 数据加载失败时的占位提示（server 不可达 / 接口报错；控制台经 /api 取数）。传 onRetry 显示「重试」。 */
+export function LoadError({ message, onRetry }: { message?: string; onRetry?: () => void }) {
   return (
     <Empty className="border">
       <EmptyHeader>
@@ -46,7 +47,13 @@ export function LoadError({ message }: { message?: string }) {
         <EmptyDescription>{message ?? '无法连接服务，请稍后重试。'}</EmptyDescription>
       </EmptyHeader>
       <EmptyContent>
-        <p className="text-sm text-muted-foreground">
+        {onRetry ? (
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={onRetry}>
+            <RefreshCw className="size-3.5" />
+            重试
+          </Button>
+        ) : null}
+        <p className="text-xs text-muted-foreground">
           若持续失败，请确认工作台 server 进程已启动。
         </p>
       </EmptyContent>
