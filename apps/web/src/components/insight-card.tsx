@@ -10,14 +10,27 @@ import {
 } from '@hatch-radar/ui/components/card';
 import { cn } from '@hatch-radar/ui/lib/utils';
 import { channelLabel, timeAgo } from '@/lib/format';
+import type { Density } from '@/lib/use-density';
 import { INTENSITY_BAR, IntensityBadge, SourceBadge } from './badges';
 
-/** 洞察列表卡片：左侧强度色条 + 标题 + 首个痛点摘要 + 标签；整卡可点击进入详情 */
-export function InsightCard({ insight }: { insight: Insight }) {
+/** 洞察列表卡片：左侧强度色条 + 标题 + 首个痛点摘要 + 标签；整卡可点击进入详情。紧凑密度下隐去痛点摘要行。 */
+export function InsightCard({
+  insight,
+  density = 'comfortable',
+}: {
+  insight: Insight;
+  density?: Density;
+}) {
   const firstPain = insight.painPoints[0];
+  const compact = density === 'compact';
 
   return (
-    <Card className="relative gap-2.5 overflow-hidden py-4 transition-colors hover:bg-accent/40">
+    <Card
+      className={cn(
+        'relative overflow-hidden transition-colors hover:bg-accent/40',
+        compact ? 'gap-1 py-3' : 'gap-2.5 py-4',
+      )}
+    >
       {/* 左侧强度色条：扫一眼即知信号强弱（信号优先原则） */}
       <span
         aria-hidden
@@ -39,7 +52,7 @@ export function InsightCard({ insight }: { insight: Insight }) {
           </Link>
         </CardTitle>
       </CardHeader>
-      {firstPain ? (
+      {firstPain && !compact ? (
         <CardContent className="px-4">
           <p className="line-clamp-2 text-sm text-muted-foreground">{firstPain.description}</p>
         </CardContent>
@@ -50,6 +63,9 @@ export function InsightCard({ insight }: { insight: Insight }) {
             {tag}
           </Badge>
         ))}
+        {insight.tags.length > 6 ? (
+          <span className="text-xs text-muted-foreground">+{insight.tags.length - 6}</span>
+        ) : null}
         <span className="ml-auto inline-flex items-center gap-3 text-xs whitespace-nowrap text-muted-foreground tabular-nums">
           <span>
             痛点 <span className="font-medium text-foreground">{insight.painPoints.length}</span>

@@ -10,15 +10,18 @@ import {
   ItemTitle,
 } from '@hatch-radar/ui/components/item';
 import { Skeleton } from '@hatch-radar/ui/components/skeleton';
+import { cn } from '@hatch-radar/ui/lib/utils';
 import { api, ApiError } from '@/api/client';
 import { RequirePerm } from '@/auth/require-perm';
 import { AnalyzedBadge, SourceBadge } from '@/components/badges';
+import { DensityToggle } from '@/components/density-toggle';
 import { EmptyState, LoadError } from '@/components/empty';
 import { FilterBar } from '@/components/filter-bar';
 import { PageHeader } from '@/components/page-header';
 import { Pagination } from '@/components/pagination';
 import { channelLabel, parsePage, sourceLabel, timeAgo } from '@/lib/format';
 import { buildQuery } from '@/lib/qs';
+import { useDensity } from '@/lib/use-density';
 
 function PostsView() {
   const [sp] = useSearchParams();
@@ -30,6 +33,8 @@ function PostsView() {
   const q = sp.get('q')?.trim() || undefined;
   const page = parsePage(sp.get('page'));
   const hasFilter = Boolean(source || subreddit || status || q);
+  const [density, setDensity] = useDensity();
+  const compact = density === 'compact';
 
   const optionsQ = useQuery({
     queryKey: ['post-filters'],
@@ -47,7 +52,11 @@ function PostsView() {
 
   return (
     <>
-      <PageHeader title="帖子" description="原始抓取数据，30 天后归档；可在此挑选帖子发起分析" />
+      <PageHeader
+        title="帖子库"
+        description="原始抓取数据，30 天后归档；可在此挑选帖子发起分析"
+        actions={<DensityToggle value={density} onChange={setDensity} />}
+      />
 
       <FilterBar
         basePath="/posts"
@@ -80,7 +89,10 @@ function PostsView() {
       />
 
       {listQ.isError ? (
-        <LoadError message={listQ.error instanceof ApiError ? listQ.error.message : undefined} />
+        <LoadError
+          message={listQ.error instanceof ApiError ? listQ.error.message : undefined}
+          onRetry={() => void listQ.refetch()}
+        />
       ) : listQ.isPending ? (
         <div className="grid gap-2">
           {Array.from({ length: 6 }).map((_, i) => (
@@ -96,10 +108,18 @@ function PostsView() {
         <>
           <ItemGroup className="gap-2">
             {listQ.data.items.map((post) => (
-              <Item key={post.id} asChild variant="outline">
+              <Item
+                key={post.id}
+                asChild
+                variant="outline"
+                size={compact ? 'sm' : 'default'}
+                className={compact ? 'py-2' : undefined}
+              >
                 <Link to={`/posts/${post.id}`}>
-                  <ItemContent>
-                    <ItemTitle className="line-clamp-2 text-sm">{post.title}</ItemTitle>
+                  <ItemContent className={compact ? 'gap-0.5' : undefined}>
+                    <ItemTitle className={cn('text-sm', compact ? 'line-clamp-1' : 'line-clamp-2')}>
+                      {post.title}
+                    </ItemTitle>
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
                       <SourceBadge source={post.source} />
                       <span>{channelLabel(post.source, post.subreddit)}</span>

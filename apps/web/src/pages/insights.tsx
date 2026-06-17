@@ -8,12 +8,14 @@ import { RequirePerm } from '@/auth/require-perm';
 import { EmptyState, LoadError } from '@/components/empty';
 import { ExportBatchButton } from '@/components/export-batch';
 import { FilterBar } from '@/components/filter-bar';
+import { DensityToggle } from '@/components/density-toggle';
 import { InsightCard } from '@/components/insight-card';
 import { PageHeader } from '@/components/page-header';
 import { Pagination } from '@/components/pagination';
 import { StatCard } from '@/components/stat-card';
 import { INTENSITY_LABELS, parseIntensity, parsePage, sourceLabel } from '@/lib/format';
 import { buildQuery } from '@/lib/qs';
+import { useDensity } from '@/lib/use-density';
 
 function InsightsView() {
   const [sp] = useSearchParams();
@@ -23,6 +25,7 @@ function InsightsView() {
   const q = sp.get('q')?.trim() || undefined;
   const page = parsePage(sp.get('page'));
   const hasFilter = Boolean(source || subreddit || intensity || q);
+  const [density, setDensity] = useDensity();
 
   const statsQ = useQuery({ queryKey: ['stats'], queryFn: () => api.get<DbStats>('/stats') });
   const optionsQ = useQuery({
@@ -49,9 +52,14 @@ function InsightsView() {
   return (
     <>
       <PageHeader
-        title="洞察"
+        title="需求洞察"
         description="社区痛点与产品机会，按来源 / 版块 / 强度筛选研判"
-        actions={<ExportBatchButton subreddits={options.subreddits} />}
+        actions={
+          <>
+            <DensityToggle value={density} onChange={setDensity} />
+            <ExportBatchButton subreddits={options.subreddits} />
+          </>
+        }
       />
 
       <section className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -72,7 +80,7 @@ function InsightsView() {
       </section>
 
       <FilterBar
-        basePath="/"
+        basePath="/insights"
         hasFilter={hasFilter}
         searchValue={q}
         searchPlaceholder="搜索标题 / 标签 / 痛点 / 机会"
@@ -102,7 +110,10 @@ function InsightsView() {
       />
 
       {listQ.isError ? (
-        <LoadError message={listQ.error instanceof ApiError ? listQ.error.message : undefined} />
+        <LoadError
+          message={listQ.error instanceof ApiError ? listQ.error.message : undefined}
+          onRetry={() => void listQ.refetch()}
+        />
       ) : listQ.isPending ? (
         <ListSkeleton />
       ) : listQ.data.items.length === 0 ? (
@@ -118,14 +129,14 @@ function InsightsView() {
         <>
           <section className="grid gap-3">
             {listQ.data.items.map((insight) => (
-              <InsightCard key={insight.id} insight={insight} />
+              <InsightCard key={insight.id} insight={insight} density={density} />
             ))}
           </section>
           <Pagination
             page={listQ.data.page}
             pageCount={listQ.data.pageCount}
             total={listQ.data.total}
-            basePath="/"
+            basePath="/insights"
             query={{ source, subreddit, intensity, q }}
           />
         </>
