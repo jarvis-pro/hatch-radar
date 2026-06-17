@@ -19,8 +19,7 @@ export type WorkerMessage =
 /** gateway → worker 的下行消息 */
 export type GatewayMessage =
   | { type: 'registered'; workerId: string }
-  | { type: 'dispatch'; jobId: number; postId: string; providerId: number | null; model: string }
-  | { type: 'ping' };
+  | { type: 'dispatch'; jobId: number; postId: string; providerId: number | null; model: string };
 
 /**
  * 派发器接口：入队后触发一次派发。AnalysisConfigService 持有它的可选引用
