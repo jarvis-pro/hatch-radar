@@ -50,7 +50,12 @@
     --intensity-low-foreground: 165 80% 97%;
   }
 
-  .dark {
+  /*
+   * 用 .dark:root（非 .dark）：NativeWind v4 原生端对 shadcn 风格 .dark{} 变量覆盖
+   * 切换不可靠（toggle 只生效一次 / 不生效，见 nativewind#702），深色会回落到 :root 浅色值。
+   * .dark:root 是其测试用例认可的写法，确保 colorScheme 切换时变量可靠重解析。
+   */
+  .dark:root {
     --background: 231 19% 7%;
     --foreground: 230 18% 94%;
     --card: 231 16% 10%;
