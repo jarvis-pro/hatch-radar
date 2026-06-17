@@ -2,7 +2,7 @@ import { AnalysisConfigService } from '@hatch-radar/analysis';
 import { RuntimeSettingsService } from '@hatch-radar/db';
 import { CrawlerConfigService } from '@hatch-radar/crawler';
 import { HackerNewsClient } from '@hatch-radar/crawler';
-import type { RedditClient, RedditComment } from '@hatch-radar/crawler';
+import type { RedditClient, CommentFetchResult } from '@hatch-radar/crawler';
 import { fetchFeed } from '@hatch-radar/crawler';
 import { CommentsRepository } from '@hatch-radar/db';
 import { JobsRepository } from '@hatch-radar/db';
@@ -95,15 +95,27 @@ export class SchedulerService {
     target: CommentTarget,
     reddit: RedditClient | null,
   ): Promise<void> {
-    let fetched: RedditComment[];
+    let result: CommentFetchResult;
     if (target.source === 'hackernews') {
-      fetched = await this.hackernews.fetchComments(target.id);
+      result = await this.hackernews.fetchComments(target.id);
     } else if (target.source === 'reddit' && reddit) {
-      fetched = await reddit.fetchComments(target.subreddit, target.id);
+      result = await reddit.fetchComments(target.subreddit, target.id);
     } else {
       return;
     }
-    await this.commentsRepo.replaceComments(target.id, fetched, COMMENT_FETCHED_PASS, nowSec());
+    // 评论被有意截断（深度/数量上限，或 Reddit more 折叠）时留下可观测痕迹，避免误判为全量
+    // （即时抓取与定时补全两条路径都经此处，故用中性前缀 [评论]）
+    if (result.dropped > 0) {
+      logger.info(
+        `[评论] ${target.id} 评论可能不完整：已抓 ${result.comments.length} 条，约 ${result.dropped} 条未抓（深度/数量上限或 Reddit more 折叠）`,
+      );
+    }
+    await this.commentsRepo.replaceComments(
+      target.id,
+      result.comments,
+      COMMENT_FETCHED_PASS,
+      nowSec(),
+    );
   }
 
   /** 后台串行抓取新帖评论（fire-and-forget）：逐篇 await，进程中断遗漏的由 refresh 兜底 */

@@ -5,6 +5,13 @@ import type { TokenBucketQueue } from './queue';
 const TOKEN_URL = 'https://www.reddit.com/api/v1/access_token';
 const API_BASE = 'https://oauth.reddit.com';
 const MAX_ATTEMPTS = 5;
+/**
+ * 单次评论请求返回的评论数上限。
+ * - 仍是**一次** API 请求（占用一个令牌、不加重 100/min 配额）；depth 省略 → Reddit 返回完整嵌套树，
+ *   直到累计达 limit 后将其余子树折叠为 `more` 占位节点
+ * - 提高此值只增大单次响应体积，不增加请求数；溢出/深层评论的隐藏数由 `more.count` 计入 dropped
+ */
+const REDDIT_COMMENT_LIMIT = 200;
 
 /** Reddit OAuth（script 类型）应用凭据 */
 export interface RedditConfig {
@@ -24,8 +31,72 @@ export interface RedditConfig {
 // 此处再导出，保持 '../crawler/reddit' 既有消费者（scheduler 等）不变。
 export type { RedditPost, RedditComment };
 
+/** 评论树节点：Reddit listing 的 child（kind 't1'=评论 / 'more'=折叠占位） */
+interface ListingChild {
+  kind: string;
+  data: Record<string, unknown>;
+}
+
 interface ListingResponse {
-  data?: { children?: Array<{ kind: string; data: Record<string, unknown> }> };
+  data?: { children?: ListingChild[] };
+}
+
+/**
+ * 评论抓取结果：拍平的评论列表 + 被有意丢弃的评论数估计。
+ *
+ * `dropped > 0` 表示**就当前抓取策略而言**评论不完整：Reddit 来自未展开的 `more` 折叠节点
+ * （本项目刻意不调用 /api/morechildren，详见 {@link RedditClient.fetchComments}）；HN 来自深度/总量上限。
+ * 供调度层记日志、分析层在送 AI 的上下文中标注「可能不完整」，避免误判为全量。
+ */
+export interface CommentFetchResult {
+  /** 拍平的评论列表（已过滤 [deleted] / [removed]） */
+  comments: RedditComment[];
+  /** 被有意丢弃、未抓取的评论数估计；0 表示就当前来源策略而言已抓全 */
+  dropped: number;
+}
+
+/**
+ * 将 Reddit 评论 listing 的 children 递归拍平为评论列表（纯函数，便于单测，无网络）。
+ * - 完整下钻 API 返回的所有 `t1` 评论层级（不再人为限制两层）
+ * - 遇到 `more` 折叠节点：把其 `count`（被折叠隐藏的子/兄弟评论数）累加进 dropped 后跳过——
+ *   **不**展开 morechildren（Reddit 官方通道在停用，不为其加重请求投入）
+ * - 已删除 / 已移除（body 为 [deleted] / [removed]）的评论从结果中剔除，但不计入 dropped
+ * @param children 评论列表接口第二个 listing 的 `data.children`
+ * @returns 拍平评论 + 折叠丢弃计数
+ */
+export function flattenRedditTree(children: ListingChild[]): CommentFetchResult {
+  const out: RedditComment[] = [];
+  let dropped = 0;
+  const walk = (nodes: ListingChild[], depth: number, parentId: string | null): void => {
+    for (const child of nodes) {
+      if (child.kind === 'more') {
+        // more 节点的 count = 被折叠隐藏的评论数（深层子树 + 溢出兄弟），显式计入丢弃
+        dropped += Number((child.data as { count?: unknown }).count ?? 0);
+        continue;
+      }
+      if (child.kind !== 't1') continue;
+      const d = child.data;
+      const id = String(d.id ?? '');
+      out.push({
+        id,
+        parentId,
+        author: String(d.author ?? '[deleted]'),
+        body: String(d.body ?? ''),
+        score: Number(d.score ?? 0),
+        createdUtc: Math.floor(Number(d.created_utc ?? 0)),
+        depth,
+      });
+      const replies = d.replies as ListingResponse | '' | undefined;
+      if (replies && typeof replies === 'object') {
+        walk(replies.data?.children ?? [], depth + 1, id);
+      }
+    }
+  };
+  walk(children, 0, null);
+  return {
+    comments: out.filter((c) => c.id && c.body && c.body !== '[deleted]' && c.body !== '[removed]'),
+    dropped,
+  };
 }
 
 function sleep(ms: number): Promise<void> {
@@ -154,45 +225,28 @@ export class RedditClient {
   }
 
   /**
-   * 抓取帖子评论树（top 排序，最多两层深度），拍平为列表返回。
-   * - 已删除或已移除的评论（body 为 [deleted]/[removed]）不包含在结果中
+   * 抓取帖子评论树（top 排序）并拍平为列表返回。
+   *
+   * - **完整嵌套**：省略 depth 参数，让 Reddit 在单次请求内返回尽可能深的评论树；下钻所有返回层级
+   *   （顶层 depth=0，逐层 +1），不再人为限制两层
+   * - **不展开 more**：超出 `limit` 累计数的子树会被 Reddit 折叠为 `more` 占位节点；本方法刻意**不**调用
+   *   /api/morechildren 二次展开——官方 API 通道在停用（见 docs/runtime-config-design.md），深抓留给后续爬虫方案。
+   *   被折叠隐藏的评论数计入返回的 `dropped`，使「不完整」可观测而非静默丢弃
+   * - 已删除 / 已移除的评论（body 为 [deleted]/[removed]）不包含在结果中
    * @param subreddit 帖子所属版块名称
    * @param postId Reddit 帖子 ID（base36）
-   * @param limit 最多返回的评论数，默认 100
-   * @returns 拍平的评论列表，顶层 depth=0，回复 depth=1
+   * @param limit 单次请求返回的评论数上限（仍是一次请求，不加重配额），默认 {@link REDDIT_COMMENT_LIMIT}
+   * @returns 拍平评论列表 + 折叠丢弃计数（{@link CommentFetchResult}）
    */
-  async fetchComments(subreddit: string, postId: string, limit = 100): Promise<RedditComment[]> {
+  async fetchComments(
+    subreddit: string,
+    postId: string,
+    limit = REDDIT_COMMENT_LIMIT,
+  ): Promise<CommentFetchResult> {
     const data = await this.get<ListingResponse[]>(`/r/${subreddit}/comments/${postId}`, {
       limit,
-      depth: 2,
       sort: 'top',
     });
-    const out: RedditComment[] = [];
-    const walk = (
-      children: Array<{ kind: string; data: Record<string, unknown> }>,
-      depth: number,
-      parentId: string | null,
-    ) => {
-      for (const child of children) {
-        if (child.kind !== 't1') continue; // 跳过 "more" 等占位节点
-        const d = child.data;
-        const body = String(d.body ?? '');
-        out.push({
-          id: String(d.id ?? ''),
-          parentId,
-          author: String(d.author ?? '[deleted]'),
-          body,
-          score: Number(d.score ?? 0),
-          createdUtc: Math.floor(Number(d.created_utc ?? 0)),
-          depth,
-        });
-        const replies = d.replies as ListingResponse | '' | undefined;
-        if (replies && typeof replies === 'object' && depth < 2) {
-          walk(replies.data?.children ?? [], depth + 1, String(d.id ?? ''));
-        }
-      }
-    };
-    walk(data[1]?.data?.children ?? [], 0, null);
-    return out.filter((c) => c.id && c.body && c.body !== '[deleted]' && c.body !== '[removed]');
+    return flattenRedditTree(data[1]?.data?.children ?? []);
   }
 }

@@ -10,7 +10,7 @@ export interface CommentRow {
   body: string;
   /** 点赞数；HN 评论不暴露评分，恒为 0 */
   score: number;
-  /** 评论深度：0 为顶层，1 为回复 */
+  /** 评论深度：0 为顶层，逐层 +1 */
   depth: number;
   /** 发评论 Unix 时间戳（秒） */
   created_utc: number;

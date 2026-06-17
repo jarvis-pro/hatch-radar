@@ -45,6 +45,6 @@ export interface RedditComment {
   score: number;
   /** 发评论 Unix 时间戳（秒） */
   createdUtc: number;
-  /** 评论深度：0 为顶层，1 为回复，最多回捞 2 层 */
+  /** 评论深度：0 为顶层，逐层 +1（递归回捞完整楼层，受抓取层数/总量上限约束） */
   depth: number;
 }
