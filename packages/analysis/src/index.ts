@@ -11,3 +11,4 @@ export * from './analysis-config.service';
 export * from './analyzer/analyze';
 export * from './analyzer/prompt';
 export { insightFromMessage } from './analyzer/claude-agent';
+export { buildContext } from './analyzer/context';
