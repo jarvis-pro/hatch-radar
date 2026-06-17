@@ -41,8 +41,8 @@ import { toast } from '@hatch-radar/ui/components/sonner';
 import { api, ApiError } from '@/api/client';
 import { EmptyState, LoadError } from '@/components/empty';
 
-/** 模型厂商（claude_cli = Claude 订阅模式，复用本机已登录的 claude，无 API Key） */
-export type ProviderKind = 'anthropic' | 'openai' | 'deepseek' | 'claude_cli';
+/** 模型厂商（claude_cli = Claude 订阅模式，复用本机已登录的 claude，无 API Key；azure = Azure Translator 机翻，仅翻译用） */
+export type ProviderKind = 'anthropic' | 'openai' | 'deepseek' | 'claude_cli' | 'azure';
 
 /** API Key 运行期健康态 */
 export type ApiKeyStatus = 'active' | 'cooling' | 'invalid';
@@ -68,6 +68,8 @@ export interface ProviderDTO {
   label: string;
   model: string;
   baseUrl: string | null;
+  /** Azure Translator 资源区域；仅 azure 非空 */
+  region: string | null;
   enabled: boolean;
   /** 输入 token 单价（$ /1M），未配置为 null */
   inputPrice: number | null;
@@ -90,6 +92,7 @@ const PROVIDER_DEFAULTS: Record<ProviderKind, { model: string; baseUrl: string }
   openai: { model: 'gpt-4o', baseUrl: 'https://api.openai.com/v1' },
   deepseek: { model: 'deepseek-chat', baseUrl: 'https://api.deepseek.com' },
   claude_cli: { model: 'claude-opus-4-8', baseUrl: '' },
+  azure: { model: 'azure-translator', baseUrl: '' },
 };
 
 const PROVIDER_LABEL: Record<ProviderKind, string> = {
@@ -97,6 +100,7 @@ const PROVIDER_LABEL: Record<ProviderKind, string> = {
   openai: 'OpenAI (ChatGPT)',
   deepseek: 'DeepSeek',
   claude_cli: 'Claude（订阅 / Claude Code）',
+  azure: 'Azure Translator（机翻）',
 };
 
 /** 订阅模式（claude_cli）复用本机已登录的 claude：无需 API Key、无 base 地址、无 Key 池 */
@@ -115,6 +119,8 @@ interface FormState {
   apiKey: string;
   model: string;
   baseUrl: string;
+  /** Azure 区域（Ocp-Apim-Subscription-Region）；仅 azure 用 */
+  region: string;
   enabled: boolean;
   /** token 单价（$ /1M），字符串便于输入；空串=不设 */
   inputPrice: string;
@@ -127,6 +133,7 @@ const EMPTY_FORM: FormState = {
   apiKey: '',
   model: PROVIDER_DEFAULTS.anthropic.model,
   baseUrl: PROVIDER_DEFAULTS.anthropic.baseUrl,
+  region: '',
   enabled: true,
   inputPrice: '',
   outputPrice: '',
@@ -251,6 +258,7 @@ export function SettingsManager({
       apiKey: '',
       model: p.model,
       baseUrl: p.baseUrl ?? '',
+      region: p.region ?? '',
       enabled: p.enabled,
       inputPrice: p.inputPrice != null ? String(p.inputPrice) : '',
       outputPrice: p.outputPrice != null ? String(p.outputPrice) : '',
@@ -283,6 +291,7 @@ export function SettingsManager({
       label: form.label.trim(),
       model: form.model.trim(),
       baseUrl: form.baseUrl.trim() || undefined,
+      region: form.provider === 'azure' ? form.region.trim() : undefined,
       enabled: form.enabled,
       inputPrice: ip === '' ? null : Number(ip),
       outputPrice: op === '' ? null : Number(op),
@@ -702,6 +711,7 @@ export function SettingsManager({
                   <SelectItem value="claude_cli">{PROVIDER_LABEL.claude_cli}</SelectItem>
                   <SelectItem value="openai">{PROVIDER_LABEL.openai}</SelectItem>
                   <SelectItem value="deepseek">{PROVIDER_LABEL.deepseek}</SelectItem>
+                  <SelectItem value="azure">{PROVIDER_LABEL.azure}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -716,15 +726,30 @@ export function SettingsManager({
               />
             </div>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="sm-model">模型 ID</Label>
-              <Input
-                id="sm-model"
-                value={form.model}
-                onChange={(e) => setForm((f) => ({ ...f, model: e.target.value }))}
-                className="font-mono"
-              />
-            </div>
+            {form.provider !== 'azure' ? (
+              <div className="space-y-1.5">
+                <Label htmlFor="sm-model">模型 ID</Label>
+                <Input
+                  id="sm-model"
+                  value={form.model}
+                  onChange={(e) => setForm((f) => ({ ...f, model: e.target.value }))}
+                  className="font-mono"
+                />
+              </div>
+            ) : null}
+
+            {form.provider === 'azure' ? (
+              <div className="space-y-1.5">
+                <Label htmlFor="sm-region">Azure 区域（Region）</Label>
+                <Input
+                  id="sm-region"
+                  value={form.region}
+                  onChange={(e) => setForm((f) => ({ ...f, region: e.target.value }))}
+                  placeholder="区域代码，如 centralus / eastasia（非显示名 Central US）"
+                  className="font-mono"
+                />
+              </div>
+            ) : null}
 
             {usesBaseUrl(form.provider) ? (
               <div className="space-y-1.5">
@@ -739,34 +764,36 @@ export function SettingsManager({
               </div>
             ) : null}
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="sm-inprice">输入单价（$ /1M tokens，可选）</Label>
-                <Input
-                  id="sm-inprice"
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={form.inputPrice}
-                  onChange={(e) => setForm((f) => ({ ...f, inputPrice: e.target.value }))}
-                  placeholder="如 3"
-                  className="font-mono"
-                />
+            {form.provider !== 'azure' ? (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="sm-inprice">输入单价（$ /1M tokens，可选）</Label>
+                  <Input
+                    id="sm-inprice"
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={form.inputPrice}
+                    onChange={(e) => setForm((f) => ({ ...f, inputPrice: e.target.value }))}
+                    placeholder="如 3"
+                    className="font-mono"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="sm-outprice">输出单价（$ /1M tokens，可选）</Label>
+                  <Input
+                    id="sm-outprice"
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={form.outputPrice}
+                    onChange={(e) => setForm((f) => ({ ...f, outputPrice: e.target.value }))}
+                    placeholder="如 15"
+                    className="font-mono"
+                  />
+                </div>
               </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="sm-outprice">输出单价（$ /1M tokens，可选）</Label>
-                <Input
-                  id="sm-outprice"
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={form.outputPrice}
-                  onChange={(e) => setForm((f) => ({ ...f, outputPrice: e.target.value }))}
-                  placeholder="如 15"
-                  className="font-mono"
-                />
-              </div>
-            </div>
+            ) : null}
 
             {needKeyOnSave ? (
               <div className="space-y-1.5">

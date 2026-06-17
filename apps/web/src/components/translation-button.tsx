@@ -11,8 +11,8 @@ import { useTranslationProviders, type usePostTranslation } from '@/translation/
  * - 无可译内容（state=none）不渲染；有译文时显示「显示原文 / 显示中文」切换；
  * - first/incremental（需 analyze:run）显示翻译按钮：
  *   · 有默认翻译模型 → 点击直接翻译；
- *   · 无默认（未设翻译/active 模型）→ 点击弹窗选一个 Claude 订阅模型（本次使用）；
- *   · 无任何启用的 claude_cli 模型 → 禁用并提示去设置页配置；
+ *   · 无默认（未设翻译/active 模型）→ 点击弹窗选一个翻译模型（本次使用）；
+ *   · 无任何启用的翻译模型（claude_cli / azure）→ 禁用并提示去设置页配置；
  * - translating 显示进行中。
  */
 export function TranslationButton({ t }: { t: ReturnType<typeof usePostTranslation> }) {
@@ -66,7 +66,7 @@ export function TranslationButton({ t }: { t: ReturnType<typeof usePostTranslati
         <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
           <PopoverTrigger asChild>{translateBtn()}</PopoverTrigger>
           <PopoverContent align="start" className="w-60 p-1">
-            <p className="px-2 py-1.5 text-xs text-muted-foreground">选择翻译模型（Claude 订阅）</p>
+            <p className="px-2 py-1.5 text-xs text-muted-foreground">选择翻译模型</p>
             {models.map((m) => (
               <button
                 key={m.id}
@@ -90,7 +90,7 @@ export function TranslationButton({ t }: { t: ReturnType<typeof usePostTranslati
           size="xs"
           variant="outline"
           disabled
-          title="请先在设置页添加 Claude 订阅（claude_cli）模型"
+          title="请先在设置页添加翻译模型（Claude 订阅 / Azure）"
         >
           <Languages className="size-3.5" />
           翻译（需先配置模型）

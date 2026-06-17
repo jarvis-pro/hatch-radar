@@ -93,9 +93,9 @@ export function usePostTranslation(postId: string | undefined) {
 
 /** 可选翻译模型 + 当前默认（GET /api/translations/providers）。 */
 export interface TranslationProvidersInfo {
-  /** 当前默认翻译模型 id（translation_provider_id ?? active 且为启用 claude_cli）；null=需弹窗选 */
+  /** 当前默认翻译模型 id（translation_provider_id ?? active 且为启用 claude_cli / azure）；null=需弹窗选 */
   defaultId: number | null;
-  /** 可选的 claude_cli 模型清单 */
+  /** 可选的翻译模型清单（claude_cli / azure） */
   providers: { id: number; label: string; model: string }[];
 }
 
