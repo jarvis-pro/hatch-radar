@@ -1,7 +1,13 @@
 import { Link, useNavigate } from 'react-router-dom';
-import { ChevronsUpDown, LogOut, User as UserIcon } from 'lucide-react';
+import {
+  ChevronsUpDown,
+  KeyRound,
+  LogOut,
+  MonitorSmartphone,
+  Shield,
+  User as UserIcon,
+} from 'lucide-react';
 import type { CurrentUser } from '@hatch-radar/shared';
-import { Avatar, AvatarFallback } from '@hatch-radar/ui/components/avatar';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,10 +24,7 @@ import {
 } from '@hatch-radar/ui/components/sidebar';
 import { api } from '@/api/client';
 import { useAuth } from '@/auth/auth-context';
-
-function initials(name: string): string {
-  return name.trim().slice(0, 1).toUpperCase() || '?';
-}
+import { UserAvatar } from './user-avatar';
 
 /**
  * 侧边栏页脚的用户控件：头像 + 姓名 + 角色，下拉含个人中心 / 退出。
@@ -52,11 +55,11 @@ export function UserMenu({ user }: { user: CurrentUser }) {
               size="lg"
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
             >
-              <Avatar className="size-8 rounded-md">
-                <AvatarFallback className="rounded-md bg-primary/10 text-xs font-medium text-primary">
-                  {initials(user.name)}
-                </AvatarFallback>
-              </Avatar>
+              <UserAvatar
+                user={user}
+                className="size-8 rounded-md"
+                fallbackClassName="rounded-md bg-primary/10 text-xs font-medium text-primary"
+              />
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-medium">{user.name}</span>
                 <span className="truncate text-xs text-muted-foreground">
@@ -80,8 +83,23 @@ export function UserMenu({ user }: { user: CurrentUser }) {
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
-              <Link to="/account">
-                <UserIcon /> 个人中心
+              <Link to="/account/profile">
+                <UserIcon /> 资料
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link to="/account/security">
+                <Shield /> 安全
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link to="/account/sessions">
+                <MonitorSmartphone /> 会话
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link to="/account/permissions">
+                <KeyRound /> 我的权限
               </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />

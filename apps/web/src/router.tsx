@@ -1,6 +1,9 @@
-import { createBrowserRouter } from 'react-router-dom';
+import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { ProtectedLayout } from '@/layout';
-import { AccountPage } from '@/pages/account';
+import { PermissionsPage } from '@/pages/account-permissions';
+import { ProfilePage } from '@/pages/account-profile';
+import { SecurityPage } from '@/pages/account-security';
+import { SessionsPage } from '@/pages/account-sessions';
 import { AccountsPage } from '@/pages/admin-accounts';
 import { AuditPage } from '@/pages/admin-audit';
 import { AnalyzePage } from '@/pages/analyze';
@@ -24,15 +27,19 @@ export const router = createBrowserRouter([
   {
     element: <ProtectedLayout />,
     children: [
-      { index: true, element: <InsightsPage /> },
-      { path: 'dashboard', element: <DashboardPage /> },
+      { index: true, element: <DashboardPage /> },
+      { path: 'insights', element: <InsightsPage /> },
+      { path: 'insights/:id', element: <InsightDetailPage /> },
       { path: 'posts', element: <PostsPage /> },
       { path: 'posts/:id', element: <PostDetailPage /> },
-      { path: 'insights/:id', element: <InsightDetailPage /> },
       { path: 'analyze', element: <AnalyzePage /> },
       { path: 'queue', element: <QueuePage /> },
       { path: 'settings', element: <SettingsPage /> },
-      { path: 'account', element: <AccountPage /> },
+      { path: 'account', element: <Navigate to="/account/profile" replace /> },
+      { path: 'account/profile', element: <ProfilePage /> },
+      { path: 'account/security', element: <SecurityPage /> },
+      { path: 'account/sessions', element: <SessionsPage /> },
+      { path: 'account/permissions', element: <PermissionsPage /> },
       { path: 'account/password', element: <PasswordPage /> },
       { path: 'admin/accounts', element: <AccountsPage /> },
       { path: 'admin/audit', element: <AuditPage /> },

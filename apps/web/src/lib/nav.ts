@@ -36,22 +36,22 @@ export const NAV_GROUPS: readonly NavGroup[] = [
     label: '工作区',
     items: [
       {
-        to: '/dashboard',
-        label: '看板',
+        to: '/',
+        label: '数据看板',
         icon: LayoutDashboard,
         perm: 'insights:view',
-        match: (p) => p.startsWith('/dashboard'),
+        match: (p) => p === '/',
       },
       {
-        to: '/',
-        label: '洞察',
+        to: '/insights',
+        label: '需求洞察',
         icon: Sparkles,
         perm: 'insights:view',
-        match: (p) => p === '/' || p.startsWith('/insights'),
+        match: (p) => p.startsWith('/insights'),
       },
       {
         to: '/posts',
-        label: '帖子',
+        label: '帖子库',
         icon: FileText,
         perm: 'posts:view',
         match: (p) => p.startsWith('/posts'),
@@ -63,14 +63,14 @@ export const NAV_GROUPS: readonly NavGroup[] = [
     items: [
       {
         to: '/analyze',
-        label: '分析',
+        label: '发起分析',
         icon: Zap,
         perm: 'analyze:run',
         match: (p) => p.startsWith('/analyze'),
       },
       {
         to: '/queue',
-        label: '队列',
+        label: '任务队列',
         icon: ListChecks,
         perm: 'analyze:run',
         match: (p) => p.startsWith('/queue'),
@@ -82,21 +82,21 @@ export const NAV_GROUPS: readonly NavGroup[] = [
     items: [
       {
         to: '/settings',
-        label: '设置',
+        label: '系统设置',
         icon: Settings2,
         perm: 'settings:manage',
         match: (p) => p.startsWith('/settings'),
       },
       {
         to: '/admin/accounts',
-        label: '账户',
+        label: '账户管理',
         icon: Users,
         perm: 'accounts:manage',
         match: (p) => p.startsWith('/admin/accounts'),
       },
       {
         to: '/admin/audit',
-        label: '审计',
+        label: '审计日志',
         icon: ScrollText,
         perm: 'audit:view',
         match: (p) => p.startsWith('/admin/audit'),

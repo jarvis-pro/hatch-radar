@@ -2,11 +2,12 @@ import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Alert, AlertDescription } from '@hatch-radar/ui/components/alert';
 import { Button } from '@hatch-radar/ui/components/button';
-import { Input } from '@hatch-radar/ui/components/input';
 import { Label } from '@hatch-radar/ui/components/label';
+import { toast } from '@hatch-radar/ui/components/sonner';
 import { Spinner } from '@hatch-radar/ui/components/spinner';
 import { api, ApiError } from '@/api/client';
 import { useAuth } from '@/auth/auth-context';
+import { PasswordInput } from '@/components/icon-input';
 
 /** 修改密码表单（首登强制改密 / 主动改密共用；成功后刷新用户态并回首页）。 */
 export function ChangePasswordForm() {
@@ -27,6 +28,7 @@ export function ChangePasswordForm() {
         confirm: String(f.get('confirm') ?? ''),
       });
       await refresh();
+      toast.success('密码已修改');
       navigate('/', { replace: true });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : '修改失败：服务暂时不可用，请稍后再试');
@@ -38,21 +40,33 @@ export function ChangePasswordForm() {
     <form onSubmit={onSubmit} className="grid gap-4">
       <div className="grid gap-2">
         <Label htmlFor="current">当前密码</Label>
-        <Input
+        <PasswordInput
           id="current"
           name="current"
-          type="password"
+          placeholder="请输入当前密码"
           autoComplete="current-password"
           required
         />
       </div>
       <div className="grid gap-2">
         <Label htmlFor="password">新密码（至少 8 位）</Label>
-        <Input id="password" name="password" type="password" autoComplete="new-password" required />
+        <PasswordInput
+          id="password"
+          name="password"
+          placeholder="请输入新密码"
+          autoComplete="new-password"
+          required
+        />
       </div>
       <div className="grid gap-2">
         <Label htmlFor="confirm">确认新密码</Label>
-        <Input id="confirm" name="confirm" type="password" autoComplete="new-password" required />
+        <PasswordInput
+          id="confirm"
+          name="confirm"
+          placeholder="请再次输入新密码"
+          autoComplete="new-password"
+          required
+        />
       </div>
       {error ? (
         <Alert variant="destructive">
