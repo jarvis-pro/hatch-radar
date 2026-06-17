@@ -28,11 +28,11 @@ import {
 import { useCallback, useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native';
 
-/** 强度 → 痛点卡左缘强调条颜色 */
+/** 强度 → 痛点卡左缘强调条颜色（对齐 Signal 强度令牌） */
 const ACCENT_CLASS: Record<Intensity, string> = {
-  HIGH: 'border-l-destructive',
-  MEDIUM: 'border-l-warning',
-  LOW: 'border-l-success',
+  HIGH: 'border-l-intensity-high',
+  MEDIUM: 'border-l-intensity-medium',
+  LOW: 'border-l-intensity-low',
 };
 
 export default function InsightDetailScreen() {
@@ -95,7 +95,7 @@ export default function InsightDetailScreen() {
               </Pressable>
             ) : null}
           </View>
-          <Text className="text-xl font-bold leading-snug">
+          <Text className="text-xl font-sans-bd leading-snug">
             {(showZh ? translations.title : undefined) ?? insight.postTitle}
           </Text>
           {insight.tags.length > 0 ? (
@@ -121,7 +121,7 @@ export default function InsightDetailScreen() {
                 className={cn('gap-0 border-l-4 py-3.5 shadow-none', ACCENT_CLASS[pain.intensity])}
               >
                 <CardContent className="gap-1.5 px-4">
-                  <Text className="text-base font-medium leading-snug">{pain.description}</Text>
+                  <Text className="text-base font-sans-md leading-snug">{pain.description}</Text>
                   {pain.evidence ? (
                     <Text className="border-l-2 border-border pl-2.5 text-sm leading-5 text-muted-foreground">
                       “{pain.evidence}”
@@ -140,7 +140,7 @@ export default function InsightDetailScreen() {
             insight.opportunities.map((opp, idx) => (
               <Card key={idx} className="gap-0 py-3.5 shadow-none">
                 <CardContent className="gap-1.5 px-4">
-                  <Text className="text-base font-semibold leading-snug">{opp.title}</Text>
+                  <Text className="text-base font-sans-sb leading-snug">{opp.title}</Text>
                   <Text className="text-sm leading-5">{opp.description}</Text>
                   {opp.target_user ? (
                     <Text className="text-xs text-muted-foreground">
@@ -155,7 +155,7 @@ export default function InsightDetailScreen() {
 
         <Section icon={FileText} title={post ? '原帖' : '原帖（未随批次导入或已归档）'}>
           {post ? (
-            <Card className="gap-0 border-0 bg-muted/60 py-3.5 shadow-none">
+            <Card className="gap-0 border-0 bg-muted py-3.5 shadow-none">
               <CardContent className="gap-2 px-4">
                 {post.selftext ? (
                   <Text className="text-sm leading-6">
@@ -167,13 +167,17 @@ export default function InsightDetailScreen() {
                 <View className="flex-row items-center gap-3">
                   <View className="flex-row items-center gap-1">
                     <Icon as={ArrowBigUp} size={14} className="text-muted-foreground" />
-                    <Text className="text-xs text-muted-foreground">{post.score}</Text>
+                    <Text className="font-mono text-xs text-muted-foreground">{post.score}</Text>
                   </View>
                   <View className="flex-row items-center gap-1">
                     <Icon as={MessagesSquare} size={14} className="text-muted-foreground" />
-                    <Text className="text-xs text-muted-foreground">{post.num_comments}</Text>
+                    <Text className="font-mono text-xs text-muted-foreground">
+                      {post.num_comments}
+                    </Text>
                   </View>
-                  <Text className="text-xs text-muted-foreground">{fmtDate(post.created_utc)}</Text>
+                  <Text className="font-mono text-xs text-muted-foreground">
+                    {fmtDate(post.created_utc)}
+                  </Text>
                 </View>
               </CardContent>
             </Card>
@@ -216,7 +220,7 @@ function Section({
     <View className="gap-2.5">
       <View className="mt-1 flex-row items-center gap-2">
         <Icon as={icon} size={16} className="text-muted-foreground" />
-        <Text className="text-base font-semibold">{title}</Text>
+        <Text className="text-base font-sans-sb">{title}</Text>
         {count != null ? (
           <Badge variant="secondary">
             <Text>{count}</Text>
@@ -236,7 +240,7 @@ function CommentItem({ comment, zh }: { comment: CommentRow; zh?: string }) {
       style={{ marginLeft: Math.min(comment.depth, 4) * 12 }}
     >
       <Text className="text-xs text-muted-foreground">
-        <Text className="text-xs font-medium text-foreground">{comment.author ?? '[已删除]'}</Text>
+        <Text className="text-xs font-sans-md text-foreground">{comment.author ?? '[已删除]'}</Text>
         {comment.score > 0 ? ` · ▲ ${comment.score}` : ''} · {timeAgo(comment.created_utc)}
       </Text>
       <Text className="text-sm leading-5">{zh ?? comment.body}</Text>

@@ -7,6 +7,7 @@ import {
   type PostRow,
   type TriageStatus,
 } from '@hatch-radar/shared';
+import { channelLabel } from '@/lib/format';
 import { getDb, getMeta } from './schema';
 
 /** 本地库概览（首页头部展示） */
@@ -119,4 +120,65 @@ export function getPostTranslations(postId: string): PostTranslations {
     else out.comments[r.entity_id] = r.text;
   }
   return out;
+}
+
+/** 研判漏斗 + 分布（漏斗页 / 首页概览用，纯本地聚合，不依赖后端） */
+export interface FunnelStats {
+  /** 采集：本地洞察总数 */
+  collected: number;
+  /** 已研判：做出过处置的（入选 + 归档） */
+  reviewed: number;
+  /** 入选：shortlisted */
+  shortlisted: number;
+  /** 归档：archived */
+  archived: number;
+  /** 待研判：pending（含从未 triage 的） */
+  pending: number;
+  byIntensity: Record<Intensity, number>;
+  /** 版块分布（top 6，降序） */
+  bySource: { label: string; count: number }[];
+}
+
+export function getFunnel(): FunnelStats {
+  const db = getDb();
+  const collected = db.getFirstSync<{ n: number }>(`SELECT COUNT(*) n FROM insights`)?.n ?? 0;
+
+  const statusRows = db.getAllSync<{ s: TriageStatus; n: number }>(
+    `SELECT COALESCE(t.status, 'pending') s, COUNT(*) n
+     FROM insights i LEFT JOIN triage t ON t.insight_id = i.id
+     GROUP BY s`,
+  );
+  let shortlisted = 0;
+  let archived = 0;
+  let pending = 0;
+  for (const r of statusRows) {
+    if (r.s === 'shortlisted') shortlisted = r.n;
+    else if (r.s === 'archived') archived = r.n;
+    else pending = r.n;
+  }
+
+  const intensityRows = db.getAllSync<{ intensity: Intensity; n: number }>(
+    `SELECT intensity, COUNT(*) n FROM insights GROUP BY intensity`,
+  );
+  const byIntensity: Record<Intensity, number> = { HIGH: 0, MEDIUM: 0, LOW: 0 };
+  for (const r of intensityRows) byIntensity[r.intensity] = r.n;
+
+  const sourceRows = db.getAllSync<{ source: string; subreddit: string; n: number }>(
+    `SELECT source, subreddit, COUNT(*) n FROM insights
+     GROUP BY source, subreddit ORDER BY n DESC LIMIT 6`,
+  );
+  const bySource = sourceRows.map((r) => ({
+    label: channelLabel(r.source, r.subreddit),
+    count: r.n,
+  }));
+
+  return {
+    collected,
+    reviewed: shortlisted + archived,
+    shortlisted,
+    archived,
+    pending,
+    byIntensity,
+    bySource,
+  };
 }

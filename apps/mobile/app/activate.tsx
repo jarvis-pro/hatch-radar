@@ -78,6 +78,7 @@ export default function ActivateScreen() {
             <View className="gap-1.5">
               <Label>激活码</Label>
               <Input
+                className="font-mono"
                 placeholder="粘贴管理员发的激活码"
                 autoCapitalize="none"
                 autoCorrect={false}

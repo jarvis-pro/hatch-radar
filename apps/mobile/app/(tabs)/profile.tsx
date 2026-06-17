@@ -1,11 +1,14 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Icon } from '@/components/ui/icon';
+import { Separator } from '@/components/ui/separator';
 import { Text } from '@/components/ui/text';
 import { UserAvatar } from '@/components/user-avatar';
+import { getLocalStats, type LocalStats } from '@/db/queries';
 import { getMeta, setMeta } from '@/db/schema';
 import { randomAvatarSeeds } from '@/lib/avatar';
 import { isEnrolled } from '@/lib/device-identity';
+import { timeAgo } from '@/lib/format';
 import { hapticSelect, hapticSuccess } from '@/lib/haptics';
 import { cn } from '@/lib/utils';
 import {
@@ -15,8 +18,15 @@ import {
   type WorkstationConfig,
 } from '@/lib/workstation';
 import type { CurrentUser } from '@hatch-radar/shared';
-import { useFocusEffect } from 'expo-router';
-import { CircleAlert, RefreshCw } from 'lucide-react-native';
+import { useFocusEffect, useRouter } from 'expo-router';
+import {
+  ChevronRight,
+  CircleAlert,
+  FolderSync,
+  RefreshCw,
+  ShieldCheck,
+  type LucideIcon,
+} from 'lucide-react-native';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, View } from 'react-native';
 
@@ -42,13 +52,16 @@ function roleLabel(role: CurrentUser['role']): string {
 
 /** 个人资料：头像 + 姓名 / 角色 / 邮箱 + 更换头像（经设备通道连工作台读写）。 */
 export default function ProfileScreen() {
+  const router = useRouter();
   const [profile, setProfile] = useState<Profile | null>(() => readCache());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [stats, setStats] = useState<LocalStats | null>(null);
 
   const cfg = loadWorkstationConfig();
-  const ready = cfg !== null && isEnrolled();
+  const enrolled = isEnrolled();
+  const ready = cfg !== null && enrolled;
 
   const load = useCallback(async () => {
     const c = loadWorkstationConfig();
@@ -73,6 +86,7 @@ export default function ProfileScreen() {
   // 进入页面时拉取最新资料（离线则保留缓存展示 + 顶部错误条提示）
   useFocusEffect(
     useCallback(() => {
+      setStats(getLocalStats());
       void load();
     }, [load]),
   );
@@ -93,7 +107,7 @@ export default function ProfileScreen() {
           <CardContent className="items-center gap-3 px-4">
             <UserAvatar user={profile ?? { name: '', avatar: null }} size={80} />
             <View className="items-center gap-0.5">
-              <Text className="text-lg font-semibold">{profile?.name ?? '—'}</Text>
+              <Text className="text-lg font-sans-sb">{profile?.name ?? '—'}</Text>
               {profile ? (
                 <Text className="text-sm text-muted-foreground">{roleLabel(profile.role)}</Text>
               ) : null}
@@ -110,6 +124,23 @@ export default function ProfileScreen() {
               <Text>更换头像</Text>
             </Button>
           </CardContent>
+        </Card>
+
+        <Card className="gap-0 py-0 shadow-none">
+          <SettingsRow
+            icon={FolderSync}
+            label="工作台同步"
+            hint={stats?.lastImportAt ? `最近同步 ${timeAgo(stats.lastImportAt)}` : '尚未同步情报'}
+            badge={stats && stats.pendingSync > 0 ? `${stats.pendingSync} 待推送` : undefined}
+            onPress={() => router.push('/sync')}
+          />
+          <Separator />
+          <SettingsRow
+            icon={ShieldCheck}
+            label="设备激活"
+            hint={enrolled ? '本机已激活' : '尚未激活'}
+            onPress={() => router.push('/activate')}
+          />
         </Card>
 
         {error ? (
@@ -133,6 +164,43 @@ export default function ProfileScreen() {
         />
       ) : null}
     </>
+  );
+}
+
+/** 设置行：图标 + 标签 + 副文本 + 右侧徽标/箭头（账户中枢的同步/激活入口）。 */
+function SettingsRow({
+  icon,
+  label,
+  hint,
+  badge,
+  onPress,
+}: {
+  icon: LucideIcon;
+  label: string;
+  hint?: string;
+  badge?: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      className="flex-row items-center gap-3 px-4 py-3.5 active:opacity-70"
+    >
+      <View className="h-9 w-9 items-center justify-center rounded-full bg-primary/10">
+        <Icon as={icon} size={18} className="text-primary" />
+      </View>
+      <View className="flex-1 gap-0.5">
+        <Text className="font-sans-md text-sm text-foreground">{label}</Text>
+        {hint ? <Text className="text-xs text-muted-foreground">{hint}</Text> : null}
+      </View>
+      {badge ? (
+        <View className="rounded-full border border-warning/30 bg-warning/10 px-2 py-0.5">
+          <Text className="font-mono text-xs text-warning">{badge}</Text>
+        </View>
+      ) : (
+        <Icon as={ChevronRight} size={16} className="text-muted-foreground" />
+      )}
+    </Pressable>
   );
 }
 
@@ -186,7 +254,7 @@ function AvatarPicker({
     >
       <View className="flex-1 justify-end bg-black/40">
         <View className="gap-4 rounded-t-3xl bg-card p-5 pb-9">
-          <Text className="text-lg font-semibold">更换头像</Text>
+          <Text className="text-lg font-sans-sb">更换头像</Text>
 
           <View className="flex-row items-center gap-4">
             <UserAvatar user={{ name, avatar: selected }} size={64} />
