@@ -1,4 +1,4 @@
-import { Prisma, toCommentRow, type AppDatabase, type CommentRow } from '../internal';
+import { Prisma, contentHash, toCommentRow, type AppDatabase, type CommentRow } from '../internal';
 import type { RedditComment } from '@hatch-radar/shared';
 
 /**
@@ -54,6 +54,8 @@ export class CommentsRepository {
             depth: c.depth,
             created_utc: BigInt(c.createdUtc),
             fetched_at: BigInt(fetchedAt),
+            // 入库即算评论正文内容哈希，供译文按内容寻址（同文复用、新评论=未命中=待翻译）。
+            body_hash: contentHash(c.body),
           })),
           skipDuplicates: true,
         });

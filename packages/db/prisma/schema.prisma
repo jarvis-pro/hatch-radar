@@ -29,6 +29,8 @@ model analysis_jobs {
   trigger      job_trigger
   /// 任务状态机：queued→running→succeeded/failed/canceled。
   status       job_status
+  /// 任务类型：analysis=AI 分析（默认），translation=内容翻译。默认 analysis 保证既有入队零改。
+  job_type     job_kind    @default(analysis)
   /// 已尝试次数；达到 max_attempts 后置为 failed 不再重试。
   attempts     Int         @default(0)
   max_attempts Int         @default(3)
@@ -84,9 +86,40 @@ model comments {
   created_utc BigInt
   /// 本地抓取时间戳（epoch 秒）。
   fetched_at  BigInt
+  /// 评论正文源文本(decode 后规范化)的 sha256 十六进制；按内容寻址译文（见 translations）。
+  body_hash   String?
   posts       posts   @relation(fields: [post_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "comments_post_id_posts_id_fk")
 
   @@index([post_id], map: "idx_comments_post")
+}
+
+/// 译文缓存：抓取内容（标题/正文/评论）译成中文的结果，按源文本内容哈希寻址。
+/// 不挂列在 posts/comments 上——评论 replaceComments 整删整插会清列；按 content_hash 寻址则
+/// ①扛评论行 churn ②同文去重只翻一次 ③未命中=需翻译（统一判定首次/增量）。目标语固定中文 → 单键唯一。
+model translations {
+  id            Int                @id @default(autoincrement())
+  /// sha256(decode 后规范化的源文本) 十六进制；缓存键 + 增量探测器。
+  content_hash  String             @unique(map: "idx_translations_hash")
+  /// 源字段类型：post_title | post_selftext | comment_body（仅标注来源，不参与寻址）。
+  source_field  translation_field
+  /// 检测出的源语种（ISO 639-1，如 en/ja）；判定为 zh 时 status=skipped。
+  source_lang   String?
+  /// 中文译文（status=done 时非空）。
+  text          String?
+  /// 产出译文的 provider 类型（claude_cli / 可选 MT）。
+  provider_kind provider_kind?
+  /// model_providers.id 软引用（不建外键），便于对账。
+  provider_id   Int?
+  /// 状态机：pending→translating→done/failed；skipped=源即中文无需翻译。
+  status        translation_status @default(pending)
+  /// 计费用源字符数（MT 按字符计；claude_cli 走订阅额度，成本显示「—」）。
+  char_count    Int?
+  /// 最近一次失败原因。
+  last_error    String?
+  created_at    BigInt
+  updated_at    BigInt
+
+  @@index([status], map: "idx_translations_status")
 }
 
 /// 洞察：AI 对单个帖子分析后的结构化产出，是「闭环」阶段的核心数据。
@@ -251,6 +284,10 @@ model posts {
   analyzed_at         BigInt?
   /// 分析尝试次数。
   analyze_attempts    Int        @default(0)
+  /// 标题源文本(decode 后规范化)的 sha256 十六进制；按内容寻址译文 / 判定未翻译，空标题为 null。
+  title_hash          String?
+  /// 正文源文本的 sha256；链接帖空正文为 null（无需翻译）。
+  selftext_hash       String?
   comments            comments[]
 
   @@index([created_utc], map: "idx_posts_created")
@@ -493,6 +530,28 @@ enum job_status {
 enum job_trigger {
   auto
   manual
+}
+
+/// 任务类型（队列复用一张物理表 analysis_jobs 承载两类任务）。
+enum job_kind {
+  analysis
+  translation
+}
+
+/// 译文来源字段类型。
+enum translation_field {
+  post_title
+  post_selftext
+  comment_body
+}
+
+/// 译文状态机。
+enum translation_status {
+  pending
+  translating
+  done
+  failed
+  skipped
 }
 
 /// 模型提供方类型。

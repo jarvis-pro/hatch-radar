@@ -11,6 +11,8 @@ import { toJobRow, type AppDatabase, type JobPg, type JobRow, type Prisma } from
 export type JobTrigger = JobRow['trigger'];
 /** 任务状态机：queued → running →（succeeded | failed）。canceled 为预留态——当前无取消入口，getJobStats 仍计数以备将来 */
 export type JobStatus = JobRow['status'];
+/** 任务类型：analysis=AI 分析 / translation=内容翻译（同一物理表 analysis_jobs 承载） */
+export type JobKind = JobRow['job_type'];
 export type { JobRow };
 
 /** 新任务默认的最大尝试次数（仅用于僵死/崩溃循环保护，正常失败即终态） */
@@ -136,7 +138,11 @@ export class JobsRepository {
     if (unique.length === 0) return 0;
     return this.db.$transaction(async (tx) => {
       const active = await tx.analysis_jobs.findMany({
-        where: { post_id: { in: unique }, status: { in: ['queued', 'running'] } },
+        where: {
+          post_id: { in: unique },
+          job_type: 'analysis',
+          status: { in: ['queued', 'running'] },
+        },
         select: { post_id: true },
       });
       const activeSet = new Set(active.map((r) => r.post_id));
@@ -151,6 +157,7 @@ export class JobsRepository {
           model,
           trigger,
           status: 'queued' as const,
+          job_type: 'analysis' as const,
           attempts: 0,
           max_attempts: DEFAULT_MAX_ATTEMPTS,
           enqueued_at: BigInt(now),
@@ -167,12 +174,19 @@ export class JobsRepository {
    * @param now 当前 Unix 时间戳（秒）
    * @returns 认领到的任务（已更新为 running）；队列为空时返回 null
    */
-  async claimNextJob(now: number): Promise<JobRow | null> {
+  async claimNextJob(now: number, maxRunningTranslation?: number): Promise<JobRow | null> {
+    // 护栏 B：翻译并发上限。运行中的翻译任务达上限时，本次认领跳过翻译候选（只取分析），
+    // 防止导出洪峰把 worker 槽位占满、把核心分析挤掉（软上限——并发认领下可能短暂略超，可接受）。
+    const cap = maxRunningTranslation ?? 1_000_000;
     return this.db.$transaction(async (tx) => {
       const picked = await tx.$queryRaw<JobPg[]>`
         SELECT * FROM analysis_jobs
         WHERE status = 'queued'
-        ORDER BY enqueued_at ASC, id ASC
+          AND (
+            job_type = 'analysis'
+            OR (SELECT count(*) FROM analysis_jobs r WHERE r.status = 'running' AND r.job_type = 'translation') < ${cap}
+          )
+        ORDER BY (job_type = 'translation'), enqueued_at ASC, id ASC
         LIMIT 1
         FOR UPDATE SKIP LOCKED
       `;
@@ -195,6 +209,65 @@ export class JobsRepository {
         attempts: job.attempts + 1,
       });
     });
+  }
+
+  /**
+   * 入队一条翻译任务（web 翻译按钮 / 导出补翻触发）。同帖已有活跃翻译任务时跳过——
+   * 部分唯一索引 `uniq_jobs_active_post (post_id, job_type)` 兜底并发竞态（与分析任务互不挤占）。
+   * @param postId 目标帖子 ID
+   * @param providerId 翻译用 model_providers.id（软引用；claude_cli 仍记录便于成本归属）
+   * @param model 模型名快照
+   * @param now 入队 Unix 时间戳（秒）
+   * @returns 是否实际入队（false = 已有活跃翻译任务，去重）
+   */
+  async enqueueTranslationJob(
+    postId: string,
+    providerId: number | null,
+    model: string,
+    now: number,
+  ): Promise<boolean> {
+    return this.db.$transaction(async (tx) => {
+      const active = await tx.analysis_jobs.findFirst({
+        where: { post_id: postId, job_type: 'translation', status: { in: ['queued', 'running'] } },
+        select: { id: true },
+      });
+      if (active) return false;
+      const res = await tx.analysis_jobs.createMany({
+        data: [
+          {
+            post_id: postId,
+            provider_id: providerId,
+            model,
+            trigger: 'manual' as const,
+            status: 'queued' as const,
+            job_type: 'translation' as const,
+            attempts: 0,
+            max_attempts: DEFAULT_MAX_ATTEMPTS,
+            enqueued_at: BigInt(now),
+          },
+        ],
+        skipDuplicates: true,
+      });
+      return res.count > 0;
+    });
+  }
+
+  /** 该帖是否有活跃（queued/running）翻译任务——供 web 按钮显示「翻译中」。 */
+  async hasActiveTranslationJob(postId: string): Promise<boolean> {
+    const row = await this.db.analysis_jobs.findFirst({
+      where: { post_id: postId, job_type: 'translation', status: { in: ['queued', 'running'] } },
+      select: { id: true },
+    });
+    return row != null;
+  }
+
+  /** 取任务类型（worker 收到 Gateway 分发的最小 job 信息后，据此路由到分析 / 翻译执行）。 */
+  async getJobType(jobId: number): Promise<JobKind | null> {
+    const row = await this.db.analysis_jobs.findUnique({
+      where: { id: jobId },
+      select: { job_type: true },
+    });
+    return row?.job_type ?? null;
   }
 
   /**
@@ -311,7 +384,11 @@ export class JobsRepository {
 
   /** 各状态任务数汇总，用于启动 / worker 日志与队列看板 */
   async getJobStats(): Promise<Record<JobStatus, number>> {
-    const rows = await this.db.analysis_jobs.groupBy({ by: ['status'], _count: { _all: true } });
+    const rows = await this.db.analysis_jobs.groupBy({
+      by: ['status'],
+      where: { job_type: 'analysis' },
+      _count: { _all: true },
+    });
     const stats: Record<JobStatus, number> = {
       queued: 0,
       running: 0,
@@ -331,6 +408,7 @@ export class JobsRepository {
              j.input_tokens, j.output_tokens, j.cache_write_tokens, j.cache_read_tokens
       FROM analysis_jobs j
       LEFT JOIN posts p ON p.id = j.post_id
+      WHERE j.job_type = 'analysis'
       ORDER BY j.id DESC
       LIMIT ${limit}
     `;
@@ -347,7 +425,7 @@ export class JobsRepository {
    * 帖子标题二次查询补齐（analysis_jobs 与 posts 软引用、无 FK 关系，不能 include）。
    */
   async listJobsPaged(filter: JobFilter, page: number): Promise<Paged<QueueJobView>> {
-    const where: Prisma.analysis_jobsWhereInput = {};
+    const where: Prisma.analysis_jobsWhereInput = { job_type: 'analysis' };
     if (filter.status) where.status = filter.status;
     if (filter.trigger) where.trigger = filter.trigger;
 
@@ -442,6 +520,7 @@ export class JobsRepository {
       by: ['provider_id', 'model'],
       where: {
         status: 'succeeded',
+        job_type: 'analysis',
         finished_at: { gte: BigInt(sinceSec) },
         input_tokens: { not: null },
       },
@@ -555,6 +634,7 @@ export class JobsRepository {
         sum(coalesce(cache_read_tokens, 0))::int AS cache_read_tokens
       FROM analysis_jobs
       WHERE status = 'succeeded'
+        AND job_type = 'analysis'
         AND input_tokens IS NOT NULL
         AND finished_at >= extract(epoch FROM (date_trunc('day', now()) - make_interval(days => ${days - 1})))
       GROUP BY 1, provider_id
@@ -617,6 +697,7 @@ export class JobsRepository {
           count(*) FILTER (WHERE status = 'failed') AS failed
         FROM analysis_jobs
         WHERE status IN ('succeeded', 'failed')
+          AND job_type = 'analysis'
           AND finished_at >= extract(epoch FROM (now() - make_interval(days => ${days})))
         GROUP BY 1
       ) AS j ON j.day = d.day

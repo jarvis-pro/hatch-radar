@@ -29,6 +29,8 @@ import type {
   SourceConnectorRow,
   SourcePg,
   SourceRow,
+  TranslationPg,
+  TranslationRow,
   TriagePgRow,
 } from './types';
 
@@ -94,6 +96,11 @@ export function toSourceConnectorRow(m: SourceConnectorPg): SourceConnectorRow {
     created_at: n(m.created_at),
     updated_at: n(m.updated_at),
   };
+}
+
+/** Prisma translations 行 → 域 TranslationRow（时间戳 bigint→number） */
+export function toTranslationRow(m: TranslationPg): TranslationRow {
+  return { ...m, created_at: n(m.created_at), updated_at: n(m.updated_at) };
 }
 
 /** Prisma insights 行 → camelCase 视图（jsonb 已解析；web / 检索用） */

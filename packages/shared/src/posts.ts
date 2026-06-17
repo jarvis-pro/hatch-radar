@@ -34,6 +34,10 @@ export interface PostRow {
   analyzed_at: number | null;
   /** 已尝试 AI 分析的次数；达到 3 次后不再重试 */
   analyze_attempts: number;
+  /** 标题源文本的 sha256（十六进制）；按内容寻址译文 / 判定未翻译，空标题为 null */
+  title_hash: string | null;
+  /** 正文源文本的 sha256；链接帖空正文为 null（无需翻译） */
+  selftext_hash: string | null;
 }
 
 /** 工作台「待分析」帖子的状态：pending=未分析；restale=已分析但之后评论又变（建议重判） */

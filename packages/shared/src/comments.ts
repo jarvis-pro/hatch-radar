@@ -16,4 +16,6 @@ export interface CommentRow {
   created_utc: number;
   /** 本次回捞 Unix 时间戳（秒） */
   fetched_at: number;
+  /** 评论正文源文本的 sha256（十六进制）；按内容寻址译文 */
+  body_hash: string | null;
 }

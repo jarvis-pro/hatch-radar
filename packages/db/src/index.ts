@@ -22,6 +22,7 @@ export * from './repositories/settings.repository';
 export * from './repositories/source-connectors.repository';
 export * from './repositories/sources.repository';
 export * from './repositories/stats.repository';
+export * from './repositories/translations.repository';
 export * from './repositories/users.repository';
 
 // 运行期设置服务（settings 仓储之上的读写）

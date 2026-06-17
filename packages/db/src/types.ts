@@ -19,6 +19,7 @@ import type {
   source_connectorsModel,
   sourcesModel,
   sync_opsModel,
+  translationsModel,
   triageModel,
 } from './generated/prisma/models';
 
@@ -45,6 +46,7 @@ export type ProviderPg = model_providersModel;
 export type ProviderApiKeyPg = provider_api_keysModel;
 export type SourcePg = sourcesModel;
 export type SourceConnectorPg = source_connectorsModel;
+export type TranslationPg = translationsModel;
 
 // ─── 域行类型（bigint→number）：无 shared 对应物的表在此定义 ──────────────────────────
 /** analysis_jobs 行（status / trigger 为枚举，时间戳为 number） */
@@ -59,6 +61,8 @@ export type SourceRow = BigIntToNumber<sourcesModel>;
 export type SourceConnectorRow = BigIntToNumber<source_connectorsModel>;
 /** app_settings 行（无时间戳列） */
 export type AppSettingRow = app_settingsModel;
+/** translations 行（source_field / status / provider_kind 为枚举；时间戳为 number） */
+export type TranslationRow = BigIntToNumber<translationsModel>;
 
 // ─── 编译期断言：posts/comments 推导类型与 shared 行类型互相可赋值 ────────────────────
 // 任一侧字段漂移（改名 / 改可空 / 改类型）都会在此处 tsc 报错，挡住静默契约破坏。

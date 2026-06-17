@@ -1,4 +1,11 @@
-import { Prisma, toPostRow, type AppDatabase, type PostPg, type PostRow } from '../internal';
+import {
+  Prisma,
+  contentHash,
+  toPostRow,
+  type AppDatabase,
+  type PostPg,
+  type PostRow,
+} from '../internal';
 import type { RedditPost } from '@hatch-radar/shared';
 
 /** 评论 refresh 节奏与冻结策略（秒） */
@@ -62,21 +69,24 @@ export class PostsRepository {
         .filter((p) => !existing.has(p.id))
         .map((p) => ({ id: p.id, subreddit: p.subreddit }));
 
+      // 入库即算标题/正文内容哈希（decode 后规范化的 sha256），供译文按内容寻址、判定未翻译。
       const values = Prisma.join(
         items.map(
           (p) =>
-            Prisma.sql`(${p.id}, ${source}, ${p.subreddit}, ${p.title}, ${p.author ?? null}, ${p.selftext}, ${p.url ?? null}, ${p.permalink ?? null}, ${p.score}, ${p.numComments}, ${p.createdUtc}, ${fetchedAt}, ${initialCommentPass})`,
+            Prisma.sql`(${p.id}, ${source}, ${p.subreddit}, ${p.title}, ${p.author ?? null}, ${p.selftext}, ${p.url ?? null}, ${p.permalink ?? null}, ${p.score}, ${p.numComments}, ${p.createdUtc}, ${fetchedAt}, ${initialCommentPass}, ${contentHash(p.title)}, ${contentHash(p.selftext)})`,
         ),
       );
       await tx.$executeRaw`
-        INSERT INTO posts (id, source, subreddit, title, author, selftext, url, permalink, score, num_comments, created_utc, fetched_at, comment_pass)
+        INSERT INTO posts (id, source, subreddit, title, author, selftext, url, permalink, score, num_comments, created_utc, fetched_at, comment_pass, title_hash, selftext_hash)
         VALUES ${values}
         ON CONFLICT (id) DO UPDATE SET
           title = excluded.title,
           selftext = excluded.selftext,
           score = excluded.score,
           num_comments = excluded.num_comments,
-          fetched_at = excluded.fetched_at
+          fetched_at = excluded.fetched_at,
+          title_hash = excluded.title_hash,
+          selftext_hash = excluded.selftext_hash
       `;
 
       return { added: newPosts.length, updated: items.length - newPosts.length, newPosts };

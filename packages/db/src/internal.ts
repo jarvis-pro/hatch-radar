@@ -9,3 +9,4 @@ export * from './generated/prisma/client';
 export * from './client';
 export * from './types';
 export * from './mappers';
+export * from './hash';

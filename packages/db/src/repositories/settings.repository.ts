@@ -2,6 +2,8 @@ import type { AppDatabase } from '../internal';
 
 /** app_settings 中「当前使用的模型配置 ID」键 */
 const ACTIVE_PROVIDER_KEY = 'active_provider_id';
+/** app_settings 中「翻译用模型配置 ID」键（与分析 active 解耦；未设时回落 active provider） */
+const TRANSLATION_PROVIDER_KEY = 'translation_provider_id';
 /** app_settings 中「分析配置版本号」键：模型/选用任一写操作即 +1，供跨进程缓存失效 */
 const CONFIG_VERSION_KEY = 'analysis_config_version';
 
@@ -57,6 +59,23 @@ export class SettingsRepository {
   async setActiveProviderId(id: number | null): Promise<void> {
     if (id == null) await this.deleteSetting(ACTIVE_PROVIDER_KEY);
     else await this.setSetting(ACTIVE_PROVIDER_KEY, String(id));
+  }
+
+  /**
+   * 翻译用模型配置 ID（与分析 active 解耦，可单独指更省额度的档）。
+   * @returns 配置 ID；未单独指定时返回 null（调用方回落 active provider）
+   */
+  async getTranslationProviderId(): Promise<number | null> {
+    const value = await this.getSetting(TRANSLATION_PROVIDER_KEY);
+    if (value == null) return null;
+    const n = Number(value);
+    return Number.isInteger(n) ? n : null;
+  }
+
+  /** 设置（或清空）翻译用模型配置 ID */
+  async setTranslationProviderId(id: number | null): Promise<void> {
+    if (id == null) await this.deleteSetting(TRANSLATION_PROVIDER_KEY);
+    else await this.setSetting(TRANSLATION_PROVIDER_KEY, String(id));
   }
 
   /**

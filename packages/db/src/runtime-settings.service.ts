@@ -7,7 +7,8 @@ export type RuntimeSettingKey =
   | 'sessionIdleDays'
   | 'sessionAbsoluteDays'
   | 'workerJobTimeoutMs'
-  | 'workerStaleSeconds';
+  | 'workerStaleSeconds'
+  | 'translationConcurrency';
 
 /**
  * 各项默认值——首启播种入 app_settings 的种子，亦作 DB 行缺失时的最后兜底常量。
@@ -19,6 +20,8 @@ const DEFAULT_RUNTIME_SETTINGS: Record<RuntimeSettingKey, number> = {
   sessionAbsoluteDays: 30,
   workerJobTimeoutMs: 600_000,
   workerStaleSeconds: 300,
+  // 护栏 B：同时运行的翻译任务数上限（默认 1，挡导出洪峰独占 worker 槽位；分析另有 claim 优先权）
+  translationConcurrency: 1,
 };
 
 /** 单项元数据：app_settings 存储键 + 整数下界（控制器 DTO 复用同一下界做入参校验） */
@@ -34,6 +37,7 @@ const FIELDS: Record<RuntimeSettingKey, FieldSpec> = {
   sessionAbsoluteDays: { storageKey: 'session_absolute_days', min: 1 },
   workerJobTimeoutMs: { storageKey: 'worker_job_timeout_ms', min: 1000 },
   workerStaleSeconds: { storageKey: 'worker_stale_seconds', min: 30 },
+  translationConcurrency: { storageKey: 'translation_concurrency', min: 1 },
 };
 
 /** 单项有效态：当前生效值 + 默认值（供设置页展示与「恢复默认」） */
@@ -115,6 +119,11 @@ export class RuntimeSettingsService {
       this.readField('workerStaleSeconds'),
     ]);
     return { jobTimeoutMs, staleSeconds };
+  }
+
+  /** 翻译并发上限（护栏 B）：Gateway 认领时传给 claimNextJob，挡导出洪峰占满 worker 槽位 */
+  getTranslationConcurrency(): Promise<number> {
+    return this.readField('translationConcurrency');
   }
 
   /** 五项有效态总览（供设置页展示当前值 + 默认值） */
