@@ -38,8 +38,10 @@ import {
   TableRow,
 } from '@hatch-radar/ui/components/table';
 import { toast } from '@hatch-radar/ui/components/sonner';
+import { cn } from '@hatch-radar/ui/lib/utils';
 import { api, ApiError } from '@/api/client';
 import { EmptyState, LoadError } from '@/components/empty';
+import { useTranslationUsage } from '@/translation/post-translation';
 
 /** 模型厂商（claude_cli = Claude 订阅模式，复用本机已登录的 claude，无 API Key；azure = Azure Translator 机翻，仅翻译用） */
 export type ProviderKind = 'anthropic' | 'openai' | 'deepseek' | 'claude_cli' | 'azure';
@@ -84,7 +86,37 @@ export interface ProviderDTO {
 export interface SettingsData {
   providers: ProviderDTO[];
   activeProviderId: number | null;
+  /** 默认翻译模型 id（与分析 active 解耦；null=回落 active provider） */
+  translationProviderId: number | null;
   secretConfigured: boolean;
+}
+
+/** Azure 机翻当月用量条：免费档配额安全阀（超过即进入收费，标红提示）。 */
+function AzureUsageMeter() {
+  const usageQ = useTranslationUsage();
+  const u = usageQ.data;
+  if (!u) return null;
+  const pct =
+    u.azureFreeLimit > 0
+      ? Math.min(100, Math.round((u.azureCharsThisMonth / u.azureFreeLimit) * 100))
+      : 0;
+  const over = u.azureCharsThisMonth >= u.azureFreeLimit;
+  return (
+    <div className="mt-2.5">
+      <div className="flex items-center justify-between text-xs text-muted-foreground">
+        <span>Azure 机翻本月用量</span>
+        <span className={cn('tabular-nums', over && 'text-destructive')}>
+          {u.azureCharsThisMonth.toLocaleString()} / {u.azureFreeLimit.toLocaleString()} 字符
+        </span>
+      </div>
+      <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted">
+        <div
+          className={cn('h-full', over ? 'bg-destructive' : 'bg-primary')}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
+  );
 }
 
 const PROVIDER_DEFAULTS: Record<ProviderKind, { model: string; baseUrl: string }> = {
@@ -235,8 +267,13 @@ export function SettingsManager({
     return <LoadError message={loadError ?? undefined} />;
   }
 
-  const { providers, activeProviderId, secretConfigured } = initial;
+  const { providers, activeProviderId, translationProviderId, secretConfigured } = initial;
   const activeProvider = providers.find((p) => p.id === activeProviderId) ?? null;
+  // 可作翻译档的模型（启用的 claude_cli / azure）；据此渲染「默认翻译模型」选择器与 Azure 用量条
+  const translationCandidates = providers.filter(
+    (p) => p.enabled && (p.provider === 'claude_cli' || p.provider === 'azure'),
+  );
+  const hasAzureTranslation = translationCandidates.some((p) => p.provider === 'azure');
   const now = Math.floor(Date.now() / 1000);
   // 编辑态下改了 baseUrl 才需重填 Key（安全闸）；新建态始终需要首把 Key。订阅模式无 Key，恒不需要。
   const baseUrlChanged = editingId !== null && form.baseUrl.trim() !== editOrigBaseUrl.trim();
@@ -371,6 +408,17 @@ export function SettingsManager({
       toast.success(
         id === null ? '已停用自动分析' : `已设为当前模型，即时入队 ${res.data?.enqueued ?? 0} 篇`,
       );
+      onChanged();
+    } else {
+      toast.error(res.data?.error ?? '操作失败');
+    }
+  }
+
+  /** 设置（或清空）默认翻译模型；清空则翻译回落当前分析模型。 */
+  async function setTranslationProvider(id: number | null) {
+    const res = await apiSend('/api/settings/translation-provider', 'PUT', { providerId: id });
+    if (res.ok) {
+      toast.success(id === null ? '已清空（翻译回落当前分析模型）' : '已设为默认翻译模型');
       onChanged();
     } else {
       toast.error(res.data?.error ?? '操作失败');
@@ -520,6 +568,34 @@ export function SettingsManager({
         )}
       </div>
 
+      {/* 默认翻译模型（与分析 active 解耦）：翻译只给人看、喂 AI 仍用原文，故优先 Azure 机翻走免费档省额度 */}
+      <div className="mb-4 rounded-lg border bg-muted/30 p-3">
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-muted-foreground">默认翻译模型：</span>
+          <Select
+            value={translationProviderId != null ? String(translationProviderId) : 'none'}
+            onValueChange={(v) => setTranslationProvider(v === 'none' ? null : Number(v))}
+          >
+            <SelectTrigger className="h-8 w-auto min-w-48">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">未指定（回落当前分析模型）</SelectItem>
+              {translationCandidates.map((p) => (
+                <SelectItem key={p.id} value={String(p.id)}>
+                  {p.label}（{p.provider === 'azure' ? '机翻·免费走量' : '高质量·耗额度'}）
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <p className="mt-1.5 text-xs text-muted-foreground">
+          翻译只给人看（喂 AI 仍用原文），建议选 Azure
+          机翻走免费档省订阅额度；个别重要内容可在帖子页临时用 Claude 高质量翻译。
+        </p>
+        {hasAzureTranslation ? <AzureUsageMeter /> : null}
+      </div>
+
       {providers.length === 0 ? (
         <EmptyState
           title="还没有配置任何模型"
@@ -584,7 +660,7 @@ export function SettingsManager({
               </div>
 
               <div className="p-3">
-                {p.provider !== 'claude_cli' ? (
+                {p.provider !== 'claude_cli' && p.provider !== 'azure' ? (
                   <div className="mb-2 flex items-center justify-between">
                     <span className="text-sm text-muted-foreground">
                       API Key 池（{p.keys.length}）
@@ -603,6 +679,38 @@ export function SettingsManager({
                   <p className="text-sm text-muted-foreground">
                     订阅模式：复用本机已登录的 Claude（Claude Code），无需 API Key。
                   </p>
+                ) : p.provider === 'azure' ? (
+                  // 机翻免费档：单把 Key，不做多 Key 池故障转移；更换走「编辑」
+                  p.keys.length === 0 ? (
+                    <p className="text-sm text-destructive">
+                      未配置 API Key，请用上方「编辑」设置一把 Azure 订阅 Key。
+                    </p>
+                  ) : (
+                    <div className="flex flex-wrap items-center gap-2 text-sm">
+                      <span className="text-muted-foreground">订阅 Key（单把）</span>
+                      <span className="font-mono text-xs text-muted-foreground">
+                        {p.keys[0].keyMasked}
+                      </span>
+                      <KeyStatusBadge k={p.keys[0]} now={now} />
+                      {p.keys[0].status === 'invalid' && p.keys[0].lastError ? (
+                        <span className="text-xs text-destructive">{p.keys[0].lastError}</span>
+                      ) : null}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={testingKeyId === p.keys[0].id}
+                        onClick={() => testKey(p.id, p.keys[0])}
+                      >
+                        {testingKeyId === p.keys[0].id ? '测试中…' : '测试'}
+                      </Button>
+                      {p.keys[0].status !== 'active' ? (
+                        <Button variant="ghost" size="sm" onClick={() => resetKey(p.id, p.keys[0])}>
+                          复位
+                        </Button>
+                      ) : null}
+                      <span className="text-xs text-muted-foreground">更换请用「编辑」</span>
+                    </div>
+                  )
                 ) : p.keys.length === 0 ? (
                   <p className="text-sm text-destructive">
                     无 Key，该模型无法调用——请添加至少一把。
@@ -813,6 +921,21 @@ export function SettingsManager({
                     改 base 地址会清空该模型现有全部 Key，仅保留这把新填的。
                   </p>
                 ) : null}
+              </div>
+            ) : null}
+
+            {/* azure 编辑态：单把 Key 在此可选更换（新建态走上面的「首把 API Key」） */}
+            {form.provider === 'azure' && editingId !== null ? (
+              <div className="space-y-1.5">
+                <Label htmlFor="sm-azure-key">更换 API Key（留空不改）</Label>
+                <Input
+                  id="sm-azure-key"
+                  type="password"
+                  value={form.apiKey}
+                  onChange={(e) => setForm((f) => ({ ...f, apiKey: e.target.value }))}
+                  placeholder="仅在更换 Azure Key 时填写"
+                  className="font-mono"
+                />
               </div>
             ) : null}
 

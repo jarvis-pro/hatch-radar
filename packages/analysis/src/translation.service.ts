@@ -8,7 +8,7 @@ import {
 } from '@hatch-radar/db';
 import { decryptSecret, logger, nowSec } from '@hatch-radar/kernel';
 import type { TokenUsage } from './analyzer/analyze';
-import { classifyKeyError, errMsg, COOLDOWN_SECONDS } from './key-failover';
+import { classifyKeyError, errMsg } from './key-failover';
 import {
   looksChinese,
   translateItems,
@@ -33,8 +33,8 @@ export interface TranslateOutcome {
  * 流程：取该帖未翻译条目 → 本地粗判中文者直接 skipped（省成本） → 其余按 provider 译成中文 →
  * 按 content_hash upsert 回 translations。译文按内容哈希寻址，故评论 churn 后同文复用、新评论增量翻译。
  *
- * 支持两档 provider：claude_cli（订阅额度、零边际成本、最高质量）与 azure（Azure Translator 机翻，
- * 按字符计费、走 Key 池故障转移以降订阅额度消耗）。其余类型抛错（由队列计失败）。
+ * 支持两档 provider：azure（Azure Translator 机翻、免费档走量、日常默认）与 claude_cli（订阅额度、
+ * 零边际成本、高质量、个别重要内容用）。Azure 仅单把 Key（不做多 Key 池故障转移）。其余类型抛错。
  */
 export class TranslationService {
   constructor(
@@ -126,7 +126,7 @@ export class TranslationService {
     return { translated, skipped, usage };
   }
 
-  /** 按 provider 类型分发翻译：claude_cli 无 Key 直译；azure 走 Key 池故障转移。 */
+  /** 按 provider 类型分发翻译：claude_cli 无 Key 直译；azure 用单把 Key。 */
   private runTranslate(
     provider: ProviderRow,
     items: TranslateItem[],
@@ -136,76 +136,51 @@ export class TranslationService {
       return translateItems({ provider: 'claude_cli', model: provider.model }, items, signal);
     }
     if (provider.provider === 'azure') {
-      return this.translateWithKeyFailover(provider, items, signal);
+      return this.translateWithAzureKey(provider, items, signal);
     }
     // resolveProvider 已挡掉其余类型，此处仅为兜底
     throw new Error(`翻译不支持的 provider：${provider.provider}`);
   }
 
   /**
-   * 走 Key 池故障转移翻译一组条目（azure 等 API-Key 机翻用）：按 priority 取可用 Key 逐把尝试，
-   * 限流→冷却切下一把、鉴权失败/额度耗尽→失效切下一把、其余冒泡（交 job 重试）。
-   * 与分析路径共用同一套 active/cooling/invalid 状态机（见 {@link classifyKeyError}）。
+   * 用 Azure 的单把 Key 翻译一组条目（机翻、免费档走量，不做多 Key 池故障转移）。
+   * 失败分类供清晰回报：鉴权失败/额度耗尽 → 标记 Key 失效（设置页提示更换）；限流/其余 → 冒泡交 job 重试。
    */
-  private async translateWithKeyFailover(
+  private async translateWithAzureKey(
     provider: ProviderRow,
     items: TranslateItem[],
     signal?: AbortSignal,
   ): Promise<{ results: TranslatedItem[]; usage: TokenUsage | null }> {
-    const keys = await this.providers.listUsableKeys(provider.id, nowSec());
-    if (keys.length === 0) {
+    const [key] = await this.providers.listUsableKeys(provider.id, nowSec());
+    if (!key) {
       throw new Error(
-        `翻译 provider「${provider.label}」无可用 API Key（全部停用/限流/失效），请在设置页补充或复位`,
+        `翻译 provider「${provider.label}」无可用 API Key（已失效或停用），请在设置页更换 Key`,
       );
     }
-    let lastErr: unknown;
-    for (const key of keys) {
-      signal?.throwIfAborted(); // job 超时后不再尝试下一把
-      let plain: string;
-      try {
-        plain = decryptSecret(key.api_key);
-      } catch (err) {
-        await this.providers.markKeyInvalid(key.id, `密钥解密失败：${errMsg(err)}`, nowSec());
-        lastErr = err;
-        continue;
-      }
-      const config: TranslateConfig = {
-        provider: 'azure',
-        apiKey: plain,
-        region: provider.region,
-        endpoint: provider.base_url,
-      };
-      try {
-        const out = await translateItems(config, items, signal);
-        if (key.status !== 'active') {
-          await this.providers.updateKey(key.id, { reset: true }, nowSec()); // 冷却后成功 → 自愈为 active
-        }
-        return out;
-      } catch (err) {
-        if (signal?.aborted) throw err; // job 超时：不再切换，直接冒泡
-        const kind = classifyKeyError(err);
-        const m = errMsg(err);
-        if (kind === 'rate_limit') {
-          await this.providers.markKeyCooling(key.id, nowSec() + COOLDOWN_SECONDS, m, nowSec());
-          logger.warn(
-            `[translation] Key#${key.id}（${provider.label}）限流，冷却 ${COOLDOWN_SECONDS}s，切下一把`,
-          );
-          lastErr = err;
-          continue;
-        }
-        if (kind === 'auth') {
-          await this.providers.markKeyInvalid(key.id, m, nowSec());
-          logger.warn(
-            `[translation] Key#${key.id}（${provider.label}）鉴权失败/额度耗尽，标记失效，切下一把`,
-          );
-          lastErr = err;
-          continue;
-        }
-        throw err; // 非 Key 问题：冒泡给 worker（交 job 重试）
-      }
+    let plain: string;
+    try {
+      plain = decryptSecret(key.api_key);
+    } catch (err) {
+      await this.providers.markKeyInvalid(key.id, `密钥解密失败：${errMsg(err)}`, nowSec());
+      throw new Error(`翻译 provider「${provider.label}」密钥解密失败，请重设 Key`, { cause: err });
     }
-    throw new Error(
-      `翻译 provider「${provider.label}」所有可用 API Key 均失败：${errMsg(lastErr)}`,
-    );
+    const config: TranslateConfig = {
+      provider: 'azure',
+      apiKey: plain,
+      region: provider.region,
+      endpoint: provider.base_url,
+    };
+    try {
+      return await translateItems(config, items, signal);
+    } catch (err) {
+      if (signal?.aborted) throw err; // job 超时：直接冒泡
+      const m = errMsg(err);
+      if (classifyKeyError(err) === 'auth') {
+        await this.providers.markKeyInvalid(key.id, m, nowSec());
+        logger.warn(`[translation] Azure「${provider.label}」鉴权失败/额度耗尽，已标记 Key 失效`);
+        throw new Error(`Azure 翻译鉴权失败或额度耗尽（${provider.label}）：${m}`, { cause: err });
+      }
+      throw err; // 限流/网络等：冒泡给 worker 重试
+    }
   }
 }

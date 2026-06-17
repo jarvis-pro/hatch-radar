@@ -158,4 +158,50 @@ export class TranslationsRepository {
         updated_at = excluded.updated_at
     `;
   }
+
+  /**
+   * 在给定帖子集合中筛出「仍有未翻译内容」的帖子 ID（标题/正文/评论任一内容哈希尚无
+   * done/skipped 记录）。供导出前批量补翻：覆盖率 = 总数 − 本结果长度，批量入队 = 遍历本结果。
+   * 逻辑与 {@link getProgress} 同口径（按 content_hash 去重，pending/failed 视作仍需翻译）。
+   * @param postIds 目标帖子 ID 集合（通常来自一个导出筛选的 selectPostIds）
+   */
+  async getPostIdsNeedingTranslation(postIds: string[]): Promise<string[]> {
+    if (postIds.length === 0) return [];
+    const ids = Prisma.join(postIds);
+    const rows = await this.db.$queryRaw<{ post_id: string }[]>`
+      SELECT e.post_id
+      FROM (
+        SELECT id AS post_id, title_hash AS content_hash
+          FROM posts WHERE id IN (${ids}) AND title_hash IS NOT NULL
+        UNION ALL
+        SELECT id, selftext_hash FROM posts WHERE id IN (${ids}) AND selftext_hash IS NOT NULL
+        UNION ALL
+        SELECT post_id, body_hash FROM comments WHERE post_id IN (${ids}) AND body_hash IS NOT NULL
+      ) e
+      LEFT JOIN translations t ON t.content_hash = e.content_hash AND t.status IN ('done', 'skipped')
+      GROUP BY e.post_id
+      HAVING count(DISTINCT e.content_hash) FILTER (WHERE t.id IS NULL) > 0
+    `;
+    return rows.map((r) => r.post_id);
+  }
+
+  /**
+   * 累计某 provider 类型自某时刻起 done 译文的源字符数（Azure 免费档月度配额监控用）。
+   * 仅计 done（实际调用机翻消耗的字符）；skipped（本地判中文跳过，未调远端）不计入。
+   * @param providerKind provider 类型（如 'azure'）
+   * @param sinceSec 起始 Unix 时间戳（秒，含）；通常为当月起点
+   */
+  async getProviderCharUsageSince(
+    providerKind: TranslationProviderKind,
+    sinceSec: number,
+  ): Promise<number> {
+    const rows = await this.db.$queryRaw<{ total: bigint }[]>`
+      SELECT COALESCE(SUM(char_count), 0)::bigint AS total
+      FROM translations
+      WHERE status = 'done'
+        AND provider_kind = ${providerKind}::provider_kind
+        AND created_at >= ${BigInt(sinceSec)}
+    `;
+    return Number(rows[0]?.total ?? 0);
+  }
 }

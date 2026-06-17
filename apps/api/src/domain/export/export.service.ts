@@ -29,10 +29,11 @@ export class ExportService {
   constructor(private readonly db: AppDatabase) {}
 
   /**
-   * 按条件从主库筛出一个导出批次。
+   * 构造「有效洞察」筛选条件（针对 insights 表）：实质信号基线 + 可选 since/强度/版块。
+   * collectBatch 与 selectPostIds 共用，确保导出与「批量补翻覆盖率」对同一批数据。
    * @param filter 批次筛选条件
    */
-  async collectBatch(filter: ExportFilter): Promise<ExportBatch> {
+  private insightConds(filter: ExportFilter): Prisma.Sql[] {
     const conds: Prisma.Sql[] = [
       Prisma.sql`(jsonb_array_length(pain_points) > 0 OR jsonb_array_length(opportunities) > 0)`,
     ];
@@ -44,7 +45,40 @@ export class ExportService {
     if (filter.subreddit) {
       conds.push(Prisma.sql`lower(subreddit) = lower(${filter.subreddit})`);
     }
-    const where = Prisma.join(conds, ' AND ');
+    return conds;
+  }
+
+  /**
+   * 仅取一个导出筛选命中的、当前仍存在（未归档）的帖子 ID（按导出同序）。
+   * 供翻译覆盖率统计与批量补翻——与 collectBatch 选取的帖子完全一致。
+   * @param filter 批次筛选条件
+   */
+  async selectPostIds(filter: ExportFilter): Promise<string[]> {
+    const where = Prisma.join(this.insightConds(filter), ' AND ');
+    const limit = filter.limit ? Prisma.sql`LIMIT ${filter.limit}` : Prisma.empty;
+    const rows = await this.db.$queryRaw<{ post_id: string }[]>`
+      SELECT post_id FROM insights
+      WHERE ${where}
+      ORDER BY created_at DESC, id DESC
+      ${limit}
+    `;
+    const ids = rows.map((r) => r.post_id);
+    if (ids.length === 0) return [];
+    // 过滤到现存帖（30 天归档后仅余洞察、无可译原文）；保留导出顺序
+    const present = await this.db.posts.findMany({
+      where: { id: { in: ids } },
+      select: { id: true },
+    });
+    const presentSet = new Set(present.map((p) => p.id));
+    return ids.filter((id) => presentSet.has(id));
+  }
+
+  /**
+   * 按条件从主库筛出一个导出批次。
+   * @param filter 批次筛选条件
+   */
+  async collectBatch(filter: ExportFilter): Promise<ExportBatch> {
+    const where = Prisma.join(this.insightConds(filter), ' AND ');
     const limit = filter.limit ? Prisma.sql`LIMIT ${filter.limit}` : Prisma.empty;
     const insightRows = await this.db.$queryRaw<InsightPgRow[]>`
       SELECT * FROM insights

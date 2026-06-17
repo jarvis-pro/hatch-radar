@@ -205,6 +205,23 @@ export class SettingsController {
       return { ok: true };
     }
 
+    // azure（机翻）：单把 Key、不走多 Key 池——提供 apiKey 即整体替换那把 Key，否则仅改标量字段
+    if ((dto.provider ?? existing.provider) === 'azure') {
+      const { apiKey: azureKey, ...azureScalar } = dto;
+      const fields: Partial<ProviderInput> = { ...azureScalar };
+      if (azureKey) {
+        if (!isSecretConfigured()) {
+          throw new BadRequestException('未配置 SETTINGS_SECRET，无法加密新密钥');
+        }
+        await this.providers.updateProviderAndResetKeys(id, fields, azureKey, nowSec());
+      } else if (Object.keys(fields).length > 0) {
+        await this.providers.updateProvider(id, fields, nowSec());
+      }
+      await this.analysisConfig.reloadAnalysisConfig();
+      logger.info(`[设置] 更新 Azure 翻译模型 #${id}${azureKey ? '（已更换 Key）' : ''}`);
+      return { ok: true };
+    }
+
     const { apiKey, ...scalarDto } = dto;
     const fields: Partial<ProviderInput> = { ...scalarDto };
     if (dto.baseUrl !== undefined) fields.baseUrl = normalizeBaseUrl(dto.baseUrl);
@@ -264,6 +281,9 @@ export class SettingsController {
     if (!provider) throw new NotFoundException('模型配置不存在');
     if (provider.provider === 'claude_cli') {
       throw new BadRequestException('订阅模式（Claude CLI）复用本机登录态，无需也不支持 API Key');
+    }
+    if (provider.provider === 'azure') {
+      throw new BadRequestException('Azure 翻译仅用单把 Key，请用「编辑模型」更换，不走多 Key 池');
     }
     const id = await this.providers.createKey(providerId, dto satisfies KeyInput, nowSec());
     logger.info(`[设置] 模型 #${providerId} 新增 Key #${id}`);
