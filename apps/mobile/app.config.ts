@@ -14,6 +14,12 @@ const config: ExpoConfig = {
     'expo-router',
     'expo-sqlite',
     [
+      'expo-camera',
+      {
+        cameraPermission: '扫描管理员提供的激活码二维码以激活本机。',
+      },
+    ],
+    [
       'expo-build-properties',
       {
         ios: {

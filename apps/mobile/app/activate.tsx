@@ -7,10 +7,12 @@ import { Text } from '@/components/ui/text';
 import { enrollDevice, isEnrolled, resetEnrollment } from '@/lib/device-identity';
 import { hapticError, hapticSuccess } from '@/lib/haptics';
 import { loadWorkstationConfig, normalizeBaseUrl, saveWorkstationConfig } from '@/lib/workstation';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useRouter } from 'expo-router';
-import { CircleAlert, ShieldCheck } from 'lucide-react-native';
-import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
+import { CircleAlert, ScanLine, ShieldCheck, X } from 'lucide-react-native';
+import { useRef, useState } from 'react';
+import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 /** 设备激活：输入管理员发的一次性激活码 + 工作台地址，换取本机凭据。 */
 export default function ActivateScreen() {
@@ -21,6 +23,9 @@ export default function ActivateScreen() {
   const [deviceName, setDeviceName] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const [permission, requestPermission] = useCameraPermissions();
+  const scannedRef = useRef(false);
   const enrolled = isEnrolled();
 
   const onActivate = async () => {
@@ -38,6 +43,28 @@ export default function ActivateScreen() {
     } finally {
       setBusy(false);
     }
+  };
+
+  // 扫码：先确保相机权限，再开取景框；扫到的二维码内容即激活码原文，直接回填
+  const openScanner = async () => {
+    setError(null);
+    if (!permission?.granted) {
+      const res = await requestPermission();
+      if (!res.granted) {
+        setError('需要相机权限才能扫码，可在系统设置中开启后重试。');
+        return;
+      }
+    }
+    scannedRef.current = false;
+    setScanning(true);
+  };
+
+  const onScanned = (data: string) => {
+    if (scannedRef.current) return; // 取景中会连续回调，只取首帧
+    scannedRef.current = true;
+    setCode(data.trim());
+    setScanning(false);
+    hapticSuccess();
   };
 
   return (
@@ -79,13 +106,17 @@ export default function ActivateScreen() {
               <Label>激活码</Label>
               <Input
                 className="font-mono"
-                placeholder="粘贴管理员发的激活码"
+                placeholder="粘贴或扫码填入激活码"
                 autoCapitalize="none"
                 autoCorrect={false}
                 value={code}
                 onChangeText={setCode}
                 editable={!busy}
               />
+              <Button variant="outline" size="sm" onPress={openScanner} disabled={busy}>
+                <Icon as={ScanLine} size={16} />
+                <Text>扫码填充</Text>
+              </Button>
             </View>
             <View className="gap-1.5">
               <Label>设备名（可选）</Label>
@@ -122,6 +153,54 @@ export default function ActivateScreen() {
           </View>
         ) : null}
       </ScrollView>
+
+      <QrScanner visible={scanning} onClose={() => setScanning(false)} onScanned={onScanned} />
     </KeyboardAvoidingView>
+  );
+}
+
+/** 全屏二维码取景：扫到即回调（父级 scannedRef 去抖），右上角关闭。 */
+function QrScanner({
+  visible,
+  onClose,
+  onScanned,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onScanned: (data: string) => void;
+}) {
+  const insets = useSafeAreaInsets();
+
+  return (
+    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+      <View className="flex-1 bg-black">
+        {visible ? (
+          <CameraView
+            style={{ flex: 1 }}
+            facing="back"
+            barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+            onBarcodeScanned={({ data }) => onScanned(data)}
+          />
+        ) : null}
+        <View style={{ position: 'absolute', top: insets.top + 8, right: 16 }}>
+          <Pressable
+            accessibilityLabel="关闭扫码"
+            hitSlop={10}
+            onPress={onClose}
+            className="h-10 w-10 items-center justify-center rounded-full bg-black/50"
+          >
+            <Icon as={X} size={22} className="text-white" />
+          </Pressable>
+        </View>
+        <View
+          style={{ position: 'absolute', bottom: insets.bottom + 48, left: 0, right: 0 }}
+          className="items-center px-10"
+        >
+          <View className="rounded-full bg-black/50 px-4 py-2">
+            <Text className="text-center text-sm text-white">将激活码二维码对准取景框</Text>
+          </View>
+        </View>
+      </View>
+    </Modal>
   );
 }

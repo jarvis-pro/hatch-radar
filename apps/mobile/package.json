@@ -29,6 +29,7 @@
     "clsx": "catalog:",
     "expo": "~56.0.11",
     "expo-build-properties": "~56.0.18",
+    "expo-camera": "~56.0.8",
     "expo-constants": "~56.0.18",
     "expo-crypto": "~56.0.4",
     "expo-document-picker": "~56.0.4",
