@@ -39,9 +39,7 @@ export class TranslationService {
   ) {}
 
   /** 解析翻译配置（v1 仅 claude_cli）。provider 缺失/停用/非 claude_cli 即抛错。 */
-  private async resolveConfig(
-    providerId: number | null,
-  ): Promise<{
+  private async resolveConfig(providerId: number | null): Promise<{
     config: TranslateConfig;
     providerKind: TranslationProviderKind;
     providerId: number;
