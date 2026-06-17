@@ -19,8 +19,8 @@ export interface PushSummary {
   applied: number;
   duplicate: number;
   rejected: number;
-  /** 首条被拒原因（有 rejected 时给用户一个线索） */
-  firstRejectReason?: string;
+  /** 被拒操作明细（opId + 原因），供界面完整展示而非只首条 */
+  rejections: { opId: string; reason?: string }[];
 }
 
 /**
@@ -33,7 +33,7 @@ export interface PushSummary {
 export async function pushOutbox(cfg: WorkstationConfig): Promise<PushSummary> {
   const pending = listPending();
   if (pending.length === 0) {
-    return { total: 0, applied: 0, duplicate: 0, rejected: 0 };
+    return { total: 0, applied: 0, duplicate: 0, rejected: 0, rejections: [] };
   }
   const body: SyncPushRequest = { deviceId: getDeviceId(), ops: pending.map(rowToOp) };
   const resp = await postJson<SyncPushResponse>(cfg, '/api/sync/push', body);
@@ -43,11 +43,12 @@ export async function pushOutbox(cfg: WorkstationConfig): Promise<PushSummary> {
     applied: 0,
     duplicate: 0,
     rejected: 0,
+    rejections: [],
   };
   for (const result of resp.results) {
     summary[result.outcome]++;
-    if (result.outcome === 'rejected' && !summary.firstRejectReason) {
-      summary.firstRejectReason = result.reason;
+    if (result.outcome === 'rejected') {
+      summary.rejections.push({ opId: result.opId, reason: result.reason });
     }
   }
   markSynced(resp.results.map((r) => r.opId));

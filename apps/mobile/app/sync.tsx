@@ -1,3 +1,4 @@
+import { SignalDot } from '@/components/signal-dot';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Icon } from '@/components/ui/icon';
@@ -5,9 +6,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Text } from '@/components/ui/text';
 import { importBatch, importSqliteFile, type ImportResult } from '@/db/import';
+import { isEnrolled } from '@/lib/device-identity';
 import { hapticError, hapticSuccess } from '@/lib/haptics';
 import { pendingSyncCount, pushOutbox } from '@/lib/sync';
-import { isEnrolled } from '@/lib/device-identity';
 import { THEME } from '@/lib/theme';
 import {
   fetchBatch,
@@ -21,6 +22,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { File } from 'expo-file-system';
 import { useFocusEffect, useRouter } from 'expo-router';
 import {
+  ChevronRight,
   CircleAlert,
   CircleCheck,
   CloudDownload,
@@ -31,7 +33,14 @@ import {
 } from 'lucide-react-native';
 import { useColorScheme } from 'nativewind';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
+import {
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  View,
+} from 'react-native';
 
 type Status =
   | { kind: 'idle' }
@@ -108,9 +117,8 @@ export default function SyncScreen() {
       const parts = [`同步完成：共 ${summary.total} 条，应用 ${summary.applied}`];
       if (summary.duplicate > 0) parts.push(`重复跳过 ${summary.duplicate}`);
       if (summary.rejected > 0) {
-        parts.push(
-          `拒绝 ${summary.rejected}（${summary.firstRejectReason ?? '原因见工作台日志'}）`,
-        );
+        const reasons = [...new Set(summary.rejections.map((r) => r.reason ?? '原因见工作台日志'))];
+        parts.push(`拒绝 ${summary.rejected}（${reasons.join('；')}）`);
       }
       return parts.join('，');
     });
@@ -141,35 +149,36 @@ export default function SyncScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView contentContainerClassName="gap-3 p-4 pb-10" keyboardShouldPersistTaps="handled">
-        <Card className="gap-4 py-4 shadow-none">
-          <CardHeader className="gap-1 px-4">
-            <CardTitle>设备凭据</CardTitle>
-            <CardDescription className="leading-5">
-              {enrolled
-                ? '本机已激活，以你的账户身份同步，权限随账户、可被管理员远程强踢。'
-                : '尚未激活：同步前需向管理员索取一次性激活码激活本机。'}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="px-4">
-            <Button
-              variant={enrolled ? 'outline' : 'default'}
-              onPress={() => router.push('/activate')}
-            >
-              <Icon
-                as={ShieldCheck}
-                size={16}
-                className={enrolled ? undefined : 'text-primary-foreground'}
-              />
-              <Text>{enrolled ? '管理设备激活' : '激活设备'}</Text>
-            </Button>
-          </CardContent>
-        </Card>
+        {/* 设备激活状态（前置条件，未激活时醒目引导） */}
+        {enrolled ? (
+          <View className="flex-row items-center gap-3 rounded-xl border border-border bg-card px-4 py-3">
+            <SignalDot online />
+            <Text className="flex-1 font-sans-md text-sm text-foreground">本机已激活</Text>
+            <Pressable onPress={() => router.push('/activate')} className="active:opacity-70">
+              <Text className="text-sm text-primary">管理</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <Pressable onPress={() => router.push('/activate')} className="active:opacity-80">
+            <View className="flex-row items-center gap-3 rounded-xl border border-warning/30 bg-warning/10 px-4 py-3">
+              <Icon as={ShieldCheck} size={18} className="text-warning" />
+              <View className="flex-1 gap-0.5">
+                <Text className="font-sans-md text-sm text-warning">本机尚未激活</Text>
+                <Text className="text-xs leading-4 text-warning">
+                  同步前需向管理员索取一次性激活码
+                </Text>
+              </View>
+              <Icon as={ChevronRight} size={16} className="text-warning" />
+            </View>
+          </Pressable>
+        )}
 
+        {/* 获取情报：拉取 + 文件导入统一在一处 */}
         <Card className="gap-4 py-4 shadow-none">
           <CardHeader className="gap-1 px-4">
-            <CardTitle>工作台连接</CardTitle>
+            <CardTitle>获取情报</CardTitle>
             <CardDescription className="leading-5">
-              回到工作台所在局域网（或连工作台热点），地址见 server 启动日志「局域网地址」。
+              回工作台局域网拉取最新批次，或导入经 AirDrop / 文件 App 传来的 .sqlite / .json 批次。
             </CardDescription>
           </CardHeader>
           <CardContent className="gap-3 px-4">
@@ -196,9 +205,21 @@ export default function SyncScreen() {
                 <Text>拉取并导入</Text>
               </Button>
             </View>
+
+            <View className="flex-row items-center gap-2">
+              <View className="h-px flex-1 bg-border" />
+              <Text className="text-xs text-muted-foreground">或</Text>
+              <View className="h-px flex-1 bg-border" />
+            </View>
+
+            <Button variant="outline" onPress={onPickFile} disabled={busy}>
+              <Icon as={FileInput} size={16} />
+              <Text>从文件导入</Text>
+            </Button>
           </CardContent>
         </Card>
 
+        {/* 推送研判 */}
         <Card className="gap-4 py-4 shadow-none">
           <CardHeader className="gap-1 px-4">
             <CardTitle>推送研判</CardTitle>
@@ -212,22 +233,6 @@ export default function SyncScreen() {
             <Button onPress={onPush} disabled={busy || pending === 0}>
               <Icon as={CloudUpload} size={16} className="text-primary-foreground" />
               <Text>{pending > 0 ? `确认推送 ${pending} 条研判` : '无待同步操作'}</Text>
-            </Button>
-          </CardContent>
-        </Card>
-
-        <Card className="gap-4 py-4 shadow-none">
-          <CardHeader className="gap-1 px-4">
-            <CardTitle>文件导入</CardTitle>
-            <CardDescription className="leading-5">
-              导入工作台 pnpm export:batch 产出、经 AirDrop / 文件 App 传来的 .sqlite 或 .json
-              批次。
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="px-4">
-            <Button variant="outline" onPress={onPickFile} disabled={busy}>
-              <Icon as={FileInput} size={16} />
-              <Text>选择批次文件…</Text>
             </Button>
           </CardContent>
         </Card>
