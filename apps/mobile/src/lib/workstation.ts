@@ -1,4 +1,4 @@
-import type { ExportBatch } from '@hatch-radar/shared';
+import type { CurrentUser, ExportBatch } from '@hatch-radar/shared';
 import { getMeta, setMeta } from '../db/schema';
 import { buildDeviceHeaders } from './device-identity';
 
@@ -92,4 +92,19 @@ export function fetchHealth(cfg: WorkstationConfig): Promise<WorkstationHealth> 
 /** 拉取 JSON 批次（当前拉全量有效数据；增量参数留给后续里程碑） */
 export function fetchBatch(cfg: WorkstationConfig): Promise<ExportBatch> {
   return getJson<ExportBatch>(cfg, '/api/export/batch');
+}
+
+/** 取当前用户态（GET /api/me，设备通道签名鉴权；需已激活并联通工作台）。 */
+export async function fetchMe(cfg: WorkstationConfig): Promise<CurrentUser> {
+  const { user } = await getJson<{ user: CurrentUser }>(cfg, '/api/me');
+  return user;
+}
+
+/** 改本人头像（PATCH /api/me/avatar；avatar=所选 DiceBear seed，null 恢复姓名首字母）。 */
+export function updateAvatar(cfg: WorkstationConfig, avatar: string | null): Promise<{ ok: true }> {
+  return request<{ ok: true }>(cfg, '/api/me/avatar', {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ avatar }),
+  });
 }

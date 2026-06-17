@@ -4,6 +4,7 @@ import { AuthModule } from '@/auth/auth.module';
 import { AnalysisController } from './analysis.controller';
 import { ExportController } from './export.controller';
 import { HealthController } from './health.controller';
+import { MeController } from './me.controller';
 import { SettingsController } from './settings.controller';
 import { SourceConnectorsController, SourcesController } from './sources.controller';
 import { SyncController } from './sync.controller';
@@ -17,6 +18,7 @@ import { SyncController } from './sync.controller';
   imports: [AccountModule, AuthModule],
   controllers: [
     HealthController,
+    MeController,
     SettingsController,
     SourcesController,
     SourceConnectorsController,

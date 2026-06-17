@@ -304,6 +304,8 @@ model users {
   email                String      @unique(map: "idx_users_email")
   /// 展示名。
   name                 String
+  /// 头像：所选 DiceBear seed（风格固定 adventurer-neutral，应用层据此复算 SVG）；null=回退姓名首字母。
+  avatar               String?
   /// scrypt 派生口令哈希，格式 `scrypt:N:r:p:saltB64:hashB64`（自带参数便于调参/迁移）。
   password_hash        String
   /// 系统角色：super_admin 隐式拥有全部能力且不可被限制；admin 能力来自 user_permissions。

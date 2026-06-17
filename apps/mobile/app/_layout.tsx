@@ -1,5 +1,6 @@
 import '../global.css';
 
+import { HeaderProfileButton } from '@/components/header-profile-button';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { THEME } from '@/lib/theme';
 import { ThemeModeProvider } from '@/lib/theme-mode';
@@ -35,8 +36,13 @@ function ThemedStack() {
       >
         <Stack.Screen
           name="index"
-          options={{ title: '洞察', headerRight: () => <ThemeToggle /> }}
+          options={{
+            title: '洞察',
+            headerLeft: () => <HeaderProfileButton />,
+            headerRight: () => <ThemeToggle />,
+          }}
         />
+        <Stack.Screen name="profile" options={{ title: '我的' }} />
         <Stack.Screen name="insight/[id]" options={{ title: '洞察详情' }} />
         <Stack.Screen name="sync" options={{ title: '工作台同步', presentation: 'modal' }} />
         <Stack.Screen name="activate" options={{ title: '激活设备', presentation: 'modal' }} />

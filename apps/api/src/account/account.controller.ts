@@ -34,6 +34,8 @@ const changePasswordSchema = z.object({
 
 const profileSchema = z.object({ name: z.string().trim().min(1) });
 
+const avatarSchema = z.object({ avatar: z.string().trim().min(1).max(128).nullable() });
+
 /** 取客户端 IP（反代场景取 x-forwarded-for 首段，否则 express req.ip）。 */
 function clientIp(req: Request): string | undefined {
   const xff = req.headers['x-forwarded-for'];
@@ -47,6 +49,7 @@ function toCurrentUser(user: AuthedUser): CurrentUser {
     id: user.id,
     email: user.email,
     name: user.name,
+    avatar: user.avatar,
     role: user.role,
     status: user.status,
     mustChangePassword: user.mustChangePassword,
@@ -122,6 +125,18 @@ export class AccountController {
     @Body(new ZodValidationPipe(profileSchema)) dto: z.infer<typeof profileSchema>,
   ): Promise<{ ok: true }> {
     const result = await this.account.updateOwnName(user, dto.name);
+    if (!result.ok) throw new HttpException(result.message, result.status);
+    return { ok: true };
+  }
+
+  /** PATCH /api/auth/avatar —— 改本人头像（DiceBear seed；avatar=null 恢复首字母）。 */
+  @Patch('avatar')
+  @UseGuards(SessionAuthGuard)
+  async updateAvatar(
+    @AuthUser() user: AuthedUser,
+    @Body(new ZodValidationPipe(avatarSchema)) dto: z.infer<typeof avatarSchema>,
+  ): Promise<{ ok: true }> {
+    const result = await this.account.updateOwnAvatar(user, dto.avatar);
     if (!result.ok) throw new HttpException(result.message, result.status);
     return { ok: true };
   }

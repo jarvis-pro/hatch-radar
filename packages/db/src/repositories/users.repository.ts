@@ -11,6 +11,7 @@ export interface UserAuthView {
   id: string;
   email: string;
   name: string;
+  avatar: string | null;
   role: UserRole;
   status: 'active' | 'disabled';
   mustChangePassword: boolean;
@@ -23,6 +24,7 @@ function toAuthView(u: {
   id: string;
   email: string;
   name: string;
+  avatar: string | null;
   role: string;
   status: 'active' | 'disabled';
   must_change_password: boolean;
@@ -33,6 +35,7 @@ function toAuthView(u: {
     id: u.id,
     email: u.email,
     name: u.name,
+    avatar: u.avatar,
     role: u.role as UserRole,
     status: u.status,
     mustChangePassword: u.must_change_password,
@@ -117,6 +120,11 @@ export class UsersRepository {
   /** 改本人姓名。 */
   async updateName(id: string, name: string, now: number): Promise<void> {
     await this.db.users.update({ where: { id }, data: { name, updated_at: BigInt(now) } });
+  }
+
+  /** 改本人头像（avatar=DiceBear seed；null 恢复姓名首字母）。 */
+  async updateAvatar(id: string, avatar: string | null, now: number): Promise<void> {
+    await this.db.users.update({ where: { id }, data: { avatar, updated_at: BigInt(now) } });
   }
 
   /** 启用 / 停用账户。 */

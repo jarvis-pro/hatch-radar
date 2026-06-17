@@ -45,6 +45,7 @@ function stripHash(view: UserAuthView): CurrentUser {
     id: view.id,
     email: view.email,
     name: view.name,
+    avatar: view.avatar,
     role: view.role,
     status: view.status,
     mustChangePassword: view.mustChangePassword,
@@ -180,6 +181,27 @@ export class AccountService {
     if (!trimmed) return { ok: false, status: 400, message: '姓名不能为空' };
     try {
       await this.users.updateName(user.id, trimmed, nowSec());
+      return { ok: true };
+    } catch {
+      return { ok: false, status: 503, message: '保存失败：服务暂时不可用' };
+    }
+  }
+
+  /** 取指定用户的当前态（设备/会话双通道的 /api/me 用）。 */
+  async getProfile(userId: string): Promise<CurrentUser | null> {
+    const view = await this.users.resolveWithPermissions(userId);
+    return view ? stripHash(view) : null;
+  }
+
+  /** 改本人头像（avatar=DiceBear seed；null 恢复姓名首字母）。 */
+  async updateOwnAvatar(user: AuthedUser, avatar: string | null): Promise<ServiceResult> {
+    return this.updateAvatarById(user.id, avatar);
+  }
+
+  /** 按 id 改头像（设备通道 /api/me/avatar 复用，无 AuthedUser 时用）。 */
+  async updateAvatarById(userId: string, avatar: string | null): Promise<ServiceResult> {
+    try {
+      await this.users.updateAvatar(userId, avatar, nowSec());
       return { ok: true };
     } catch {
       return { ok: false, status: 503, message: '保存失败：服务暂时不可用' };
