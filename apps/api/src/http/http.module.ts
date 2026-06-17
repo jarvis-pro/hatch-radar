@@ -8,6 +8,7 @@ import { MeController } from './me.controller';
 import { SettingsController } from './settings.controller';
 import { SourceConnectorsController, SourcesController } from './sources.controller';
 import { SyncController } from './sync.controller';
+import { TranslationsController } from './translations.controller';
 
 /**
  * HTTP 层：健康检查 / 设置 / 分析 / 导出 / 同步 / 设备激活 控制器。
@@ -25,6 +26,7 @@ import { SyncController } from './sync.controller';
     AnalysisController,
     ExportController,
     SyncController,
+    TranslationsController,
   ],
 })
 export class HttpModule {}

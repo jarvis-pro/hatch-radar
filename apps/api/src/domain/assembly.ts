@@ -15,6 +15,7 @@ import { SettingsRepository } from '@hatch-radar/db';
 import { SourceConnectorsRepository } from '@hatch-radar/db';
 import { SourcesRepository } from '@hatch-radar/db';
 import { StatsRepository } from '@hatch-radar/db';
+import { TranslationsRepository } from '@hatch-radar/db';
 import { UsersRepository } from '@hatch-radar/db';
 // infra singletons
 import { TokenBucketQueue } from '@hatch-radar/crawler';
@@ -23,6 +24,7 @@ import { HackerNewsClient } from '@hatch-radar/crawler';
 import { RuntimeSettingsService } from '@hatch-radar/db';
 import { CrawlerConfigService } from '@hatch-radar/crawler';
 import { AnalysisConfigService } from '@hatch-radar/analysis';
+import { TranslationService } from '@hatch-radar/analysis';
 import { GatewayService } from './gateway/gateway.service';
 import { DataService } from './data/data.service';
 import { AccountService } from './account/account.service';
@@ -60,6 +62,7 @@ export function createCore(db: AppDatabase, env: AppEnv) {
   const sourceConnectors = new SourceConnectorsRepository(db);
   const sources = new SourcesRepository(db);
   const stats = new StatsRepository(db);
+  const translations = new TranslationsRepository(db);
   const users = new UsersRepository(db);
 
   // ── 基础设施单例 ─────────────────────────────────────────────────────
@@ -69,8 +72,9 @@ export function createCore(db: AppDatabase, env: AppEnv) {
   // ── 服务 ─────────────────────────────────────────────────────────────
   const runtimeSettings = new RuntimeSettingsService(settings);
   const crawlerConfig = new CrawlerConfigService(sourceConnectors, queue);
-  const gateway = new GatewayService(jobs);
+  const gateway = new GatewayService(jobs, runtimeSettings);
   const analysisConfig = new AnalysisConfigService(providers, settings, jobs, posts, gateway);
+  const translation = new TranslationService(translations, providers);
   const data = new DataService(db);
   const account = new AccountService(users, sessions, loginAttempts, auditLogs, runtimeSettings);
   const admin = new AdminService(users, sessions, deviceCredentials, deviceEnrollments, auditLogs);
@@ -109,6 +113,7 @@ export function createCore(db: AppDatabase, env: AppEnv) {
     sourceConnectors,
     sources,
     stats,
+    translations,
     users,
     queue,
     hackernews,
@@ -116,6 +121,7 @@ export function createCore(db: AppDatabase, env: AppEnv) {
     crawlerConfig,
     gateway,
     analysisConfig,
+    translation,
     data,
     account,
     admin,

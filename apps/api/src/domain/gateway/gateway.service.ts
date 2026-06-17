@@ -1,6 +1,6 @@
 import type { IncomingMessage, Server as HttpServer } from 'node:http';
 import { WebSocket, WebSocketServer } from 'ws';
-import { JobsRepository } from '@hatch-radar/db';
+import { JobsRepository, RuntimeSettingsService } from '@hatch-radar/db';
 import { logger } from '@hatch-radar/kernel';
 import { nowSec } from '@hatch-radar/kernel';
 import type { WorkerMessage } from '@hatch-radar/kernel';
@@ -29,7 +29,10 @@ const FALLBACK_DISPATCH_INTERVAL_MS = 10_000;
  * 这里改由 MainConfiguration.onServerReady 注入 koa framework.getServer() 的句柄到 {@link start}。
  */
 export class GatewayService {
-  constructor(private readonly jobs: JobsRepository) {}
+  constructor(
+    private readonly jobs: JobsRepository,
+    private readonly runtimeSettings: RuntimeSettingsService,
+  ) {}
 
   private wsServer?: WebSocketServer;
   /** workerId → state */
@@ -59,7 +62,9 @@ export class GatewayService {
   async tryDispatch(): Promise<void> {
     const worker = this.pickWorker();
     if (!worker) return;
-    const job = await this.jobs.claimNextJob(nowSec());
+    // 护栏 B：翻译并发上限传给认领——运行中的翻译达上限时本次只认领分析任务
+    const translationCap = await this.runtimeSettings.getTranslationConcurrency();
+    const job = await this.jobs.claimNextJob(nowSec(), translationCap);
     if (!job) return;
     worker.activeJobs++;
     this.send(worker.socket, {

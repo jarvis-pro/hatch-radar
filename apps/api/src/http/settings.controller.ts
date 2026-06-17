@@ -84,6 +84,7 @@ const runtimeSettingsSchema = z
     sessionAbsoluteDays: z.number().int().min(1),
     workerJobTimeoutMs: z.number().int().min(1000),
     workerStaleSeconds: z.number().int().min(30),
+    translationConcurrency: z.number().int().min(1),
   })
   .partial();
 
@@ -135,6 +136,7 @@ export class SettingsController {
     return {
       providers: (await this.providers.listProvidersWithKeys()).map(toProviderDTO),
       activeProviderId: await this.settings.getActiveProviderId(),
+      translationProviderId: await this.settings.getTranslationProviderId(),
       secretConfigured: isSecretConfigured(),
     };
   }
@@ -327,5 +329,26 @@ export class SettingsController {
       `[设置] active 模型 → ${dto.providerId ?? '（清空）'}；即时入队 ${round.enqueued} 篇`,
     );
     return { activeProviderId: dto.providerId, enqueued: round.enqueued };
+  }
+
+  /**
+   * PUT /api/settings/translation-provider —— 选用翻译模型 { providerId: number|null }。
+   * 与分析 active 解耦（可单独指更省额度的档）；清空则翻译回落 active provider。v1 仅 claude_cli。
+   */
+  @Put('translation-provider')
+  async setTranslationProvider(
+    @Body(new ZodValidationPipe(activeSchema)) dto: z.infer<typeof activeSchema>,
+  ) {
+    if (dto.providerId !== null) {
+      const row = await this.providers.getProvider(dto.providerId);
+      if (!row) throw new NotFoundException('模型配置不存在');
+      if (!row.enabled) throw new BadRequestException('该模型已停用，无法用于翻译');
+      if (row.provider !== 'claude_cli') {
+        throw new BadRequestException('翻译暂仅支持 claude_cli（订阅模式）');
+      }
+    }
+    await this.settings.setTranslationProviderId(dto.providerId);
+    logger.info(`[设置] 翻译 provider → ${dto.providerId ?? '（清空，回落 active）'}`);
+    return { translationProviderId: dto.providerId };
   }
 }
