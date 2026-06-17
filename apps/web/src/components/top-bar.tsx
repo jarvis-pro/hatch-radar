@@ -95,18 +95,17 @@ export function TopBar({ user }: { user: CurrentUser }) {
         ) : null}
 
         <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
-          <Button
-            variant="outline"
-            size="sm"
+          <button
+            type="button"
             onClick={() => setCmdOpen(true)}
-            className="h-8 gap-2 text-muted-foreground sm:w-52 sm:justify-start"
+            className="flex h-8 cursor-pointer items-center gap-2 rounded-md border border-input bg-muted/40 px-3 text-sm text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground sm:w-52"
           >
-            <Search className="size-4" />
-            <span className="hidden sm:inline">搜索 / 跳转…</span>
-            <kbd className="ml-auto hidden rounded border bg-muted px-1.5 font-mono text-[10px] leading-relaxed sm:inline-block">
+            <Search className="size-3.5 shrink-0" />
+            <span className="hidden flex-1 text-left sm:block">搜索 / 跳转…</span>
+            <kbd className="ml-auto hidden shrink-0 rounded border bg-background/80 px-1.5 font-mono text-[10px] leading-relaxed text-muted-foreground sm:inline-block">
               ⌘K
             </kbd>
-          </Button>
+          </button>
           {can(user, 'insights:view') ? <SystemPulse /> : null}
           <ModeToggle />
         </div>
