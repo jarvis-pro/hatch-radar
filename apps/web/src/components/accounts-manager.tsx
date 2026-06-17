@@ -162,7 +162,7 @@ export function AccountsManager({
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>姓名 / 邮箱</TableHead>
+            <TableHead>昵称 / 邮箱</TableHead>
             <TableHead>角色</TableHead>
             <TableHead>状态</TableHead>
             <TableHead>权限</TableHead>
@@ -392,7 +392,7 @@ function AccountForm({
       </div>
 
       <div className="grid gap-2">
-        <Label htmlFor="name">姓名</Label>
+        <Label htmlFor="name">昵称</Label>
         <Input id="name" required value={name} onChange={(e) => setName(e.target.value)} />
       </div>
 
