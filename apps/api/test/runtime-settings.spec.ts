@@ -42,10 +42,11 @@ describe('RuntimeSettingsService（DB 唯一事实源 + 首启播种）', () => 
     expect(overview.workerStaleSeconds).toEqual({ value: 300, defaultValue: 300 });
   });
 
-  it('ensureSeeded 写入五项默认值（回报条数）；幂等且不覆盖已改值', async () => {
-    expect(await svc.ensureSeeded()).toBe(5); // 空库 → 五项全部新插入
+  it('ensureSeeded 写入六项默认值（回报条数）；幂等且不覆盖已改值', async () => {
+    expect(await svc.ensureSeeded()).toBe(6); // 空库 → 六项全部新插入（含 translation_concurrency）
     expect(await settings.getSetting('analyze_batch_size')).toBe('20');
     expect(await settings.getSetting('worker_stale_seconds')).toBe('300');
+    expect(await settings.getSetting('translation_concurrency')).toBe('1');
 
     // 改一项后再次播种：全部已存在 → 0 条新增，且不覆盖已改值
     await svc.applySettings({ analyzeBatchSize: 99 });

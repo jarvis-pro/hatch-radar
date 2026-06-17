@@ -136,6 +136,8 @@ function mkPost(overrides: Partial<PostRow> = {}): PostRow {
     export_locked_at: null,
     analyzed_at: null,
     analyze_attempts: 0,
+    title_hash: null,
+    selftext_hash: null,
     ...overrides,
   };
 }
@@ -156,6 +158,7 @@ function cm(
     depth,
     created_utc: 1,
     fetched_at: 1,
+    body_hash: null,
   };
 }
 

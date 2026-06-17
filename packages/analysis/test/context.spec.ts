@@ -68,6 +68,8 @@ const basePost = (overrides: Partial<PostRow>): PostRow => ({
   export_locked_at: null,
   analyzed_at: null,
   analyze_attempts: 0,
+  title_hash: null,
+  selftext_hash: null,
   ...overrides,
 });
 
@@ -81,6 +83,7 @@ const baseComment = (overrides: Partial<CommentRow>): CommentRow => ({
   depth: 0,
   created_utc: 1_700_000_100,
   fetched_at: 1_700_000_100,
+  body_hash: null,
   ...overrides,
 });
 

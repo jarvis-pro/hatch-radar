@@ -15,6 +15,6 @@ export function setupTestDb(): DbHandle {
 /** 清空全部业务表并重置自增序列（每个用例前调用，保证互相隔离） */
 export async function truncateAll(db: AppDatabase): Promise<void> {
   await db.$executeRawUnsafe(
-    'TRUNCATE analysis_jobs, sync_ops, triage, insights, comments, posts, provider_api_keys, model_providers, sources, source_connectors, app_settings, users RESTART IDENTITY CASCADE',
+    'TRUNCATE analysis_jobs, translations, sync_ops, triage, insights, comments, posts, provider_api_keys, model_providers, sources, source_connectors, app_settings, users RESTART IDENTITY CASCADE',
   );
 }

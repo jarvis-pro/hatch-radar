@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { Prisma, type AppDatabase, type DbHandle } from '@hatch-radar/db';
+import { Prisma, contentHash, type AppDatabase, type DbHandle } from '@hatch-radar/db';
 import { ExportService } from '@/domain/export/export.service';
 import { setupTestDb, truncateAll } from './helpers';
 
@@ -90,7 +90,7 @@ describe('ExportService.collectBatch（批量取数 / 顺序与缺帖处理）',
 
     const batch = await svc.collectBatch({});
 
-    expect(batch.meta.counts).toEqual({ insights: 2, posts: 2, comments: 3 });
+    expect(batch.meta.counts).toEqual({ insights: 2, posts: 2, comments: 3, translations: 0 });
     // 洞察按 created_at DESC → [pB, pA]；帖子同序
     expect(batch.insights.map((i) => i.post_id)).toEqual(['pB', 'pA']);
     expect(batch.posts.map((p) => p.id)).toEqual(['pB', 'pA']);
@@ -101,7 +101,47 @@ describe('ExportService.collectBatch（批量取数 / 顺序与缺帖处理）',
   it('洞察关联帖子已归档（缺失）时仅导出洞察本身', async () => {
     await seedInsight(db, 'gone', 1000); // 只建洞察，不建帖子
     const batch = await svc.collectBatch({});
-    expect(batch.meta.counts).toEqual({ insights: 1, posts: 0, comments: 0 });
+    expect(batch.meta.counts).toEqual({ insights: 1, posts: 0, comments: 0, translations: 0 });
     expect(batch.insights.map((i) => i.post_id)).toEqual(['gone']);
+  });
+
+  it('导出携带本批已完成译文（按实体 post_title/comment_body 寻址）', async () => {
+    await seedPost(db, 'pT', 100);
+    await seedComment(db, 'cT', 'pT', 10);
+    await seedInsight(db, 'pT', 1000);
+    // 给标题与评论补内容哈希，并各落一条 done 译文（仅 done 才随导出带出）
+    const titleHash = contentHash('t-pT')!;
+    const bodyHash = contentHash('b-cT')!;
+    await db.posts.update({ where: { id: 'pT' }, data: { title_hash: titleHash } });
+    await db.comments.update({ where: { id: 'cT' }, data: { body_hash: bodyHash } });
+    await db.translations.createMany({
+      data: [
+        {
+          content_hash: titleHash,
+          source_field: 'post_title',
+          source_lang: 'en',
+          text: '标题译文',
+          status: 'done',
+          created_at: BigInt(1000),
+          updated_at: BigInt(1000),
+        },
+        {
+          content_hash: bodyHash,
+          source_field: 'comment_body',
+          source_lang: 'en',
+          text: '评论译文',
+          status: 'done',
+          created_at: BigInt(1000),
+          updated_at: BigInt(1000),
+        },
+      ],
+    });
+
+    const batch = await svc.collectBatch({});
+    expect(batch.meta.counts.translations).toBe(2);
+    expect(batch.translations).toEqual([
+      { entity_kind: 'post_title', entity_id: 'pT', text: '标题译文' },
+      { entity_kind: 'comment_body', entity_id: 'cT', text: '评论译文' },
+    ]);
   });
 });
