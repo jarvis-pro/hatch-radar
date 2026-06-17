@@ -63,7 +63,12 @@ export function usePostTranslation(postId: string | undefined) {
   });
 
   const enqueue = useMutation({
-    mutationFn: () => api.post<{ enqueued: boolean }>(`/translations/posts/${postId}`),
+    // providerId：无默认翻译模型时由弹窗选定，一次性指定本次用模型；否则后端回落默认
+    mutationFn: (providerId?: number) =>
+      api.post<{ enqueued: boolean }>(
+        `/translations/posts/${postId}`,
+        providerId ? { providerId } : {},
+      ),
     onSuccess: (r) => {
       toast.success(r.enqueued ? '已入队翻译，完成后自动显示中文' : '该帖已有翻译任务进行中');
       void qc.invalidateQueries({ queryKey: ['translation-status', postId] });
@@ -77,11 +82,28 @@ export function usePostTranslation(postId: string | undefined) {
     showZh,
     setShowZh,
     hasTranslations: Object.keys(translations).length > 0,
-    enqueue: () => enqueue.mutate(),
+    enqueue: (providerId?: number) => enqueue.mutate(providerId),
     enqueuing: enqueue.isPending,
     view: {
       showZh,
       get: (hash: string | null | undefined) => (hash ? translations[hash] : undefined),
     } satisfies TranslationView,
   };
+}
+
+/** 可选翻译模型 + 当前默认（GET /api/translations/providers）。 */
+export interface TranslationProvidersInfo {
+  /** 当前默认翻译模型 id（translation_provider_id ?? active 且为启用 claude_cli）；null=需弹窗选 */
+  defaultId: number | null;
+  /** 可选的 claude_cli 模型清单 */
+  providers: { id: number; label: string; model: string }[];
+}
+
+/** 取可选翻译模型清单 + 当前默认（全局缓存，供按钮判断「直接翻译」还是「弹窗选模型」）。 */
+export function useTranslationProviders() {
+  return useQuery({
+    queryKey: ['translation-providers'],
+    queryFn: () => api.get<TranslationProvidersInfo>('/translations/providers'),
+    staleTime: 5 * 60_000,
+  });
 }
