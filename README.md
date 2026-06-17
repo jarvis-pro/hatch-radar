@@ -7,26 +7,28 @@
 
 ## 功能概览
 
-- **工作台后端（apps/server，NestJS）**：定时抓取 Reddit / HackerNews / RSS，令牌桶限速；帖子+评论组合上下文送 AI 分析（在 Web 设置页配置 Anthropic / OpenAI / DeepSeek，PostgreSQL 持久化队列 + Worker 池驱动）；AI 密钥加密入库、只在此进程
+- **工作台后端（apps/api 控制面 + apps/worker 数据面，NestJS）**：api 定时抓取 Reddit / HackerNews / RSS（令牌桶限速）、提供 `/api` + 鉴权 + 调度 + push 网关；帖子+评论组合上下文经 PostgreSQL 持久化队列交 worker 池跑 AI 分析（Web 设置页配置 Anthropic / OpenAI / DeepSeek / Claude 订阅）；AI 密钥加密入库、只在后端进程
 - **Web 控制台（apps/web）**：只读展示洞察 / 帖子 / 评论与同步回传的人工研判，筛选/搜索/分页，响应式，Docker 部署
 - **导出批次**：按条件筛「有效数据」，经局域网 HTTP 接口或 `.sqlite` / `.json` 文件（AirDrop）交付给移动端
 - **离线伴侣 App（apps/mobile）**：Expo + 本地 SQLite，导入批次后全程离线人工研判（状态/评级/标签/笔记），操作记入本地 outbox
 - **同步回传**：回到局域网后 App 提示待同步数，用户确认推送；工作台按 opId 幂等应用（重发不重复生效）
+- **内容翻译（按需）**：抓取的英文标题/正文/评论可在帖子页一键译成中文（供移动端研判）；两档 provider——Claude 订阅（零边际成本、最高质量）或 Azure Translator 机翻（按字符计费、免费额度大，走量降订阅消耗），译文按内容哈希缓存、新评论增量翻译
 
 ---
 
 ## 技术栈
 
-| 层级          | 技术                                                                                                                        |
-| ------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| 运行时        | NestJS + TypeScript（pnpm workspace monorepo；swc-node ESM 运行）                                                           |
-| 调度          | `@nestjs/schedule`（`@Cron`）                                                                                               |
-| Reddit 数据源 | Reddit REST API（OAuth）                                                                                                    |
-| AI 分析       | 多模型可配：Anthropic（`@anthropic-ai/sdk`）/ OpenAI / DeepSeek；PostgreSQL 任务队列（`FOR UPDATE SKIP LOCKED`）+ Worker 池 |
-| 存储          | PostgreSQL（Prisma ORM；**server 是唯一读写方**，web 不直连库）；导出 `.sqlite` 与移动端 expo-sqlite 互通                   |
-| Web 控制台    | Vite + React Router 同源 SPA（纯 CSR，经 `/api` 调 server；由 NestJS `ServeStaticModule` 同源托管 build 产物）              |
-| PC 端 UI 库   | shadcn/ui + Tailwind CSS v4（`packages/ui` 共享，仅限 Web/PC 子项目）                                                       |
-| 移动端        | React Native（Expo SDK 56 + expo-router + expo-sqlite）                                                                     |
+| 层级          | 技术                                                                                                                                                                                   |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 运行时        | NestJS + TypeScript（pnpm workspace monorepo；swc-node ESM 运行）                                                                                                                      |
+| 调度          | `@nestjs/schedule`（`@Cron`）                                                                                                                                                          |
+| Reddit 数据源 | Reddit REST API（OAuth）                                                                                                                                                               |
+| AI 分析       | 多模型可配：Anthropic（`@anthropic-ai/sdk`）/ OpenAI / DeepSeek / Claude 订阅（`claude_cli`，复用本机 Claude Code 登录态）；PostgreSQL 任务队列（`FOR UPDATE SKIP LOCKED`）+ Worker 池 |
+| 内容翻译      | 同队列（`job_type=translation`）：Claude 订阅（`claude_cli`）/ Azure Translator 机翻（`azure`）；译文按内容哈希缓存于 `translations` 表                                                |
+| 存储          | PostgreSQL（Prisma ORM；**server 是唯一读写方**，web 不直连库）；导出 `.sqlite` 与移动端 expo-sqlite 互通                                                                              |
+| Web 控制台    | Vite + React Router 同源 SPA（纯 CSR，经 `/api` 调 server；由 NestJS `ServeStaticModule` 同源托管 build 产物）                                                                         |
+| PC 端 UI 库   | shadcn/ui + Tailwind CSS v4（`packages/ui` 共享，仅限 Web/PC 子项目）                                                                                                                  |
+| 移动端        | React Native（Expo SDK 56 + expo-router + expo-sqlite）                                                                                                                                |
 
 ---
 
@@ -163,13 +165,14 @@ pnpm dev:mobile   # 启动 Expo dev server，用 Expo Go 扫码（iOS 真机）
 
 ## AI 分析方式
 
-模型在 **Web 设置页（`/settings`）** 配置：可添加多条 Anthropic / OpenAI / DeepSeek 模型，每条可挂**多把 API Key 做故障转移**（限流自动冷却、鉴权失败自动切换）；密钥经 `SETTINGS_SECRET`（AES-256-GCM）**加密入库**，API 仅返回脱敏视图、绝不下发明文。
+模型在 **Web 设置页（`/settings`）** 配置：可添加多条 Anthropic / OpenAI / DeepSeek（API Key 模式）或 **Claude 订阅（`claude_cli`，复用 worker 本机已登录的 Claude Code、吃订阅额度、无需 API Key）** 模型；API Key 模式每条可挂**多把 Key 做故障转移**（限流自动冷却、鉴权失败自动切换），密钥经 `SETTINGS_SECRET`（AES-256-GCM）**加密入库**，API 仅返回脱敏视图、绝不下发明文。
 
-| 厂商      | 结构化输出                                             |
-| --------- | ------------------------------------------------------ |
-| Anthropic | Claude 系列，`messages` + JSON Schema 约束             |
-| OpenAI    | ChatGPT 系列，`response_format: json_schema`（strict） |
-| DeepSeek  | OpenAI 兼容接口，`response_format: json_object`        |
+| 厂商        | 结构化输出                                                                    |
+| ----------- | ----------------------------------------------------------------------------- |
+| Anthropic   | Claude 系列，`messages` + JSON Schema 约束                                    |
+| OpenAI      | ChatGPT 系列，`response_format: json_schema`（strict）                        |
+| DeepSeek    | OpenAI 兼容接口，`response_format: json_object`                               |
+| Claude 订阅 | `claude_cli`：经 Claude Agent SDK 复用本机登录态，`outputFormat: json_schema` |
 
 **自动 vs 手动**（核心状态机）：
 
@@ -183,9 +186,26 @@ pnpm dev:mobile   # 启动 Expo dev server，用 Expo Go 扫码（iOS 真机）
 
 ---
 
+## 内容翻译（译中文）
+
+抓取内容默认英文；移动端研判需要中文时，可在帖子页**按需**一键翻译标题 / 正文 / 评论。译文落 `translations` 表、**按源文本内容哈希寻址**（扛评论 churn、同文去重、未命中即「待翻译」自动判定首次/增量），随导出产物进移动端。
+
+两档翻译 provider（在 `/settings` 配，与分析 active 解耦）：
+
+| 档位   | provider                    | 计费                              | 定位                        |
+| ------ | --------------------------- | --------------------------------- | --------------------------- |
+| 高质量 | Claude 订阅（`claude_cli`） | 订阅额度（零边际成本）            | 质量优先、省钱靠订阅        |
+| 走量   | Azure Translator（`azure`） | 按字符（F0 免费档 200 万字符/月） | 降订阅额度消耗、triage 速读 |
+
+- Azure 复用与分析**同一套加密 Key 池 + `active/cooling/invalid` 故障转移**（限流冷却、鉴权失败切换）；配置项为订阅密钥 + `region`（区域代码如 `centralus`，写 `Ocp-Apim-Subscription-Region` 头），端点默认全局可覆盖。`azure` 仅用于翻译，不能设为分析 active 模型。
+- 本地粗判已是中文的条目直接跳过（省成本）；远端漏译的条目留待下次补，不落「已翻」假象。
+- 翻译走 PG 同一队列（`analysis_jobs.job_type=translation`），与分析并发受控（`translationConcurrency`）；新增 MT 厂商（DeepL / Google）按 `azure` 同构 drop-in。
+
+---
+
 ## 配置数据来源
 
-在 Web 设置页（`/settings`）的「数据来源」区维护：勾选启用哪些 subreddit / HackerNews 板块 / RSS 源（一行 = 一个「爬虫计划」），改完下一轮调度即生效。首启会从代码常量（`apps/server/src/config/{subreddits,feeds}.ts`，现降级为**种子常量**）播种一份默认列表。
+在 Web 设置页（`/settings`）的「数据来源」区维护：勾选启用哪些 subreddit / HackerNews 板块 / RSS 源（一行 = 一个「爬虫计划」），改完下一轮调度即生效。首启会从代码常量（`apps/api/src/domain/seed/source-lists.ts`，仅作**首启种子**）播种一份默认列表。
 
 Reddit 来源需先在同页「采集连接器」配置 OAuth 凭据（加密入库）并点「测试」通过，其来源的启用开关才会解锁——前端置灰、服务端校验、调度防御三道闸。
 
