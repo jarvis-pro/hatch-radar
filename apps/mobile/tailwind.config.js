@@ -27,6 +27,18 @@ module.exports = {
         },
         success: 'hsl(var(--success))',
         warning: 'hsl(var(--warning))',
+        signal: {
+          DEFAULT: 'hsl(var(--signal))',
+          foreground: 'hsl(var(--signal-foreground))',
+        },
+        intensity: {
+          high: 'hsl(var(--intensity-high))',
+          'high-foreground': 'hsl(var(--intensity-high-foreground))',
+          medium: 'hsl(var(--intensity-medium))',
+          'medium-foreground': 'hsl(var(--intensity-medium-foreground))',
+          low: 'hsl(var(--intensity-low))',
+          'low-foreground': 'hsl(var(--intensity-low-foreground))',
+        },
         muted: {
           DEFAULT: 'hsl(var(--muted))',
           foreground: 'hsl(var(--muted-foreground))',
@@ -45,12 +57,27 @@ module.exports = {
         },
       },
       borderRadius: {
+        xl: 'calc(var(--radius) + 4px)',
         lg: 'var(--radius)',
         md: 'calc(var(--radius) - 2px)',
         sm: 'calc(var(--radius) - 4px)',
       },
       borderWidth: {
         hairline: hairlineWidth(),
+      },
+      /*
+       * RN 自定义字体不做合成字重：每个字重是独立 family（@expo-google-fonts）。
+       * 故按「字重→字体族」拆类（名字避开 Tailwind 内置 font-{weight}）：
+       *   正文 font-sans / 中 font-sans-md / 半粗 font-sans-sb / 粗 font-sans-bd
+       *   等宽 font-mono（数值·ID·计数）/ font-mono-sb
+       */
+      fontFamily: {
+        sans: ['Inter_400Regular'],
+        'sans-md': ['Inter_500Medium'],
+        'sans-sb': ['Inter_600SemiBold'],
+        'sans-bd': ['Inter_700Bold'],
+        mono: ['JetBrainsMono_400Regular'],
+        'mono-sb': ['JetBrainsMono_600SemiBold'],
       },
     },
   },

@@ -83,7 +83,7 @@ function ThemeSheet({
           className="rounded-t-3xl border-t border-border bg-popover pb-10 pt-2"
         >
           <View className="mb-1 h-1 w-10 self-center rounded-full bg-muted-foreground/30" />
-          <Text className="px-5 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          <Text className="px-5 py-2 text-xs font-sans-md uppercase tracking-wide text-muted-foreground">
             外观
           </Text>
           {OPTIONS.map((o) => {
@@ -99,7 +99,7 @@ function ThemeSheet({
                   size={20}
                   className={active ? 'text-primary' : 'text-foreground'}
                 />
-                <Text className={cn('flex-1 text-base', active && 'font-semibold text-primary')}>
+                <Text className={cn('flex-1 text-base', active && 'font-sans-sb text-primary')}>
                   {o.label}
                 </Text>
                 {active ? <Icon as={Check} size={18} className="text-primary" /> : null}

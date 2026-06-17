@@ -3,58 +3,84 @@
 @tailwind utilities;
 
 /*
- * 全 App 唯一的色值来源（shadcn/RNR token 体系，与 Web 端同构）。
- * 品牌蓝 #2563eb（blue-600）；success/warning 为业务语义色：
- * 强度 HIGH→destructive / MEDIUM→warning / LOW→success。
- * 改色时同步 src/lib/theme.ts 的 THEME（导航头与原生控件用）。
+ * 全 App 唯一的色值来源 —— 设计系统「Signal」（与 Web @hatch-radar/ui 同构）。
+ * Web 端用 oklch；RN 不认 oklch，这里落地为等价 HSL（保持色相：靛紫 277 / 信号青 215
+ * / 强度 红25·琥珀65·翠162），中性色按品牌 hue 微着色（非纯灰）。深色优先调校。
+ * 三层色彩、职责分明：
+ *   A. 品牌 --primary（靛紫 #5959e8，跨明暗一致识别）+ --signal（青，专用「实时/在线/同步」）
+ *   B. 语义强度 --intensity-high/medium/low（内容含义，全站统一）
+ *   C. 中性面（background/card/popover 逐级抬升）
+ * 改色时同步 src/lib/theme.ts 的 THEME（导航头/StatusBar/RefreshControl 等原生控件用）。
  */
 @layer base {
   :root {
-    --background: 220 20% 97%;
-    --foreground: 219 26% 15%;
+    --background: 230 78% 99%;
+    --foreground: 231 21% 11%;
     --card: 0 0% 100%;
-    --card-foreground: 219 26% 15%;
+    --card-foreground: 231 21% 11%;
     --popover: 0 0% 100%;
-    --popover-foreground: 219 26% 15%;
-    --primary: 221 83% 53%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 216 24% 95%;
-    --secondary-foreground: 219 26% 15%;
-    --muted: 216 24% 95%;
-    --muted-foreground: 217 11% 47%;
-    --accent: 216 24% 95%;
-    --accent-foreground: 219 26% 15%;
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 0 0% 98%;
-    --success: 161 94% 30%;
-    --warning: 32 95% 44%;
-    --border: 218 24% 91%;
-    --input: 218 24% 91%;
-    --ring: 221 83% 53%;
-    --radius: 0.75rem;
+    --popover-foreground: 231 21% 11%;
+    --primary: 240 76% 63%;
+    --primary-foreground: 229 100% 98%;
+    --secondary: 230 40% 97%;
+    --secondary-foreground: 231 17% 22%;
+    --muted: 230 40% 97%;
+    --muted-foreground: 230 8% 43%;
+    --accent: 230 66% 95%;
+    --accent-foreground: 234 30% 34%;
+    --destructive: 356 75% 50%;
+    --destructive-foreground: 6 100% 98%;
+    --success: 159 76% 38%;
+    --warning: 34 78% 49%;
+    --border: 230 14% 89%;
+    --input: 230 14% 89%;
+    --ring: 240 76% 63%;
+    --radius: 0.625rem;
+
+    /* 信号色（实时/在线/同步） */
+    --signal: 190 100% 36%;
+    --signal-foreground: 188 100% 98%;
+
+    /* 语义强度色（内容含义，全站统一） */
+    --intensity-high: 358 84% 57%;
+    --intensity-high-foreground: 6 100% 98%;
+    --intensity-medium: 34 78% 49%;
+    --intensity-medium-foreground: 45 100% 97%;
+    --intensity-low: 159 76% 38%;
+    --intensity-low-foreground: 165 80% 97%;
   }
 
   .dark {
-    --background: 220 24% 9%;
-    --foreground: 220 22% 92%;
-    --card: 217 21% 12%;
-    --card-foreground: 220 22% 92%;
-    --popover: 217 21% 12%;
-    --popover-foreground: 220 22% 92%;
-    --primary: 213 94% 68%;
-    --primary-foreground: 226 57% 21%;
-    --secondary: 218 20% 18%;
-    --secondary-foreground: 220 22% 92%;
-    --muted: 218 20% 18%;
-    --muted-foreground: 217 14% 65%;
-    --accent: 218 20% 18%;
-    --accent-foreground: 220 22% 92%;
-    --destructive: 0 72% 60%;
-    --destructive-foreground: 0 0% 98%;
-    --success: 158 64% 52%;
-    --warning: 43 96% 56%;
-    --border: 219 20% 22%;
-    --input: 219 20% 22%;
-    --ring: 213 94% 68%;
+    --background: 231 19% 7%;
+    --foreground: 230 18% 94%;
+    --card: 231 16% 10%;
+    --card-foreground: 230 18% 94%;
+    --popover: 231 16% 12%;
+    --popover-foreground: 230 18% 94%;
+    --primary: 238 95% 70%;
+    --primary-foreground: 228 100% 98%;
+    --secondary: 231 12% 16%;
+    --secondary-foreground: 230 18% 94%;
+    --muted: 230 11% 16%;
+    --muted-foreground: 230 10% 65%;
+    --accent: 231 17% 21%;
+    --accent-foreground: 230 52% 96%;
+    --destructive: 2 100% 69%;
+    --destructive-foreground: 6 100% 98%;
+    --success: 155 54% 52%;
+    --warning: 35 89% 59%;
+    --border: 230 8% 19%;
+    --input: 230 8% 23%;
+    --ring: 238 95% 70%;
+
+    --signal: 189 100% 44%;
+    --signal-foreground: 193 67% 5%;
+
+    --intensity-high: 1 96% 66%;
+    --intensity-high-foreground: 12 45% 8%;
+    --intensity-medium: 35 89% 59%;
+    --intensity-medium-foreground: 40 50% 9%;
+    --intensity-low: 155 54% 52%;
+    --intensity-low-foreground: 165 45% 7%;
   }
 }

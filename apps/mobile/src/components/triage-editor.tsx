@@ -97,7 +97,7 @@ export function TriageEditor({ triage, onChanged }: { triage: Triage; onChanged:
 
         {/* 评级 */}
         <View className="flex-row items-center gap-1">
-          <Text className="mr-2 text-sm font-medium text-muted-foreground">评级</Text>
+          <Text className="mr-2 text-sm font-sans-md text-muted-foreground">评级</Text>
           {[1, 2, 3, 4, 5].map((star) => {
             const filled = triage.rating != null && star <= triage.rating;
             return (
@@ -123,7 +123,7 @@ export function TriageEditor({ triage, onChanged }: { triage: Triage; onChanged:
         {/* 标签 */}
         <View className="gap-2.5">
           <View className="flex-row flex-wrap items-center gap-1.5">
-            <Text className="mr-0.5 text-sm font-medium text-muted-foreground">标签</Text>
+            <Text className="mr-0.5 text-sm font-sans-md text-muted-foreground">标签</Text>
             {triage.tags.length === 0 ? (
               <Text className="text-xs text-muted-foreground">还没有标签</Text>
             ) : (

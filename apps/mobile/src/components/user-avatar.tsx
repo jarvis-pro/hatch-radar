@@ -27,7 +27,7 @@ export function UserAvatar({
         <SvgXml xml={avatarSvg(user.avatar)} width={size} height={size} />
       ) : (
         <View className="flex-1 items-center justify-center">
-          <Text className="font-medium text-primary" style={{ fontSize: Math.round(size * 0.4) }}>
+          <Text className="font-sans-md text-primary" style={{ fontSize: Math.round(size * 0.4) }}>
             {initials(user.name)}
           </Text>
         </View>
