@@ -26,6 +26,8 @@ catalog:
   clsx: ^2.1.1
   tailwind-merge: ^3.6.0
   lucide-react: ^1.17.0
+  # 图表（ui 提供 shadcn chart 封装，web 直接组合 recharts 原语）
+  recharts: 3.8.0
 
 # better-sqlite3 / esbuild / @tailwindcss/oxide 需要运行原生模块安装脚本
 onlyBuiltDependencies:
