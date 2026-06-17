@@ -7,8 +7,9 @@ import {
   ProvidersRepository,
   RuntimeSettingsService,
   SettingsRepository,
+  TranslationsRepository,
 } from '@hatch-radar/db';
-import { AnalysisConfigService, AnalysisService } from '@hatch-radar/analysis';
+import { AnalysisConfigService, AnalysisService, TranslationService } from '@hatch-radar/analysis';
 import { WorkerService } from './worker.service';
 
 /**
@@ -24,16 +25,19 @@ export function createWorkerCore(db: AppDatabase): { worker: WorkerService } {
   const insights = new InsightsRepository(db);
   const providers = new ProvidersRepository(db);
   const settings = new SettingsRepository(db);
+  const translations = new TranslationsRepository(db);
 
   const runtimeSettings = new RuntimeSettingsService(settings);
   const analysis = new AnalysisService(insights);
   const analysisConfig = new AnalysisConfigService(providers, settings, jobs, posts);
+  const translation = new TranslationService(translations, providers);
   const worker = new WorkerService(
     jobs,
     posts,
     comments,
     analysis,
     analysisConfig,
+    translation,
     runtimeSettings,
   );
 

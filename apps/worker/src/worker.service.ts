@@ -1,6 +1,8 @@
 import { AnalysisConfigService } from '@hatch-radar/analysis';
 import { AnalysisService } from '@hatch-radar/analysis';
+import { TranslationService } from '@hatch-radar/analysis';
 import { RuntimeSettingsService } from '@hatch-radar/db';
+import type { PostRow } from '@hatch-radar/db';
 import { CommentsRepository } from '@hatch-radar/db';
 import { JobsRepository } from '@hatch-radar/db';
 import { PostsRepository } from '@hatch-radar/db';
@@ -46,6 +48,7 @@ export class WorkerService {
     private readonly comments: CommentsRepository,
     private readonly analysis: AnalysisService,
     private readonly analysisConfig: AnalysisConfigService,
+    private readonly translation: TranslationService,
     private readonly runtimeSettings: RuntimeSettingsService,
   ) {}
 
@@ -105,6 +108,18 @@ export class WorkerService {
       await this.jobs.failJob(job.id, '帖子不存在或已归档', nowSec());
       return;
     }
+    // Gateway 分发的最小信息不含 job_type，按 id 轻量回查类型再路由（一次 PK 查找）
+    const jobType = await this.jobs.getJobType(job.id);
+    if (jobType === 'translation') await this.runTranslationJob(job, post, onProgress);
+    else await this.runAnalysisJob(job, post, onProgress);
+  }
+
+  /** 执行分析任务：解析处理器 → AI 分析 → 落库洞察 → markAnalyzed。 */
+  private async runAnalysisJob(
+    job: DispatchedJobInfo,
+    post: PostRow,
+    onProgress?: (jobId: number) => void,
+  ): Promise<void> {
     const processor =
       job.provider_id != null
         ? await this.analysisConfig.getProcessorForProvider(job.provider_id)
@@ -140,6 +155,37 @@ export class WorkerService {
       const msg = err instanceof Error ? err.message : String(err);
       await this.jobs.failJob(job.id, msg, nowSec());
       logger.error(`  ✗ [job#${job.id}] ${post.id} 失败: ${msg}`);
+    } finally {
+      clearInterval(heartbeat);
+    }
+  }
+
+  /** 执行翻译任务：翻译该帖未翻译内容并按内容哈希回写 translations（不动 analyzed_at / analyze_attempts）。 */
+  private async runTranslationJob(
+    job: DispatchedJobInfo,
+    post: PostRow,
+    onProgress?: (jobId: number) => void,
+  ): Promise<void> {
+    const heartbeat = setInterval(() => {
+      void this.jobs.touchHeartbeat(job.id, nowSec());
+      onProgress?.(job.id);
+    }, HEARTBEAT_INTERVAL_MS);
+    const ac = new AbortController();
+    const { jobTimeoutMs } = await this.runtimeSettings.getWorkerTuning();
+    try {
+      const { translated, skipped, usage } = await withTimeout(
+        this.translation.translatePost(post.id, job.provider_id, ac.signal),
+        jobTimeoutMs,
+        () => ac.abort(new Error('job 超时，中止底层调用')),
+      );
+      await this.jobs.succeedJob(job.id, nowSec(), usage);
+      logger.info(
+        `  ✓ [job#${job.id}] 翻译 ${post.id} 完成（新译 ${translated} / 跳过 ${skipped}）`,
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      await this.jobs.failJob(job.id, msg, nowSec());
+      logger.error(`  ✗ [job#${job.id}] 翻译 ${post.id} 失败: ${msg}`);
     } finally {
       clearInterval(heartbeat);
     }
