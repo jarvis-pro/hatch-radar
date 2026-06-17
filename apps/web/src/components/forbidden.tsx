@@ -25,7 +25,7 @@ export function Forbidden({ hint }: { hint?: string }) {
       </EmptyHeader>
       <EmptyContent>
         <Button asChild variant="outline" size="sm">
-          <Link to="/">返回洞察</Link>
+          <Link to="/">返回首页</Link>
         </Button>
       </EmptyContent>
     </Empty>

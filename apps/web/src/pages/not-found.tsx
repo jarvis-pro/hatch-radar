@@ -23,7 +23,7 @@ export function NotFoundPage() {
       </EmptyHeader>
       <EmptyContent>
         <Button asChild variant="outline">
-          <Link to="/">返回洞察列表</Link>
+          <Link to="/">返回首页</Link>
         </Button>
       </EmptyContent>
     </Empty>

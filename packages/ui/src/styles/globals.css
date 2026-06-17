@@ -192,6 +192,8 @@
     /* 等宽数字默认开（金额/ID/计数对齐）；正文走比例字宽 */
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
+    /* 整页原生滚动模型下抑制 iOS Safari 文档回弹，避免 sticky 顶栏被橡皮筋拖出「塑料感」 */
+    overscroll-behavior-y: none;
   }
 }
 

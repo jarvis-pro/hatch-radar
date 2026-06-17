@@ -2,25 +2,24 @@ import type { ReactNode } from 'react';
 
 /** PageHeader props */
 interface PageHeaderProps {
-  /** 页面一级标题（24px，建立焦点；取代旧的 18px inline 写法） */
+  /** 页面标题：仅渲染为 sr-only <h1> 保留无障碍语义；可见标题已由顶栏面包屑承担 */
   title: ReactNode;
-  /** 标题下方独立一行副标题（取代旧的「跟在标题后的灰字」） */
+  /** 页面说明 —— 现在是本区域唯一的可见主文案 */
   description?: ReactNode;
-  /** 右侧主操作区（导出 / 新建等） */
+  /** 右侧操作区（导出 / 实时指示等） */
   actions?: ReactNode;
 }
 
 /**
- * 统一页面标题区：H1（24px / 字距收紧）+ 独立副标题 + 右侧操作槽。
- * 全站统一调用，解决「标题太小、层级太平」与各页标题写法不一的问题。
+ * 页面引导区：视觉上只保留「说明文案 + 右侧操作」。大标题已撤——区段名由顶栏面包屑给出
+ * （见 top-bar.tsx），以此消除「面包屑 + 页内大 H1」的重复并回收纵向空间。title 仍以
+ * sr-only <h1> 渲染，保留无障碍语义与文档大纲。
  */
 export function PageHeader({ title, description, actions }: PageHeaderProps) {
   return (
     <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-      <div className="min-w-0 space-y-1">
-        <h1 className="text-2xl leading-tight font-semibold tracking-tight text-foreground">
-          {title}
-        </h1>
+      <div className="min-w-0">
+        <h1 className="sr-only">{title}</h1>
         {description ? (
           <p className="text-sm text-balance text-muted-foreground">{description}</p>
         ) : null}

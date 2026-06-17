@@ -23,7 +23,9 @@ import { NAV_GROUPS } from '@/lib/nav';
  * 应用侧边栏（持久外壳的骨架）：品牌头 + 三组权限驱动导航（工作区/运营/系统）+ 用户页脚。
  * - 分组按能力过滤，整组无项则不渲染；
  * - 「队列」项展示在飞任务数徽标（信号青）；
- * - collapsible="icon"：可收为图标条，窄屏走 Sheet 抽屉（均由 Sidebar 原语处理）。
+ * - collapsible="offcanvas"：折叠即整体滑出视口，窄屏走 Sheet 抽屉（均由 Sidebar 原语处理）；
+ * - position:fixed 钉在视口：整页原生滚动模型（见 layout.tsx）下，在侧栏上滑动会自然把
+ *   滚动冒泡给页面、带动右侧内容上下（含触摸/惯性，浏览器原生处理，无需 JS 转发）。
  */
 export function AppSidebar({ user }: { user: CurrentUser }) {
   const { pathname } = useLocation();
@@ -41,19 +43,25 @@ export function AppSidebar({ user }: { user: CurrentUser }) {
     : 0;
 
   return (
-    <Sidebar collapsible="icon">
+    <Sidebar collapsible="offcanvas" variant="inset">
       <SidebarHeader>
-        <Link
-          to="/"
-          className="flex items-center gap-2 px-1 py-1.5 font-semibold tracking-tight outline-hidden"
-        >
-          <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
-            <Radar className="size-4" />
-          </span>
-          <span className="truncate text-[15px] group-data-[collapsible=icon]:hidden">
-            Hatch Radar
-          </span>
-        </Link>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild size="lg" tooltip="Hatch Radar">
+              <Link to="/">
+                <span className="flex aspect-square size-8 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
+                  <Radar className="size-5" />
+                </span>
+                <div className="grid flex-1 text-left leading-tight">
+                  <span className="truncate text-[15px] font-semibold tracking-tight">
+                    Hatch Radar
+                  </span>
+                  <span className="truncate text-xs text-muted-foreground">Reddit 需求情报</span>
+                </div>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
       </SidebarHeader>
 
       <SidebarContent>
