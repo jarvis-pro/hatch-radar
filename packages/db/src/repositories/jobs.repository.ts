@@ -683,32 +683,45 @@ export class JobsRepository {
     };
     byModel: CostByModel[];
   }> {
-    const groups = await this.db.analysis_jobs.groupBy({
-      by: ['provider_id', 'model'],
-      where: {
-        status: 'succeeded',
-        job_type: 'analysis',
-        finished_at: { gte: BigInt(sinceSec) },
-        input_tokens: { not: null },
-      },
-      _sum: {
-        input_tokens: true,
-        output_tokens: true,
-        cache_write_tokens: true,
-        cache_read_tokens: true,
-      },
-      _count: { _all: true },
-    });
+    // UNION 旧 analysis_jobs（job_type=analysis）+ 新 tasks（kind=analyze）：成本看板反映两条路径的分析。
+    const groups = await this.db.$queryRaw<
+      {
+        provider_id: number | null;
+        model: string;
+        input_tokens: number;
+        output_tokens: number;
+        cache_write_tokens: number;
+        cache_read_tokens: number;
+        jobs: number;
+      }[]
+    >`
+      SELECT provider_id, model,
+             sum(input_tokens)::int AS input_tokens,
+             sum(coalesce(output_tokens, 0))::int AS output_tokens,
+             sum(coalesce(cache_write_tokens, 0))::int AS cache_write_tokens,
+             sum(coalesce(cache_read_tokens, 0))::int AS cache_read_tokens,
+             count(*)::int AS jobs
+      FROM (
+        SELECT provider_id, model, input_tokens, output_tokens, cache_write_tokens, cache_read_tokens
+        FROM analysis_jobs
+        WHERE status = 'succeeded' AND job_type = 'analysis' AND input_tokens IS NOT NULL
+          AND finished_at >= ${sinceSec}
+        UNION ALL
+        SELECT provider_id, model, input_tokens, output_tokens, cache_write_tokens, cache_read_tokens
+        FROM tasks
+        WHERE status = 'succeeded' AND kind = 'analyze' AND input_tokens IS NOT NULL
+          AND finished_at >= ${sinceSec}
+      ) u
+      GROUP BY provider_id, model
+    `;
     const priceById = await this.loadPriceMap([
       ...new Set(groups.map((g) => g.provider_id).filter((id): id is number => id != null)),
     ]);
 
     const byModel: CostByModel[] = groups
       .map((g) => {
-        const inputTokens = g._sum.input_tokens ?? 0;
-        const outputTokens = g._sum.output_tokens ?? 0;
-        const cacheWriteTokens = g._sum.cache_write_tokens ?? 0;
-        const cacheReadTokens = g._sum.cache_read_tokens ?? 0;
+        const { input_tokens: inputTokens, output_tokens: outputTokens } = g;
+        const { cache_write_tokens: cacheWriteTokens, cache_read_tokens: cacheReadTokens } = g;
         const price = g.provider_id != null ? priceById.get(g.provider_id) : undefined;
         const cost = price
           ? computeCost(price.provider, price.input_price, price.output_price, {
@@ -721,7 +734,7 @@ export class JobsRepository {
         return {
           provider: price?.provider ?? 'unknown',
           model: g.model,
-          jobs: g._count._all,
+          jobs: g.jobs,
           inputTokens,
           outputTokens,
           cacheWriteTokens,
@@ -799,11 +812,17 @@ export class JobsRepository {
         sum(coalesce(output_tokens, 0))::int AS output_tokens,
         sum(coalesce(cache_write_tokens, 0))::int AS cache_write_tokens,
         sum(coalesce(cache_read_tokens, 0))::int AS cache_read_tokens
-      FROM analysis_jobs
-      WHERE status = 'succeeded'
-        AND job_type = 'analysis'
-        AND input_tokens IS NOT NULL
-        AND finished_at >= extract(epoch FROM (date_trunc('day', now()) - make_interval(days => ${days - 1})))
+      FROM (
+        SELECT finished_at, provider_id, input_tokens, output_tokens, cache_write_tokens, cache_read_tokens
+        FROM analysis_jobs
+        WHERE status = 'succeeded' AND job_type = 'analysis' AND input_tokens IS NOT NULL
+          AND finished_at >= extract(epoch FROM (date_trunc('day', now()) - make_interval(days => ${days - 1})))
+        UNION ALL
+        SELECT finished_at, provider_id, input_tokens, output_tokens, cache_write_tokens, cache_read_tokens
+        FROM tasks
+        WHERE status = 'succeeded' AND kind = 'analyze' AND input_tokens IS NOT NULL
+          AND finished_at >= extract(epoch FROM (date_trunc('day', now()) - make_interval(days => ${days - 1})))
+      ) u
       GROUP BY 1, provider_id
     `;
     const priceById = await this.loadPriceMap([
@@ -862,10 +881,15 @@ export class JobsRepository {
           date_trunc('day', to_timestamp(finished_at::double precision)) AS day,
           count(*) FILTER (WHERE status = 'succeeded') AS succeeded,
           count(*) FILTER (WHERE status = 'failed') AS failed
-        FROM analysis_jobs
-        WHERE status IN ('succeeded', 'failed')
-          AND job_type = 'analysis'
-          AND finished_at >= extract(epoch FROM (now() - make_interval(days => ${days})))
+        FROM (
+          SELECT status, finished_at FROM analysis_jobs
+          WHERE status IN ('succeeded', 'failed') AND job_type = 'analysis'
+            AND finished_at >= extract(epoch FROM (now() - make_interval(days => ${days})))
+          UNION ALL
+          SELECT status, finished_at FROM tasks
+          WHERE status IN ('succeeded', 'failed') AND kind = 'analyze'
+            AND finished_at >= extract(epoch FROM (now() - make_interval(days => ${days})))
+        ) src
         GROUP BY 1
       ) AS j ON j.day = d.day
       LEFT JOIN (
