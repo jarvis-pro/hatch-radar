@@ -8,12 +8,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 常用命令
 
-> root 脚本约定：**裸命令（`dev`/`start`/`test`）= api 控制面，`worker` = 数据面 worker，其它端用 `:app` 后缀**，`db:*` 代理到 `@hatch-radar/db`。
+> root 脚本约定：**`dev:*` = 开发（全 `--watch` / HMR：`dev:api`/`dev:worker`/`dev:web`/`dev:mobile`），`start:*` = 生产 / 容器入口（无 watch：`start:api`/`start:worker`，Docker 跑这两个）**；`test`/`typecheck`/`lint` 全仓，`db:*` 代理到 `@hatch-radar/db`。
 
 后端 / 全量：
 
-- `pnpm dev` / `pnpm start` —— 起 api（控制面；启动前自动 `prisma migrate deploy`）。`dev` 带 `node --watch`。
-- `pnpm worker` —— 起 worker（数据面，可多开）。
+- `pnpm dev:api` / `pnpm start:api` —— 起 api（控制面；启动前自动 `prisma migrate deploy`）。`dev:api` 带 `node --watch` 自动重启，`start:api` 无 watch（生产 / 容器入口）。
+- `pnpm dev:worker` / `pnpm start:worker` —— 起 worker（数据面，可多开）。`dev:worker` 带 `node --watch`。
 - `pnpm typecheck` —— 全仓 `tsc --noEmit`（= `pnpm -r typecheck`）。改完代码必跑。
 - `pnpm lint` / `pnpm lint:fix` —— `eslint .`。
 - `pnpm test` —— api 测试（`vitest run`，**需先 `docker compose up -d db`**，连 `hatch_radar_test`）。

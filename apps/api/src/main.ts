@@ -66,7 +66,7 @@ async function logStartup(app: NestExpressApplication): Promise<void> {
 }
 
 /**
- * 主进程入口（`pnpm start`）。
+ * 主进程入口（`pnpm start:api`）。
  *
  * 以 NestExpressApplication 引导：HTTP 监听 + 内嵌调度，对外提供 /api/* 导出/同步接口，
  * 与独立 worker 进程消费同一 PG 队列。启动后打印横幅（监控来源 / 分析模型 / 数据概览）。

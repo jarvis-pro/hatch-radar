@@ -50,6 +50,6 @@ RUN pnpm db:generate && pnpm build:web
 
 ENV NODE_ENV=production
 
-# api（pnpm start）：启动前 prisma migrate deploy → HTTP 监听 0.0.0.0:47878 + 同源托管 web。
-# worker（pnpm worker）：standalone，连 PG 队列 + WS 网关。具体进程由 compose 的 command 指定。
-CMD ["pnpm", "start"]
+# api（pnpm start:api）：启动前 prisma migrate deploy → HTTP 监听 0.0.0.0:47878 + 同源托管 web。
+# worker（pnpm start:worker）：standalone，连 PG 队列 + WS 网关。具体进程由 compose 的 command 指定。
+CMD ["pnpm", "start:api"]

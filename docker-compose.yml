@@ -3,7 +3,7 @@
 #   ① 轻量开发（默认）：只起基础设施，后端两进程跑在宿主机享原生热重载与本机 claude 登录态。
 #        docker compose up -d db                  # 仅 PostgreSQL（最常用）
 #        docker compose --profile tools up -d     # 库 + adminer（DB UI）
-#        # 然后宿主机：pnpm start / pnpm worker / pnpm dev:web
+#        # 然后宿主机：pnpm dev:api / pnpm dev:worker / pnpm dev:web
 #
 #   ② 全栈容器化（profile full）：db + api + worker×2 + web 全进容器，一键起全套。
 #        docker compose --profile full up -d --build   # web 由 api 同源托管，访问 http://localhost:47878
@@ -100,7 +100,7 @@ services:
   # 控制面 api（单实例）：HTTP /api + 同源托管 web SPA。启动前自动 migrate deploy → 建表。
   api:
     <<: *backend
-    command: ['pnpm', 'start']
+    command: ['pnpm', 'start:api']
     ports:
       - '47878:47878'
     environment:
@@ -131,7 +131,7 @@ services:
   # 等 api 健康（migrate 完成、表就绪）再起，避免空库认领报错。
   worker:
     <<: *backend
-    command: ['pnpm', 'worker']
+    command: ['pnpm', 'start:worker']
     environment:
       <<: *backend-env
       # 容器内连 api 网关（服务名 api）；不设会按 localhost 推导而连不到
