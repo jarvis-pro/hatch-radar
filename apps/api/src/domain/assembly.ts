@@ -7,6 +7,7 @@ import { DeviceCredentialsRepository } from '@hatch-radar/db';
 import { DeviceEnrollmentsRepository } from '@hatch-radar/db';
 import { InsightsRepository } from '@hatch-radar/db';
 import { JobsRepository } from '@hatch-radar/db';
+import { JobStepsRepository } from '@hatch-radar/db';
 import { LoginAttemptsRepository } from '@hatch-radar/db';
 import { PostsRepository } from '@hatch-radar/db';
 import { ProvidersRepository } from '@hatch-radar/db';
@@ -54,6 +55,7 @@ export function createCore(db: AppDatabase, env: AppEnv) {
   const deviceEnrollments = new DeviceEnrollmentsRepository(db);
   const insights = new InsightsRepository(db);
   const jobs = new JobsRepository(db);
+  const jobSteps = new JobStepsRepository(db);
   const loginAttempts = new LoginAttemptsRepository(db);
   const posts = new PostsRepository(db);
   const providers = new ProvidersRepository(db);
@@ -73,7 +75,14 @@ export function createCore(db: AppDatabase, env: AppEnv) {
   const runtimeSettings = new RuntimeSettingsService(settings);
   const crawlerConfig = new CrawlerConfigService(sourceConnectors, queue);
   const gateway = new GatewayService(jobs, runtimeSettings);
-  const analysisConfig = new AnalysisConfigService(providers, settings, jobs, posts, gateway);
+  const analysisConfig = new AnalysisConfigService(
+    providers,
+    settings,
+    jobs,
+    jobSteps,
+    posts,
+    gateway,
+  );
   const translation = new TranslationService(translations, providers);
   const data = new DataService(db);
   const account = new AccountService(users, sessions, loginAttempts, auditLogs, runtimeSettings);
@@ -105,6 +114,7 @@ export function createCore(db: AppDatabase, env: AppEnv) {
     deviceEnrollments,
     insights,
     jobs,
+    jobSteps,
     loginAttempts,
     posts,
     providers,
