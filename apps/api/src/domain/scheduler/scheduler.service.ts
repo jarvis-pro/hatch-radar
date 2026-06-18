@@ -1,76 +1,40 @@
-import { CrawlerConfigService } from '@hatch-radar/crawler';
-import { HackerNewsClient } from '@hatch-radar/crawler';
-import type { RedditClient, CommentFetchResult } from '@hatch-radar/crawler';
-import { fetchFeed } from '@hatch-radar/crawler';
-import { CommentsRepository } from '@hatch-radar/db';
 import { JobsRepository } from '@hatch-radar/db';
 import { PostsRepository } from '@hatch-radar/db';
-import { SourcesRepository, type SourceRow } from '@hatch-radar/db';
 import { logger } from '@hatch-radar/kernel';
 import { nowSec } from '@hatch-radar/kernel';
 import { PipelineService } from '@/domain/pipeline/pipeline.service';
 
 const ARCHIVE_DAYS = 30;
-const COMMENT_BATCH_LIMIT = 200;
-/** 评论抓取后写入的 comment_pass 值（≥1 表示已抓，可进入分析队列） */
-const COMMENT_FETCHED_PASS = 2;
-
-/** HN 端点白名单：DB 里 source.identifier 存的就是端点名，取用前校验 */
-const HN_ENDPOINTS = ['topstories', 'askstories', 'showstories'] as const;
-type HnEndpoint = (typeof HN_ENDPOINTS)[number];
-function asHnEndpoint(s: string): HnEndpoint | null {
-  return (HN_ENDPOINTS as readonly string[]).includes(s) ? (s as HnEndpoint) : null;
-}
-
-/** 解析 reddit 来源的 config（sorts / limit），缺省回落 hot+new / 25 */
-function redditSourceConfig(source: SourceRow): { sorts: ('hot' | 'new')[]; limit: number } {
-  const cfg = (source.config ?? {}) as { sorts?: unknown; limit?: unknown };
-  const sorts = Array.isArray(cfg.sorts)
-    ? (cfg.sorts.filter((s) => s === 'hot' || s === 'new') as ('hot' | 'new')[])
-    : [];
-  const limit = typeof cfg.limit === 'number' && cfg.limit > 0 ? cfg.limit : 25;
-  return { sorts: sorts.length > 0 ? sorts : ['hot', 'new'], limit };
-}
-
-/** 评论抓取目标：source 决定用哪个客户端，subreddit 供 Reddit 评论接口 */
-interface CommentTarget {
-  id: string;
-  source: string;
-  subreddit: string;
-}
 
 /**
- * 定时调度服务：扫描 / 评论补全 / AI 分析入队 / 归档。
+ * 定时调度服务：触发采集 / 复查 / 分析图纸 + 历史归档。
  *
- * - cron 由 app 侧的调度类触发（NestJS：@nestjs/schedule 的 @Cron，见 apps/api/src/scheduler/scheduler.cron.ts），各自调用本服务方法。
- * - 同名任务不并发由 {@link guard} 保证（沿用裸跑的非重入语义）。
- * - 初始化轮次由 app 侧启动钩子调用 {@link runInitialRound}（NestJS：onApplicationBootstrap）。
- * - guard 是进程内内存态、无分布式锁 → 本服务（HTTP + 调度进程）须**单实例**部署。
+ * 抓取已全部下沉到 worker（经请求闸限速 / 可视化 / 可暂停）：本服务只「触发图纸」——建进程派生任务，
+ * 由 worker 认领执行（不再在 api 直接爬取，双爬虫已消除）。
+ * - cron 由 app 侧 SchedulerCron（@nestjs/schedule）触发；同名不并发由 {@link guard} 保证。
+ * - 初始化轮次由 onApplicationBootstrap 调 {@link runInitialRound}。
+ * - guard 为进程内内存态、无分布式锁 → 本服务（api 控制面）须单实例部署。
  */
 export class SchedulerService {
-  /** 正在执行的任务名集合（同名不并发） */
+  /** 正在执行的触发名集合（同名不并发） */
   private readonly running = new Set<string>();
 
   constructor(
-    private readonly crawlerConfig: CrawlerConfigService,
-    private readonly hackernews: HackerNewsClient,
-    private readonly sourcesRepo: SourcesRepository,
     private readonly postsRepo: PostsRepository,
-    private readonly commentsRepo: CommentsRepository,
     private readonly jobsRepo: JobsRepository,
     private readonly pipeline: PipelineService,
   ) {}
 
-  /** 启动后的一次性初始化轮次：扫描 → 评论补全 → 分析入队 */
+  /** 启动后的一次性初始化轮次：采集 → 复查 → 分析。 */
   async runInitialRound(): Promise<void> {
-    logger.info('启动初始化轮次：扫描 → 评论补全 → AI 分析入队');
-    await this.scan();
-    await this.comments();
+    logger.info('启动初始化轮次：采集 → 复查 → 分析');
+    await this.collect();
+    await this.recheck();
     await this.analyze();
-    logger.info('初始化轮次完成，进入定时调度（洞察可在 web 控制台查看）');
+    logger.info('初始化轮次完成，进入定时调度（进程 / 洞察可在 web 控制台查看）');
   }
 
-  /** 包装任务：同名任务不并发（上一轮未结束则跳过），异常只记录不抛出 */
+  /** 包装触发：同名不并发（上一轮未结束则跳过），异常只记录不抛出。 */
   private async guard(name: string, fn: () => Promise<void>): Promise<void> {
     if (this.running.has(name)) {
       logger.warn(`[${name}] 上一轮仍在执行，跳过本轮`);
@@ -88,164 +52,24 @@ export class SchedulerService {
     }
   }
 
-  /** 抓取单篇帖子评论并落库（Reddit 经令牌桶限速，HN 内部批量；内容 diff 由 replaceComments 处理） */
-  private async fetchAndStoreComments(
-    target: CommentTarget,
-    reddit: RedditClient | null,
-  ): Promise<void> {
-    let result: CommentFetchResult;
-    if (target.source === 'hackernews') {
-      result = await this.hackernews.fetchComments(target.id);
-    } else if (target.source === 'reddit' && reddit) {
-      result = await reddit.fetchComments(target.subreddit, target.id);
-    } else {
-      return;
-    }
-    // 评论被有意截断（深度/数量上限，或 Reddit more 折叠）时留下可观测痕迹，避免误判为全量
-    // （即时抓取与定时补全两条路径都经此处，故用中性前缀 [评论]）
-    if (result.dropped > 0) {
-      logger.info(
-        `[评论] ${target.id} 评论可能不完整：已抓 ${result.comments.length} 条，约 ${result.dropped} 条未抓（深度/数量上限或 Reddit more 折叠）`,
-      );
-    }
-    await this.commentsRepo.replaceComments(
-      target.id,
-      result.comments,
-      COMMENT_FETCHED_PASS,
-      nowSec(),
-    );
-  }
-
-  /** 后台串行抓取新帖评论（fire-and-forget）：逐篇 await，进程中断遗漏的由 refresh 兜底 */
-  private async drainNewComments(
-    targets: CommentTarget[],
-    reddit: RedditClient | null,
-  ): Promise<void> {
-    for (const t of targets) {
-      try {
-        await this.fetchAndStoreComments(t, reddit);
-      } catch (err) {
-        logger.warn(
-          `[即时评论] ${t.id} 抓取失败: ${err instanceof Error ? err.message : String(err)}`,
-        );
-      }
-    }
-  }
-
-  /**
-   * 扫描（Reddit hot/new + HN + RSS）：每 30 分钟；新帖触发后台即时评论抓取。
-   * cron: '0,30 * * * *'（见 scheduler/jobs.ts 的 ScanJob）。
-   */
-  scan(): Promise<void> {
-    return this.guard('扫描', async () => {
-      const fresh: CommentTarget[] = [];
-      const reddit = await this.crawlerConfig.getRedditClient();
-
-      const redditSources = await this.sourcesRepo.listEnabledByPlatform('reddit');
-      if (redditSources.length > 0 && !reddit) {
-        logger.warn('[扫描] 有启用的 Reddit 来源但无可用连接器（未配置/未测试通过），跳过 Reddit');
-      }
-      if (reddit) {
-        for (const source of redditSources) {
-          const { sorts, limit } = redditSourceConfig(source);
-          for (const sort of sorts) {
-            // 单个版块失败（如被封 / 改名 / 私有触发 403/404）只跳过该项，不中断整轮扫描
-            try {
-              const posts = await reddit.fetchListing(source.identifier, sort, limit);
-              const { added, updated, newPosts } = await this.postsRepo.upsertPosts(
-                posts,
-                'reddit',
-                nowSec(),
-              );
-              for (const p of newPosts) {
-                fresh.push({ id: p.id, source: 'reddit', subreddit: p.subreddit });
-              }
-              logger.info(
-                `[扫描] r/${source.identifier}/${sort}: 抓取 ${posts.length}，新增 ${added}，更新 ${updated}`,
-              );
-            } catch (err) {
-              logger.warn(
-                `[扫描] r/${source.identifier}/${sort} 失败: ${err instanceof Error ? err.message : String(err)}`,
-              );
-            }
-          }
-        }
-      }
-
-      for (const source of await this.sourcesRepo.listEnabledByPlatform('hackernews')) {
-        const endpoint = asHnEndpoint(source.identifier);
-        if (!endpoint) {
-          logger.warn(`[扫描] HN 来源 #${source.id} 端点非法（${source.identifier}），跳过`);
-          continue;
-        }
-        const channel = source.label || endpoint;
-        // 单个分区失败只跳过该分区，不影响其余分区与后续 RSS 抓取
-        try {
-          const posts = await this.hackernews.fetchStories(endpoint, channel, 30);
-          const { added, updated, newPosts } = await this.postsRepo.upsertPosts(
-            posts,
-            'hackernews',
-            nowSec(),
-          );
-          for (const p of newPosts) {
-            fresh.push({ id: p.id, source: 'hackernews', subreddit: p.subreddit });
-          }
-          logger.info(`[扫描] HN/${channel}: 抓取 ${posts.length}，新增 ${added}，更新 ${updated}`);
-        } catch (err) {
-          logger.warn(
-            `[扫描] HN/${channel} 失败: ${err instanceof Error ? err.message : String(err)}`,
-          );
-        }
-      }
-
-      // RSS（无评论，直接设 comment_pass=2 进入分析队列；不触发评论抓取）
-      for (const source of await this.sourcesRepo.listEnabledByPlatform('rss')) {
-        const name = source.label || source.identifier;
-        try {
-          const posts = await fetchFeed({ name, url: source.identifier }, 20);
-          const { added, updated } = await this.postsRepo.upsertPosts(posts, 'rss', nowSec(), 2);
-          logger.info(`[扫描] RSS/${name}: 抓取 ${posts.length}，新增 ${added}，更新 ${updated}`);
-        } catch (err) {
-          logger.warn(
-            `[扫描] RSS/${name} 失败: ${err instanceof Error ? err.message : String(err)}`,
-          );
-        }
-      }
-
-      if (fresh.length > 0) {
-        logger.info(`[扫描] 触发 ${fresh.length} 篇新帖即时评论抓取（后台）`);
-        void this.drainNewComments(fresh, reddit);
-      }
+  /** 采集：触发采集图纸（discover 抓列表去重派生 collect），worker 经请求闸执行。cron: '0,30 * * * *'。 */
+  collect(): Promise<void> {
+    return this.guard('采集', async () => {
+      const { runId } = await this.pipeline.runCollectSweep('cron');
+      logger.info(`[采集] 已触发采集进程#${runId}，交由 worker 抓取`);
     });
   }
 
-  /** 评论补全（Reddit + HN，RSS 跳过）：每 30 分钟。cron: '10,40 * * * *'。 */
-  comments(): Promise<void> {
-    return this.guard('评论补全', async () => {
-      const due = await this.postsRepo.getPostsNeedingCommentRefresh(nowSec(), COMMENT_BATCH_LIMIT);
-      if (due.length === 0) {
-        logger.info(`[评论补全] 暂无待抓/待刷新的帖子`);
-        return;
-      }
-      const reddit = await this.crawlerConfig.getRedditClient();
-      logger.info(`[评论补全] ${due.length} 篇待抓/刷新评论`);
-      for (const post of due) {
-        try {
-          await this.fetchAndStoreComments(
-            { id: post.id, source: post.source, subreddit: post.subreddit },
-            reddit,
-          );
-        } catch (err) {
-          logger.error(
-            `[评论补全] ${post.id} 失败: ${err instanceof Error ? err.message : String(err)}`,
-          );
-        }
-      }
+  /** 复查：触发复查 sweep（选到期旧帖派生 recheck），worker 经请求闸执行。cron: '10,40 * * * *'。 */
+  recheck(): Promise<void> {
+    return this.guard('复查', async () => {
+      const { runId, sweep, due } = await this.pipeline.runRecheckSweep('cron');
+      logger.info(`[复查] 已触发 sweep#${sweep} 进程#${runId}（${due} 帖到期），交由 worker 复查`);
     });
   }
 
   /**
-   * AI 分析：每小时；经图纸管线派生 analyze 任务（取代旧直入 analysis_jobs）。
+   * AI 分析：触发分析 sweep（补扫待分析帖；多数分析已由采集 / 复查事件派生）。
    * 仅当已选用 active 模型时派生。cron: '20 * * * *'。
    */
   analyze(): Promise<void> {

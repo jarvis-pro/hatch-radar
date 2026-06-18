@@ -4,7 +4,7 @@ import { SchedulerService } from '@/domain';
 
 /**
  * Nest 侧定时任务薄封装：把 @nestjs/schedule 的 @Cron 挂在方法上,委托 core 的 SchedulerService
- * （非重入 guard、扫描/评论/分析/归档逻辑、初始化轮次都在 core）。cron 表达式与原实现逐字一致。
+ * （非重入 guard、采集/复查/分析/归档触发、初始化轮次都在 core）。抓取已下沉 worker（经请求闸）。
  */
 @Injectable()
 export class SchedulerCron implements OnApplicationBootstrap {
@@ -16,13 +16,13 @@ export class SchedulerCron implements OnApplicationBootstrap {
   }
 
   @Cron('0,30 * * * *')
-  scan(): Promise<void> {
-    return this.scheduler.scan();
+  collect(): Promise<void> {
+    return this.scheduler.collect();
   }
 
   @Cron('10,40 * * * *')
-  comments(): Promise<void> {
-    return this.scheduler.comments();
+  recheck(): Promise<void> {
+    return this.scheduler.recheck();
   }
 
   @Cron('20 * * * *')

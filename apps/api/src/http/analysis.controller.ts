@@ -21,6 +21,7 @@ import {
   type JobTrigger,
   JobsRepository,
   parsePage,
+  PipelineService,
   ProvidersRepository,
   SettingsRepository,
 } from '@/domain';
@@ -67,6 +68,7 @@ function parseJobId(raw: string): number {
 export class AnalysisController {
   constructor(
     private readonly analysisConfig: AnalysisConfigService,
+    private readonly pipeline: PipelineService,
     private readonly jobs: JobsRepository,
     private readonly providers: ProvidersRepository,
     private readonly settings: SettingsRepository,
@@ -75,10 +77,10 @@ export class AnalysisController {
   @Post('run')
   @HttpCode(200)
   async run(@Body(new ZodValidationPipe(runSchema)) dto: z.infer<typeof runSchema>) {
-    const result = await this.analysisConfig.enqueueManualRun(dto.postIds, dto.providerId);
+    const result = await this.pipeline.enqueueManualAnalyze(dto.postIds, dto.providerId);
     // 业务失败（模型不存在 / 已停用）统一抛异常交全局过滤器（{ error } 400），与其它写端点一致
     if (!result.ok) throw new BadRequestException(result.error ?? '运行失败');
-    logger.info(`[手动运行] 入队 ${result.enqueued} 篇（provider#${dto.providerId}）`);
+    logger.info(`[手动运行] 派生 ${result.enqueued} 个分析任务（provider#${dto.providerId}）`);
     return { enqueued: result.enqueued };
   }
 

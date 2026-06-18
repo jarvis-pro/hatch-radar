@@ -1,6 +1,7 @@
 import {
   BlueprintsRepository,
   PostsRepository,
+  ProvidersRepository,
   RunsRepository,
   RuntimeSettingsService,
   TasksRepository,
@@ -43,6 +44,7 @@ export class PipelineService {
     private readonly posts: PostsRepository,
     private readonly analysisConfig: AnalysisConfigService,
     private readonly runtimeSettings: RuntimeSettingsService,
+    private readonly providers: ProvidersRepository,
     private readonly gateway?: Dispatcher,
   ) {}
 
@@ -159,5 +161,44 @@ export class PipelineService {
       );
     }
     return { runId: run.id, sweep, due: posts.length };
+  }
+
+  /**
+   * 手动分析选中帖子（取代旧 enqueueManualRun 直入 analysis_jobs）：建 manual analyze 进程 +
+   * 逐帖派生 analyze 任务（同帖已有活跃 analyze 任务则去重跳过）。
+   * @param postIds 选中的帖子 id
+   * @param providerId 指定模型配置 id
+   */
+  async enqueueManualAnalyze(
+    postIds: string[],
+    providerId: number,
+  ): Promise<{ ok: boolean; enqueued: number; error?: string }> {
+    const provider = await this.providers.getProvider(providerId);
+    if (!provider) return { ok: false, enqueued: 0, error: '模型配置不存在' };
+    if (!provider.enabled) return { ok: false, enqueued: 0, error: '该模型已停用' };
+
+    const bp = await this.ensureBlueprint('analyze', '自动分析');
+    const run = await this.runs.createRun(
+      {
+        blueprintId: bp.id,
+        kind: 'analyze',
+        triggerSource: 'manual',
+        params: { providerId, model: provider.model },
+      },
+      nowSec(),
+    );
+    let enqueued = 0;
+    for (const id of [...new Set(postIds)]) {
+      const res = await this.tasks.createTaskWithStages(
+        { runId: run.id, kind: 'analyze', postId: id, providerId, model: provider.model },
+        ANALYZE_STAGES,
+        nowSec(),
+      );
+      if (res.ok) enqueued += 1;
+    }
+    await this.runs.incrementCounters(run.id, { total: enqueued });
+    await this.runs.finishRun(run.id, 'completed', nowSec());
+    if (enqueued > 0) void this.gateway?.tryDispatch();
+    return { ok: true, enqueued };
   }
 }

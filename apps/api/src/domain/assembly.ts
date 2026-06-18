@@ -106,6 +106,7 @@ export function createCore(db: AppDatabase, env: AppEnv) {
     posts,
     analysisConfig,
     runtimeSettings,
+    providers,
     gateway,
   );
   const data = new DataService(db);
@@ -114,15 +115,7 @@ export function createCore(db: AppDatabase, env: AppEnv) {
   const deviceAuth = new DeviceAuthService(db);
   const sync = new SyncService(db);
   const exportService = new ExportService(db);
-  const scheduler = new SchedulerService(
-    crawlerConfig,
-    hackernews,
-    sources,
-    posts,
-    comments,
-    jobs,
-    pipeline,
-  );
+  const scheduler = new SchedulerService(posts, jobs, pipeline);
 
   // ── 种子 ─────────────────────────────────────────────────────────────
   const sourcesSeeder = new SourcesSeeder(sources);
