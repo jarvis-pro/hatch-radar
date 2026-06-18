@@ -14,6 +14,7 @@
     "@hatch-radar/config": "workspace:*",
     "@hatch-radar/db": "workspace:*",
     "@hatch-radar/kernel": "workspace:*",
+    "@hatch-radar/shared": "workspace:*",
     "@nestjs/common": "^11.1.26",
     "@nestjs/core": "^11.1.26",
     "nestjs-pino": "^4.6.1",

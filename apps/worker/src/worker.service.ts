@@ -1,11 +1,26 @@
 import { AnalysisConfigService } from '@hatch-radar/analysis';
 import { AnalysisService } from '@hatch-radar/analysis';
 import { TranslationService } from '@hatch-radar/analysis';
+import {
+  buildContext,
+  normalizeInsight,
+  parseLooseJson,
+  SYSTEM_PROMPT,
+} from '@hatch-radar/analysis';
 import { RuntimeSettingsService } from '@hatch-radar/db';
-import type { PostRow } from '@hatch-radar/db';
+import type { JobRow, JobStepRow, PostRow } from '@hatch-radar/db';
 import { CommentsRepository } from '@hatch-radar/db';
 import { JobsRepository } from '@hatch-radar/db';
+import { JobStepsRepository } from '@hatch-radar/db';
 import { PostsRepository } from '@hatch-radar/db';
+import type {
+  AiCallOutput,
+  ContextOutput,
+  FetchOutput,
+  InspectStepName,
+  NormalizeOutput,
+  PersistOutput,
+} from '@hatch-radar/shared';
 import { logger } from '@hatch-radar/kernel';
 import { nowSec } from '@hatch-radar/kernel';
 
@@ -44,6 +59,7 @@ export class WorkerService {
 
   constructor(
     private readonly jobs: JobsRepository,
+    private readonly jobSteps: JobStepsRepository,
     private readonly posts: PostsRepository,
     private readonly comments: CommentsRepository,
     private readonly analysis: AnalysisService,
@@ -108,9 +124,11 @@ export class WorkerService {
       await this.jobs.failJob(job.id, '帖子不存在或已归档', nowSec());
       return;
     }
-    // Gateway 分发的最小信息不含 job_type，按 id 轻量回查类型再路由（一次 PK 查找）
-    const jobType = await this.jobs.getJobType(job.id);
-    if (jobType === 'translation') await this.runTranslationJob(job, post, onProgress);
+    // Gateway 分发的最小信息不含 job_type / inspect 标志，按 id 回查整行再路由（一次 PK 查找）
+    const full = await this.jobs.getJob(job.id);
+    if (!full) return; // 任务已不存在（被清理）——无事可做
+    if (full.inspect) await this.runInspectJob(full, post, onProgress);
+    else if (full.job_type === 'translation') await this.runTranslationJob(job, post, onProgress);
     else await this.runAnalysisJob(job, post, onProgress);
   }
 
@@ -190,4 +208,205 @@ export class WorkerService {
       clearInterval(heartbeat);
     }
   }
+
+  /**
+   * 执行检视任务（inspect=true）：一次认领只推进到下一个闸门。
+   *
+   * 每跑完一个节点把产物落库（检查点）；逐节点闸门开启时置 paused 后正常结束本次认领，由控制面放行
+   * （paused→queued）触发重认领、从下一节点续跑（见 docs/pipeline-inspector-design.md 决策 1）。闸门关闭
+   * （运行到底）时连续跑完剩余节点。每个节点受 jobTimeoutMs 超时与 AbortSignal 约束（沿用 withTimeout）。
+   */
+  private async runInspectJob(
+    job: JobRow,
+    post: PostRow,
+    onProgress?: (jobId: number) => void,
+  ): Promise<void> {
+    const heartbeat = setInterval(() => {
+      void this.jobs.touchHeartbeat(job.id, nowSec());
+      onProgress?.(job.id);
+    }, HEARTBEAT_INTERVAL_MS);
+    const ac = new AbortController();
+    const { jobTimeoutMs } = await this.runtimeSettings.getWorkerTuning();
+    try {
+      const steps = await this.jobSteps.listSteps(job.id);
+      // 连续推进，直至：遇闸门（paused 返回）、末节点成功、节点失败、或被取消
+      for (;;) {
+        const next = steps.find((s) => s.status === 'pending');
+        if (!next) {
+          // 兜底：无 pending 节点（理论不发生）。仍 running 则按成功收尾。
+          await this.jobs.succeedJob(job.id, nowSec(), usageFromSteps(steps));
+          return;
+        }
+        await this.jobSteps.markStepRunning(job.id, next.seq, null, nowSec());
+        let output: unknown;
+        try {
+          output = await withTimeout(
+            this.execNode(next.name, job, post, steps, ac.signal),
+            jobTimeoutMs,
+            () => ac.abort(new Error('节点执行超时，中止底层调用')),
+          );
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          await this.jobSteps.markStepFailed(job.id, next.seq, msg, nowSec());
+          await this.jobs.failJob(job.id, msg, nowSec());
+          logger.error(`  ✗ [inspect job#${job.id}] 节点 ${next.name} 失败: ${msg}`);
+          return;
+        }
+        await this.jobSteps.markStepDone(job.id, next.seq, output, nowSec());
+        // 同步本地副本，供「运行到底」连续跑时下游节点读上游产物
+        next.status = 'done';
+        next.output = output as JobStepRow['output'];
+
+        // 闸门/收尾决策前实时回读最新 job（status + step_gate）——使「运行到底」「取消」对执行中的任务即时生效
+        const fresh = await this.jobs.getJob(job.id);
+        if (!fresh || fresh.status !== 'running') return; // 被取消 / 外部改状态 → 停手，不写终态
+        if (next.name === 'persist') {
+          await this.posts.markAnalyzed(post.id, nowSec()); // 末节点：标记已分析 + 整条 job 成功
+          await this.jobs.succeedJob(job.id, nowSec(), usageFromSteps(steps));
+          logger.info(`  ✓ [inspect job#${job.id}] 全部节点完成`);
+          return;
+        }
+        if (fresh.step_gate) {
+          await this.jobs.pauseJob(job.id); // 静停于闸门，等放行 → 重认领续跑
+          return;
+        }
+        // 闸门关闭：继续跑下一节点
+      }
+    } finally {
+      clearInterval(heartbeat);
+    }
+  }
+
+  /**
+   * 按节点名执行单个流水线节点，返回其产物（落 job_steps.output）。
+   * 输入按 docs/pipeline-inspector-design.md §三 表，从 job / 重新拉取（幂等）/ 上游 output 检查点取。
+   */
+  private execNode(
+    name: string,
+    job: JobRow,
+    post: PostRow,
+    steps: JobStepRow[],
+    signal: AbortSignal,
+  ): Promise<unknown> {
+    switch (name as InspectStepName) {
+      case 'resolve':
+        return this.nodeResolve(job);
+      case 'fetch':
+        return this.nodeFetch(post);
+      case 'context':
+        return this.nodeContext(post);
+      case 'ai_call':
+        return this.nodeAiCall(job, steps, signal);
+      case 'normalize':
+        return Promise.resolve(this.nodeNormalize(steps));
+      case 'persist':
+        return this.nodePersist(job, post, steps);
+      default:
+        return Promise.reject(new Error(`未知检视节点: ${name}`));
+    }
+  }
+
+  /** 节点 0 resolve：解析模型配置（幂等）。 */
+  private async nodeResolve(job: JobRow) {
+    if (job.provider_id == null) throw new Error('任务未绑定模型（provider_id 为空）');
+    const info = await this.analysisConfig.getProviderInspectInfo(job.provider_id);
+    if (!info) throw new Error('模型配置不存在或已停用');
+    return info;
+  }
+
+  /** 节点 1 fetch：拉取原始数据规模（幂等）。 */
+  private async nodeFetch(post: PostRow): Promise<FetchOutput> {
+    const comments = await this.comments.getCommentsForPost(post.id);
+    const maxDepth = comments.reduce((m, c) => Math.max(m, c.depth), 0);
+    return {
+      title: post.title,
+      selftextChars: post.selftext.length,
+      commentCount: comments.length,
+      numComments: post.num_comments,
+      maxDepth,
+    };
+  }
+
+  /** 节点 2 context：构建并落库完整上下文（检查点——避免两次认领间评论改写导致「所见≠所跑」）。 */
+  private async nodeContext(post: PostRow): Promise<ContextOutput> {
+    const comments = await this.comments.getCommentsForPost(post.id);
+    const contextText = buildContext(post, comments);
+    return {
+      systemPrompt: SYSTEM_PROMPT,
+      contextText,
+      chars: contextText.length,
+      estimatedTokens: Math.ceil(contextText.length / EST_CHARS_PER_TOKEN),
+    };
+  }
+
+  /** 节点 3 ai_call：读 context 检查点 + 解析处理器 → 调 AI 拿原始响应（不可重算，整设计落检查点的根因）。 */
+  private async nodeAiCall(
+    job: JobRow,
+    steps: JobStepRow[],
+    signal: AbortSignal,
+  ): Promise<AiCallOutput> {
+    if (job.provider_id == null) throw new Error('任务未绑定模型（provider_id 为空）');
+    const ctx = stepOutput<ContextOutput>(steps, 'context');
+    if (!ctx?.contextText) throw new Error('上游 context 节点产物缺失，无法调用 AI');
+    const processor = await this.analysisConfig.getProcessorForProvider(job.provider_id);
+    if (!processor) throw new Error('模型配置不存在或已停用');
+    const raw = await processor.callRaw(ctx.contextText, signal);
+    return {
+      raw: raw.raw,
+      usage: raw.usage,
+      keyId: raw.keyId ?? null,
+      keySwitched: raw.keySwitched ?? false,
+    };
+  }
+
+  /** 节点 4 normalize：读 ai_call 检查点 → 归一化（纯函数）+ 统计归一化丢弃的非法条目。 */
+  private nodeNormalize(steps: JobStepRow[]): NormalizeOutput {
+    const ai = stepOutput<AiCallOutput>(steps, 'ai_call');
+    if (ai?.raw == null) throw new Error('上游 ai_call 节点产物缺失，无法归一化');
+    const parsed = typeof ai.raw === 'string' ? parseLooseJson(ai.raw) : ai.raw;
+    const insight = normalizeInsight(parsed);
+    const p = parsed as { pain_points?: unknown[]; opportunities?: unknown[] };
+    const rawPain = Array.isArray(p?.pain_points) ? p.pain_points.length : 0;
+    const rawOpp = Array.isArray(p?.opportunities) ? p.opportunities.length : 0;
+    return {
+      insight,
+      droppedPainPoints: Math.max(0, rawPain - insight.pain_points.length),
+      droppedOpportunities: Math.max(0, rawOpp - insight.opportunities.length),
+    };
+  }
+
+  /** 节点 5 persist：读 normalize 检查点 → 落库（saveInsight 按 post_id 幂等，重认领重跑安全）。 */
+  private async nodePersist(
+    job: JobRow,
+    post: PostRow,
+    steps: JobStepRow[],
+  ): Promise<PersistOutput> {
+    const norm = stepOutput<NormalizeOutput>(steps, 'normalize');
+    if (!norm?.insight) throw new Error('上游 normalize 节点产物缺失，无法落库');
+    const { saved } = await this.analysis.persistInsight(post, job.model, norm.insight);
+    return {
+      saved,
+      painPointCount: norm.insight.pain_points.length,
+      opportunityCount: norm.insight.opportunities.length,
+    };
+  }
+}
+
+/** 粗略估算每 token 字符数（仅用于检视展示，不参与计费） */
+const EST_CHARS_PER_TOKEN = 4;
+
+/** 取某节点已落库的产物并按目标形状读取（上游检查点；未跑/无产物为 undefined）。 */
+function stepOutput<T>(steps: JobStepRow[], name: InspectStepName): T | undefined {
+  const out = steps.find((s) => s.name === name)?.output;
+  return (out ?? undefined) as T | undefined;
+}
+
+/** 从 ai_call 节点产物提取 token 用量，供整条 job succeedJob 计费（缺则 null）。 */
+function usageFromSteps(steps: JobStepRow[]): {
+  inputTokens: number;
+  outputTokens: number;
+  cacheWriteTokens: number;
+  cacheReadTokens: number;
+} | null {
+  return stepOutput<AiCallOutput>(steps, 'ai_call')?.usage ?? null;
 }

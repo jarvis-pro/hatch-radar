@@ -3,6 +3,7 @@ import {
   CommentsRepository,
   InsightsRepository,
   JobsRepository,
+  JobStepsRepository,
   PostsRepository,
   ProvidersRepository,
   RuntimeSettingsService,
@@ -20,6 +21,7 @@ import { WorkerService } from './worker.service';
  */
 export function createWorkerCore(db: AppDatabase): { worker: WorkerService } {
   const jobs = new JobsRepository(db);
+  const jobSteps = new JobStepsRepository(db);
   const posts = new PostsRepository(db);
   const comments = new CommentsRepository(db);
   const insights = new InsightsRepository(db);
@@ -29,10 +31,11 @@ export function createWorkerCore(db: AppDatabase): { worker: WorkerService } {
 
   const runtimeSettings = new RuntimeSettingsService(settings);
   const analysis = new AnalysisService(insights);
-  const analysisConfig = new AnalysisConfigService(providers, settings, jobs, posts);
+  const analysisConfig = new AnalysisConfigService(providers, settings, jobs, jobSteps, posts);
   const translation = new TranslationService(translations, providers);
   const worker = new WorkerService(
     jobs,
+    jobSteps,
     posts,
     comments,
     analysis,
