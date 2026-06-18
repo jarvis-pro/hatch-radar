@@ -8,6 +8,10 @@ import { DeviceEnrollmentsRepository } from '@hatch-radar/db';
 import { InsightsRepository } from '@hatch-radar/db';
 import { JobsRepository } from '@hatch-radar/db';
 import { JobStepsRepository } from '@hatch-radar/db';
+import { BlueprintsRepository } from '@hatch-radar/db';
+import { RunsRepository } from '@hatch-radar/db';
+import { TasksRepository } from '@hatch-radar/db';
+import { TaskStagesRepository } from '@hatch-radar/db';
 import { LoginAttemptsRepository } from '@hatch-radar/db';
 import { PostsRepository } from '@hatch-radar/db';
 import { ProvidersRepository } from '@hatch-radar/db';
@@ -27,6 +31,7 @@ import { CrawlerConfigService } from '@hatch-radar/crawler';
 import { AnalysisConfigService } from '@hatch-radar/analysis';
 import { TranslationService } from '@hatch-radar/analysis';
 import { GatewayService } from './gateway/gateway.service';
+import { PipelineService } from './pipeline/pipeline.service';
 import { DataService } from './data/data.service';
 import { AccountService } from './account/account.service';
 import { AdminService } from './admin/admin.service';
@@ -56,6 +61,11 @@ export function createCore(db: AppDatabase, env: AppEnv) {
   const insights = new InsightsRepository(db);
   const jobs = new JobsRepository(db);
   const jobSteps = new JobStepsRepository(db);
+  // 图纸驱动生命周期仓储（新执行模型；过渡期与 jobs / jobSteps 并存）
+  const blueprints = new BlueprintsRepository(db);
+  const runs = new RunsRepository(db);
+  const tasks = new TasksRepository(db);
+  const taskStages = new TaskStagesRepository(db);
   const loginAttempts = new LoginAttemptsRepository(db);
   const posts = new PostsRepository(db);
   const providers = new ProvidersRepository(db);
@@ -74,7 +84,7 @@ export function createCore(db: AppDatabase, env: AppEnv) {
   // ── 服务 ─────────────────────────────────────────────────────────────
   const runtimeSettings = new RuntimeSettingsService(settings);
   const crawlerConfig = new CrawlerConfigService(sourceConnectors, queue);
-  const gateway = new GatewayService(jobs, runtimeSettings);
+  const gateway = new GatewayService(jobs, tasks, runtimeSettings);
   const analysisConfig = new AnalysisConfigService(
     providers,
     settings,
@@ -84,6 +94,16 @@ export function createCore(db: AppDatabase, env: AppEnv) {
     gateway,
   );
   const translation = new TranslationService(translations, providers);
+  // 图纸执行编排：自动分析改由它派生 analyze 任务（归属 run/blueprint）
+  const pipeline = new PipelineService(
+    blueprints,
+    runs,
+    tasks,
+    posts,
+    analysisConfig,
+    runtimeSettings,
+    gateway,
+  );
   const data = new DataService(db);
   const account = new AccountService(users, sessions, loginAttempts, auditLogs, runtimeSettings);
   const admin = new AdminService(users, sessions, deviceCredentials, deviceEnrollments, auditLogs);
@@ -97,8 +117,7 @@ export function createCore(db: AppDatabase, env: AppEnv) {
     posts,
     comments,
     jobs,
-    analysisConfig,
-    runtimeSettings,
+    pipeline,
   );
 
   // ── 种子 ─────────────────────────────────────────────────────────────
@@ -115,6 +134,10 @@ export function createCore(db: AppDatabase, env: AppEnv) {
     insights,
     jobs,
     jobSteps,
+    blueprints,
+    runs,
+    tasks,
+    taskStages,
     loginAttempts,
     posts,
     providers,
@@ -132,6 +155,7 @@ export function createCore(db: AppDatabase, env: AppEnv) {
     gateway,
     analysisConfig,
     translation,
+    pipeline,
     data,
     account,
     admin,

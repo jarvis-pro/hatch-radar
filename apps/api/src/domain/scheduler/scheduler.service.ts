@@ -1,5 +1,3 @@
-import { AnalysisConfigService } from '@hatch-radar/analysis';
-import { RuntimeSettingsService } from '@hatch-radar/db';
 import { CrawlerConfigService } from '@hatch-radar/crawler';
 import { HackerNewsClient } from '@hatch-radar/crawler';
 import type { RedditClient, CommentFetchResult } from '@hatch-radar/crawler';
@@ -10,6 +8,7 @@ import { PostsRepository } from '@hatch-radar/db';
 import { SourcesRepository, type SourceRow } from '@hatch-radar/db';
 import { logger } from '@hatch-radar/kernel';
 import { nowSec } from '@hatch-radar/kernel';
+import { PipelineService } from '@/domain/pipeline/pipeline.service';
 
 const ARCHIVE_DAYS = 30;
 const COMMENT_BATCH_LIMIT = 200;
@@ -59,8 +58,7 @@ export class SchedulerService {
     private readonly postsRepo: PostsRepository,
     private readonly commentsRepo: CommentsRepository,
     private readonly jobsRepo: JobsRepository,
-    private readonly analysisConfig: AnalysisConfigService,
-    private readonly runtimeSettings: RuntimeSettingsService,
+    private readonly pipeline: PipelineService,
   ) {}
 
   /** 启动后的一次性初始化轮次：扫描 → 评论补全 → 分析入队 */
@@ -246,18 +244,19 @@ export class SchedulerService {
     });
   }
 
-  /** AI 分析入队：每小时；仅当已选用 active 模型时入队。cron: '20 * * * *'。 */
+  /**
+   * AI 分析：每小时；经图纸管线派生 analyze 任务（取代旧直入 analysis_jobs）。
+   * 仅当已选用 active 模型时派生。cron: '20 * * * *'。
+   */
   analyze(): Promise<void> {
-    return this.guard('AI 分析入队', async () => {
-      const { active, enqueued, pending } = await this.analysisConfig.enqueueAutoAnalysisRound(
-        await this.runtimeSettings.getAnalyzeBatchSize(),
-      );
+    return this.guard('AI 分析派生', async () => {
+      const { active, created, pending } = await this.pipeline.runAnalyzeSweep('cron');
       if (!active) {
-        logger.info('[AI 分析] 未配置 active 模型，跳过自动入队（可在设置页配置）');
+        logger.info('[AI 分析] 未配置 active 模型，跳过自动派生（可在设置页配置）');
         return;
       }
       logger.info(
-        `[AI 分析] 入队 ${enqueued} 篇（${pending} 待分析，模型 ${active.label}），交由 worker 处理`,
+        `[AI 分析] 派生 ${created} 个分析任务（${pending} 待分析，模型 ${active.label}），交由 worker 处理`,
       );
     });
   }
