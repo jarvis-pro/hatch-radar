@@ -84,4 +84,10 @@ export class RunsRepository {
     });
     return rows.map((r: RunPg) => toRunRow(r));
   }
+
+  /** 列出全部图纸最近的进程（id 倒序），供「进程」总览页。 */
+  async listAllRecent(limit: number): Promise<RunRow[]> {
+    const rows = await this.db.runs.findMany({ orderBy: { id: 'desc' }, take: limit });
+    return rows.map((r: RunPg) => toRunRow(r));
+  }
 }

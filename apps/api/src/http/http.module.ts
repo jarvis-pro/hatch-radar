@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AccountModule } from '@/account/account.module';
 import { AuthModule } from '@/auth/auth.module';
 import { AnalysisController } from './analysis.controller';
+import { PipelineController } from './pipeline.controller';
 import { ExportController } from './export.controller';
 import { HealthController } from './health.controller';
 import { MeController } from './me.controller';
@@ -24,6 +25,7 @@ import { TranslationsController } from './translations.controller';
     SourcesController,
     SourceConnectorsController,
     AnalysisController,
+    PipelineController,
     ExportController,
     SyncController,
     TranslationsController,

@@ -274,4 +274,10 @@ export class TasksRepository {
       return rows.length;
     });
   }
+
+  /** 列出某进程的全部任务（id 升序），供进程详情的任务树。 */
+  async listByRun(runId: number): Promise<TaskRow[]> {
+    const rows = await this.db.tasks.findMany({ where: { run_id: runId }, orderBy: { id: 'asc' } });
+    return rows.map((r: TaskPg) => toTaskRow(r));
+  }
 }
