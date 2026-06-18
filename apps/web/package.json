@@ -18,6 +18,7 @@
     "@hatch-radar/shared": "workspace:*",
     "@hatch-radar/ui": "workspace:*",
     "@tanstack/react-query": "^5.0.0",
+    "@xyflow/react": "^12.11.0",
     "lucide-react": "catalog:",
     "qrcode.react": "^4.2.0",
     "react": "^19.2.7",
