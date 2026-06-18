@@ -22,6 +22,12 @@ import type {
   sync_opsModel,
   translationsModel,
   triageModel,
+  blueprintsModel,
+  runsModel,
+  tasksModel,
+  task_stagesModel,
+  request_queueModel,
+  request_lanesModel,
 } from './generated/prisma/models';
 
 // 便利再导出：让 server 数据层从 @hatch-radar/db 单点取行类型（与表/映射同源）
@@ -49,6 +55,12 @@ export type ProviderApiKeyPg = provider_api_keysModel;
 export type SourcePg = sourcesModel;
 export type SourceConnectorPg = source_connectorsModel;
 export type TranslationPg = translationsModel;
+export type BlueprintPg = blueprintsModel;
+export type RunPg = runsModel;
+export type TaskPg = tasksModel;
+export type TaskStagePg = task_stagesModel;
+export type RequestQueuePg = request_queueModel;
+export type RequestLanePg = request_lanesModel;
 
 // ─── 域行类型（bigint→number）：无 shared 对应物的表在此定义 ──────────────────────────
 /** analysis_jobs 行（status / trigger 为枚举，时间戳为 number；inspect/step_gate 为 boolean） */
@@ -67,6 +79,20 @@ export type SourceConnectorRow = BigIntToNumber<source_connectorsModel>;
 export type AppSettingRow = app_settingsModel;
 /** translations 行（source_field / status / provider_kind 为枚举；时间戳为 number） */
 export type TranslationRow = BigIntToNumber<translationsModel>;
+
+// ─── 图纸驱动生命周期行类型（status/kind 为字符串常量；时间戳 bigint→number；详见 schema） ───
+/** blueprints 行（trigger_config / params 为 JsonValue；时间戳为 number） */
+export type BlueprintRow = BigIntToNumber<blueprintsModel>;
+/** runs 行（params 为 JsonValue；sweep_seq 可空；时间戳为 number） */
+export type RunRow = BigIntToNumber<runsModel>;
+/** tasks 行（status / kind 为字符串；params 为 JsonValue；usage / 时间戳为 number|null） */
+export type TaskRow = BigIntToNumber<tasksModel>;
+/** task_stages 行（status / name 为字符串；input_summary / output 为 JsonValue；时间戳为 number） */
+export type TaskStageRow = BigIntToNumber<task_stagesModel>;
+/** request_queue 行（params / result 为 JsonValue；时间戳为 number） */
+export type RequestQueueRow = BigIntToNumber<request_queueModel>;
+/** request_lanes 行（时间戳为 number） */
+export type RequestLaneRow = BigIntToNumber<request_lanesModel>;
 
 // ─── 编译期断言：posts/comments 推导类型与 shared 行类型互相可赋值 ────────────────────
 // 任一侧字段漂移（改名 / 改可空 / 改类型）都会在此处 tsc 报错，挡住静默契约破坏。

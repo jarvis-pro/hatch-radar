@@ -15,6 +15,11 @@ export * from './repositories/device-enrollments.repository';
 export * from './repositories/insights.repository';
 export * from './repositories/job-steps.repository';
 export * from './repositories/jobs.repository';
+// 图纸驱动生命周期仓储（新执行模型；过渡期与 jobs / job-steps 并存）
+export * from './repositories/blueprints.repository';
+export * from './repositories/runs.repository';
+export * from './repositories/tasks.repository';
+export * from './repositories/task-stages.repository';
 export * from './repositories/login-attempts.repository';
 export * from './repositories/posts.repository';
 export * from './repositories/providers.repository';

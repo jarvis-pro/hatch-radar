@@ -34,6 +34,18 @@ import type {
   TranslationPg,
   TranslationRow,
   TriagePgRow,
+  BlueprintPg,
+  BlueprintRow,
+  RunPg,
+  RunRow,
+  TaskPg,
+  TaskRow,
+  TaskStagePg,
+  TaskStageRow,
+  RequestQueuePg,
+  RequestQueueRow,
+  RequestLanePg,
+  RequestLaneRow,
 } from './types';
 
 /** bigint Unix 秒 → number */
@@ -73,6 +85,50 @@ export function toJobRow(m: JobPg): JobRow {
 /** Prisma job_steps 行 → 域 JobStepRow（started_at / finished_at bigint→number） */
 export function toJobStepRow(m: JobStepPg): JobStepRow {
   return { ...m, started_at: nOpt(m.started_at), finished_at: nOpt(m.finished_at) };
+}
+
+// ─── 图纸驱动生命周期映射（时间戳 bigint→number；jsonb 已解析，直接搬） ──────────────────
+
+/** Prisma blueprints 行 → 域 BlueprintRow（时间戳 bigint→number） */
+export function toBlueprintRow(m: BlueprintPg): BlueprintRow {
+  return { ...m, created_at: n(m.created_at), updated_at: n(m.updated_at) };
+}
+
+/** Prisma runs 行 → 域 RunRow（started_at / finished_at bigint→number） */
+export function toRunRow(m: RunPg): RunRow {
+  return { ...m, started_at: n(m.started_at), finished_at: nOpt(m.finished_at) };
+}
+
+/** Prisma tasks 行 → 域 TaskRow（enqueued_at / started_at / finished_at / heartbeat_at bigint→number） */
+export function toTaskRow(m: TaskPg): TaskRow {
+  return {
+    ...m,
+    enqueued_at: n(m.enqueued_at),
+    started_at: nOpt(m.started_at),
+    finished_at: nOpt(m.finished_at),
+    heartbeat_at: nOpt(m.heartbeat_at),
+  };
+}
+
+/** Prisma task_stages 行 → 域 TaskStageRow（started_at / finished_at bigint→number） */
+export function toTaskStageRow(m: TaskStagePg): TaskStageRow {
+  return { ...m, started_at: nOpt(m.started_at), finished_at: nOpt(m.finished_at) };
+}
+
+/** Prisma request_queue 行 → 域 RequestQueueRow（scheduled_at / enqueued_at / started_at / finished_at bigint→number） */
+export function toRequestQueueRow(m: RequestQueuePg): RequestQueueRow {
+  return {
+    ...m,
+    scheduled_at: n(m.scheduled_at),
+    enqueued_at: n(m.enqueued_at),
+    started_at: nOpt(m.started_at),
+    finished_at: nOpt(m.finished_at),
+  };
+}
+
+/** Prisma request_lanes 行 → 域 RequestLaneRow（updated_at bigint→number） */
+export function toRequestLaneRow(m: RequestLanePg): RequestLaneRow {
+  return { ...m, updated_at: n(m.updated_at) };
 }
 
 /** Prisma model_providers 行 → 域 ProviderRow（时间戳 bigint→number；keys 关系不参与） */

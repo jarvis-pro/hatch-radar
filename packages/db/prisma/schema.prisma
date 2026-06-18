@@ -94,6 +94,186 @@ model job_steps {
   @@index([job_id], map: "idx_job_steps_job")
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// 图纸驱动生命周期（Blueprint Lifecycle，详见 docs/blueprint-lifecycle-design.md）
+// 统一执行模型：图纸 blueprints → 进程 runs → 任务 tasks → 环节 task_stages，
+// 外加全局出站请求闸 request_queue / request_lanes。
+// 过渡期（expand/contract）与 analysis_jobs / job_steps 并存；后续里程碑切换并删旧表。
+// 状态 / 类型一律 String + 应用层常量约束（沿用 job_steps 「不建 enum 便于演进」的取舍）。
+// 所有引用（run_id / parent_task_id / post_id / task_id / owner_*）均软引用、未建外键（沿用全库约定）。
+// ─────────────────────────────────────────────────────────────────────────
+
+/// 图纸：一类可复用、可调度的流程定义（采集 / 复查 / 归档 / 分析）。代码常量仅作首启种子，运行期以本表为准。
+model blueprints {
+  id             Int     @id @default(autoincrement())
+  /// 流程类型：collect=采集 / recheck=复查 / maintenance=归档清理 / analyze=分析补扫（自动分析一般由事件派生，不必建图纸）。
+  kind           String
+  /// 展示名。
+  label          String
+  /// 是否启用（停用则调度器不触发；单次触发不受此限）。
+  enabled        Boolean @default(true)
+  /// 触发方式：once=单次（仅 API 触发）/ cron=定时（墙钟点位）/ interval=间隔（上轮完成后再等一段）。
+  trigger_kind   String
+  /// 触发配置(JSON)：cron 表达式 | interval 的 sweep 行为 / batch_size / batch_interval 等。
+  trigger_config Json?
+  /// 业务参数(JSON)：采集=来源筛选 / sorts / limit / 翻页停止 K / 评论预算；复查=batch_size / batch_interval / backoff_cap 等。
+  params         Json?
+  created_at     BigInt
+  updated_at     BigInt
+
+  @@index([kind, enabled], map: "idx_blueprints_kind")
+}
+
+/// 进程：图纸的一次执行实例。承载状态、计数、起止时间、（复查的）sweep 序号。
+model runs {
+  id             Int     @id @default(autoincrement())
+  /// 所属图纸（blueprints.id 软引用）。
+  blueprint_id   Int
+  /// 冗余 kind，免联表。
+  kind           String
+  /// 进程状态：running | paused | completed | failed | canceled。
+  status         String  @default("running")
+  /// 触发来源：manual=手动 / cron=定时 / interval=间隔循环。
+  trigger_source String
+  /// 复查 sweep 序号（间隔模式逐 sweep 自增，驱动退避到期判定）；非复查为空。
+  sweep_seq      Int?
+  /// 任务计数快照（派生 / 完成 / 略过 / 失败），供看板与树形进度。
+  tasks_total    Int     @default(0)
+  tasks_done     Int     @default(0)
+  tasks_skipped  Int     @default(0)
+  tasks_failed   Int     @default(0)
+  /// 启动时的图纸参数快照（运行中以此为准，改图纸只影响下一 run）。
+  params         Json?
+  error          String?
+  started_at     BigInt
+  finished_at    BigInt?
+
+  @@index([blueprint_id, started_at], map: "idx_runs_blueprint")
+  @@index([status], map: "idx_runs_status")
+}
+
+/// 任务：进程派生的工作单元，绝大多数 = 一条帖子。取代旧 analysis_jobs，泛化到所有 kind。
+/// 认领用 FOR UPDATE SKIP LOCKED（多 worker 不重不漏）；心跳 + max_attempts + 僵死回收沿用旧机制。
+model tasks {
+  id             Int     @id @default(autoincrement())
+  /// 所属进程（runs.id 软引用）。
+  run_id         Int
+  /// 任务类型：discover=发现去重派生 / collect=抓新帖 / recheck=复查 / analyze=AI 分析 / translate=翻译。
+  kind           String
+  /// 血缘：派生它的父任务（discover→collect→analyze）；根任务为空。供树形展示与级联。
+  parent_task_id Int?
+  /// 目标帖子 id（posts.id 软引用）；discover 任务为空。
+  post_id        String?
+  /// 任务状态机：queued | running | paused | succeeded | skipped | failed | canceled。
+  /// paused（环节闸门）不被 claimNextTask 认领、不被僵死回收；skipped=无需处理（如复查未变）。
+  status         String  @default("queued")
+  attempts       Int     @default(0)
+  max_attempts   Int     @default(3)
+  /// 当前 / 下一个待执行环节 seq（展示与续跑参考）。
+  current_seq    Int     @default(0)
+  /// 调度优先级，越小越先。
+  priority       Int     @default(0)
+  /// analyze / translate 任务的模型配置（model_providers.id 软引用）；其余 kind 为空。
+  provider_id    Int?
+  /// 模型名快照（计费对账）。
+  model          String?
+  /// 成功后由 worker 写入的 token 用量（仅 analyze / translate；供成本折算，列式存便于聚合）。
+  input_tokens       Int?
+  output_tokens      Int?
+  cache_write_tokens Int?
+  cache_read_tokens  Int?
+  /// 任务级参数(JSON)：如 collect 的列表条目快照、recheck 的基线等。
+  params         Json?
+  error          String?
+  enqueued_at    BigInt
+  started_at     BigInt?
+  finished_at    BigInt?
+  /// 心跳时间戳；running 期间 worker 周期刷新，用于僵死回收（paused 不回收）。
+  heartbeat_at   BigInt?
+
+  @@index([run_id], map: "idx_tasks_run")
+  @@index([status, priority, enqueued_at], map: "idx_tasks_claim")
+  @@index([parent_task_id], map: "idx_tasks_parent")
+  @@index([post_id], map: "idx_tasks_post")
+  // 另有部分唯一索引 uniq_tasks_active_post：UNIQUE(post_id, kind) WHERE status IN (queued,running,paused) AND post_id IS NOT NULL，
+  // 保证同帖同 kind 同时至多一条活跃任务（去重第③层；泛化自 analysis_jobs 的 uniq_jobs_active_post）。
+  // Prisma schema 无法表达部分索引，故由迁移手工维护，勿删。
+}
+
+/// 环节：任务内的有名步骤，逐步落检查点。取代旧 job_steps，泛化到所有 kind，并把闸门下放到逐行。
+/// output 既是展示内容，又是下游 / 重认领的检查点输入（尤其 ai_call 原始响应、context 文本不可重算）。
+model task_stages {
+  id            Int     @id @default(autoincrement())
+  /// 所属任务（tasks.id 软引用）；随任务清理。
+  task_id       Int
+  /// 环节序号 0..N，决定执行与展示顺序。
+  seq           Int
+  /// 环节名（按 kind 的模板，应用层常量约束）。
+  name          String
+  /// 环节状态：pending | running | done | failed | skipped。
+  status        String  @default("pending")
+  /// 闸门：true 则本环节跑完即置任务 paused 等人工放行（逐环节停起的载体；泛化自旧全局 step_gate）。
+  gate          Boolean @default(false)
+  /// 输入摘要（展示用）。
+  input_summary Json?
+  /// 环节产物（jsonb）= 展示内容 + 下游 / 重认领检查点输入。
+  output        Json?
+  error         String?
+  started_at    BigInt?
+  finished_at   BigInt?
+
+  @@unique([task_id, seq], map: "uniq_task_stages_task_seq")
+  @@index([task_id], map: "idx_task_stages_task")
+}
+
+/// 出站请求队列：所有外站请求的唯一收口，请求闸据此限速 / 放行 / 展示执行计划（详见设计稿 §四）。
+model request_queue {
+  id             Int     @id @default(autoincrement())
+  /// 限速分组：reddit | hackernews | rss | ai-<provider>。
+  lane           String
+  /// 更细的限速键（可选，如具体 host）。
+  host           String?
+  method         String  @default("GET")
+  url            String
+  /// 请求载荷 / 头(JSON)。
+  params         Json?
+  /// 用途：listing | post_detail | comments_page | ai_call …（展示 + 排查）。
+  purpose        String
+  /// 等待此请求结果的任务 / 环节（回填后唤醒续跑）。
+  owner_task_id  Int?
+  owner_stage_id Int?
+  priority       Int     @default(0)
+  /// 状态：pending | running | done | failed | canceled。
+  status         String  @default("pending")
+  /// 最早可执行时刻（epoch 秒；退避 / 重试推迟用）。
+  scheduled_at   BigInt
+  attempts       Int     @default(0)
+  /// 抓回的原始结果（交还 owner 任务解析）。
+  result         Json?
+  error          String?
+  enqueued_at    BigInt
+  started_at     BigInt?
+  finished_at    BigInt?
+
+  @@index([lane, status, priority, scheduled_at], map: "idx_reqq_dispatch")
+  @@index([owner_task_id], map: "idx_reqq_owner")
+}
+
+/// 请求 lane 的限速与暂停配置（Web 可改；持久化以跨进程 / 重启）。代码常量作首启种子。
+model request_lanes {
+  /// lane 名作主键。
+  lane            String  @id
+  /// 每分钟放行上限。
+  rate_per_minute Int     @default(90)
+  /// 令牌桶突发容量。
+  burst           Int     @default(10)
+  /// 该 lane 并发执行上限。
+  max_concurrency Int     @default(1)
+  /// 手动暂停开关（请求闸读此决定是否放行该 lane）。
+  paused          Boolean @default(false)
+  updated_at      BigInt
+}
+
 /// 应用配置键值表：存放运行期可调设置（如默认模型、抓取参数）。
 model app_settings {
   key   String @id
