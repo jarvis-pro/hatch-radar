@@ -102,6 +102,8 @@ export interface QueueJobView extends JobView {
   cost: number | null;
   /** provider 类型（anthropic/openai/deepseek/claude_cli/azure）；provider 已删/无则 null。翻译行据此在「模型」列显示 provider 而非占位 model */
   provider: string | null;
+  /** 是否检视任务（流水线检视器）——web 据此在队列行加「检视」跳转 */
+  inspect: boolean;
 }
 
 /** listRecentJobs 的原始行（时间戳为 bigint，待折回 number） */
@@ -344,6 +346,142 @@ export class JobsRepository {
     });
   }
 
+  // ─── 流水线检视器（inspect）：任务生命周期 ───────────────────────────────────────────
+  // 检视任务是 manual run 的「逐步/留痕」变体。状态机增量见 docs/pipeline-inspector-design.md：
+  // 新增 paused（节点间闸门）；claimNextJob 只认领 queued、reclaim 只扫 running，故 paused 自然
+  // 静停于闸门、不被认领/回收。逐节点轨迹在 job_steps（JobStepsRepository）。
+
+  /**
+   * 建一条检视任务：原子插入 job（inspect=true、trigger=manual）+ N 个 pending 节点。
+   * - 同帖已有活跃分析任务（queued/running/paused）时拒绝（与普通分析共用 uniq_jobs_active_post）
+   * - job + steps 同事务插入，避免「有 job 无 steps」的半成品
+   * @param stepNames 节点名（顺序即 seq 0..N-1），由调用方传入 INSPECT_STEP_NAMES
+   * @param stepGate 逐节点闸门：true 每节点一停等放行，false 连续跑完（仍留轨迹）
+   * @returns ok+jobId；该帖已有活跃分析任务时 ok=false + error
+   */
+  async createInspectJob(
+    postId: string,
+    providerId: number | null,
+    model: string,
+    stepGate: boolean,
+    stepNames: readonly string[],
+    now: number,
+  ): Promise<{ ok: true; jobId: number } | { ok: false; error: string }> {
+    return this.db.$transaction(async (tx) => {
+      const active = await tx.analysis_jobs.findFirst({
+        where: {
+          post_id: postId,
+          job_type: 'analysis',
+          status: { in: ['queued', 'running', 'paused'] },
+        },
+        select: { id: true, inspect: true },
+      });
+      if (active) {
+        return {
+          ok: false as const,
+          error: active.inspect
+            ? '该帖已有进行中的检视任务，请先完成或取消后再发起'
+            : '该帖已有活跃分析任务，请等其完成后再发起检视',
+        };
+      }
+      const job = await tx.analysis_jobs.create({
+        data: {
+          post_id: postId,
+          provider_id: providerId,
+          model,
+          trigger: 'manual',
+          status: 'queued',
+          job_type: 'analysis',
+          inspect: true,
+          step_gate: stepGate,
+          attempts: 0,
+          max_attempts: DEFAULT_MAX_ATTEMPTS,
+          enqueued_at: BigInt(now),
+        },
+      });
+      await tx.job_steps.createMany({
+        data: stepNames.map((name, seq) => ({ job_id: job.id, seq, name, status: 'pending' })),
+      });
+      return { ok: true as const, jobId: job.id };
+    });
+  }
+
+  /** 取一条任务（含 inspect/step_gate 等全字段）；不存在返回 null。供检视视图与 worker 分步执行读取。 */
+  async getJob(jobId: number): Promise<JobRow | null> {
+    const row = await this.db.analysis_jobs.findUnique({ where: { id: jobId } });
+    return row ? toJobRow(row) : null;
+  }
+
+  /**
+   * 节点间闸门：把执行中的检视任务置 paused（worker 跑完一个节点后调用，随即正常结束本次认领）。
+   * 仅 running 可置 paused，避免误置非执行态。
+   */
+  async pauseJob(jobId: number): Promise<void> {
+    await this.db.analysis_jobs.updateMany({
+      where: { id: jobId, status: 'running' },
+      data: { status: 'paused' },
+    });
+  }
+
+  /**
+   * 放行下一节点：paused→queued，并重置 attempts/时间戳（每次放行＝该节点全新的尝试预算，
+   * 使「逐节点重认领」不会把 attempts 累加到 max_attempts 而被僵死回收误判失败）。
+   * @returns 是否实际放行（false = 当前并非 paused）
+   */
+  async resumeInspectJob(jobId: number): Promise<boolean> {
+    const res = await this.db.analysis_jobs.updateMany({
+      where: { id: jobId, status: 'paused' },
+      data: { status: 'queued', attempts: 0, started_at: null, heartbeat_at: null, error: null },
+    });
+    return res.count > 0;
+  }
+
+  /**
+   * 重试失败节点后把整条 job 由 failed 置回 queued（配合 {@link JobStepsRepository.resetStepToPending}）。
+   * 先复位 step 再调本方法：job 仍 failed 时 worker 不会认领，避免半复位被认领。
+   * @returns 是否实际重排（false = 当前并非 failed）
+   */
+  async requeueFailedJob(jobId: number): Promise<boolean> {
+    const res = await this.db.analysis_jobs.updateMany({
+      where: { id: jobId, status: 'failed' },
+      data: {
+        status: 'queued',
+        attempts: 0,
+        started_at: null,
+        heartbeat_at: null,
+        finished_at: null,
+        error: null,
+      },
+    });
+    return res.count > 0;
+  }
+
+  /** 关闭逐节点闸门（运行到底）：后续节点连续跑完不再 paused。worker 在每个闸门处实时读取此值。 */
+  async disableStepGate(jobId: number): Promise<void> {
+    await this.db.analysis_jobs.update({ where: { id: jobId }, data: { step_gate: false } });
+  }
+
+  /** 实时读取逐节点闸门是否开启（worker 在闸门决策点读取，使「运行到底」对执行中的任务即时生效）。 */
+  async isStepGateOn(jobId: number): Promise<boolean> {
+    const row = await this.db.analysis_jobs.findUnique({
+      where: { id: jobId },
+      select: { step_gate: true },
+    });
+    return row?.step_gate ?? false;
+  }
+
+  /**
+   * 取消检视任务：置 canceled（释放闸门、停止演示）。仅活跃态（queued/running/paused）可取消。
+   * @returns 是否实际取消
+   */
+  async cancelJob(jobId: number, now: number): Promise<boolean> {
+    const res = await this.db.analysis_jobs.updateMany({
+      where: { id: jobId, status: { in: ['queued', 'running', 'paused'] } },
+      data: { status: 'canceled', finished_at: BigInt(now) },
+    });
+    return res.count > 0;
+  }
+
   /**
    * 回收 running 任务：心跳超时（或进程重启后遗留）的任务被认定为僵死。
    * - 未超 max_attempts 的回 queued 重排（清空 started_at / heartbeat_at），否则判失败
@@ -418,6 +556,7 @@ export class JobsRepository {
       succeeded: 0,
       failed: 0,
       canceled: 0,
+      paused: 0,
     };
     for (const r of rows) stats[r.status] = r._count._all;
     return stats;
@@ -522,6 +661,7 @@ export class JobsRepository {
         cache_read_tokens: r.cache_read_tokens,
         cost: costOf(r),
         provider: r.provider_id != null ? (priceById.get(r.provider_id)?.provider ?? null) : null,
+        inspect: r.inspect,
       })),
       total,
       page: pageNum,

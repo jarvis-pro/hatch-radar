@@ -19,6 +19,7 @@ export * from './comments';
 export * from './insights';
 export * from './ingestion';
 export * from './triage';
+export * from './inspect';
 export * from './export';
 export * from './sync';
 export * from './account';

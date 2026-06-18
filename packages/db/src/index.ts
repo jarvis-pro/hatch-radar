@@ -13,6 +13,7 @@ export * from './repositories/comments.repository';
 export * from './repositories/device-credentials.repository';
 export * from './repositories/device-enrollments.repository';
 export * from './repositories/insights.repository';
+export * from './repositories/job-steps.repository';
 export * from './repositories/jobs.repository';
 export * from './repositories/login-attempts.repository';
 export * from './repositories/posts.repository';

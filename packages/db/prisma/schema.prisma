@@ -52,12 +52,46 @@ model analysis_jobs {
   cache_write_tokens Int?
   /// 命中缓存的输入 token 数（Anthropic cache_read / OpenAI cached / DeepSeek cache_hit）。
   cache_read_tokens Int?
+  /// 检视模式：true 则按节点拆解执行、每步产物写入 job_steps（普通任务 false，零额外开销）。
+  inspect Boolean @default(false)
+  /// 逐节点闸门：true 则每节点跑完即置 paused 等人工放行；false 连续跑完（运行到底，仍留轨迹）。
+  step_gate Boolean @default(false)
 
   @@index([post_id], map: "idx_jobs_post")
   @@index([status, enqueued_at], map: "idx_jobs_status")
-  // 另有部分唯一索引 uniq_jobs_active_post：UNIQUE(post_id) WHERE status IN (queued,running)，
-  // 保证同帖同时至多一条活跃任务（入队幂等的并发兜底）。Prisma schema 无法表达部分索引，
-  // 故由迁移 0_init（整合基线）末尾手工维护，勿删。
+  // 另有部分唯一索引 uniq_jobs_active_post：UNIQUE(post_id, job_type) WHERE status IN (queued,running,paused)，
+  // 保证同帖同 job_type 同时至多一条活跃任务（入队幂等的并发兜底；paused 检视任务亦计入活跃）。
+  // Prisma schema 无法表达部分索引，故由迁移手工维护（最初 0_init，后经 add_translation_pipeline
+  // 加 job_type 维度、inspect_active_post_paused 纳入 paused），勿删。
+}
+
+/// 检视模式下分析任务的逐节点轨迹与产物（检查点）。
+/// 仅 inspect=true 的 analysis 任务有行；按 (job_id, seq) 唯一。
+/// output 既是展示内容，又是下游节点重认领时的检查点输入——尤其 ai_call 的原始响应
+/// 不可重算（花钱 / 结果不确定 / claude_cli 起子进程），必须落此，重跑 normalize 不再重调 AI。
+model job_steps {
+  id            Int     @id @default(autoincrement())
+  /// 所属任务（analysis_jobs.id），软引用、未建外键；随 job 一并清理。
+  job_id        Int
+  /// 节点序号 0..N，决定执行与展示顺序。
+  seq           Int
+  /// 节点名：resolve | fetch | context | ai_call | normalize | persist（应用层常量约束，不建 enum 便于演进）。
+  name          String
+  /// 节点状态：pending | running | done | failed | skipped。
+  status        String  @default("pending")
+  /// 输入摘要（展示用，如 provider 标签、评论数）。
+  input_summary Json?
+  /// 节点产物：既是展示内容，又是下游节点的检查点输入（见 model 顶注）。
+  output        Json?
+  /// 失败原因（status=failed 时）。
+  error         String?
+  /// 开始执行时间戳（epoch 秒）。
+  started_at    BigInt?
+  /// 结束时间戳（epoch 秒）。
+  finished_at   BigInt?
+
+  @@unique([job_id, seq], map: "uniq_job_steps_job_seq")
+  @@index([job_id], map: "idx_job_steps_job")
 }
 
 /// 应用配置键值表：存放运行期可调设置（如默认模型、抓取参数）。
@@ -526,6 +560,9 @@ enum job_status {
   succeeded
   failed
   canceled
+  /// 检视模式的节点间闸门：当前节点已完成、等待人工放行下一节点。
+  /// claimNextJob 不认领（只取 queued）、僵死回收不碰（只扫 running），自然静停于闸门。
+  paused
 }
 
 /// 任务触发来源。

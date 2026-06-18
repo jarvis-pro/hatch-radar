@@ -20,6 +20,8 @@ import type {
   InsightPgRow,
   JobPg,
   JobRow,
+  JobStepPg,
+  JobStepRow,
   PostPg,
   ProviderApiKeyPg,
   ProviderApiKeyRow,
@@ -66,6 +68,11 @@ export function toJobRow(m: JobPg): JobRow {
     finished_at: nOpt(m.finished_at),
     heartbeat_at: nOpt(m.heartbeat_at),
   };
+}
+
+/** Prisma job_steps 行 → 域 JobStepRow（started_at / finished_at bigint→number） */
+export function toJobStepRow(m: JobStepPg): JobStepRow {
+  return { ...m, started_at: nOpt(m.started_at), finished_at: nOpt(m.finished_at) };
 }
 
 /** Prisma model_providers 行 → 域 ProviderRow（时间戳 bigint→number；keys 关系不参与） */
