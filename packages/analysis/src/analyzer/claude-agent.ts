@@ -1,9 +1,9 @@
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import type { CommentRow, InsightResult, PostRow } from '@hatch-radar/shared';
-import type { AnalysisOutcome } from './analyze';
+import type { AnalysisOutcome, RawModelOutput } from './analyze';
 import { buildContext } from './context';
 import { INSIGHT_JSON_SCHEMA } from './insight-schema';
-import { SYSTEM_PROMPT, buildUserPrompt, normalizeInsight } from './prompt';
+import { SYSTEM_PROMPT, buildUserPrompt, normalizeInsight, normalizeRawOutput } from './prompt';
 
 /**
  * 「Claude 订阅模式」单次分析的最大对话轮数。
@@ -40,19 +40,19 @@ interface ResultMessageView {
 }
 
 /**
- * 解读一条 query() 消息并决定去留：
+ * 解读一条 query() 消息，取出**原始** structured_output（不归一化）：
  * - 非 result 消息 → 返回 null（调用方继续读下一条）
- * - result + success + structured_output → 归一化为 {@link InsightResult}
+ * - result + success + structured_output → 返回该结构化对象（检视器 ai_call 节点原样展示）
  * - 其余 result（success 但缺 structured_output，或各类 error subtype——含限流 / max_turns）→ 抛错
  *
  * 抽成纯函数：分发逻辑可脱离 query() 子进程单测（见 apps/api/test/claude-agent.spec.ts）。
  * @param message query() 异步流里的一条消息
- * @returns 命中成功结果时返回归一化洞察；非 result 返回 null；异常 result 抛错
+ * @returns 命中成功结果时返回 structured_output 对象；非 result 返回 null；异常 result 抛错
  */
-export function insightFromMessage(message: ResultMessageView): InsightResult | null {
+export function rawFromMessage(message: ResultMessageView): object | null {
   if (message.type !== 'result') return null;
   if (message.subtype === 'success' && message.structured_output !== undefined) {
-    return normalizeInsight(message.structured_output);
+    return message.structured_output as object;
   }
   const detail =
     message.subtype === 'success'
@@ -62,30 +62,38 @@ export function insightFromMessage(message: ResultMessageView): InsightResult | 
 }
 
 /**
- * 对单篇帖子用「Claude 订阅模式」做结构化分析：经 @anthropic-ai/claude-agent-sdk 的 query()
- * 复用 worker 本机已登录的 claude（Claude Code），吃订阅计划额度、无需 API Key。
+ * 解读一条 query() 消息并归一化：{@link rawFromMessage} + {@link normalizeInsight}。
+ * 命中成功结果时返回归一化洞察；非 result 返回 null；异常 result 抛错。
+ * @param message query() 异步流里的一条消息
+ */
+export function insightFromMessage(message: ResultMessageView): InsightResult | null {
+  const raw = rawFromMessage(message);
+  return raw === null ? null : normalizeInsight(raw);
+}
+
+/**
+ * 分步「只调模型」：用「Claude 订阅模式」对已构建的上下文做结构化抽取，返回 structured_output **对象**
+ * （不归一化）。经 @anthropic-ai/claude-agent-sdk 的 query() 复用 worker 本机已登录的 claude，吃订阅
+ * 计划额度、无需 API Key。
  * - 指令走 systemPrompt、数据走 prompt；outputFormat=json_schema 强制结构化（结果落在 structured_output）
  * - allowedTools / settingSources 置空：纯文本抽取不需任何工具，且隔离本机 / 项目设置（不读 CLAUDE.md），
  *   保证确定性与最低开销、不触发权限询问
- * - 复用与 Anthropic / OpenAI 路径同源的 schema / prompt / normalize，产出与其它 provider 一致
  * - 业务异常直接上抛，由 worker 计入失败并按队列策略重试（无 Key 池故障转移）
  * @param model 使用的模型 ID（如 claude-opus-4-8）
- * @param post 目标帖子行
- * @param comments 该帖子的全部评论
+ * @param context buildContext 生成的上下文文本
  * @param signal 可选中止信号（job 超时时 abort，停掉在途 query 子进程）
- * @returns 归一化后的分析结果；pain_points / opportunities 可能为空数组
+ * @returns 模型 structured_output 对象 + token 用量
  */
-export async function analyzeWithClaudeAgent(
+export async function callRawClaudeAgent(
   model: string,
-  post: PostRow,
-  comments: CommentRow[],
+  context: string,
   signal?: AbortSignal,
-): Promise<AnalysisOutcome> {
+): Promise<RawModelOutput> {
   signal?.throwIfAborted();
   const { controller, dispose } = linkAbort(signal);
   try {
     for await (const message of query({
-      prompt: buildUserPrompt(buildContext(post, comments)),
+      prompt: buildUserPrompt(context),
       options: {
         model,
         systemPrompt: SYSTEM_PROMPT,
@@ -96,8 +104,8 @@ export async function analyzeWithClaudeAgent(
         abortController: controller,
       },
     })) {
-      const insight = insightFromMessage(message);
-      if (insight) {
+      const raw = rawFromMessage(message);
+      if (raw !== null) {
         const u = (
           message as {
             usage?: {
@@ -109,7 +117,7 @@ export async function analyzeWithClaudeAgent(
           }
         ).usage;
         return {
-          insight,
+          raw,
           usage: u
             ? {
                 inputTokens: u.input_tokens ?? 0,
@@ -125,6 +133,25 @@ export async function analyzeWithClaudeAgent(
   } finally {
     dispose();
   }
+}
+
+/**
+ * 对单篇帖子用「Claude 订阅模式」做结构化分析。
+ * = {@link callRawClaudeAgent}（调模型拿 structured_output）+ {@link normalizeRawOutput}，normal 路径用。
+ * @param model 使用的模型 ID（如 claude-opus-4-8）
+ * @param post 目标帖子行
+ * @param comments 该帖子的全部评论
+ * @param signal 可选中止信号（job 超时时 abort，停掉在途 query 子进程）
+ * @returns 归一化后的分析结果；pain_points / opportunities 可能为空数组
+ */
+export async function analyzeWithClaudeAgent(
+  model: string,
+  post: PostRow,
+  comments: CommentRow[],
+  signal?: AbortSignal,
+): Promise<AnalysisOutcome> {
+  const { raw, usage } = await callRawClaudeAgent(model, buildContext(post, comments), signal);
+  return { insight: normalizeRawOutput(raw), usage };
 }
 
 /**

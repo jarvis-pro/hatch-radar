@@ -1,7 +1,11 @@
 import type { CommentRow, InsightResult, PostRow } from '@hatch-radar/shared';
-import { analyzeWithAnthropic, createAnthropicClient } from './anthropic';
-import { analyzeWithClaudeAgent } from './claude-agent';
-import { analyzeWithOpenAICompatible, type OpenAICompatibleConfig } from './openai-compatible';
+import { analyzeWithAnthropic, callRawAnthropic, createAnthropicClient } from './anthropic';
+import { analyzeWithClaudeAgent, callRawClaudeAgent } from './claude-agent';
+import {
+  analyzeWithOpenAICompatible,
+  callRawOpenAICompatible,
+  type OpenAICompatibleConfig,
+} from './openai-compatible';
 
 /**
  * 已解析的分析方式配置（按一条 model_providers 记录或 env 推导）。
@@ -35,6 +39,23 @@ export interface AnalysisOutcome {
 }
 
 /**
+ * 「只调模型、不归一化」的原始产出（流水线检视器 ai_call 节点用，亦是 analyze 的内部第一步）。
+ * 把不可重算的 AI 调用与廉价纯函数 normalizeInsight 拆开，使检视器能分别留痕、对比归一化前后。
+ */
+export interface RawModelOutput {
+  /** 模型原始输出：anthropic/openai 为 JSON 文本；claude_cli 为 structured_output 对象 */
+  raw: string | object;
+  usage: TokenUsage | null;
+  /**
+   * API Key 模式实际使用的 Key id（多 Key 故障转移时由 callRawWithFailover 填入；
+   * 底层单 provider 处理器与 claude_cli 不设，留空）。
+   */
+  keyId?: number | null;
+  /** 是否发生过 Key 切换（故障转移到非首选 Key）。 */
+  keySwitched?: boolean;
+}
+
+/**
  * 单篇帖子的处理器：屏蔽 Anthropic / OpenAI / DeepSeek 的差异，**只负责产出结构化结果**。
  *
  * 落库/标记/计失败由调用方（AnalysisService / WorkerService）完成——处理器保持无副作用、
@@ -50,6 +71,13 @@ export interface PostProcessor {
    * @param signal 可选中止信号；job 超时时触发，使底层 AI 调用立即 abort，不空耗连接与额度
    */
   analyze(post: PostRow, comments: CommentRow[], signal?: AbortSignal): Promise<AnalysisOutcome>;
+  /**
+   * 分步：只调模型拿原始输出，不归一化（流水线检视器 ai_call 节点用）。
+   * `analyze` 内部即 `callRaw` + `normalizeInsight`，二者共享同一条调用逻辑、杜绝行为分叉。
+   * @param context buildContext 生成的上下文文本
+   * @param signal 可选中止信号（同 analyze）
+   */
+  callRaw(context: string, signal?: AbortSignal): Promise<RawModelOutput>;
 }
 
 /**
@@ -66,6 +94,7 @@ export function createProcessor(cfg: AnalysisConfig): PostProcessor {
         model: cfg.model,
         analyze: (post, comments, signal) =>
           analyzeWithAnthropic(client, cfg.model, post, comments, signal),
+        callRaw: (context, signal) => callRawAnthropic(client, cfg.model, context, signal),
       };
     }
     case 'claude_cli':
@@ -74,6 +103,7 @@ export function createProcessor(cfg: AnalysisConfig): PostProcessor {
         model: cfg.model,
         analyze: (post, comments, signal) =>
           analyzeWithClaudeAgent(cfg.model, post, comments, signal),
+        callRaw: (context, signal) => callRawClaudeAgent(cfg.model, context, signal),
       };
     case 'openai':
     case 'deepseek': {
@@ -83,6 +113,7 @@ export function createProcessor(cfg: AnalysisConfig): PostProcessor {
         model: cfg.model,
         analyze: (post, comments, signal) =>
           analyzeWithOpenAICompatible(cfg, post, comments, signal),
+        callRaw: (context, signal) => callRawOpenAICompatible(cfg, context, signal),
       };
     }
   }

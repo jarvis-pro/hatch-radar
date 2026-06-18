@@ -1,9 +1,9 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { CommentRow, PostRow } from '@hatch-radar/shared';
-import type { AnalysisOutcome } from './analyze';
+import type { AnalysisOutcome, RawModelOutput } from './analyze';
 import { buildContext } from './context';
 import { INSIGHT_JSON_SCHEMA } from './insight-schema';
-import { SYSTEM_PROMPT, buildUserPrompt, normalizeInsight } from './prompt';
+import { SYSTEM_PROMPT, buildUserPrompt, normalizeRawOutput } from './prompt';
 
 /** 单次请求超时（毫秒）：避免某次调用挂死后拖住整个分析队列 */
 const REQUEST_TIMEOUT_MS = 120_000;
@@ -20,9 +20,54 @@ export function createAnthropicClient(apiKey: string): Anthropic {
 }
 
 /**
- * 对单篇帖子调用 Anthropic 进行结构化分析，返回痛点与产品机会。
+ * 分步「只调模型」：对已构建的上下文调用 Anthropic，返回**原始 JSON 文本**（不归一化）。
  * - 使用 adaptive thinking 与 JSON schema 约束输出格式
  * - 网络错误由 SDK 内置重试处理；业务异常直接上抛
+ * @param client Anthropic SDK 实例
+ * @param model 使用的模型 ID
+ * @param context buildContext 生成的上下文文本
+ * @param signal 可选中止信号（job 超时时 abort，立即中断在途请求）
+ * @returns 模型原始 JSON 文本 + token 用量
+ */
+export async function callRawAnthropic(
+  client: Anthropic,
+  model: string,
+  context: string,
+  signal?: AbortSignal,
+): Promise<RawModelOutput> {
+  const response = await client.messages.create(
+    {
+      model,
+      max_tokens: 16000,
+      thinking: { type: 'adaptive' },
+      system: SYSTEM_PROMPT,
+      messages: [{ role: 'user', content: buildUserPrompt(context) }],
+      output_config: {
+        format: { type: 'json_schema', schema: INSIGHT_JSON_SCHEMA },
+      },
+    },
+    { signal },
+  );
+  const textBlock = response.content.find(
+    (block): block is Anthropic.TextBlock => block.type === 'text',
+  );
+  if (!textBlock) {
+    throw new Error(`模型未返回文本内容 (stop_reason=${response.stop_reason})`);
+  }
+  return {
+    raw: textBlock.text,
+    usage: {
+      inputTokens: response.usage.input_tokens,
+      outputTokens: response.usage.output_tokens,
+      cacheWriteTokens: response.usage.cache_creation_input_tokens ?? 0,
+      cacheReadTokens: response.usage.cache_read_input_tokens ?? 0,
+    },
+  };
+}
+
+/**
+ * 对单篇帖子调用 Anthropic 进行结构化分析，返回痛点与产品机会。
+ * = {@link callRawAnthropic}（调模型拿原始文本）+ {@link normalizeInsight}（归一化），normal 路径用。
  * @param client Anthropic SDK 实例
  * @param model 使用的模型 ID
  * @param post 目标帖子行
@@ -37,34 +82,13 @@ export async function analyzeWithAnthropic(
   comments: CommentRow[],
   signal?: AbortSignal,
 ): Promise<AnalysisOutcome> {
-  const response = await client.messages.create(
-    {
-      model,
-      max_tokens: 16000,
-      thinking: { type: 'adaptive' },
-      system: SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: buildUserPrompt(buildContext(post, comments)) }],
-      output_config: {
-        format: { type: 'json_schema', schema: INSIGHT_JSON_SCHEMA },
-      },
-    },
-    { signal },
+  const { raw, usage } = await callRawAnthropic(
+    client,
+    model,
+    buildContext(post, comments),
+    signal,
   );
-  const textBlock = response.content.find(
-    (block): block is Anthropic.TextBlock => block.type === 'text',
-  );
-  if (!textBlock) {
-    throw new Error(`模型未返回文本内容 (stop_reason=${response.stop_reason})`);
-  }
-  return {
-    insight: normalizeInsight(JSON.parse(textBlock.text)),
-    usage: {
-      inputTokens: response.usage.input_tokens,
-      outputTokens: response.usage.output_tokens,
-      cacheWriteTokens: response.usage.cache_creation_input_tokens ?? 0,
-      cacheReadTokens: response.usage.cache_read_input_tokens ?? 0,
-    },
-  };
+  return { insight: normalizeRawOutput(raw), usage };
 }
 
 /**

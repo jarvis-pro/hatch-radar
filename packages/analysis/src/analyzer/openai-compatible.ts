@@ -1,8 +1,13 @@
 import type { CommentRow, PostRow } from '@hatch-radar/shared';
-import type { AnalysisOutcome } from './analyze';
+import type { AnalysisOutcome, RawModelOutput } from './analyze';
 import { buildContext } from './context';
 import { INSIGHT_JSON_SCHEMA } from './insight-schema';
-import { JSON_OUTPUT_DIRECTIVE, SYSTEM_PROMPT, buildUserPrompt, normalizeInsight } from './prompt';
+import {
+  JSON_OUTPUT_DIRECTIVE,
+  SYSTEM_PROMPT,
+  buildUserPrompt,
+  normalizeRawOutput,
+} from './prompt';
 
 /**
  * OpenAI 兼容接口（chat/completions）调用配置，OpenAI 与 DeepSeek 共用一条代码路径。
@@ -96,32 +101,20 @@ async function postChat(
   );
 }
 
-/** 容错解析：去除可能的 Markdown 代码块包裹后再 JSON.parse */
-function parseLooseJson(text: string): unknown {
-  const trimmed = text
-    .trim()
-    .replace(/^```(?:json)?\s*/i, '')
-    .replace(/\s*```$/, '');
-  return JSON.parse(trimmed);
-}
-
 /**
- * 对单篇帖子调用 OpenAI 兼容接口进行结构化分析，返回痛点与产品机会。
+ * 分步「只调模型」：对已构建的上下文调用 OpenAI 兼容接口，返回**原始文本**（不归一化）。
  * - OpenAI：`response_format: json_schema`（strict），用 {@link INSIGHT_JSON_SCHEMA} 强约束
  * - DeepSeek：`response_format: json_object`，把结构约束写进 system prompt
- * - 输出统一经 {@link normalizeInsight} 归一化兜底，容忍字段缺失或被代码块包裹
  * @param cfg OpenAI 兼容接口配置
- * @param post 目标帖子行
- * @param comments 该帖子的全部评论
+ * @param context buildContext 生成的上下文文本
  * @param signal 可选中止信号（job 超时时 abort，立即中断在途请求且不再重试）
- * @returns 归一化后的分析结果；pain_points / opportunities 可能为空数组
+ * @returns 模型原始文本（可能被 ```json 包裹）+ token 用量
  */
-export async function analyzeWithOpenAICompatible(
+export async function callRawOpenAICompatible(
   cfg: OpenAICompatibleConfig,
-  post: PostRow,
-  comments: CommentRow[],
+  context: string,
   signal?: AbortSignal,
-): Promise<AnalysisOutcome> {
+): Promise<RawModelOutput> {
   const useJsonSchema = cfg.provider === 'openai';
   const body: Record<string, unknown> = {
     model: cfg.model,
@@ -132,7 +125,7 @@ export async function analyzeWithOpenAICompatible(
         role: 'system',
         content: useJsonSchema ? SYSTEM_PROMPT : `${SYSTEM_PROMPT}\n\n${JSON_OUTPUT_DIRECTIVE}`,
       },
-      { role: 'user', content: buildUserPrompt(buildContext(post, comments)) },
+      { role: 'user', content: buildUserPrompt(context) },
     ],
     response_format: useJsonSchema
       ? {
@@ -150,7 +143,7 @@ export async function analyzeWithOpenAICompatible(
   // prompt_tokens 含缓存命中；非缓存输入 = prompt_tokens - 命中。OpenAI 自动缓存无独立写入计费。
   const cacheRead = u?.prompt_tokens_details?.cached_tokens ?? u?.prompt_cache_hit_tokens ?? 0;
   return {
-    insight: normalizeInsight(parseLooseJson(content)),
+    raw: content,
     usage: u
       ? {
           inputTokens: Math.max(0, (u.prompt_tokens ?? 0) - cacheRead),
@@ -160,6 +153,25 @@ export async function analyzeWithOpenAICompatible(
         }
       : null,
   };
+}
+
+/**
+ * 对单篇帖子调用 OpenAI 兼容接口进行结构化分析，返回痛点与产品机会。
+ * = {@link callRawOpenAICompatible} + {@link normalizeRawOutput}（容错解析 + 归一化），normal 路径用。
+ * @param cfg OpenAI 兼容接口配置
+ * @param post 目标帖子行
+ * @param comments 该帖子的全部评论
+ * @param signal 可选中止信号（job 超时时 abort，立即中断在途请求且不再重试）
+ * @returns 归一化后的分析结果；pain_points / opportunities 可能为空数组
+ */
+export async function analyzeWithOpenAICompatible(
+  cfg: OpenAICompatibleConfig,
+  post: PostRow,
+  comments: CommentRow[],
+  signal?: AbortSignal,
+): Promise<AnalysisOutcome> {
+  const { raw, usage } = await callRawOpenAICompatible(cfg, buildContext(post, comments), signal);
+  return { insight: normalizeRawOutput(raw), usage };
 }
 
 /**

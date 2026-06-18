@@ -1,4 +1,4 @@
-import type { CommentRow, PostRow } from '@hatch-radar/shared';
+import type { CommentRow, InsightResult, PostRow } from '@hatch-radar/shared';
 import { InsightsRepository } from '@hatch-radar/db';
 import { nowSec } from '@hatch-radar/kernel';
 import { logger } from '@hatch-radar/kernel';
@@ -26,13 +26,28 @@ export class AnalysisService {
     signal?: AbortSignal,
   ): Promise<{ saved: boolean; usage: TokenUsage | null }> {
     const { insight, usage } = await processor.analyze(post, comments, signal);
+    const { saved } = await this.persistInsight(post, processor.model, insight);
+    return { saved, usage };
+  }
+
+  /**
+   * 落库一条已归一化的洞察（无信号则不落库）。analyzeAndPersist 与流水线检视器 persist 节点共用——
+   * 把「无信号判定 + saveInsight + 日志」收敛于一处。saveInsight 按 post_id 幂等（upsert），故
+   * persist 节点重认领重跑安全。
+   * @returns saved 是否产出并落库了洞察
+   */
+  async persistInsight(
+    post: PostRow,
+    model: string,
+    insight: InsightResult,
+  ): Promise<{ saved: boolean }> {
     if (insight.pain_points.length === 0 && insight.opportunities.length === 0) {
-      return { saved: false, usage };
+      return { saved: false };
     }
-    await this.insights.saveInsight(post, processor.model, insight, nowSec());
+    await this.insights.saveInsight(post, model, insight, nowSec());
     logger.info(
       `  ✓ r/${post.subreddit}「${post.title.slice(0, 48)}」→ 痛点 ${insight.pain_points.length} / 机会 ${insight.opportunities.length}`,
     );
-    return { saved: true, usage };
+    return { saved: true };
   }
 }

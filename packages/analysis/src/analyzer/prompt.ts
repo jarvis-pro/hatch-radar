@@ -34,6 +34,30 @@ export const INSIGHT_JSON_EXAMPLE = `{
 /** 不支持原生 JSON Schema 的模型（如 DeepSeek）追加到 system prompt 末尾的输出约束 */
 export const JSON_OUTPUT_DIRECTIVE = `请仅输出一个 JSON 对象，不要包含任何额外说明文字，也不要使用 Markdown 代码块包裹。结构如下：\n${INSIGHT_JSON_EXAMPLE}`;
 
+/**
+ * 容错解析模型返回的 JSON 文本：去除可能的 Markdown 代码块包裹后再 `JSON.parse`。
+ * anthropic 的纯 JSON 文本与 openai/deepseek 可能被 ```json 包裹的文本都适用（包裹剥离为无害空操作）。
+ * @param text 模型返回的原始文本
+ * @returns 解析后的对象（非法 JSON 抛出）
+ */
+export function parseLooseJson(text: string): unknown {
+  const trimmed = text
+    .trim()
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/, '');
+  return JSON.parse(trimmed);
+}
+
+/**
+ * 把模型「原始输出」归一化为合法 {@link InsightResult}：字符串先 {@link parseLooseJson}，对象（claude_cli
+ * 的 structured_output）直接归一化。三个 provider 的 `analyze` 与检视器 normalize 节点共用此入口，
+ * 杜绝「调用逻辑」与「归一化逻辑」在不同路径上分叉。
+ * @param raw 模型原始输出（JSON 文本 或 已结构化对象）
+ */
+export function normalizeRawOutput(raw: string | object): InsightResult {
+  return normalizeInsight(typeof raw === 'string' ? parseLooseJson(raw) : raw);
+}
+
 function normalizeIntensity(value: unknown): Intensity {
   const upper = String(value).toUpperCase();
   return upper === 'HIGH' || upper === 'LOW' ? upper : 'MEDIUM';
