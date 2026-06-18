@@ -1,5 +1,6 @@
 import {
   FileText,
+  Gauge,
   LayoutDashboard,
   ListChecks,
   ScrollText,
@@ -82,6 +83,13 @@ export const NAV_GROUPS: readonly NavGroup[] = [
         icon: Workflow,
         perm: 'analyze:run',
         match: (p) => p.startsWith('/pipeline'),
+      },
+      {
+        to: '/requests',
+        label: '请求闸',
+        icon: Gauge,
+        perm: 'analyze:run',
+        match: (p) => p.startsWith('/requests'),
       },
     ],
   },

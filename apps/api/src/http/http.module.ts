@@ -3,6 +3,7 @@ import { AccountModule } from '@/account/account.module';
 import { AuthModule } from '@/auth/auth.module';
 import { AnalysisController } from './analysis.controller';
 import { PipelineController } from './pipeline.controller';
+import { RequestsController } from './requests.controller';
 import { ExportController } from './export.controller';
 import { HealthController } from './health.controller';
 import { MeController } from './me.controller';
@@ -26,6 +27,7 @@ import { TranslationsController } from './translations.controller';
     SourceConnectorsController,
     AnalysisController,
     PipelineController,
+    RequestsController,
     ExportController,
     SyncController,
     TranslationsController,
