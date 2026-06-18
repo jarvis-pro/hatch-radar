@@ -199,4 +199,80 @@ describe('采集执行器（CollectionExecutor：discover → collect → analyz
     const out = await exec.collectComments(collectTask, (await posts.getPostById('rss_t2'))!);
     expect(out.analyzeSpawned).toBe(false);
   });
+
+  it('recheck：评论有变化→重抓 + 派生重新分析 + 退避复位', async () => {
+    await db.posts.create({
+      data: {
+        id: 'rd_r1',
+        source: 'reddit',
+        subreddit: 'SaaS',
+        title: 'T',
+        created_utc: 1000n,
+        fetched_at: 1000n,
+        comment_pass: 2,
+        analyze_attempts: 0,
+        recheck_misses: 3,
+        recheck_due_sweep: 0,
+      },
+    });
+    await db.comments.create({
+      data: { id: 'c_r1', post_id: 'rd_r1', body: 'old', depth: 0, created_utc: 1001n, fetched_at: 1001n },
+    });
+    const exec = makeExecutor({ active: { id: 1, model: 'model-x', label: 'x' } });
+    const runId = await makeRun();
+    const res = await tasks.createTaskWithStages(
+      { runId, kind: 'recheck', postId: 'rd_r1', params: { sweep: 5 } },
+      [{ name: 'recheck' }],
+      nowSec(),
+    );
+    if (!res.ok) throw new Error(res.error);
+
+    // 桩 reddit fetchComments 返回空 → 与「原有 1 条」不一致 → 判定有变化
+    const out = await exec.recheckPost(
+      (await tasks.getTask(res.taskId))!,
+      (await posts.getPostById('rd_r1'))!,
+    );
+    expect(out.changed).toBe(true);
+    expect(out.analyzeSpawned).toBe(true);
+    const updated = (await posts.getPostById('rd_r1'))!;
+    expect(updated.recheck_misses).toBe(0); // 复位
+    expect(updated.recheck_due_sweep).toBe(6); // sweep+1
+    expect((await tasks.listByRun(runId)).some((t) => t.kind === 'analyze')).toBe(true);
+  });
+
+  it('recheck：评论无变化→指数退避（不派生分析）', async () => {
+    await db.posts.create({
+      data: {
+        id: 'rd_r2',
+        source: 'reddit',
+        subreddit: 'SaaS',
+        title: 'T',
+        created_utc: 1000n,
+        fetched_at: 1000n,
+        comment_pass: 2,
+        analyze_attempts: 0,
+        recheck_misses: 1,
+        recheck_due_sweep: 0,
+      },
+    });
+    const exec = makeExecutor({ active: { id: 1, model: 'model-x', label: 'x' } });
+    const runId = await makeRun();
+    const res = await tasks.createTaskWithStages(
+      { runId, kind: 'recheck', postId: 'rd_r2', params: { sweep: 5 } },
+      [{ name: 'recheck' }],
+      nowSec(),
+    );
+    if (!res.ok) throw new Error(res.error);
+
+    // 无原有评论、桩返回空 → 无变化 → 退避
+    const out = await exec.recheckPost(
+      (await tasks.getTask(res.taskId))!,
+      (await posts.getPostById('rd_r2'))!,
+    );
+    expect(out.changed).toBe(false);
+    expect(out.analyzeSpawned).toBe(false);
+    const updated = (await posts.getPostById('rd_r2'))!;
+    expect(updated.recheck_misses).toBe(2); // 1+1
+    expect(updated.recheck_due_sweep).toBe(7); // sweep 5 + skip(2^1=2)
+  });
 });

@@ -13,6 +13,8 @@ import { INSPECT_STEP_NAMES } from '@hatch-radar/shared';
 
 /** analyze 任务的环节模板（= 检视器 6 节点；无闸门→worker 一口气运行到底）。 */
 const ANALYZE_STAGES = INSPECT_STEP_NAMES.map((name) => ({ name }));
+/** 单次复查 sweep 最多纳入的到期帖数 */
+const RECHECK_BATCH = 50;
 
 /** runAnalyzeSweep 结果（供调度日志） */
 export interface AnalyzeSweepResult {
@@ -122,5 +124,40 @@ export class PipelineService {
     void this.gateway?.tryDispatch();
     logger.info(`[pipeline] collect 进程#${run.id} 已创建 discover 任务`);
     return { runId: run.id };
+  }
+
+  /**
+   * 复查一轮（sweep）：sweep 序号 = 该图纸已用最大值 + 1；选 recheck_due_sweep ≤ sweep 的到期旧帖，
+   * 逐帖派生 recheck 任务（params 带 sweep 供退避计算）。worker 复查时变则重抓+重新分析、否则指数退避。
+   * @param triggerSource 触发来源（cron / manual）
+   */
+  async runRecheckSweep(
+    triggerSource = 'cron',
+  ): Promise<{ runId: number; sweep: number; due: number }> {
+    const bp = await this.ensureBlueprint('recheck', '复查');
+    const sweep = (await this.runs.maxSweep(bp.id)) + 1;
+    const run = await this.runs.createRun(
+      { blueprintId: bp.id, kind: 'recheck', triggerSource, sweepSeq: sweep },
+      nowSec(),
+    );
+    const posts = await this.posts.getPostsToRecheck(sweep, RECHECK_BATCH);
+    let created = 0;
+    for (const p of posts) {
+      const res = await this.tasks.createTaskWithStages(
+        { runId: run.id, kind: 'recheck', postId: p.id, params: { sweep } },
+        [{ name: 'recheck' }],
+        nowSec(),
+      );
+      if (res.ok) created += 1;
+    }
+    await this.runs.incrementCounters(run.id, { total: created });
+    await this.runs.finishRun(run.id, 'completed', nowSec());
+    if (created > 0) {
+      void this.gateway?.tryDispatch();
+      logger.info(
+        `[pipeline] recheck sweep#${sweep} 进程#${run.id} 派生 ${created} 复查任务（${posts.length} 到期）`,
+      );
+    }
+    return { runId: run.id, sweep, due: posts.length };
   }
 }

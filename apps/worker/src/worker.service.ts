@@ -228,6 +228,9 @@ export class WorkerService {
       case 'collect':
         if (!post) return Promise.reject(new Error('collect 任务缺少帖子'));
         return this.collection.collectComments(task, post);
+      case 'recheck':
+        if (!post) return Promise.reject(new Error('recheck 任务缺少帖子'));
+        return this.collection.recheckPost(task, post);
       default:
         return Promise.reject(new Error(`未实现的任务类型环节执行: ${task.kind}`));
     }

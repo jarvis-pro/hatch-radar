@@ -108,6 +108,15 @@ export class PipelineController {
     return { runId };
   }
 
+  /** 立即触发一轮复查 sweep（选到期旧帖派生 recheck 任务）。 */
+  @Post('recheck')
+  @HttpCode(200)
+  async runRecheck() {
+    const { runId, sweep, due } = await this.pipeline.runRecheckSweep('manual');
+    logger.info(`[复查] 手动触发 recheck sweep#${sweep} 进程#${runId}（${due} 到期）`);
+    return { runId, sweep, due };
+  }
+
   /** 最近进程总览（跨图纸，id 倒序）。 */
   @Get('runs')
   async listRuns() {

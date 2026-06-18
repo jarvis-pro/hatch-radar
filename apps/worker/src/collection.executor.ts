@@ -28,6 +28,8 @@ type HnEndpoint = (typeof HN_ENDPOINTS)[number];
 const ANALYZE_STAGES = INSPECT_STEP_NAMES.map((name) => ({ name }));
 /** collect 任务环节模板（单环节：抓评论 + 派生分析） */
 const COLLECT_STAGES = [{ name: 'fetch_comments' }];
+/** 复查指数退避封顶：连续未变最多跳过的 sweep 数 */
+const RECHECK_BACKOFF_CAP = 16;
 
 function asHnEndpoint(s: string): HnEndpoint | null {
   return (HN_ENDPOINTS as readonly string[]).includes(s) ? (s as HnEndpoint) : null;
@@ -47,6 +49,15 @@ function errMsg(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
+/** 从任务 params（JsonValue）安全读出当前复查 sweep 序号；缺省 0 */
+function readSweep(params: unknown): number {
+  if (params && typeof params === 'object' && 'sweep' in params) {
+    const s = (params as { sweep?: unknown }).sweep;
+    if (typeof s === 'number') return s;
+  }
+  return 0;
+}
+
 /** discover 环节产物 */
 export interface DiscoverOutput {
   sourcesFetched: number;
@@ -60,6 +71,12 @@ export interface CollectOutput {
   source: string;
   commentCount: number;
   dropped: number;
+  analyzeSpawned: boolean;
+}
+
+/** recheck 环节产物 */
+export interface RecheckOutput {
+  changed: boolean;
   analyzeSpawned: boolean;
 }
 
@@ -199,6 +216,56 @@ export class CollectionExecutor {
       `[采集] collect ${post.id}：评论 ${commentCount}${dropped > 0 ? ` (丢弃≈${dropped})` : ''}，派生分析 ${analyzeSpawned ? '是' : '否'}`,
     );
     return { source: post.source, commentCount, dropped, analyzeSpawned };
+  }
+
+  /**
+   * recheck 环节：复查单帖——抓评论（经闸）→ replaceComments 内置指纹 diff 判有无变化。
+   * 有变化：comments_changed_at 已更新 + 派生重新分析 + 退避复位（misses=0、下轮即查）。
+   * 无变化：指数退避（misses++、跳过 min(2^(misses-1), CAP) 个 sweep）。rss 不在复查范围。
+   */
+  async recheckPost(task: TaskRow, post: PostRow): Promise<RecheckOutput> {
+    const now = nowSec();
+    const sweep = readSweep(task.params);
+    let result: CommentFetchResult | null = null;
+    if (post.source === 'hackernews') {
+      result = await this.gate.run(
+        { lane: 'hackernews', purpose: 'recheck', url: post.id, ownerTaskId: task.id },
+        () => this.hackernews.fetchComments(post.id),
+      );
+    } else if (post.source === 'reddit') {
+      const reddit = await this.crawlerConfig.getRedditClient();
+      if (reddit) {
+        result = await this.gate.run(
+          { lane: 'reddit', purpose: 'recheck', url: post.id, ownerTaskId: task.id },
+          () => reddit.fetchComments(post.subreddit, post.id),
+        );
+      }
+    }
+    const changed = result
+      ? (await this.comments.replaceComments(post.id, result.comments, COMMENT_FETCHED_PASS, now))
+          .changed
+      : false;
+    let analyzeSpawned = false;
+    if (changed) {
+      await this.posts.updateRecheckState(post.id, {
+        misses: 0,
+        dueSweep: sweep + 1,
+        lastRecheckedAt: now,
+      });
+      analyzeSpawned = await this.spawnAnalyze(task.run_id, post.id, task.id, now);
+    } else {
+      const misses = post.recheck_misses + 1;
+      const skip = Math.min(2 ** (misses - 1), RECHECK_BACKOFF_CAP);
+      await this.posts.updateRecheckState(post.id, {
+        misses,
+        dueSweep: sweep + skip,
+        lastRecheckedAt: now,
+      });
+    }
+    logger.info(
+      `[复查] ${post.id} sweep#${sweep}：${changed ? '有变化→重抓+重新分析' : '无变化→退避'}`,
+    );
+    return { changed, analyzeSpawned };
   }
 
   /** 派生一条 analyze 任务（有 active 模型且同帖无活跃 analyze 任务时）。 */

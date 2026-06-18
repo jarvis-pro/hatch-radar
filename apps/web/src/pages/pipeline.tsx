@@ -65,6 +65,7 @@ export function kindLabel(k: string): string {
 function PipelineView() {
   const navigate = useNavigate();
   const [triggering, setTriggering] = useState(false);
+  const [rechecking, setRechecking] = useState(false);
   const q = useQuery({
     queryKey: ['pipeline-runs'],
     queryFn: () => api.get<{ runs: RunView[] }>('/pipeline/runs'),
@@ -84,15 +85,37 @@ function PipelineView() {
     }
   }
 
+  async function triggerRecheck(): Promise<void> {
+    setRechecking(true);
+    try {
+      await api.post('/pipeline/recheck');
+      await q.refetch();
+    } catch {
+      // 失败静默：轮询会反映最新状态
+    } finally {
+      setRechecking(false);
+    }
+  }
+
   return (
     <>
       <PageHeader
         title="进程"
         description="图纸触发产生的进程与其派生的任务 · 每 3 秒刷新 · 点击任意行查看任务树"
         actions={
-          <Button size="sm" onClick={() => void triggerCollect()} disabled={triggering}>
-            {triggering ? '采集中…' : '立即采集'}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => void triggerRecheck()}
+              disabled={rechecking}
+            >
+              {rechecking ? '复查中…' : '立即复查'}
+            </Button>
+            <Button size="sm" onClick={() => void triggerCollect()} disabled={triggering}>
+              {triggering ? '采集中…' : '立即采集'}
+            </Button>
+          </div>
         }
       />
 
