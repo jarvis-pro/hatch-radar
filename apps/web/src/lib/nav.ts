@@ -6,6 +6,7 @@ import {
   Settings2,
   Sparkles,
   Users,
+  Workflow,
   Zap,
   type LucideIcon,
 } from 'lucide-react';
@@ -74,6 +75,13 @@ export const NAV_GROUPS: readonly NavGroup[] = [
         icon: ListChecks,
         perm: 'analyze:run',
         match: (p) => p.startsWith('/queue'),
+      },
+      {
+        to: '/pipeline',
+        label: '进程',
+        icon: Workflow,
+        perm: 'analyze:run',
+        match: (p) => p.startsWith('/pipeline'),
       },
     ],
   },
