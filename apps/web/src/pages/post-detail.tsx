@@ -5,16 +5,19 @@ import type { CommentRow, Insight, PostRow } from '@hatch-radar/shared';
 import { Skeleton } from '@hatch-radar/ui/components/skeleton';
 import { Spinner } from '@hatch-radar/ui/components/spinner';
 import { api, ApiError } from '@/api/client';
+import { can, useAuth } from '@/auth/auth-context';
 import { RequirePerm } from '@/auth/require-perm';
 import { AnalyzedBadge, SourceBadge } from '@/components/badges';
 import { CommentTree } from '@/components/comment-tree';
 import { EmptyState, LoadError } from '@/components/empty';
+import { InspectLaunchButton } from '@/components/inspect-launch';
 import { TranslationButton } from '@/components/translation-button';
 import { TranslationViewProvider, usePostTranslation } from '@/translation/post-translation';
 import { channelLabel, decodeEntities, fmtDate, permalinkUrl } from '@/lib/format';
 
 function PostDetailView() {
   const { id } = useParams<{ id: string }>();
+  const { user } = useAuth();
   const detailQ = useQuery({
     queryKey: ['post', id],
     queryFn: () => api.get<{ post: PostRow; insight: Insight | null }>(`/posts/${id}`),
@@ -92,6 +95,9 @@ function PostDetailView() {
           <div>
             <AnalyzedBadge analyzedAt={post.analyzed_at} />
           </div>
+          {can(user, 'analyze:run') ? (
+            <InspectLaunchButton postId={post.id} className="w-full" />
+          ) : null}
           <div className="flex flex-col items-start gap-2 border-t pt-3 text-sm">
             {post.permalink ? (
               <a

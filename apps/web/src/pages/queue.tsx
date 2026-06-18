@@ -27,7 +27,7 @@ import { Pagination } from '@/components/pagination';
 import { fmtDate, fmtDuration, parsePage, timeAgo } from '@/lib/format';
 import { buildQuery } from '@/lib/qs';
 
-type JobStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'canceled';
+type JobStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'canceled' | 'paused';
 type JobTrigger = 'auto' | 'manual';
 type JobKind = 'analysis' | 'translation';
 
@@ -54,6 +54,8 @@ interface QueueJob {
   cache_read_tokens: number | null;
   /** 展示期按 provider 单价 + 缓存倍率折算的成本（美元）；无单价/未采集 token 时为 null */
   cost: number | null;
+  /** 是否检视任务（流水线检视器）——据此加「检视」跳转 */
+  inspect: boolean;
 }
 
 interface JobStats {
@@ -62,6 +64,7 @@ interface JobStats {
   succeeded: number;
   failed: number;
   canceled: number;
+  paused: number;
 }
 
 /** GET /api/analysis/jobs/list：汇总 + 分页明细 */
@@ -79,18 +82,27 @@ const STATUS_META: Record<
 > = {
   queued: { label: '排队', variant: 'outline' },
   running: { label: '运行中', variant: 'default' },
+  paused: { label: '暂停', variant: 'outline' },
   succeeded: { label: '成功', variant: 'secondary' },
   failed: { label: '失败', variant: 'destructive' },
   canceled: { label: '已取消', variant: 'outline' },
 };
 
-const ALL_STATUSES: JobStatus[] = ['queued', 'running', 'succeeded', 'failed', 'canceled'];
+const ALL_STATUSES: JobStatus[] = [
+  'queued',
+  'running',
+  'paused',
+  'succeeded',
+  'failed',
+  'canceled',
+];
 
 /** 状态筛选标签（含计数 key） */
 const STATUS_FILTERS: { value: JobStatus | null; label: string; key?: keyof JobStats }[] = [
   { value: null, label: '全部' },
   { value: 'queued', label: '排队', key: 'queued' },
   { value: 'running', label: '运行中', key: 'running' },
+  { value: 'paused', label: '暂停', key: 'paused' },
   { value: 'succeeded', label: '成功', key: 'succeeded' },
   { value: 'failed', label: '失败', key: 'failed' },
   { value: 'canceled', label: '已取消', key: 'canceled' },
@@ -379,13 +391,24 @@ function QueueView() {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <Link
-                          to={`/posts/${j.post_id}`}
-                          className="line-clamp-1 font-medium hover:underline"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          {j.post_title ?? j.post_id}
-                        </Link>
+                        <span className="flex items-center gap-2">
+                          <Link
+                            to={`/posts/${j.post_id}`}
+                            className="line-clamp-1 font-medium hover:underline"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {j.post_title ?? j.post_id}
+                          </Link>
+                          {j.inspect ? (
+                            <Link
+                              to={`/inspect/${j.id}`}
+                              className="shrink-0 text-xs text-primary hover:underline"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              检视 →
+                            </Link>
+                          ) : null}
+                        </span>
                         {j.status === 'failed' && j.error ? (
                           <p className="line-clamp-1 text-xs text-destructive" title={j.error}>
                             {j.error}

@@ -10,6 +10,7 @@ import { AnalyzePage } from '@/pages/analyze';
 import { DashboardPage } from '@/pages/dashboard';
 import { InsightDetailPage } from '@/pages/insight-detail';
 import { InsightsPage } from '@/pages/insights';
+import { InspectPage } from '@/pages/inspect';
 import { LoginPage } from '@/pages/login';
 import { NotFoundPage } from '@/pages/not-found';
 import { PasswordPage } from '@/pages/password';
@@ -33,6 +34,7 @@ export const router = createBrowserRouter([
       { path: 'posts', element: <PostsPage /> },
       { path: 'posts/:id', element: <PostDetailPage /> },
       { path: 'analyze', element: <AnalyzePage /> },
+      { path: 'inspect/:jobId', element: <InspectPage /> },
       { path: 'queue', element: <QueuePage /> },
       { path: 'settings', element: <SettingsPage /> },
       { path: 'account', element: <Navigate to="/account/profile" replace /> },
