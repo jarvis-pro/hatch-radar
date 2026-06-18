@@ -504,6 +504,12 @@ model posts {
   title_hash          String?
   /// 正文源文本的 sha256；链接帖空正文为 null（无需翻译）。
   selftext_hash       String?
+  /// 复查：连续未变次数（驱动指数退避）；命中变化归零。
+  recheck_misses      Int        @default(0)
+  /// 复查：下次有资格被复查的 sweep 序号（recheck_due_sweep ≤ 当前 sweep 即到期）。
+  recheck_due_sweep   Int        @default(0)
+  /// 最近一次复查 Unix 时间戳（秒）。
+  last_rechecked_at   BigInt?
   comments            comments[]
 
   @@index([created_utc], map: "idx_posts_created")

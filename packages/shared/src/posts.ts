@@ -38,6 +38,12 @@ export interface PostRow {
   title_hash: string | null;
   /** 正文源文本的 sha256；链接帖空正文为 null（无需翻译） */
   selftext_hash: string | null;
+  /** 复查：连续未变次数（驱动指数退避）；命中变化归零 */
+  recheck_misses: number;
+  /** 复查：下次有资格被复查的 sweep 序号（≤ 当前 sweep 即到期） */
+  recheck_due_sweep: number;
+  /** 最近一次复查 Unix 时间戳（秒）；从未复查为 null */
+  last_rechecked_at: number | null;
 }
 
 /** 工作台「待分析」帖子的状态：pending=未分析；restale=已分析但之后评论又变（建议重判） */

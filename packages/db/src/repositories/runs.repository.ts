@@ -90,4 +90,13 @@ export class RunsRepository {
     const rows = await this.db.runs.findMany({ orderBy: { id: 'desc' }, take: limit });
     return rows.map((r: RunPg) => toRunRow(r));
   }
+
+  /** 某图纸已用的最大 sweep 序号（无则 0），供复查推算下一 sweep。 */
+  async maxSweep(blueprintId: number): Promise<number> {
+    const agg = await this.db.runs.aggregate({
+      where: { blueprint_id: blueprintId },
+      _max: { sweep_seq: true },
+    });
+    return agg._max.sweep_seq ?? 0;
+  }
 }

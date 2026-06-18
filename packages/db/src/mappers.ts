@@ -63,6 +63,7 @@ export function toPostRow(m: PostPg): PostRow {
     comments_changed_at: nOpt(m.comments_changed_at),
     export_locked_at: nOpt(m.export_locked_at),
     analyzed_at: nOpt(m.analyzed_at),
+    last_rechecked_at: nOpt(m.last_rechecked_at),
   };
 }
 

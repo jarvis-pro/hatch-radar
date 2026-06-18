@@ -33,32 +33,35 @@ export class CommentsRepository {
     incoming: RedditComment[],
     pass: number,
     fetchedAt: number,
-  ): Promise<void> {
-    await this.db.$transaction(async (tx) => {
+  ): Promise<{ changed: boolean }> {
+    return this.db.$transaction(async (tx) => {
       const prev = await tx.comments.findMany({
         where: { post_id: postId },
         select: { id: true, score: true, body: true },
       });
       const changed = commentsFingerprint(prev) !== commentsFingerprint(incoming);
 
-      await tx.comments.deleteMany({ where: { post_id: postId } });
-      if (incoming.length > 0) {
-        await tx.comments.createMany({
-          data: incoming.map((c) => ({
-            id: c.id,
-            post_id: postId,
-            parent_id: c.parentId,
-            author: c.author,
-            body: c.body,
-            score: c.score,
-            depth: c.depth,
-            created_utc: BigInt(c.createdUtc),
-            fetched_at: BigInt(fetchedAt),
-            // 入库即算评论正文内容哈希，供译文按内容寻址（同文复用、新评论=未命中=待翻译）。
-            body_hash: contentHash(c.body),
-          })),
-          skipDuplicates: true,
-        });
+      // 内容（id/score/body）有变才整删整插；无变化时省去 churn，仅推进回捞时间戳（复查高频，可观节省）。
+      if (changed) {
+        await tx.comments.deleteMany({ where: { post_id: postId } });
+        if (incoming.length > 0) {
+          await tx.comments.createMany({
+            data: incoming.map((c) => ({
+              id: c.id,
+              post_id: postId,
+              parent_id: c.parentId,
+              author: c.author,
+              body: c.body,
+              score: c.score,
+              depth: c.depth,
+              created_utc: BigInt(c.createdUtc),
+              fetched_at: BigInt(fetchedAt),
+              // 入库即算评论正文内容哈希，供译文按内容寻址（同文复用、新评论=未命中=待翻译）。
+              body_hash: contentHash(c.body),
+            })),
+            skipDuplicates: true,
+          });
+        }
       }
 
       // GREATEST / 条件保留旧值无法用 Prisma update 表达 → $executeRaw（仍在同一事务内）
@@ -69,6 +72,7 @@ export class CommentsRepository {
           comments_changed_at = ${changed ? Prisma.sql`${BigInt(fetchedAt)}` : Prisma.sql`comments_changed_at`}
         WHERE id = ${postId}
       `;
+      return { changed };
     });
   }
 

@@ -138,6 +138,9 @@ function mkPost(overrides: Partial<PostRow> = {}): PostRow {
     analyze_attempts: 0,
     title_hash: null,
     selftext_hash: null,
+    recheck_misses: 0,
+    recheck_due_sweep: 0,
+    last_rechecked_at: null,
     ...overrides,
   };
 }

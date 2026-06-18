@@ -166,6 +166,42 @@ export class PostsRepository {
   }
 
   /**
+   * 取「到期」复查的旧帖（recheck_due_sweep ≤ sweep）：已抓过评论（comment_pass≥1）、非 rss（无评论）。
+   * 按到期序 + 热度排；配合指数退避，沉默帖会被跳过越来越多 sweep。
+   * @param sweep 当前复查 sweep 序号
+   * @param limit 最多返回条数
+   */
+  async getPostsToRecheck(sweep: number, limit: number): Promise<PostRow[]> {
+    const rows = await this.db.$queryRaw<PostPg[]>`
+      SELECT * FROM posts
+      WHERE source <> 'rss'
+        AND comment_pass >= 1
+        AND recheck_due_sweep <= ${sweep}
+      ORDER BY recheck_due_sweep ASC, (score + num_comments) DESC
+      LIMIT ${limit}
+    `;
+    return rows.map(toPostRow);
+  }
+
+  /**
+   * 写回复查结果状态：连续未变次数 / 下次到期 sweep / 最近复查时间。
+   * 评论变化标记（comments_changed_at）由 {@link CommentsRepository.replaceComments} 内处理。
+   */
+  async updateRecheckState(
+    postId: string,
+    state: { misses: number; dueSweep: number; lastRecheckedAt: number },
+  ): Promise<void> {
+    await this.db.posts.update({
+      where: { id: postId },
+      data: {
+        recheck_misses: state.misses,
+        recheck_due_sweep: state.dueSweep,
+        last_rechecked_at: BigInt(state.lastRecheckedAt),
+      },
+    });
+  }
+
+  /**
    * 清理早于 cutoff 时间戳的帖子与关联评论，洞察结果永久保留。
    * - 先删评论（取得删除数）再删帖子，返回实际删除条数
    * @param cutoff Unix 时间戳（秒），早于此时间的帖子将被删除
