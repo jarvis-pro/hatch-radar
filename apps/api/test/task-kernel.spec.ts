@@ -200,9 +200,14 @@ describe('图纸生命周期：通用任务执行内核（runTask + task_stages 
     expect((await runs.getRun(runId))!.tasks_done).toBe(1);
 
     // 成本看板 UNION：成功的 analyze 任务计入 getCostStats（dashboard 成本反映新任务化分析）
-    const cost = await new JobsRepository(db).getCostStats(0);
+    const jobsRepo = new JobsRepository(db);
+    const cost = await jobsRepo.getCostStats(0);
     expect(cost.totals.inputTokens).toBe(100);
     expect(cost.byModel.find((m) => m.model === 'model-x')?.jobs).toBe(1);
+    // getThroughput 同走 UNION：须能执行（曾因 status 枚举 vs text 类型不匹配报 42804）且计入该任务
+    const throughput = await jobsRepo.getThroughput(7);
+    expect(throughput).toHaveLength(7);
+    expect(throughput.reduce((sum, p) => sum + p.succeeded, 0)).toBeGreaterThanOrEqual(1);
   });
 
   it('运行到底（无闸门）：一次认领连续跑完所有环节并成功', async () => {

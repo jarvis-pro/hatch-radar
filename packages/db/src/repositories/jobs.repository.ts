@@ -882,11 +882,12 @@ export class JobsRepository {
           count(*) FILTER (WHERE status = 'succeeded') AS succeeded,
           count(*) FILTER (WHERE status = 'failed') AS failed
         FROM (
-          SELECT status, finished_at FROM analysis_jobs
+          -- analysis_jobs.status 是枚举 job_status、tasks.status 是 text；UNION 须类型一致 → 两侧统一 ::text
+          SELECT status::text AS status, finished_at FROM analysis_jobs
           WHERE status IN ('succeeded', 'failed') AND job_type = 'analysis'
             AND finished_at >= extract(epoch FROM (now() - make_interval(days => ${days})))
           UNION ALL
-          SELECT status, finished_at FROM tasks
+          SELECT status::text AS status, finished_at FROM tasks
           WHERE status IN ('succeeded', 'failed') AND kind = 'analyze'
             AND finished_at >= extract(epoch FROM (now() - make_interval(days => ${days})))
         ) src
