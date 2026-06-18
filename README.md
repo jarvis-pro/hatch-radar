@@ -13,6 +13,7 @@
 - **离线伴侣 App（apps/mobile）**：Expo + 本地 SQLite，导入批次后全程离线人工研判（状态/评级/标签/笔记），操作记入本地 outbox
 - **同步回传**：回到局域网后 App 提示待同步数，用户确认推送；工作台按 opId 幂等应用（重发不重复生效）
 - **内容翻译（按需）**：抓取的英文标题/正文/评论可在帖子页一键译成中文（供移动端研判）；两档 provider——Claude 订阅（零边际成本、最高质量）或 Azure Translator 机翻（按字符计费、免费额度大，走量降订阅消耗），译文按内容哈希缓存、新评论增量翻译
+- **流水线检视器（逐节点调试 / 演示）**：把单条帖子的 AI 分析拆成 6 个显式节点逐步执行，可逐节点暂停查看每步产物（解析的上下文、完整 Prompt、AI 原始响应、归一化洞察），用于调参、排障与对外演示
 
 ---
 
@@ -186,6 +187,36 @@ pnpm dev:mobile   # 启动 Expo dev server，用 Expo Go 扫码（iOS 真机）
 
 ---
 
+## 流水线检视器（逐节点调试 / 演示）
+
+把**单条**帖子的 AI 分析拆成 6 个显式节点，逐步执行、可逐节点暂停查看每步产物——用于调参、排障与对外演示。在**帖子详情页**点「流水线检视」、选模型与是否逐节点闸门即发起；**队列页**的检视任务行有「检视 →」直达。
+
+节点流水线（每节点产物落 `job_steps` 表）：
+
+| seq | 节点        | 产物                                           |
+| --- | ----------- | ---------------------------------------------- |
+| 0   | `resolve`   | 模型标签 / provider 类型 / 可用 Key 数         |
+| 1   | `fetch`     | 帖子标题、正文字数、评论数与楼层               |
+| 2   | `context`   | 完整 SYSTEM_PROMPT + 拼好的上下文 + token 估算 |
+| 3   | `ai_call`   | AI 原始响应 + token usage + 实际用的 Key       |
+| 4   | `normalize` | 结构化洞察（痛点 / 机会）+ 丢弃统计            |
+| 5   | `persist`   | 是否落库、洞察 id、痛点 / 机会数               |
+
+**机制 = 检查点 + 重认领**：worker 跑完一个节点就把产物落库，逐节点闸门开启时把任务置 `paused` 后正常结束（不阻塞 worker）；点「继续」让任务回 `queued` 被重新认领、从下一节点续跑。`ai_call` 是唯一不可重算的节点（花钱、起子进程），故必须落检查点；其余节点持久化保证「所见即所跑」（防两次认领之间评论被改写）。也可「运行到底」（关闸连续跑完）、重试失败节点或取消。前端用 react-flow 画横向流程图 + 节点产物面板，轮询刷新（运行中 1.5s / 暂停 2.5s / 终态停）。
+
+| 端点                                           | 说明                                                                  |
+| ---------------------------------------------- | --------------------------------------------------------------------- |
+| `POST /api/analysis/inspect`                   | 发起检视任务（`postId` + `providerId` + `stepGate`），建 job + 6 节点 |
+| `GET  /api/analysis/inspect/:jobId`            | 取任务 + 6 节点轨迹（前端轮询）                                       |
+| `POST /api/analysis/inspect/:jobId/resume`     | 放行下一节点（`paused→queued`）                                       |
+| `POST /api/analysis/inspect/:jobId/run-to-end` | 关闭闸门、连续跑完剩余节点                                            |
+| `POST /api/analysis/inspect/:jobId/retry-step` | 重试当前失败节点                                                      |
+| `POST /api/analysis/inspect/:jobId/cancel`     | 取消检视任务                                                          |
+
+> 设计取舍与落地偏差详见 [`docs/pipeline-inspector-design.md`](docs/pipeline-inspector-design.md)。当前 M1–M3 + 大部分 M4 已落地；待真起 AI 模型的浏览器端到端走查。
+
+---
+
 ## 内容翻译（译中文）
 
 抓取内容默认英文；移动端研判需要中文时，可在帖子页**按需**一键翻译标题 / 正文 / 评论。译文落 `translations` 表、**按源文本内容哈希寻址**（扛评论 churn、同文去重、未命中即「待翻译」自动判定首次/增量），随导出产物进移动端。
@@ -229,22 +260,22 @@ hatch-radar/
 │   │   │   ├── domain/         # 本 app 领域层：assembly(createCore 装配) + 桶 index + account/admin/auth/data/sync/export/gateway/scheduler/seed 服务
 │   │   │   ├── core/           # CoreModule：调 createCore 一处装配，按「类令牌 + useFactory」桥接进 Nest DI
 │   │   │   ├── config/ database/   # env 校验(@nestjs/config) + Prisma 连接 provider（连通性自检 + 优雅关闭）
-│   │   │   ├── http/           # 控制器：health / settings / analysis / export / sync / sources
+│   │   │   ├── http/           # 控制器：health / settings / analysis(含检视) / export / sync / sources / translations / me
 │   │   │   ├── account/ admin/ auth/ data/  # 控制器 + 守卫（人会话 / 设备签名 / 能力闸 / 只读数据端点）
 │   │   │   ├── scheduler/ gateway/ seed/    # @Cron 调度 / WS push 网关 / 启动种子 的 Nest 生命周期薄封装
 │   │   │   ├── static/ common/ logger/      # 同源托管 SPA dist / DI 令牌·zod 管道·异常过滤器 / 日志
 │   │   │   └── test/           # 领域 + 控制器集成测试（vitest，连本地 PG）
 │   │   └── .env.example
-│   ├── worker/                 # 数据面（NestJS standalone context，可横向扩 N 实例）：PG 队列认领 + WS 连 api 网关跑 AI 分析写回
+│   ├── worker/                 # 数据面（NestJS standalone context，可横向扩 N 实例）：PG 队列认领（分析 / 翻译 / 检视）+ WS 连 api 网关跑 AI 写回
 │   │   └── src/                # main + worker.module + worker.starter + assembly(createWorkerCore) + worker.service + worker-agent
 │   ├── web/                    # Vite + React Router 同源 SPA（经 /api 调 api，由 api 托管 dist）
 │   └── mobile/                 # Expo 离线伴侣 App（expo-sqlite，保持不变）
 ├── packages/                   # 框架无关能力包（api / worker 复用，不依赖任何 Web 框架）
 │   ├── kernel/                 # 基座（零内部依赖）：errors / logger / utils(time,crypto) / env 校验 / 网关协议(含 Dispatcher 接口)
-│   ├── db/                     # PostgreSQL 持久层：Prisma schema + 连接工厂 + PG⇄域映射 + 15 个仓储 + runtime-settings
+│   ├── db/                     # PostgreSQL 持久层：Prisma schema + 连接工厂 + PG⇄域映射 + 17 个仓储 + runtime-settings
 │   ├── crawler/                # 采集层：Reddit / HN / RSS 抓取 + 令牌桶限速 + 采集连接器配置
-│   ├── analysis/               # AI 分析：analyzer 引擎(prompt / 洞察 schema / Anthropic·OpenAI 客户端) + 配置入队 + 洞察落库
-│   ├── shared/                 # 跨端共享类型（零运行时依赖）：DDL、行类型、ingestion/洞察/研判/导出/同步协议、权限目录
+│   ├── analysis/               # AI 分析：analyzer 引擎(prompt / 洞察 schema / 各厂商客户端 + callRaw) + 配置入队 / 检视编排 + 洞察落库 + 翻译(translator/)
+│   ├── shared/                 # 跨端共享类型（零运行时依赖）：DDL、行类型、ingestion/洞察/研判/导出/同步/检视协议、权限目录
 │   ├── auth/                   # 认证 crypto（Node-only）：scrypt 口令 / 会话 token / Ed25519 设备验签
 │   ├── config/                 # 共享配置切片 + TypeScript 预设（tsconfig base / nest）
 │   └── ui/                     # PC 端共享 UI 库：shadcn/ui + Tailwind v4（组件经 CLI 落入此包，RN 勿引）
