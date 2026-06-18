@@ -38,6 +38,7 @@ export * from './export/sqlite-writer';
 
 // 网关 / 调度（worker 执行已迁至 apps/worker，自带 createWorkerCore 装配）
 export * from './gateway/gateway.service';
+export * from './pipeline/pipeline.service';
 export * from './scheduler/scheduler.service';
 
 // 种子

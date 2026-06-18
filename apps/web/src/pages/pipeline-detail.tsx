@@ -76,7 +76,9 @@ function StageChip({ stage, now }: { stage: StageView; now: number }) {
       title={`${stage.status}${dur != null ? ` · ${fmtDuration(dur)}` : ''}${stage.error ? ` · ${stage.error}` : ''}`}
     >
       <span className={`size-1.5 rounded-full ${meta.dot}`} />
-      <span className={stage.status === 'failed' ? 'text-destructive' : undefined}>{stage.name}</span>
+      <span className={stage.status === 'failed' ? 'text-destructive' : undefined}>
+        {stage.name}
+      </span>
     </span>
   );
 }

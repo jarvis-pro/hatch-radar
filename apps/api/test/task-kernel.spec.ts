@@ -20,6 +20,7 @@ import { INSPECT_STEP_NAMES, type PersistOutput, type ResolveOutput } from '@hat
 import { nowSec } from '@hatch-radar/kernel';
 // 跨 app 引 worker 数据面执行器：通用任务内核（runTask）只有 worker 进程承载，PG 夹具在 apps/api/test。
 import { WorkerService } from '../../worker/src/worker.service';
+import type { CollectionExecutor } from '../../worker/src/collection.executor';
 import { setupTestDb, truncateAll } from './helpers';
 
 // 桩原始响应：含一条非法痛点（空 description）验证归一化丢弃；与 inspect 套件同构。
@@ -135,6 +136,7 @@ describe('图纸生命周期：通用任务执行内核（runTask + task_stages 
       stubConfig(callRaw),
       {} as unknown as TranslationService,
       new RuntimeSettingsService(new SettingsRepository(db)),
+      {} as unknown as CollectionExecutor,
     );
   }
 

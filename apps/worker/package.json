@@ -12,6 +12,7 @@
   "dependencies": {
     "@hatch-radar/analysis": "workspace:*",
     "@hatch-radar/config": "workspace:*",
+    "@hatch-radar/crawler": "workspace:*",
     "@hatch-radar/db": "workspace:*",
     "@hatch-radar/kernel": "workspace:*",
     "@hatch-radar/shared": "workspace:*",

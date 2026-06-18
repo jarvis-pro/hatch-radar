@@ -26,6 +26,7 @@ import type {
 } from '@hatch-radar/shared';
 import { logger } from '@hatch-radar/kernel';
 import { nowSec } from '@hatch-radar/kernel';
+import { CollectionExecutor } from './collection.executor';
 
 /** running 期间的 DB 心跳间隔（毫秒），需远小于运行期设置 workerStaleSeconds（下界 30s） */
 const HEARTBEAT_INTERVAL_MS = 15_000;
@@ -72,6 +73,7 @@ export class WorkerService {
     private readonly analysisConfig: AnalysisConfigService,
     private readonly translation: TranslationService,
     private readonly runtimeSettings: RuntimeSettingsService,
+    private readonly collection: CollectionExecutor,
   ) {}
 
   /** 启动执行器（对应 NestJS onApplicationBootstrap）：回收遗留任务 + 起僵死回收定时器。 */
@@ -221,6 +223,11 @@ export class WorkerService {
       case 'analyze':
         if (!post) return Promise.reject(new Error('analyze 任务缺少帖子'));
         return this.execNode(stageName, task.provider_id, task.model ?? '', post, stages, signal);
+      case 'discover':
+        return this.collection.discover(task);
+      case 'collect':
+        if (!post) return Promise.reject(new Error('collect 任务缺少帖子'));
+        return this.collection.collectComments(task, post);
       default:
         return Promise.reject(new Error(`未实现的任务类型环节执行: ${task.kind}`));
     }

@@ -30,6 +30,7 @@ import { nowSec } from '@hatch-radar/kernel';
 // 跨 app 引 worker 数据面执行器：检视内核（runInspectJob）只有 worker 进程承载，而集成测试的 PG
 // 夹具在 apps/api/test，故以相对路径直引其源码（vitest 内联编译 @hatch-radar/* 依赖）。
 import { WorkerService } from '../../worker/src/worker.service';
+import type { CollectionExecutor } from '../../worker/src/collection.executor';
 import { setupTestDb, truncateAll } from './helpers';
 
 // 桩 AnalysisConfigService 默认返回的原始响应：含一条非法痛点（空 description）以验证归一化丢弃统计。
@@ -143,6 +144,7 @@ describe('流水线检视器：执行内核（runInspectJob + 状态机）', () 
       stubConfig(callRaw),
       {} as unknown as TranslationService,
       new RuntimeSettingsService(settings),
+      {} as unknown as CollectionExecutor,
     );
   }
 

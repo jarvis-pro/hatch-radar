@@ -22,8 +22,11 @@ import {
   TasksRepository,
   TaskStagesRepository,
   LoginAttemptsRepository,
+  PipelineService,
   PostsRepository,
   ProvidersRepository,
+  RequestQueueRepository,
+  RequestLanesRepository,
   RuntimeSettingsService,
   SchedulerService,
   SeedRunner,
@@ -75,6 +78,8 @@ const PROVIDERS: Provider[] = [
   fromCore(RunsRepository, 'runs'),
   fromCore(TasksRepository, 'tasks'),
   fromCore(TaskStagesRepository, 'taskStages'),
+  fromCore(RequestQueueRepository, 'requestQueue'),
+  fromCore(RequestLanesRepository, 'requestLanes'),
   fromCore(LoginAttemptsRepository, 'loginAttempts'),
   fromCore(PostsRepository, 'posts'),
   fromCore(ProvidersRepository, 'providers'),
@@ -98,6 +103,7 @@ const PROVIDERS: Provider[] = [
   fromCore(DeviceAuthService, 'deviceAuth'),
   // 后台（生命周期由各自的 Nest 薄封装 starter 触发）
   fromCore(GatewayService, 'gateway'),
+  fromCore(PipelineService, 'pipeline'),
   fromCore(SchedulerService, 'scheduler'),
   fromCore(SeedRunner, 'seedRunner'),
 ];

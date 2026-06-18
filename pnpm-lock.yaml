@@ -370,6 +370,9 @@ importers:
       '@hatch-radar/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@hatch-radar/crawler':
+        specifier: workspace:*
+        version: link:../../packages/crawler
       '@hatch-radar/db':
         specifier: workspace:*
         version: link:../../packages/db

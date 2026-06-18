@@ -101,4 +101,26 @@ export class PipelineService {
     }
     return { active, runId: run.id, created, pending: posts.length };
   }
+
+  /**
+   * 采集一轮：建 collect 进程 + 一个 discover 根任务。worker 认领 discover 后抓列表 → 去重 →
+   * 为新帖派生 collect 任务 → collect 抓评论 → 派生 analyze。整链路在「进程」页可见。
+   * @param triggerSource 触发来源（cron / manual）
+   */
+  async runCollectSweep(triggerSource = 'cron'): Promise<{ runId: number }> {
+    const bp = await this.ensureBlueprint('collect', '采集');
+    const run = await this.runs.createRun(
+      { blueprintId: bp.id, kind: 'collect', triggerSource },
+      nowSec(),
+    );
+    const res = await this.tasks.createTaskWithStages(
+      { runId: run.id, kind: 'discover' },
+      [{ name: 'discover' }],
+      nowSec(),
+    );
+    if (res.ok) await this.runs.incrementCounters(run.id, { total: 1 });
+    void this.gateway?.tryDispatch();
+    logger.info(`[pipeline] collect 进程#${run.id} 已创建 discover 任务`);
+    return { runId: run.id };
+  }
 }

@@ -1,8 +1,18 @@
-import { BadRequestException, Controller, Get, NotFoundException, Param, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Controller,
+  Get,
+  HttpCode,
+  NotFoundException,
+  Param,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { RequirePermission } from '@/account/auth-user.decorator';
 import { SessionAuthGuard } from '@/account/session-auth.guard';
 import {
   BlueprintsRepository,
+  PipelineService,
   RunsRepository,
   TaskStagesRepository,
   TasksRepository,
@@ -10,6 +20,7 @@ import {
   type TaskRow,
   type TaskStageRow,
 } from '@/domain';
+import { logger } from '@/logger';
 
 /** 进程总览取最近 N 条 */
 const RECENT_RUNS_LIMIT = 50;
@@ -85,7 +96,17 @@ export class PipelineController {
     private readonly tasks: TasksRepository,
     private readonly taskStages: TaskStagesRepository,
     private readonly blueprints: BlueprintsRepository,
+    private readonly pipeline: PipelineService,
   ) {}
+
+  /** 立即触发一轮采集（建 collect 进程 + discover 根任务，交 worker 抓取）。 */
+  @Post('collect')
+  @HttpCode(200)
+  async runCollect() {
+    const { runId } = await this.pipeline.runCollectSweep('manual');
+    logger.info(`[采集] 手动触发 collect 进程#${runId}`);
+    return { runId };
+  }
 
   /** 最近进程总览（跨图纸，id 倒序）。 */
   @Get('runs')

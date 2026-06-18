@@ -12,6 +12,8 @@ import { BlueprintsRepository } from '@hatch-radar/db';
 import { RunsRepository } from '@hatch-radar/db';
 import { TasksRepository } from '@hatch-radar/db';
 import { TaskStagesRepository } from '@hatch-radar/db';
+import { RequestQueueRepository } from '@hatch-radar/db';
+import { RequestLanesRepository } from '@hatch-radar/db';
 import { LoginAttemptsRepository } from '@hatch-radar/db';
 import { PostsRepository } from '@hatch-radar/db';
 import { ProvidersRepository } from '@hatch-radar/db';
@@ -66,6 +68,8 @@ export function createCore(db: AppDatabase, env: AppEnv) {
   const runs = new RunsRepository(db);
   const tasks = new TasksRepository(db);
   const taskStages = new TaskStagesRepository(db);
+  const requestQueue = new RequestQueueRepository(db);
+  const requestLanes = new RequestLanesRepository(db);
   const loginAttempts = new LoginAttemptsRepository(db);
   const posts = new PostsRepository(db);
   const providers = new ProvidersRepository(db);
@@ -138,6 +142,8 @@ export function createCore(db: AppDatabase, env: AppEnv) {
     runs,
     tasks,
     taskStages,
+    requestQueue,
+    requestLanes,
     loginAttempts,
     posts,
     providers,

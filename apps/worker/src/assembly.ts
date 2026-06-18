@@ -11,9 +11,16 @@ import {
   ProvidersRepository,
   RuntimeSettingsService,
   SettingsRepository,
+  SourcesRepository,
+  SourceConnectorsRepository,
+  RequestQueueRepository,
+  RequestLanesRepository,
   TranslationsRepository,
 } from '@hatch-radar/db';
 import { AnalysisConfigService, AnalysisService, TranslationService } from '@hatch-radar/analysis';
+import { CrawlerConfigService, HackerNewsClient, TokenBucketQueue } from '@hatch-radar/crawler';
+import { CollectionExecutor } from './collection.executor';
+import { RequestGate } from './request-gate';
 import { WorkerService } from './worker.service';
 
 /**
@@ -34,11 +41,30 @@ export function createWorkerCore(db: AppDatabase): { worker: WorkerService } {
   const providers = new ProvidersRepository(db);
   const settings = new SettingsRepository(db);
   const translations = new TranslationsRepository(db);
+  const sources = new SourcesRepository(db);
+  const sourceConnectors = new SourceConnectorsRepository(db);
+  const requestQueue = new RequestQueueRepository(db);
+  const requestLanes = new RequestLanesRepository(db);
 
   const runtimeSettings = new RuntimeSettingsService(settings);
   const analysis = new AnalysisService(insights);
   const analysisConfig = new AnalysisConfigService(providers, settings, jobs, jobSteps, posts);
   const translation = new TranslationService(translations, providers);
+  const queue = new TokenBucketQueue();
+  const crawlerConfig = new CrawlerConfigService(sourceConnectors, queue);
+  const hackernews = new HackerNewsClient();
+  const gate = new RequestGate(requestQueue, requestLanes);
+  const collection = new CollectionExecutor(
+    crawlerConfig,
+    hackernews,
+    sources,
+    posts,
+    comments,
+    tasks,
+    runs,
+    analysisConfig,
+    gate,
+  );
   const worker = new WorkerService(
     jobs,
     jobSteps,
@@ -51,6 +77,7 @@ export function createWorkerCore(db: AppDatabase): { worker: WorkerService } {
     analysisConfig,
     translation,
     runtimeSettings,
+    collection,
   );
 
   return { worker };

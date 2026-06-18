@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Badge } from '@hatch-radar/ui/components/badge';
+import { Button } from '@hatch-radar/ui/components/button';
 import { Skeleton } from '@hatch-radar/ui/components/skeleton';
 import {
   Table,
@@ -62,6 +64,7 @@ export function kindLabel(k: string): string {
 
 function PipelineView() {
   const navigate = useNavigate();
+  const [triggering, setTriggering] = useState(false);
   const q = useQuery({
     queryKey: ['pipeline-runs'],
     queryFn: () => api.get<{ runs: RunView[] }>('/pipeline/runs'),
@@ -69,11 +72,28 @@ function PipelineView() {
   });
   const runs = q.data?.runs ?? [];
 
+  async function triggerCollect(): Promise<void> {
+    setTriggering(true);
+    try {
+      await api.post('/pipeline/collect');
+      await q.refetch();
+    } catch {
+      // 失败静默：按钮恢复可重试（列表轮询亦会反映状态）
+    } finally {
+      setTriggering(false);
+    }
+  }
+
   return (
     <>
       <PageHeader
         title="进程"
         description="图纸触发产生的进程与其派生的任务 · 每 3 秒刷新 · 点击任意行查看任务树"
+        actions={
+          <Button size="sm" onClick={() => void triggerCollect()} disabled={triggering}>
+            {triggering ? '采集中…' : '立即采集'}
+          </Button>
+        }
       />
 
       {q.isError ? (
@@ -125,7 +145,11 @@ function PipelineView() {
                       ) : null}
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
-                      {r.triggerSource === 'manual' ? '手动' : r.triggerSource === 'cron' ? '定时' : r.triggerSource}
+                      {r.triggerSource === 'manual'
+                        ? '手动'
+                        : r.triggerSource === 'cron'
+                          ? '定时'
+                          : r.triggerSource}
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
                       {timeAgo(r.finishedAt ?? r.startedAt)}
