@@ -14,12 +14,22 @@ export type WorkerMessage =
       status: 'succeeded' | 'failed';
       error?: string;
     }
-  | { type: 'job_progress'; workerId: string; jobId: number };
+  | { type: 'job_progress'; workerId: string; jobId: number }
+  // 图纸生命周期新执行模型：任务（tasks）完成回报（与 job_result 并存于过渡期）
+  | {
+      type: 'task_result';
+      workerId: string;
+      taskId: number;
+      status: 'succeeded' | 'failed';
+      error?: string;
+    };
 
 /** gateway → worker 的下行消息 */
 export type GatewayMessage =
   | { type: 'registered'; workerId: string }
-  | { type: 'dispatch'; jobId: number; postId: string; providerId: number | null; model: string };
+  | { type: 'dispatch'; jobId: number; postId: string; providerId: number | null; model: string }
+  // 派发一条任务（worker 按 taskId 回查整行 + 环节后执行）；与 dispatch（旧 job）并存于过渡期
+  | { type: 'dispatch_task'; taskId: number };
 
 /**
  * 派发器接口：入队后触发一次派发。AnalysisConfigService 持有它的可选引用

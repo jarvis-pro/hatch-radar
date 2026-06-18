@@ -1,6 +1,6 @@
 import type { IncomingMessage, Server as HttpServer } from 'node:http';
 import { WebSocket, WebSocketServer } from 'ws';
-import { JobsRepository, RuntimeSettingsService } from '@hatch-radar/db';
+import { JobsRepository, TasksRepository, RuntimeSettingsService } from '@hatch-radar/db';
 import { logger } from '@hatch-radar/kernel';
 import { nowSec } from '@hatch-radar/kernel';
 import type { WorkerMessage } from '@hatch-radar/kernel';
@@ -31,6 +31,7 @@ const FALLBACK_DISPATCH_INTERVAL_MS = 10_000;
 export class GatewayService {
   constructor(
     private readonly jobs: JobsRepository,
+    private readonly tasks: TasksRepository,
     private readonly runtimeSettings: RuntimeSettingsService,
   ) {}
 
@@ -68,11 +69,19 @@ export class GatewayService {
     this.wsServer?.close();
   }
 
-  /** 供 AnalysisConfigService 在入队后立即触发一次分发 */
+  /** 供入队 / 完成回报后立即触发一次分发。新系统任务（tasks）优先，过渡期回退旧 analysis_jobs。 */
   async tryDispatch(): Promise<void> {
     const worker = this.pickWorker();
     if (!worker) return;
-    // 护栏 B：翻译并发上限传给认领——运行中的翻译达上限时本次只认领分析任务
+    // 新执行模型优先：认领一条 task（blueprints→runs→tasks）
+    const task = await this.tasks.claimNextTask(nowSec());
+    if (task) {
+      worker.activeJobs++;
+      this.send(worker.socket, { type: 'dispatch_task', taskId: task.id });
+      logger.info(`[gateway] 分发 task#${task.id}(${task.kind}) → ${worker.workerId}`);
+      return;
+    }
+    // 过渡期回退：认领旧 analysis_jobs（护栏 B：翻译并发上限达标时本次只认领分析）
     const translationCap = await this.runtimeSettings.getTranslationConcurrency();
     const job = await this.jobs.claimNextJob(nowSec(), translationCap);
     if (!job) return;
@@ -169,6 +178,16 @@ export class GatewayService {
           s.lastHeartbeat = Date.now();
         }
         logger.info(`[gateway] job#${msg.jobId} 完成（${msg.status}）← ${msg.workerId}`);
+        await this.tryDispatch();
+        break;
+      }
+      case 'task_result': {
+        const s = this.registry.get(msg.workerId);
+        if (s) {
+          s.activeJobs = Math.max(0, s.activeJobs - 1);
+          s.lastHeartbeat = Date.now();
+        }
+        logger.info(`[gateway] task#${msg.taskId} 完成（${msg.status}）← ${msg.workerId}`);
         await this.tryDispatch();
         break;
       }

@@ -112,6 +112,9 @@ export class WorkerAgentService {
       case 'dispatch':
         void this.executeJob(msg);
         break;
+      case 'dispatch_task':
+        void this.executeTask(msg);
+        break;
     }
   }
 
@@ -126,6 +129,23 @@ export class WorkerAgentService {
     } catch (err) {
       const error = err instanceof Error ? err.message : String(err);
       this.send({ type: 'job_result', workerId: this.workerId, jobId, status: 'failed', error });
+    }
+  }
+
+  /**
+   * 执行一条分发来的任务（新执行模型）。worker 按 taskId 回查整行 + 环节后逐步执行；
+   * 任务内核自带 DB 心跳，故无需 progress 回报。完成 / 失败回报 task_result。
+   */
+  private async executeTask(
+    dispatch: Extract<GatewayMessage, { type: 'dispatch_task' }>,
+  ): Promise<void> {
+    const { taskId } = dispatch;
+    try {
+      await this.worker.executeDispatchedTask(taskId);
+      this.send({ type: 'task_result', workerId: this.workerId, taskId, status: 'succeeded' });
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err);
+      this.send({ type: 'task_result', workerId: this.workerId, taskId, status: 'failed', error });
     }
   }
 
