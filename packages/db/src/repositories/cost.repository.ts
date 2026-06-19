@@ -1,8 +1,4 @@
-import {
-  type CostByModel,
-  type DailyCostPoint,
-  type ThroughputPoint,
-} from '@hatch-radar/shared';
+import { type CostByModel, type DailyCostPoint, type ThroughputPoint } from '@hatch-radar/shared';
 import type { AppDatabase } from '../internal';
 
 /**

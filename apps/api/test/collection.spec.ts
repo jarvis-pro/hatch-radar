@@ -216,7 +216,14 @@ describe('采集执行器（CollectionExecutor：discover → collect → analyz
       },
     });
     await db.comments.create({
-      data: { id: 'c_r1', post_id: 'rd_r1', body: 'old', depth: 0, created_utc: 1001n, fetched_at: 1001n },
+      data: {
+        id: 'c_r1',
+        post_id: 'rd_r1',
+        body: 'old',
+        depth: 0,
+        created_utc: 1001n,
+        fetched_at: 1001n,
+      },
     });
     const exec = makeExecutor({ active: { id: 1, model: 'model-x', label: 'x' } });
     const runId = await makeRun();

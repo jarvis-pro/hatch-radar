@@ -220,7 +220,12 @@ export class PipelineService {
     if (postIds.length === 0) return { enqueued: 0 };
     const bp = await this.ensureBlueprint('translate', '翻译');
     const run = await this.runs.createRun(
-      { blueprintId: bp.id, kind: 'translate', triggerSource: 'manual', params: { providerId, model } },
+      {
+        blueprintId: bp.id,
+        kind: 'translate',
+        triggerSource: 'manual',
+        params: { providerId, model },
+      },
       nowSec(),
     );
     let enqueued = 0;

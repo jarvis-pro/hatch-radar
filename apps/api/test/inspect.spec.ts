@@ -109,7 +109,14 @@ describe('流水线检视器：执行内核（runTask 闸门状态机）', () =>
     });
     await db.comments.createMany({
       data: [
-        { id: 'c1', post_id: id, body: '顶层评论', depth: 0, created_utc: 1001n, fetched_at: 1001n },
+        {
+          id: 'c1',
+          post_id: id,
+          body: '顶层评论',
+          depth: 0,
+          created_utc: 1001n,
+          fetched_at: 1001n,
+        },
         {
           id: 'c2',
           post_id: id,
@@ -220,7 +227,10 @@ describe('流水线检视器：执行内核（runTask 闸门状态机）', () =>
 
     const stages = await taskStages.listStages(taskId);
     expect(stages.every((s) => s.status === 'done')).toBe(true);
-    const out = Object.fromEntries(stages.map((s) => [s.name, s.output])) as Record<string, unknown>;
+    const out = Object.fromEntries(stages.map((s) => [s.name, s.output])) as Record<
+      string,
+      unknown
+    >;
     expect((out.resolve as ResolveOutput).model).toBe('model-x');
     expect((out.fetch as FetchOutput).commentCount).toBe(2);
     expect((out.fetch as FetchOutput).maxDepth).toBe(1);
