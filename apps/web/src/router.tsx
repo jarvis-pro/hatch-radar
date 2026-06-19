@@ -1,4 +1,8 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom';
+import { BlueprintLabPage } from '@/blueprint-lab/page';
+import { ProcessesPage } from '@/blueprint-lab/processes';
+import { ProcessRunsPage } from '@/blueprint-lab/process-runs';
+import { RunDetailPage } from '@/blueprint-lab/run-detail';
 import { ProtectedLayout } from '@/layout';
 import { PermissionsPage } from '@/pages/account-permissions';
 import { ProfilePage } from '@/pages/account-profile';
@@ -36,6 +40,10 @@ export const router = createBrowserRouter([
       { path: 'posts', element: <PostsPage /> },
       { path: 'posts/:id', element: <PostDetailPage /> },
       { path: 'analyze', element: <AnalyzePage /> },
+      { path: 'blueprints', element: <BlueprintLabPage /> },
+      { path: 'processes', element: <ProcessesPage /> },
+      { path: 'processes/:id/runs', element: <ProcessRunsPage /> },
+      { path: 'processes/:id/runs/:runId', element: <RunDetailPage /> },
       { path: 'inspect/:jobId', element: <InspectPage /> },
       { path: 'pipeline', element: <PipelinePage /> },
       { path: 'pipeline/:id', element: <PipelineDetailPage /> },

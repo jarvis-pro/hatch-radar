@@ -2,6 +2,8 @@ import {
   FileText,
   Gauge,
   LayoutDashboard,
+  LayoutTemplate,
+  Repeat,
   ScrollText,
   Settings2,
   Sparkles,
@@ -63,6 +65,20 @@ export const NAV_GROUPS: readonly NavGroup[] = [
     label: '运营',
     items: [
       {
+        to: '/blueprints',
+        label: '图纸',
+        icon: LayoutTemplate,
+        perm: 'analyze:run',
+        match: (p) => p.startsWith('/blueprints'),
+      },
+      {
+        to: '/processes',
+        label: '进程',
+        icon: Repeat,
+        perm: 'analyze:run',
+        match: (p) => p.startsWith('/processes'),
+      },
+      {
         to: '/analyze',
         label: '发起分析',
         icon: Zap,
@@ -71,7 +87,7 @@ export const NAV_GROUPS: readonly NavGroup[] = [
       },
       {
         to: '/pipeline',
-        label: '进程',
+        label: '检视器',
         icon: Workflow,
         perm: 'analyze:run',
         match: (p) => p.startsWith('/pipeline'),

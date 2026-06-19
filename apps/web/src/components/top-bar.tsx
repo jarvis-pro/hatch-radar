@@ -47,6 +47,18 @@ function crumbsFor(pathname: string): Crumb[] {
     }
     return [];
   }
+  const runsMatch = pathname.match(/^\/processes\/([^/]+)\/runs(?:\/([^/]+))?/);
+  if (runsMatch) {
+    const base: Crumb = { label: section.label, to: section.to };
+    if (runsMatch[2]) {
+      return [
+        base,
+        { label: '运行记录', to: `/processes/${runsMatch[1]}/runs` },
+        { label: '运行详情' },
+      ];
+    }
+    return [base, { label: '运行记录' }];
+  }
   if (/^\/insights\/[^/]+/.test(pathname) || /^\/posts\/[^/]+/.test(pathname)) {
     return [{ label: section.label, to: section.to }, { label: '详情' }];
   }
