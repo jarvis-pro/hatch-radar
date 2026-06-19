@@ -1,12 +1,19 @@
+import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import type { InspectStepView } from '@hatch-radar/shared';
 import { Badge } from '@hatch-radar/ui/components/badge';
+import { Button } from '@hatch-radar/ui/components/button';
 import { Skeleton } from '@hatch-radar/ui/components/skeleton';
+import { Spinner } from '@hatch-radar/ui/components/spinner';
+import { toast } from '@hatch-radar/ui/components/sonner';
 import { api, ApiError } from '@/api/client';
 import { RequirePerm } from '@/auth/require-perm';
 import { LoadError } from '@/components/empty';
 import { PageHeader } from '@/components/page-header';
-import { fmtDuration, timeAgo } from '@/lib/format';
+import { FlowDiagram } from '@/components/pipeline/flow-diagram';
+import { RunGraph, type GraphTask } from '@/components/pipeline/run-graph';
+import { timeAgo } from '@/lib/format';
 import { kindLabel, runStatusMeta, type RunView } from '@/pages/pipeline';
 
 type Variant = 'default' | 'secondary' | 'destructive' | 'outline';
@@ -21,12 +28,7 @@ interface StageView {
   finishedAt: number | null;
 }
 
-interface TaskView {
-  id: number;
-  kind: string;
-  status: string;
-  postId: string | null;
-  model: string | null;
+interface TaskView extends GraphTask {
   attempts: number;
   error: string | null;
   startedAt: number | null;
@@ -51,51 +53,62 @@ const TASK_STATUS_META: Record<string, { label: string; variant: Variant }> = {
   canceled: { label: '已取消', variant: 'outline' },
 };
 
-const STAGE_STATUS_META: Record<string, { variant: Variant; dot: string }> = {
-  pending: { variant: 'outline', dot: 'bg-muted-foreground/40' },
-  running: { variant: 'default', dot: 'bg-primary animate-pulse' },
-  done: { variant: 'secondary', dot: 'bg-primary' },
-  skipped: { variant: 'outline', dot: 'bg-muted-foreground/30' },
-  failed: { variant: 'destructive', dot: 'bg-destructive' },
-};
+const ACTIVE = new Set(['queued', 'running', 'paused']);
 
-/** 环节耗时（秒）：done/failed 用起止；running 用至今；未起返回 null */
-function stageDuration(s: StageView, now: number): number | null {
-  if (s.startedAt == null) return null;
-  const end = s.finishedAt ?? (s.status === 'running' ? now : null);
-  return end == null ? null : Math.max(0, end - s.startedAt);
-}
-
-/** 单环节小条：状态点 + 环节名（+ 失败时高亮 + 耗时 title） */
-function StageChip({ stage, now }: { stage: StageView; now: number }) {
-  const meta = STAGE_STATUS_META[stage.status] ?? STAGE_STATUS_META.pending!;
-  const dur = stageDuration(stage, now);
+/** 选中焦点优先级：暂停 > 失败 > 运行中 > 第一个（开页 / 轮询后默认聚焦最需关注的任务）。 */
+function focusTask(tasks: TaskView[], pickedId: number | null): TaskView | null {
+  if (pickedId != null) {
+    const hit = tasks.find((t) => t.id === pickedId);
+    if (hit) return hit;
+  }
   return (
-    <span
-      className="inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs"
-      title={`${stage.status}${dur != null ? ` · ${fmtDuration(dur)}` : ''}${stage.error ? ` · ${stage.error}` : ''}`}
-    >
-      <span className={`size-1.5 rounded-full ${meta.dot}`} />
-      <span className={stage.status === 'failed' ? 'text-destructive' : undefined}>
-        {stage.name}
-      </span>
-    </span>
+    tasks.find((t) => t.status === 'paused') ??
+    tasks.find((t) => t.status === 'failed') ??
+    tasks.find((t) => t.status === 'running') ??
+    tasks[0] ??
+    null
   );
 }
 
-/** 单个任务卡：头部（状态/帖子/模型/token）+ 环节轨迹小条 */
-function TaskCard({ task, now }: { task: TaskView; now: number }) {
-  const meta = TASK_STATUS_META[task.status] ?? { label: task.status, variant: 'outline' as const };
+/** StageView → FlowDiagram 所需的 InspectStepView（无产物，置空；图只用状态/耗时）。 */
+function toSteps(stages: StageView[]): InspectStepView[] {
+  return stages.map((s) => ({
+    seq: s.seq,
+    name: s.name,
+    status: s.status,
+    inputSummary: null,
+    output: null,
+    error: s.error,
+    startedAt: s.startedAt,
+    finishedAt: s.finishedAt,
+  }));
+}
+
+/** 当前环节 seq（运行中 > 失败 > 最近完成 > 第一个）。 */
+function currentSeq(steps: InspectStepView[]): number {
   return (
-    <div className="rounded-lg border p-3">
+    steps.find((s) => s.status === 'running')?.seq ??
+    steps.find((s) => s.status === 'failed')?.seq ??
+    [...steps].reverse().find((s) => s.status === 'done')?.seq ??
+    steps[0]?.seq ??
+    0
+  );
+}
+
+/** 选中任务面板：元信息 + 环节流程图 + 闸门控制条。 */
+function TaskPanel({ task, onAct, busy }: { task: TaskView; onAct: Act; busy: boolean }) {
+  const meta = TASK_STATUS_META[task.status] ?? { label: task.status, variant: 'outline' as const };
+  const steps = toSteps(task.stages);
+  const isAnalyze = task.kind === 'analyze';
+  return (
+    <div className="mt-4 rounded-lg border p-4">
       <div className="flex flex-wrap items-center gap-2">
         <Badge variant={meta.variant}>{meta.label}</Badge>
-        <span className="text-xs text-muted-foreground">{kindLabel(task.kind)}</span>
+        <span className="text-sm font-medium">
+          {kindLabel(task.kind)} · 任务 #{task.id}
+        </span>
         {task.postId ? (
-          <Link
-            to={`/posts/${task.postId}`}
-            className="min-w-0 truncate font-mono text-xs hover:underline"
-          >
+          <Link to={`/posts/${task.postId}`} className="font-mono text-xs hover:underline">
             {task.postId}
           </Link>
         ) : null}
@@ -108,27 +121,79 @@ function TaskCard({ task, now }: { task: TaskView; now: number }) {
           </span>
         ) : null}
       </div>
-      {task.stages.length > 0 ? (
-        <div className="mt-2 flex flex-wrap items-center gap-1.5">
-          {task.stages.map((s) => (
-            <StageChip key={s.seq} stage={s} now={now} />
-          ))}
+
+      {steps.length > 0 ? (
+        <div className="mt-3">
+          <FlowDiagram steps={steps} selectedSeq={currentSeq(steps)} onSelect={() => {}} />
         </div>
       ) : null}
-      {task.error ? <p className="mt-2 text-xs text-destructive">{task.error}</p> : null}
+
+      {task.error ? (
+        <div className="mt-3 rounded-md border border-destructive/40 bg-destructive/5 p-2.5 text-sm text-destructive">
+          {task.error}
+        </div>
+      ) : null}
+
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        {task.status === 'paused' ? (
+          <>
+            <Button size="sm" onClick={() => onAct(task.id, 'resume')} disabled={busy}>
+              {busy ? <Spinner /> : null} 放行下一步
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => onAct(task.id, 'run-to-end')}
+              disabled={busy}
+            >
+              运行到底
+            </Button>
+          </>
+        ) : null}
+        {task.status === 'failed' ? (
+          <Button size="sm" onClick={() => onAct(task.id, 'retry')} disabled={busy}>
+            {busy ? <Spinner /> : null} 重试本环节
+          </Button>
+        ) : null}
+        {task.status === 'running' ? (
+          <span className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Spinner className="size-4" /> 环节执行中…
+          </span>
+        ) : null}
+        {isAnalyze ? (
+          <Button asChild size="sm" variant="ghost">
+            <Link to={`/inspect/${task.id}`}>深入检视 →</Link>
+          </Button>
+        ) : null}
+        {ACTIVE.has(task.status) ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="ml-auto"
+            onClick={() => onAct(task.id, 'cancel')}
+            disabled={busy}
+          >
+            取消
+          </Button>
+        ) : null}
+      </div>
     </div>
   );
 }
 
+type Act = (taskId: number, path: string) => void;
+
 function PipelineDetailView() {
   const { id } = useParams<{ id: string }>();
-  const now = Math.floor(Date.now() / 1000);
+  const [pickedId, setPickedId] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
+
   const q = useQuery({
     queryKey: ['pipeline-run', id],
     queryFn: () => api.get<RunDetail>(`/pipeline/runs/${id}`),
     refetchInterval: (query) => {
-      const s = query.state.data?.run.status;
-      return s === 'running' || s === 'paused' ? 1500 : false;
+      const tasks = query.state.data?.tasks ?? [];
+      return tasks.some((t) => ACTIVE.has(t.status)) ? 1500 : false;
     },
   });
 
@@ -144,6 +209,21 @@ function PipelineDetailView() {
 
   const { run, tasks } = q.data;
   const meta = runStatusMeta(run.status);
+  const selected = focusTask(tasks, pickedId);
+
+  const act: Act = (taskId, path) => {
+    setBusy(true);
+    void (async () => {
+      try {
+        await api.post(`/pipeline/tasks/${taskId}/${path}`);
+        await q.refetch();
+      } catch (err) {
+        toast.error(err instanceof ApiError ? err.message : '操作失败');
+      } finally {
+        setBusy(false);
+      }
+    })();
+  };
 
   return (
     <>
@@ -155,17 +235,16 @@ function PipelineDetailView() {
       {tasks.length === 0 ? (
         <p className="text-sm text-muted-foreground">该进程未派生任何任务。</p>
       ) : (
-        <div className="space-y-2">
-          {tasks.map((t) => (
-            <TaskCard key={t.id} task={t} now={now} />
-          ))}
-        </div>
+        <>
+          <RunGraph tasks={tasks} selectedId={selected?.id ?? null} onSelect={setPickedId} />
+          {selected ? <TaskPanel task={selected} onAct={act} busy={busy} /> : null}
+        </>
       )}
     </>
   );
 }
 
-/** 进程详情页（analyze:run）：进程元信息 + 任务树（每任务含其环节轨迹）。 */
+/** 进程详情页（analyze:run）：任务血缘流程图（react-flow）+ 选中任务的环节轨迹与闸门控制。 */
 export function PipelineDetailPage() {
   return (
     <RequirePerm perm="analyze:run">

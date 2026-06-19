@@ -69,6 +69,7 @@ function toTaskView(t: TaskRow, stages: TaskStageRow[]) {
     id: t.id,
     kind: t.kind,
     status: t.status,
+    parentTaskId: t.parent_task_id,
     postId: t.post_id,
     model: t.model,
     attempts: t.attempts,
@@ -147,5 +148,42 @@ export class PipelineController {
       tasks.map(async (t) => toTaskView(t, await this.taskStages.listStages(t.id))),
     );
     return { run: toRunView(run, bp?.label ?? null), tasks: taskViews };
+  }
+
+  // ─── 逐环节闸门控制（任意 kind 通用；与 /api/analysis/inspect/* 共用 PipelineService 同一组方法）──
+
+  /** 放行暂停中的任务（静停于闸门→续跑）：paused→queued + 派发。 */
+  @Post('tasks/:id/resume')
+  @HttpCode(200)
+  async resumeTask(@Param('id') idRaw: string) {
+    const ok = await this.pipeline.resumeInspect(parseId(idRaw));
+    if (!ok) throw new BadRequestException('当前不可放行（任务并非暂停态）');
+    return { ok: true };
+  }
+
+  /** 运行到底：清除剩余环节闸门并放行，连续跑完（仍留轨迹）。 */
+  @Post('tasks/:id/run-to-end')
+  @HttpCode(200)
+  async runTaskToEnd(@Param('id') idRaw: string) {
+    await this.pipeline.runInspectToEnd(parseId(idRaw));
+    return { ok: true };
+  }
+
+  /** 重试当前失败环节：复位失败环节 + 任务 failed→queued + 派发。 */
+  @Post('tasks/:id/retry')
+  @HttpCode(200)
+  async retryTask(@Param('id') idRaw: string) {
+    const res = await this.pipeline.retryInspectStep(parseId(idRaw));
+    if (!res.ok) throw new BadRequestException(res.error ?? '当前不可重试');
+    return { ok: true };
+  }
+
+  /** 取消任务：活跃态（queued/running/paused）→ canceled。 */
+  @Post('tasks/:id/cancel')
+  @HttpCode(200)
+  async cancelTask(@Param('id') idRaw: string) {
+    const ok = await this.pipeline.cancelInspect(parseId(idRaw));
+    if (!ok) throw new BadRequestException('当前不可取消（任务已是终态）');
+    return { ok: true };
   }
 }
