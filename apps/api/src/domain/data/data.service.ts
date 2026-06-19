@@ -152,8 +152,8 @@ export class DataService {
     const where = Prisma.sql`p.comments_fetched_at IS NOT NULL
       AND (i.post_id IS NULL OR p.comments_changed_at > i.created_at)
       AND NOT EXISTS (
-        SELECT 1 FROM analysis_jobs aj
-        WHERE aj.post_id = p.id AND aj.status IN ('queued', 'running')
+        SELECT 1 FROM tasks t
+        WHERE t.post_id = p.id AND t.status IN ('queued', 'running', 'paused')
       )`;
     const totalRows = await this.db.$queryRaw<[{ n: number }]>`
       SELECT count(*)::int AS n FROM posts p LEFT JOIN insights i ON i.post_id = p.id WHERE ${where}
