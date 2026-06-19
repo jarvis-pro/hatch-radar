@@ -6,8 +6,6 @@ import { buildDeviceHeaders } from './device-identity';
 export interface WorkstationConfig {
   /** 形如 http://192.168.0.95:8787，不带尾斜杠 */
   baseUrl: string;
-  /** 工作台设置了 API_TOKEN 时必填 */
-  token?: string;
 }
 
 /** /api/health 的响应结构（server/src/server/http.ts） */
@@ -18,17 +16,15 @@ export interface WorkstationHealth {
 }
 
 const URL_KEY = 'server_url';
-const TOKEN_KEY = 'server_token';
 
 export function loadWorkstationConfig(): WorkstationConfig | null {
   const baseUrl = getMeta(URL_KEY);
   if (!baseUrl) return null;
-  return { baseUrl, token: getMeta(TOKEN_KEY) ?? undefined };
+  return { baseUrl };
 }
 
 export function saveWorkstationConfig(cfg: WorkstationConfig): void {
   setMeta(URL_KEY, cfg.baseUrl);
-  setMeta(TOKEN_KEY, cfg.token ?? '');
 }
 
 /** 规整用户输入：补 http://、去尾斜杠与空白 */
@@ -43,9 +39,8 @@ export function normalizeBaseUrl(input: string): string {
 async function request<T>(cfg: WorkstationConfig, path: string, init?: RequestInit): Promise<T> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 15_000);
-  // 已激活则带设备签名头（server 优先走设备通道）；未激活回退到旧的共享令牌。
+  // 鉴权恒走设备签名头（未激活返回空头，server 据此拒绝）。
   const deviceHeaders = buildDeviceHeaders(init?.method ?? 'GET', path);
-  const enrolled = Object.keys(deviceHeaders).length > 0;
   try {
     const res = await fetch(`${cfg.baseUrl}${path}`, {
       ...init,
@@ -53,10 +48,9 @@ async function request<T>(cfg: WorkstationConfig, path: string, init?: RequestIn
       headers: {
         ...(init?.headers as Record<string, string> | undefined),
         ...deviceHeaders,
-        ...(!enrolled && cfg.token ? { authorization: `Bearer ${cfg.token}` } : undefined),
       },
     });
-    if (res.status === 401) throw new Error('鉴权失败：请检查访问令牌（API_TOKEN）');
+    if (res.status === 401) throw new Error('鉴权失败：请先在「我的」里激活本设备');
     if (!res.ok) throw new Error(`工作台返回 ${res.status}`);
     return (await res.json()) as T;
   } catch (err) {

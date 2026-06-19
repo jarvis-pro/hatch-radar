@@ -96,7 +96,7 @@ export function resetEnrollment(): void {
 }
 
 /**
- * 为一次请求构造设备签名头；未激活返回空对象（调用方据此回退到旧令牌 / 匿名）。
+ * 为一次请求构造设备签名头；未激活返回空对象（请求将以匿名发出，由服务端拒绝）。
  * @param method HTTP 方法（须与服务端 req.method 一致）
  * @param path 请求路径（去查询串后与服务端 req.path 一致）
  */

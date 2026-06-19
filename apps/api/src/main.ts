@@ -29,8 +29,6 @@ function lanAddresses(): string[] {
 
 /** 启动横幅：监控来源 / 分析模型 / 当前数据概览（DB 迁移已就绪后调用） */
 async function logStartup(app: NestExpressApplication): Promise<void> {
-  logger.info('hatch-radar 启动（NestJS + PostgreSQL）');
-
   const enabledSources = (await app.get(SourcesRepository).listSources()).filter((s) => s.enabled);
   const byPlatform = (p: string): string[] =>
     enabledSources.filter((s) => s.platform === p).map((s) => s.label || s.identifier);
@@ -40,7 +38,7 @@ async function logStartup(app: NestExpressApplication): Promise<void> {
   const sources: string[] = [];
   if (reddit.length > 0) {
     const usable = await app.get(SourceConnectorsRepository).hasUsableConnector('reddit');
-    sources.push(`Reddit (${reddit.join(', ')})${usable ? '' : ' [无可用连接器，本轮跳过]'}`);
+    sources.push(`Reddit (${reddit.join(', ')})${usable ? '' : ' [无可用连接器，需在设置页配置]'}`);
   }
   if (hn.length > 0) sources.push(`HackerNews (${hn.join(', ')})`);
   if (rss.length > 0) sources.push(`RSS (${rss.join(', ')})`);
@@ -66,10 +64,11 @@ async function logStartup(app: NestExpressApplication): Promise<void> {
 }
 
 /**
- * 主进程入口（`pnpm start:api`）。
+ * 主进程入口（`pnpm start:api`）—— 控制面，单实例。
  *
- * 以 NestExpressApplication 引导：HTTP 监听 + 内嵌调度，对外提供 /api/* 导出/同步接口，
- * 与独立 worker 进程消费同一 PG 队列。启动后打印横幅（监控来源 / 分析模型 / 数据概览）。
+ * 以 NestExpressApplication 引导：HTTP 监听 + @Cron 调度 + WS 网关 + 同源托管 web SPA，
+ * 对外提供全部 /api/* 控制面接口；与独立 worker（数据面，可多开）经 PG 任务队列 + WS 网关解耦。
+ * 启动后打印横幅（监控来源 / 分析模型 / 数据概览）。
  */
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { bufferLogs: true });
@@ -84,9 +83,10 @@ async function bootstrap(): Promise<void> {
   app.enableShutdownHooks();
 
   const env = app.get<AppEnv>(APP_ENV);
-  // 鉴权恒开、fail-closed：人=会话 cookie、mobile=设备签名，均在 server 守卫一处校验
-  // （API_TOKEN 机器平面与局域网放行特判已退役，见 docs/backend-consolidation-design.md）。
-  // 绑定 0.0.0.0 供局域网内的移动端访问。
+  // 绑 0.0.0.0：监听本机所有网卡，使本进程同时经 localhost 与局域网 IP 可达。
+  // web（同源托管的 SPA + /api）与 mobile 共用这一监听；只是 mobile 必须走局域网 IP
+  // （手机是 LAN 上的另一台设备），故不能只绑回环——这才是对外开放的原因。
+  // 网络位置不参与鉴权：恒开、fail-closed——人=会话 cookie、mobile=设备签名，守卫一处校验。
   await app.listen(env.http.port, '0.0.0.0');
 
   await logStartup(app);

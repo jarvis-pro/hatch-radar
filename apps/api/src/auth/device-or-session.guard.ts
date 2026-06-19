@@ -18,7 +18,7 @@ import { DEVICE_PERMISSION } from './device-permission.decorator';
  *
  * - 设备通道：带 `x-device-id` → Ed25519 验签 + 能力校验，附 req.deviceUser；
  * - 会话通道：否则读 httpOnly cookie 校验（写方法要 CSRF 头）+ 能力校验，附 req.user。
- * 两条都 fail-closed（无 API_TOKEN 兜底、无局域网放行）。所需能力由 @RequireDevicePermission 声明，两通道共用。
+ * 两条都 fail-closed（无匿名兜底、无局域网放行）。所需能力由 @RequireDevicePermission 声明，两通道共用。
  */
 @Injectable()
 export class DeviceOrSessionGuard implements CanActivate {
