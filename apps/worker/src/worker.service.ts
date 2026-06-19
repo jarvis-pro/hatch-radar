@@ -8,10 +8,8 @@ import {
   SYSTEM_PROMPT,
 } from '@hatch-radar/analysis';
 import { RuntimeSettingsService } from '@hatch-radar/db';
-import type { JobRow, JobStepRow, PostRow, TaskRow, TaskStageRow } from '@hatch-radar/db';
+import type { PostRow, TaskRow, TaskStageRow } from '@hatch-radar/db';
 import { CommentsRepository } from '@hatch-radar/db';
-import { JobsRepository } from '@hatch-radar/db';
-import { JobStepsRepository } from '@hatch-radar/db';
 import { TasksRepository } from '@hatch-radar/db';
 import { TaskStagesRepository } from '@hatch-radar/db';
 import { RunsRepository } from '@hatch-radar/db';
@@ -44,15 +42,8 @@ function withTimeout<T>(promise: Promise<T>, ms: number, onTimeout?: () => void)
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
-/** 供 WorkerAgentService 分发时传入的最小 job 信息 */
-export interface DispatchedJobInfo {
-  id: number;
-  post_id: string;
-  provider_id: number | null;
-}
-
 /**
- * 分析 job 执行器（与 NestJS 版逐字等价）：接受 Gateway 分发的任务，执行 AI 分析并写回数据库。
+ * 任务执行器：接受 Gateway 分发的 task，按 kind 逐环节执行并写回数据库。
  *
  * 不含轮询——任务认领由 GatewayService 负责（Push 模式）。僵死回收定时器处理进程崩溃遗留的 running 任务。
  * 生命周期：NestJS onApplicationBootstrap/Shutdown → 这里的 {@link start}/{@link stop}，由配置类按进程拓扑调用。
@@ -62,8 +53,6 @@ export class WorkerService {
   private activeJobPromises: Promise<void>[] = [];
 
   constructor(
-    private readonly jobs: JobsRepository,
-    private readonly jobSteps: JobStepsRepository,
     private readonly tasks: TasksRepository,
     private readonly taskStages: TaskStagesRepository,
     private readonly runs: RunsRepository,
@@ -78,25 +67,21 @@ export class WorkerService {
 
   /** 启动执行器（对应 NestJS onApplicationBootstrap）：回收遗留任务 + 起僵死回收定时器。 */
   async start(): Promise<void> {
-    const orphaned =
-      (await this.jobs.reclaimRunningJobs(nowSec(), null)) +
-      (await this.tasks.reclaimRunningTasks(nowSec(), null));
+    const orphaned = await this.tasks.reclaimRunningTasks(nowSec(), null);
     if (orphaned > 0) logger.warn(`[worker] 启动回收 ${orphaned} 个遗留 running 任务`);
 
     // 每轮实时读取回收阈值——设置页改 workerStaleSeconds 后下一轮即生效（含独立 worker 进程）
     this.reclaimTimer = setInterval(() => {
       void (async () => {
         const { staleSeconds } = await this.runtimeSettings.getWorkerTuning();
-        const n =
-          (await this.jobs.reclaimRunningJobs(nowSec(), staleSeconds)) +
-          (await this.tasks.reclaimRunningTasks(nowSec(), staleSeconds));
+        const n = await this.tasks.reclaimRunningTasks(nowSec(), staleSeconds);
         if (n > 0) logger.warn(`[worker] 回收 ${n} 个僵死任务（心跳超 ${staleSeconds}s）`);
       })();
     }, RECLAIM_INTERVAL_MS);
 
-    const stats = await this.jobs.getJobStats();
+    const stats = await this.tasks.taskStats();
     logger.info(
-      `[worker] 分析执行器已就绪；当前队列 queued ${stats.queued} / running ${stats.running}`,
+      `[worker] 执行器已就绪；当前任务 queued ${stats.queued} / running ${stats.running}`,
     );
   }
 
@@ -112,24 +97,7 @@ export class WorkerService {
   }
 
   /**
-   * 执行由 Gateway 分发来的任务（job 已被 Gateway 认领为 running）。
-   */
-  async executeDispatchedJob(
-    job: DispatchedJobInfo,
-    onProgress?: (jobId: number) => void,
-  ): Promise<void> {
-    const p = this.runJob(job, onProgress);
-    this.activeJobPromises.push(p);
-    try {
-      await p;
-    } finally {
-      this.activeJobPromises = this.activeJobPromises.filter((x) => x !== p);
-    }
-  }
-
-  /**
-   * 执行由调度 / 分发分配来的任务（新执行模型：blueprints→runs→tasks→task_stages）。
-   * 与 {@link executeDispatchedJob}（旧 analysis_jobs 路径）过渡期并存；后续切换后取代之。
+   * 执行由 Gateway 分发来的任务（task 已被 Gateway 认领为 running；执行模型 blueprints→runs→tasks→task_stages）。
    */
   async executeDispatchedTask(taskId: number, onProgress?: (id: number) => void): Promise<void> {
     const p = this.runTask(taskId, onProgress);
@@ -145,7 +113,7 @@ export class WorkerService {
    * 通用任务执行内核：一次认领只推进到下一个闸门。逐环节执行、每步落检查点（task_stages.output）；
    * 环节挂闸门（task_stages.gate）时跑完即置 paused、正常结束本次认领，由放行（paused→queued）重认领续跑。
    * 末环节完成则按 kind 收尾（analyze→markAnalyzed）+ succeedTask；环节失败则 failTask + 按 kind 善后。
-   * 每个环节受 jobTimeoutMs 超时与 AbortSignal 约束。是 {@link runInspectJob} 的泛化，复用同一组节点函数。
+   * 每个环节受 jobTimeoutMs 超时与 AbortSignal 约束，复用 {@link execNode} 同一组节点函数。
    */
   private async runTask(taskId: number, onProgress?: (id: number) => void): Promise<void> {
     const task = await this.tasks.getTask(taskId);
@@ -201,8 +169,12 @@ export class WorkerService {
           return;
         }
         if (next.gate) {
-          await this.tasks.pauseTask(task.id); // 静停于闸门，等放行重认领续跑
-          return;
+          // 内存里闸门是开的——暂停前回读 DB 确认未被「运行到底」清闸（清闸对执行中的任务即时生效，
+          // 对齐旧 step_gate 实时回读语义）。非检视任务 next.gate=false，走不到这里、零额外查询。
+          if (await this.taskStages.isStageGated(task.id, next.seq)) {
+            await this.tasks.pauseTask(task.id); // 静停于闸门，等放行重认领续跑
+            return;
+          }
         }
         // 闸门关闭：继续下一环节
       }
@@ -231,6 +203,10 @@ export class WorkerService {
       case 'recheck':
         if (!post) return Promise.reject(new Error('recheck 任务缺少帖子'));
         return this.collection.recheckPost(task, post);
+      case 'translate':
+        if (!post) return Promise.reject(new Error('translate 任务缺少帖子'));
+        // 译文按 content_hash 落 translations 表；产物含 usage 供成本回填。
+        return this.translation.translatePost(post.id, task.provider_id, signal);
       default:
         return Promise.reject(new Error(`未实现的任务类型环节执行: ${task.kind}`));
     }
@@ -251,168 +227,6 @@ export class WorkerService {
   /** 任务失败善后（按 kind）：analyze 累加 analyze_attempts（与旧路径一致，达上限不再自动重分析）。 */
   private async onTaskError(task: TaskRow, post: PostRow | null): Promise<void> {
     if (task.kind === 'analyze' && post) await this.posts.bumpAnalyzeAttempts(post.id);
-  }
-
-  private async runJob(
-    job: DispatchedJobInfo,
-    onProgress?: (jobId: number) => void,
-  ): Promise<void> {
-    const post = await this.posts.getPostById(job.post_id);
-    if (!post) {
-      await this.jobs.failJob(job.id, '帖子不存在或已归档', nowSec());
-      return;
-    }
-    // Gateway 分发的最小信息不含 job_type / inspect 标志，按 id 回查整行再路由（一次 PK 查找）
-    const full = await this.jobs.getJob(job.id);
-    if (!full) return; // 任务已不存在（被清理）——无事可做
-    if (full.inspect) await this.runInspectJob(full, post, onProgress);
-    else if (full.job_type === 'translation') await this.runTranslationJob(job, post, onProgress);
-    else await this.runAnalysisJob(job, post, onProgress);
-  }
-
-  /** 执行分析任务：解析处理器 → AI 分析 → 落库洞察 → markAnalyzed。 */
-  private async runAnalysisJob(
-    job: DispatchedJobInfo,
-    post: PostRow,
-    onProgress?: (jobId: number) => void,
-  ): Promise<void> {
-    const processor =
-      job.provider_id != null
-        ? await this.analysisConfig.getProcessorForProvider(job.provider_id)
-        : null;
-    if (!processor) {
-      await this.jobs.failJob(
-        job.id,
-        `无法解析模型配置（provider_id=${job.provider_id ?? 'null'}），请检查设置`,
-        nowSec(),
-      );
-      return;
-    }
-    const commentsData = await this.comments.getCommentsForPost(job.post_id);
-    const heartbeat = setInterval(() => {
-      void this.jobs.touchHeartbeat(job.id, nowSec());
-      onProgress?.(job.id);
-    }, HEARTBEAT_INTERVAL_MS);
-    const ac = new AbortController();
-    const { jobTimeoutMs } = await this.runtimeSettings.getWorkerTuning();
-    try {
-      const { saved, usage } = await withTimeout(
-        this.analysis.analyzeAndPersist(processor, post, commentsData, ac.signal),
-        jobTimeoutMs,
-        () => ac.abort(new Error('job 超时，中止底层调用')),
-      );
-      await this.posts.markAnalyzed(post.id, nowSec());
-      await this.jobs.succeedJob(job.id, nowSec(), usage);
-      if (saved) {
-        logger.info(`  ✓ [job#${job.id}] r/${post.subreddit}「${post.title.slice(0, 40)}」已落库`);
-      }
-    } catch (err) {
-      await this.posts.bumpAnalyzeAttempts(post.id);
-      const msg = err instanceof Error ? err.message : String(err);
-      await this.jobs.failJob(job.id, msg, nowSec());
-      logger.error(`  ✗ [job#${job.id}] ${post.id} 失败: ${msg}`);
-    } finally {
-      clearInterval(heartbeat);
-    }
-  }
-
-  /** 执行翻译任务：翻译该帖未翻译内容并按内容哈希回写 translations（不动 analyzed_at / analyze_attempts）。 */
-  private async runTranslationJob(
-    job: DispatchedJobInfo,
-    post: PostRow,
-    onProgress?: (jobId: number) => void,
-  ): Promise<void> {
-    const heartbeat = setInterval(() => {
-      void this.jobs.touchHeartbeat(job.id, nowSec());
-      onProgress?.(job.id);
-    }, HEARTBEAT_INTERVAL_MS);
-    const ac = new AbortController();
-    const { jobTimeoutMs } = await this.runtimeSettings.getWorkerTuning();
-    try {
-      const { translated, skipped, usage } = await withTimeout(
-        this.translation.translatePost(post.id, job.provider_id, ac.signal),
-        jobTimeoutMs,
-        () => ac.abort(new Error('job 超时，中止底层调用')),
-      );
-      await this.jobs.succeedJob(job.id, nowSec(), usage);
-      logger.info(
-        `  ✓ [job#${job.id}] 翻译 ${post.id} 完成（新译 ${translated} / 跳过 ${skipped}）`,
-      );
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      await this.jobs.failJob(job.id, msg, nowSec());
-      logger.error(`  ✗ [job#${job.id}] 翻译 ${post.id} 失败: ${msg}`);
-    } finally {
-      clearInterval(heartbeat);
-    }
-  }
-
-  /**
-   * 执行检视任务（inspect=true）：一次认领只推进到下一个闸门。
-   *
-   * 每跑完一个节点把产物落库（检查点）；逐节点闸门开启时置 paused 后正常结束本次认领，由控制面放行
-   * （paused→queued）触发重认领、从下一节点续跑（见 docs/pipeline-inspector-design.md 决策 1）。闸门关闭
-   * （运行到底）时连续跑完剩余节点。每个节点受 jobTimeoutMs 超时与 AbortSignal 约束（沿用 withTimeout）。
-   */
-  private async runInspectJob(
-    job: JobRow,
-    post: PostRow,
-    onProgress?: (jobId: number) => void,
-  ): Promise<void> {
-    const heartbeat = setInterval(() => {
-      void this.jobs.touchHeartbeat(job.id, nowSec());
-      onProgress?.(job.id);
-    }, HEARTBEAT_INTERVAL_MS);
-    const ac = new AbortController();
-    const { jobTimeoutMs } = await this.runtimeSettings.getWorkerTuning();
-    try {
-      const steps = await this.jobSteps.listSteps(job.id);
-      // 连续推进，直至：遇闸门（paused 返回）、末节点成功、节点失败、或被取消
-      for (;;) {
-        const next = steps.find((s) => s.status === 'pending');
-        if (!next) {
-          // 兜底：无 pending 节点（理论不发生）。仍 running 则按成功收尾。
-          await this.jobs.succeedJob(job.id, nowSec(), usageFromSteps(steps));
-          return;
-        }
-        await this.jobSteps.markStepRunning(job.id, next.seq, null, nowSec());
-        let output: unknown;
-        try {
-          output = await withTimeout(
-            this.execNode(next.name, job.provider_id, job.model, post, steps, ac.signal),
-            jobTimeoutMs,
-            () => ac.abort(new Error('节点执行超时，中止底层调用')),
-          );
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          await this.jobSteps.markStepFailed(job.id, next.seq, msg, nowSec());
-          await this.jobs.failJob(job.id, msg, nowSec());
-          logger.error(`  ✗ [inspect job#${job.id}] 节点 ${next.name} 失败: ${msg}`);
-          return;
-        }
-        await this.jobSteps.markStepDone(job.id, next.seq, output, nowSec());
-        // 同步本地副本，供「运行到底」连续跑时下游节点读上游产物
-        next.status = 'done';
-        next.output = output as JobStepRow['output'];
-
-        // 闸门/收尾决策前实时回读最新 job（status + step_gate）——使「运行到底」「取消」对执行中的任务即时生效
-        const fresh = await this.jobs.getJob(job.id);
-        if (!fresh || fresh.status !== 'running') return; // 被取消 / 外部改状态 → 停手，不写终态
-        if (next.name === 'persist') {
-          await this.posts.markAnalyzed(post.id, nowSec()); // 末节点：标记已分析 + 整条 job 成功
-          await this.jobs.succeedJob(job.id, nowSec(), usageFromSteps(steps));
-          logger.info(`  ✓ [inspect job#${job.id}] 全部节点完成`);
-          return;
-        }
-        if (fresh.step_gate) {
-          await this.jobs.pauseJob(job.id); // 静停于闸门，等放行 → 重认领续跑
-          return;
-        }
-        // 闸门关闭：继续跑下一节点
-      }
-    } finally {
-      clearInterval(heartbeat);
-    }
   }
 
   /**
@@ -534,7 +348,7 @@ export class WorkerService {
 /** 粗略估算每 token 字符数（仅用于检视展示，不参与计费） */
 const EST_CHARS_PER_TOKEN = 4;
 
-/** 环节产物读取的最小形状：JobStepRow / TaskStageRow 均满足（普通检视与新任务内核共用节点函数）。 */
+/** 环节产物读取的最小形状（TaskStageRow 满足；节点函数据此读上游检查点）。 */
 type StageLike = { name: string; output: unknown };
 
 /** 取某环节已落库的产物并按目标形状读取（上游检查点；未跑/无产物为 undefined）。 */
@@ -543,12 +357,17 @@ function stepOutput<T>(stages: StageLike[], name: string): T | undefined {
   return (out ?? undefined) as T | undefined;
 }
 
-/** 从 ai_call 环节产物提取 token 用量，供整条任务计费（缺则 null）。 */
-function usageFromSteps(stages: StageLike[]): {
+/** token 用量形状（ai_call / translate 环节产物的 usage 字段同形）。 */
+type StageUsage = {
   inputTokens: number;
   outputTokens: number;
   cacheWriteTokens: number;
   cacheReadTokens: number;
-} | null {
-  return stepOutput<AiCallOutput>(stages, 'ai_call')?.usage ?? null;
+};
+
+/** 从 ai_call 或 translate 环节产物提取 token 用量，供整条任务计费（缺则 null）。 */
+function usageFromSteps(stages: StageLike[]): StageUsage | null {
+  const fromAi = stepOutput<AiCallOutput>(stages, 'ai_call')?.usage;
+  if (fromAi) return fromAi;
+  return stepOutput<{ usage: StageUsage | null }>(stages, 'translate')?.usage ?? null;
 }

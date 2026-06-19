@@ -44,7 +44,7 @@ export interface StageDef {
 }
 
 /**
- * 任务队列数据访问（Prisma / PostgreSQL）。取代旧 {@link JobsRepository}，泛化到所有 kind。
+ * 任务队列数据访问（Prisma / PostgreSQL）：泛化到所有 kind（取代已删除的 analysis_jobs 队列）。
  *
  * 认领用 `FOR UPDATE SKIP LOCKED`（多 worker / 多进程并发认领不重不漏）；心跳 / 僵死回收 /
  * max_attempts 沿用旧机制。环节闸门把暂停下放到逐 task_stage（{@link TaskStagesRepository}）。
@@ -235,6 +235,28 @@ export class TasksRepository {
   }
 
   /**
+   * 归档：删除 finished_at < cutoff 的终态任务（succeeded/failed/canceled）及其环节。
+   * task_stages 是软引用（无级联）→ 同事务先删环节再删任务。洞察不在此表、不受影响。
+   * @returns 删除的任务数
+   */
+  async deleteFinishedTasksBefore(cutoff: number): Promise<number> {
+    return this.db.$transaction(async (tx) => {
+      const old = await tx.tasks.findMany({
+        where: {
+          status: { in: ['succeeded', 'failed', 'canceled'] },
+          finished_at: { not: null, lt: BigInt(cutoff) },
+        },
+        select: { id: true },
+      });
+      if (old.length === 0) return 0;
+      const ids = old.map((t) => t.id);
+      await tx.task_stages.deleteMany({ where: { task_id: { in: ids } } });
+      const res = await tx.tasks.deleteMany({ where: { id: { in: ids } } });
+      return res.count;
+    });
+  }
+
+  /**
    * 回收僵死 running 任务：心跳超时或进程重启遗留。未超 max_attempts 回 queued 重排，否则判 failed。
    * paused 不在回收范围（静停于闸门）。
    * @param staleSeconds 心跳早于 now-staleSeconds 才回收；null 回收全部 running（进程启动时用）
@@ -279,5 +301,41 @@ export class TasksRepository {
   async listByRun(runId: number): Promise<TaskRow[]> {
     const rows = await this.db.tasks.findMany({ where: { run_id: runId }, orderBy: { id: 'asc' } });
     return rows.map((r: TaskPg) => toTaskRow(r));
+  }
+
+  /** 同帖同 kind 是否有活跃任务（queued/running/paused）。供翻译等去重 / 状态展示。 */
+  async hasActiveTask(postId: string, kind: string): Promise<boolean> {
+    const row = await this.db.tasks.findFirst({
+      where: { post_id: postId, kind, status: { in: [...ACTIVE_STATUSES] } },
+      select: { id: true },
+    });
+    return row != null;
+  }
+
+  /** 同帖同 kind 最近一条任务的错误（最新一条的 error；成功/跳过为 null）。供翻译状态展示。 */
+  async getRecentError(postId: string, kind: string): Promise<string | null> {
+    const row = await this.db.tasks.findFirst({
+      where: { post_id: postId, kind },
+      orderBy: { id: 'desc' },
+      select: { error: true },
+    });
+    return row?.error ?? null;
+  }
+
+  /** 任务按状态计数（不含 skipped），供看板「任务队列」面板与侧边栏在途红点。 */
+  async taskStats(): Promise<{
+    queued: number;
+    running: number;
+    succeeded: number;
+    failed: number;
+    canceled: number;
+    paused: number;
+  }> {
+    const rows = await this.db.tasks.groupBy({ by: ['status'], _count: { _all: true } });
+    const stats = { queued: 0, running: 0, succeeded: 0, failed: 0, canceled: 0, paused: 0 };
+    for (const r of rows) {
+      if (r.status in stats) stats[r.status as keyof typeof stats] = r._count._all;
+    }
+    return stats;
   }
 }

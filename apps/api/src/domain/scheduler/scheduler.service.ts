@@ -1,5 +1,5 @@
-import { JobsRepository } from '@hatch-radar/db';
 import { PostsRepository } from '@hatch-radar/db';
+import { TasksRepository } from '@hatch-radar/db';
 import { logger } from '@hatch-radar/kernel';
 import { nowSec } from '@hatch-radar/kernel';
 import { PipelineService } from '@/domain/pipeline/pipeline.service';
@@ -21,7 +21,7 @@ export class SchedulerService {
 
   constructor(
     private readonly postsRepo: PostsRepository,
-    private readonly jobsRepo: JobsRepository,
+    private readonly tasksRepo: TasksRepository,
     private readonly pipeline: PipelineService,
   ) {}
 
@@ -90,9 +90,9 @@ export class SchedulerService {
     return this.guard('归档', async () => {
       const cutoff = nowSec() - ARCHIVE_DAYS * 86400;
       const removed = await this.postsRepo.archiveOldData(cutoff);
-      const removedJobs = await this.jobsRepo.deleteFinishedJobsBefore(cutoff);
+      const removedTasks = await this.tasksRepo.deleteFinishedTasksBefore(cutoff);
       logger.info(
-        `[归档] 清理 ${ARCHIVE_DAYS} 天前原始数据：帖子 ${removed.posts}，评论 ${removed.comments}，终态分析任务 ${removedJobs}（洞察保留）`,
+        `[归档] 清理 ${ARCHIVE_DAYS} 天前原始数据：帖子 ${removed.posts}，评论 ${removed.comments}，终态任务 ${removedTasks}（洞察保留）`,
       );
     });
   }

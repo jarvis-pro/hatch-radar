@@ -13,9 +13,7 @@ export * from './repositories/comments.repository';
 export * from './repositories/device-credentials.repository';
 export * from './repositories/device-enrollments.repository';
 export * from './repositories/insights.repository';
-export * from './repositories/job-steps.repository';
-export * from './repositories/jobs.repository';
-// 图纸驱动生命周期仓储（新执行模型；过渡期与 jobs / job-steps 并存）
+// 图纸驱动生命周期仓储（新执行模型）
 export * from './repositories/blueprints.repository';
 export * from './repositories/runs.repository';
 export * from './repositories/tasks.repository';
@@ -30,6 +28,7 @@ export * from './repositories/settings.repository';
 export * from './repositories/source-connectors.repository';
 export * from './repositories/sources.repository';
 export * from './repositories/stats.repository';
+export * from './repositories/cost.repository';
 export * from './repositories/translations.repository';
 export * from './repositories/users.repository';
 

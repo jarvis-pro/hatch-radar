@@ -9,11 +9,9 @@
  */
 import type { CommentRow, PostRow } from '@hatch-radar/shared';
 import type {
-  analysis_jobsModel,
   app_settingsModel,
   commentsModel,
   insightsModel,
-  job_stepsModel,
   model_providersModel,
   postsModel,
   provider_api_keysModel,
@@ -48,8 +46,6 @@ export type CommentPg = commentsModel;
 export type InsightPgRow = insightsModel;
 export type TriagePgRow = triageModel;
 export type SyncOpPgRow = sync_opsModel;
-export type JobPg = analysis_jobsModel;
-export type JobStepPg = job_stepsModel;
 export type ProviderPg = model_providersModel;
 export type ProviderApiKeyPg = provider_api_keysModel;
 export type SourcePg = sourcesModel;
@@ -63,10 +59,6 @@ export type RequestQueuePg = request_queueModel;
 export type RequestLanePg = request_lanesModel;
 
 // ─── 域行类型（bigint→number）：无 shared 对应物的表在此定义 ──────────────────────────
-/** analysis_jobs 行（status / trigger 为枚举，时间戳为 number；inspect/step_gate 为 boolean） */
-export type JobRow = BigIntToNumber<analysis_jobsModel>;
-/** job_steps 行（status / name 为字符串；input_summary / output 为 JsonValue；时间戳为 number） */
-export type JobStepRow = BigIntToNumber<job_stepsModel>;
 /** model_providers 行（enabled 为 boolean；时间戳为 number；不含 keys 关系——密钥在 ProviderApiKeyRow） */
 export type ProviderRow = BigIntToNumber<Omit<model_providersModel, 'keys'>>;
 /** provider_api_keys 行（api_key 为密文；status 为枚举；cooldown_until / 时间戳为 number；不含 provider 反向关系） */

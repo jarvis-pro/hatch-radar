@@ -1,6 +1,6 @@
 import type { IncomingMessage, Server as HttpServer } from 'node:http';
 import { WebSocket, WebSocketServer } from 'ws';
-import { JobsRepository, TasksRepository, RuntimeSettingsService } from '@hatch-radar/db';
+import { TasksRepository } from '@hatch-radar/db';
 import { logger } from '@hatch-radar/kernel';
 import { nowSec } from '@hatch-radar/kernel';
 import type { WorkerMessage } from '@hatch-radar/kernel';
@@ -29,11 +29,7 @@ const FALLBACK_DISPATCH_INTERVAL_MS = 10_000;
  * 这里改由 MainConfiguration.onServerReady 注入 koa framework.getServer() 的句柄到 {@link start}。
  */
 export class GatewayService {
-  constructor(
-    private readonly jobs: JobsRepository,
-    private readonly tasks: TasksRepository,
-    private readonly runtimeSettings: RuntimeSettingsService,
-  ) {}
+  constructor(private readonly tasks: TasksRepository) {}
 
   private wsServer?: WebSocketServer;
   /** workerId → state */
@@ -69,31 +65,15 @@ export class GatewayService {
     this.wsServer?.close();
   }
 
-  /** 供入队 / 完成回报后立即触发一次分发。新系统任务（tasks）优先，过渡期回退旧 analysis_jobs。 */
+  /** 供入队 / 完成回报后立即触发一次分发：认领一条 task（blueprints→runs→tasks）派给空闲 worker。 */
   async tryDispatch(): Promise<void> {
     const worker = this.pickWorker();
     if (!worker) return;
-    // 新执行模型优先：认领一条 task（blueprints→runs→tasks）
     const task = await this.tasks.claimNextTask(nowSec());
-    if (task) {
-      worker.activeJobs++;
-      this.send(worker.socket, { type: 'dispatch_task', taskId: task.id });
-      logger.info(`[gateway] 分发 task#${task.id}(${task.kind}) → ${worker.workerId}`);
-      return;
-    }
-    // 过渡期回退：认领旧 analysis_jobs（护栏 B：翻译并发上限达标时本次只认领分析）
-    const translationCap = await this.runtimeSettings.getTranslationConcurrency();
-    const job = await this.jobs.claimNextJob(nowSec(), translationCap);
-    if (!job) return;
+    if (!task) return;
     worker.activeJobs++;
-    this.send(worker.socket, {
-      type: 'dispatch',
-      jobId: job.id,
-      postId: job.post_id,
-      providerId: job.provider_id,
-      model: job.model,
-    });
-    logger.info(`[gateway] 分发 job#${job.id} → ${worker.workerId}`);
+    this.send(worker.socket, { type: 'dispatch_task', taskId: task.id });
+    logger.info(`[gateway] 分发 task#${task.id}(${task.kind}) → ${worker.workerId}`);
   }
 
   /** 当前在线 worker 概况（供日志 / 诊断） */
@@ -171,16 +151,6 @@ export class GatewayService {
         }
         break;
       }
-      case 'job_result': {
-        const s = this.registry.get(msg.workerId);
-        if (s) {
-          s.activeJobs = Math.max(0, s.activeJobs - 1);
-          s.lastHeartbeat = Date.now();
-        }
-        logger.info(`[gateway] job#${msg.jobId} 完成（${msg.status}）← ${msg.workerId}`);
-        await this.tryDispatch();
-        break;
-      }
       case 'task_result': {
         const s = this.registry.get(msg.workerId);
         if (s) {
@@ -189,11 +159,6 @@ export class GatewayService {
         }
         logger.info(`[gateway] task#${msg.taskId} 完成（${msg.status}）← ${msg.workerId}`);
         await this.tryDispatch();
-        break;
-      }
-      case 'job_progress': {
-        // worker 仍在运行，更新 DB 心跳防僵死回收
-        await this.jobs.touchHeartbeat(msg.jobId, nowSec());
         break;
       }
     }

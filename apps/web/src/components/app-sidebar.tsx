@@ -22,7 +22,7 @@ import { NAV_GROUPS } from '@/lib/nav';
 /**
  * 应用侧边栏（持久外壳的骨架）：品牌头 + 三组权限驱动导航（工作区/运营/系统）+ 用户页脚。
  * - 分组按能力过滤，整组无项则不渲染；
- * - 「队列」项展示在飞任务数徽标（信号青）；
+ * - 「进程」项展示在飞任务数徽标（信号青）；
  * - collapsible="offcanvas"：折叠即整体滑出视口，窄屏走 Sheet 抽屉（均由 Sidebar 原语处理）；
  * - position:fixed 钉在视口：整页原生滚动模型（见 layout.tsx）下，在侧栏上滑动会自然把
  *   滚动冒泡给页面、带动右侧内容上下（含触摸/惯性，浏览器原生处理，无需 JS 转发）。
@@ -34,7 +34,7 @@ export function AppSidebar({ user }: { user: CurrentUser }) {
   // 在飞任务数（排队 + 运行中）：有 analyze:run 才轮询；入队操作 invalidate ['queue-inflight'] 即时刷新
   const inflightQ = useQuery({
     queryKey: ['queue-inflight'],
-    queryFn: () => api.get<{ stats: { queued: number; running: number } }>('/analysis/jobs'),
+    queryFn: () => api.get<{ stats: { queued: number; running: number } }>('/pipeline/inflight'),
     refetchInterval: 5000,
     enabled: canQueue,
   });
@@ -86,7 +86,7 @@ export function AppSidebar({ user }: { user: CurrentUser }) {
                             <span>{it.label}</span>
                           </Link>
                         </SidebarMenuButton>
-                        {it.to === '/queue' && inflight > 0 ? (
+                        {it.to === '/pipeline' && inflight > 0 ? (
                           <SidebarMenuBadge className="text-signal">
                             {inflight > 99 ? '99+' : inflight}
                           </SidebarMenuBadge>

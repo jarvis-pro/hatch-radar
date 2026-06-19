@@ -3,9 +3,8 @@ import type { AppDatabase, DbHandle } from '@hatch-radar/db';
 import {
   BlueprintsRepository,
   CommentsRepository,
+  CostRepository,
   InsightsRepository,
-  JobsRepository,
-  JobStepsRepository,
   PostsRepository,
   RunsRepository,
   RuntimeSettingsService,
@@ -123,10 +122,11 @@ describe('图纸生命周期：通用任务执行内核（runTask + task_stages 
     });
   }
 
-  function makeWorker(callRaw: () => Promise<RawModelOutput>): WorkerService {
+  function makeWorker(
+    callRaw: () => Promise<RawModelOutput>,
+    translation: TranslationService = {} as unknown as TranslationService,
+  ): WorkerService {
     return new WorkerService(
-      new JobsRepository(db),
-      new JobStepsRepository(db),
       tasks,
       taskStages,
       runs,
@@ -134,7 +134,7 @@ describe('图纸生命周期：通用任务执行内核（runTask + task_stages 
       new CommentsRepository(db),
       new AnalysisService(new InsightsRepository(db)),
       stubConfig(callRaw),
-      {} as unknown as TranslationService,
+      translation,
       new RuntimeSettingsService(new SettingsRepository(db)),
       {} as unknown as CollectionExecutor,
     );
@@ -201,13 +201,13 @@ describe('图纸生命周期：通用任务执行内核（runTask + task_stages 
     expect((await db.posts.findUnique({ where: { id: 'p1' } }))!.analyzed_at).not.toBeNull();
     expect((await runs.getRun(runId))!.tasks_done).toBe(1);
 
-    // 成本看板 UNION：成功的 analyze 任务计入 getCostStats（dashboard 成本反映新任务化分析）
-    const jobsRepo = new JobsRepository(db);
-    const cost = await jobsRepo.getCostStats(0);
+    // 成本看板：成功的 analyze 任务计入 getCostStats（dashboard 成本现自 tasks 派生）
+    const costRepo = new CostRepository(db);
+    const cost = await costRepo.getCostStats(0);
     expect(cost.totals.inputTokens).toBe(100);
     expect(cost.byModel.find((m) => m.model === 'model-x')?.jobs).toBe(1);
-    // getThroughput 同走 UNION：须能执行（曾因 status 枚举 vs text 类型不匹配报 42804）且计入该任务
-    const throughput = await jobsRepo.getThroughput(7);
+    // getThroughput 须能执行（曾因 status 枚举 vs text 类型不匹配报 42804；现 tasks.status 为 text）且计入该任务
+    const throughput = await costRepo.getThroughput(7);
     expect(throughput).toHaveLength(7);
     expect(throughput.reduce((sum, p) => sum + p.succeeded, 0)).toBeGreaterThanOrEqual(1);
   });
@@ -284,5 +284,52 @@ describe('图纸生命周期：通用任务执行内核（runTask + task_stages 
     expect(await tasks.cancelTask(taskId, nowSec())).toBe(true);
     expect((await tasks.getTask(taskId))!.status).toBe('canceled');
     expect(await tasks.claimNextTask(nowSec())).toBeNull();
+  });
+
+  it('translate 任务：执行翻译并把 usage 回填到任务（成本聚合用）', async () => {
+    await db.posts.create({
+      data: {
+        id: 'rd_tr1',
+        source: 'reddit',
+        subreddit: 'SaaS',
+        title: 'T',
+        created_utc: 1000n,
+        fetched_at: 1000n,
+        comment_pass: 2,
+        analyze_attempts: 0,
+      },
+    });
+    const translation = {
+      translatePost: () =>
+        Promise.resolve({
+          translated: 2,
+          skipped: 0,
+          usage: { inputTokens: 30, outputTokens: 10, cacheWriteTokens: 0, cacheReadTokens: 0 },
+        }),
+    } as unknown as TranslationService;
+    const worker = makeWorker(() => Promise.resolve(RAW), translation);
+
+    const bp = await blueprints.createBlueprint(
+      { kind: 'translate', label: '翻译', triggerKind: 'manual' },
+      nowSec(),
+    );
+    const run = await runs.createRun(
+      { blueprintId: bp.id, kind: 'translate', triggerSource: 'manual' },
+      nowSec(),
+    );
+    const res = await tasks.createTaskWithStages(
+      { runId: run.id, kind: 'translate', postId: 'rd_tr1', providerId: 1, model: 'azure-x' },
+      [{ name: 'translate' }],
+      nowSec(),
+    );
+    if (!res.ok) throw new Error(res.error);
+
+    const t = await tasks.claimNextTask(nowSec());
+    expect(t).not.toBeNull();
+    await worker.executeDispatchedTask(t!.id);
+
+    const task = await tasks.getTask(res.taskId);
+    expect(task!.status).toBe('succeeded');
+    expect(task!.input_tokens).toBe(30); // usage 经 usageFromSteps('translate') 回填
   });
 });

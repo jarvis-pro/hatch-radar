@@ -117,6 +117,13 @@ export class PipelineController {
     return { runId, sweep, due };
   }
 
+  /** 在飞任务计数（排队 + 运行中）：侧栏「进程」红点轮询用，避免拉整张看板。 */
+  @Get('inflight')
+  async inflight() {
+    const stats = await this.tasks.taskStats();
+    return { stats: { queued: stats.queued, running: stats.running } };
+  }
+
   /** 最近进程总览（跨图纸，id 倒序）。 */
   @Get('runs')
   async listRuns() {

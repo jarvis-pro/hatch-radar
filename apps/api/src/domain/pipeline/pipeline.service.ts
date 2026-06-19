@@ -5,12 +5,13 @@ import {
   RunsRepository,
   RuntimeSettingsService,
   TasksRepository,
+  TaskStagesRepository,
   type BlueprintRow,
 } from '@hatch-radar/db';
 import { AnalysisConfigService } from '@hatch-radar/analysis';
 import type { Dispatcher } from '@hatch-radar/kernel';
 import { logger, nowSec } from '@hatch-radar/kernel';
-import { INSPECT_STEP_NAMES } from '@hatch-radar/shared';
+import { INSPECT_STEP_NAMES, type InspectJobView, type InspectStepView } from '@hatch-radar/shared';
 
 /** analyze 任务的环节模板（= 检视器 6 节点；无闸门→worker 一口气运行到底）。 */
 const ANALYZE_STAGES = INSPECT_STEP_NAMES.map((name) => ({ name }));
@@ -41,6 +42,7 @@ export class PipelineService {
     private readonly blueprints: BlueprintsRepository,
     private readonly runs: RunsRepository,
     private readonly tasks: TasksRepository,
+    private readonly taskStages: TaskStagesRepository,
     private readonly posts: PostsRepository,
     private readonly analysisConfig: AnalysisConfigService,
     private readonly runtimeSettings: RuntimeSettingsService,
@@ -200,5 +202,153 @@ export class PipelineService {
     await this.runs.finishRun(run.id, 'completed', nowSec());
     if (enqueued > 0) void this.gateway?.tryDispatch();
     return { ok: true, enqueued };
+  }
+
+  /**
+   * 入队翻译（取代旧 jobs.enqueueTranslationJob）：建 translate 进程 + 逐帖派生 translate 任务
+   * （同帖已有活跃 translate 任务则去重跳过）。provider 类型校验在调用方（仅 claude_cli / azure）。
+   * @param postIds 目标帖子 id（单帖传 1 个，批量传多个）
+   * @param providerId 翻译 provider 配置 id
+   * @param model 模型名快照
+   * @returns 实际派生的翻译任务数
+   */
+  async enqueueTranslation(
+    postIds: string[],
+    providerId: number,
+    model: string,
+  ): Promise<{ enqueued: number }> {
+    if (postIds.length === 0) return { enqueued: 0 };
+    const bp = await this.ensureBlueprint('translate', '翻译');
+    const run = await this.runs.createRun(
+      { blueprintId: bp.id, kind: 'translate', triggerSource: 'manual', params: { providerId, model } },
+      nowSec(),
+    );
+    let enqueued = 0;
+    for (const id of [...new Set(postIds)]) {
+      const res = await this.tasks.createTaskWithStages(
+        { runId: run.id, kind: 'translate', postId: id, providerId, model },
+        [{ name: 'translate' }],
+        nowSec(),
+      );
+      if (res.ok) enqueued += 1;
+    }
+    await this.runs.incrementCounters(run.id, { total: enqueued });
+    await this.runs.finishRun(run.id, 'completed', nowSec());
+    if (enqueued > 0) void this.gateway?.tryDispatch();
+    return { enqueued };
+  }
+
+  // ─── 流水线检视器（单条手动 / 逐环节暂停）──────────────────────────────────────────
+  // 检视 = 带闸门的 analyze 任务：复用 tasks/task_stages 同一执行内核（worker 逐环节落检查点、
+  // 遇闸门置 paused）。取代旧 analysis_jobs(inspect=true) 专路；视图沿用 InspectJobView 契约。
+
+  /**
+   * 发起检视任务：建 analyze 任务（检视器 6 环节）；stepGate=true 时每环节挂闸门（逐环节暂停），
+   * false 则运行到底＋留痕。该帖已有活跃 analyze 任务时由 createTaskWithStages 去重拒绝。
+   */
+  async enqueueInspect(
+    postId: string,
+    providerId: number,
+    stepGate: boolean,
+  ): Promise<{ ok: true; taskId: number } | { ok: false; error: string }> {
+    const provider = await this.providers.getProvider(providerId);
+    if (!provider) return { ok: false, error: '模型配置不存在' };
+    if (!provider.enabled) return { ok: false, error: '该模型已停用' };
+    const post = await this.posts.getPostById(postId);
+    if (!post) return { ok: false, error: '帖子不存在' };
+
+    const bp = await this.ensureBlueprint('analyze', '自动分析');
+    const run = await this.runs.createRun(
+      {
+        blueprintId: bp.id,
+        kind: 'analyze',
+        triggerSource: 'inspect',
+        params: { providerId, model: provider.model },
+      },
+      nowSec(),
+    );
+    const stages = INSPECT_STEP_NAMES.map((name) => ({ name, gate: stepGate }));
+    const res = await this.tasks.createTaskWithStages(
+      { runId: run.id, kind: 'analyze', postId, providerId, model: provider.model },
+      stages,
+      nowSec(),
+    );
+    if (!res.ok) {
+      await this.runs.finishRun(run.id, 'completed', nowSec());
+      return { ok: false, error: res.error };
+    }
+    await this.runs.incrementCounters(run.id, { total: 1 });
+    await this.runs.finishRun(run.id, 'completed', nowSec());
+    void this.gateway?.tryDispatch();
+    return { ok: true, taskId: res.taskId };
+  }
+
+  /** 取检视任务视图：任务元信息 + 各环节轨迹（InspectJobView 形状，时间戳 number、output 已解析）。 */
+  async getInspectView(taskId: number): Promise<InspectJobView | null> {
+    const task = await this.tasks.getTask(taskId);
+    if (!task) return null;
+    const [stages, post, provider] = await Promise.all([
+      this.taskStages.listStages(taskId),
+      task.post_id != null ? this.posts.getPostById(task.post_id) : Promise.resolve(null),
+      task.provider_id != null
+        ? this.providers.getProvider(task.provider_id)
+        : Promise.resolve(null),
+    ]);
+    const steps: InspectStepView[] = stages.map((s) => ({
+      seq: s.seq,
+      name: s.name,
+      status: s.status,
+      inputSummary: s.input_summary ?? null,
+      output: s.output ?? null,
+      error: s.error,
+      startedAt: s.started_at,
+      finishedAt: s.finished_at,
+    }));
+    return {
+      id: task.id,
+      postId: task.post_id ?? '',
+      postTitle: post?.title ?? null,
+      model: task.model ?? '',
+      provider: provider?.provider ?? null,
+      status: task.status,
+      // 仍有未清的闸门即「逐节点暂停」模式（「运行到底」清闸后转 false、隐藏该按钮）
+      stepGate: stages.some((s) => s.gate),
+      trigger: 'inspect',
+      error: task.error,
+      enqueuedAt: task.enqueued_at,
+      startedAt: task.started_at,
+      finishedAt: task.finished_at,
+      steps,
+    };
+  }
+
+  /** 放行下一环节：paused→queued + 派发。返回 false = 当前并非暂停态。 */
+  async resumeInspect(taskId: number): Promise<boolean> {
+    const ok = await this.tasks.resumeTask(taskId);
+    if (ok) void this.gateway?.tryDispatch();
+    return ok;
+  }
+
+  /** 运行到底：清除全部环节闸门、若暂停则放行；worker 回读已清的闸门后连续跑完剩余环节（仍留轨迹）。 */
+  async runInspectToEnd(taskId: number): Promise<void> {
+    await this.taskStages.clearGates(taskId);
+    await this.tasks.resumeTask(taskId); // 暂停则放行；运行中为 no-op（worker 自会回读清掉的闸门续跑）
+    void this.gateway?.tryDispatch();
+  }
+
+  /** 重试当前失败环节：失败环节复位 pending、任务 failed→queued + 派发。返回 ok=false = 当前不可重试。 */
+  async retryInspectStep(taskId: number): Promise<{ ok: boolean; error?: string }> {
+    const task = await this.tasks.getTask(taskId);
+    if (!task) return { ok: false, error: '任务不存在' };
+    if (task.status !== 'failed') return { ok: false, error: '当前不可重试（任务并非失败态）' };
+    await this.taskStages.resetStageToPending(taskId, task.current_seq);
+    const ok = await this.tasks.requeueFailedTask(taskId);
+    if (ok) void this.gateway?.tryDispatch();
+    return { ok };
+  }
+
+  /** 取消检视任务：活跃态（queued/running/paused）→ canceled。返回 false = 当前已是终态。 */
+  async cancelInspect(taskId: number): Promise<boolean> {
+    return this.tasks.cancelTask(taskId, nowSec());
   }
 }

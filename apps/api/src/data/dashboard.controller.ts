@@ -2,7 +2,7 @@ import { Controller, Get, UseGuards } from '@nestjs/common';
 import type { DashboardData } from '@hatch-radar/shared';
 import { RequirePermission } from '@/account/auth-user.decorator';
 import { SessionAuthGuard } from '@/account/session-auth.guard';
-import { GatewayService, JobsRepository, nowSec, StatsRepository } from '@/domain';
+import { CostRepository, GatewayService, nowSec, StatsRepository, TasksRepository } from '@/domain';
 
 /** 成本统计窗口（天） */
 const COST_WINDOW_DAYS = 30;
@@ -19,7 +19,8 @@ const THROUGHPUT_DAYS = 14;
 export class DashboardController {
   constructor(
     private readonly stats: StatsRepository,
-    private readonly jobs: JobsRepository,
+    private readonly cost: CostRepository,
+    private readonly tasks: TasksRepository,
     private readonly gateway: GatewayService,
   ) {}
 
@@ -28,10 +29,10 @@ export class DashboardController {
     const now = nowSec();
     const [overview, queue, costStats, dailyCost, throughput, insights] = await Promise.all([
       this.stats.getStats(),
-      this.jobs.getJobStats(),
-      this.jobs.getCostStats(now - COST_WINDOW_DAYS * 86_400),
-      this.jobs.getDailyCost(COST_WINDOW_DAYS),
-      this.jobs.getThroughput(THROUGHPUT_DAYS),
+      this.tasks.taskStats(),
+      this.cost.getCostStats(now - COST_WINDOW_DAYS * 86_400),
+      this.cost.getDailyCost(COST_WINDOW_DAYS),
+      this.cost.getThroughput(THROUGHPUT_DAYS),
       this.stats.getInsightBreakdown(),
     ]);
     const workers = this.gateway.getWorkerStatuses().map((w) => ({

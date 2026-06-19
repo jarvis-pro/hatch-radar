@@ -17,6 +17,7 @@ import { SessionAuthGuard } from '@/account/session-auth.guard';
 import { ZodValidationPipe } from '@/common/zod-validation.pipe';
 import {
   AnalysisConfigService,
+  PipelineService,
   RuntimeSettingsService,
   type RuntimeSettingsPatch,
   nowSec,
@@ -111,6 +112,7 @@ export class SettingsController {
     private readonly providers: ProvidersRepository,
     private readonly settings: SettingsRepository,
     private readonly analysisConfig: AnalysisConfigService,
+    private readonly pipeline: PipelineService,
     private readonly runtimeSettings: RuntimeSettingsService,
   ) {}
 
@@ -348,14 +350,12 @@ export class SettingsController {
     }
     await this.settings.setActiveProviderId(dto.providerId);
     await this.analysisConfig.reloadAnalysisConfig();
-    // 即时生效：选用后立刻入一轮队，无需等下一次定时调度（批次上限与定时调度同取运行期设置）
-    const round = await this.analysisConfig.enqueueAutoAnalysisRound(
-      await this.runtimeSettings.getAnalyzeBatchSize(),
-    );
+    // 即时生效：选用后立刻派生一轮 analyze 任务（归属 run/blueprint），无需等下一次定时调度。
+    const round = await this.pipeline.runAnalyzeSweep('manual');
     logger.info(
-      `[设置] active 模型 → ${dto.providerId ?? '（清空）'}；即时入队 ${round.enqueued} 篇`,
+      `[设置] active 模型 → ${dto.providerId ?? '（清空）'}；即时入队 ${round.created} 篇`,
     );
-    return { activeProviderId: dto.providerId, enqueued: round.enqueued };
+    return { activeProviderId: dto.providerId, enqueued: round.created };
   }
 
   /**

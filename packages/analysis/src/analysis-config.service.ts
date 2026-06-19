@@ -1,10 +1,5 @@
 import type { CommentRow, PostRow } from '@hatch-radar/shared';
-import {
-  INSPECT_STEP_NAMES,
-  type InspectJobView,
-  type InspectStepView,
-  type ResolveOutput,
-} from '@hatch-radar/shared';
+import type { ResolveOutput } from '@hatch-radar/shared';
 import {
   createProcessor,
   type AnalysisConfig,
@@ -18,18 +13,11 @@ import { testOpenAICompatible } from './analyzer/openai-compatible';
 import { testAzureTranslator } from './translator/azure-client';
 import { classifyKeyError, errMsg, COOLDOWN_SECONDS } from './key-failover';
 import { decryptSecret } from '@hatch-radar/kernel';
-import type { Dispatcher } from '@hatch-radar/kernel';
-import { JobsRepository } from '@hatch-radar/db';
-import { JobStepsRepository } from '@hatch-radar/db';
 import { PostsRepository } from '@hatch-radar/db';
 import { ProvidersRepository, type ProviderApiKeyRow, type ProviderRow } from '@hatch-radar/db';
 import { SettingsRepository } from '@hatch-radar/db';
-import type { JobStepRow } from '@hatch-radar/db';
 import { nowSec } from '@hatch-radar/kernel';
 import { logger } from '@hatch-radar/kernel';
-
-/** enqueueAutoAnalysisRound 的兜底批次（调用方一般传运行期设置 analyzeBatchSize；省略时用此值） */
-const DEFAULT_BATCH_SIZE = 20;
 
 /** 当前选用的 active 模型（供调度与启动日志使用） */
 export interface ActiveProvider {
@@ -37,23 +25,6 @@ export interface ActiveProvider {
   model: string;
   /** 展示名，如 `openai (gpt-4o)` */
   label: string;
-}
-
-/** enqueueAutoAnalysisRound 的结果 */
-export interface AutoRoundResult {
-  /** 本轮使用的 active 模型；为 null 表示未配置、未入队 */
-  active: ActiveProvider | null;
-  /** 实际新入队的任务数 */
-  enqueued: number;
-  /** 待分析帖子总数（含已在队列中的） */
-  pending: number;
-}
-
-/** enqueueManualRun 结果 */
-export interface ManualRunResult {
-  ok: boolean;
-  enqueued: number;
-  error?: string;
 }
 
 /** 用一条模型配置 + 一把明文 Key 组装 AnalysisConfig */
@@ -86,12 +57,10 @@ function providerConfigWithKey(provider: ProviderRow, apiKey: string): AnalysisC
 
 /**
  * analyzer 的运行时配置层（框架无关）：把 model_providers 行解析成处理器，承载「选用 active 模型」
- * 的状态机与「保存即生效」的热重载。worker 通过 {@link getProcessorForProvider} 按 job 解析处理器；
- * 定时调度与设置端点通过 {@link enqueueAutoAnalysisRound} 入队。
+ * 的状态机与「保存即生效」的热重载。worker 通过 {@link getProcessorForProvider} 按 task 解析处理器。
+ * 入队 / 编排（自动 / 手动 / 检视）已迁至 api 侧 PipelineService。
  *
  * 多 Key 故障转移：处理器不绑定具体 Key——每次 analyze 时按 priority 实时挑「可用」Key，逐把尝试。
- *
- * 派发器（gateway）为可选注入：api 侧入队后触发 push 派发；worker 侧不入队，留空即可（`this.gateway?.`）。
  */
 export class AnalysisConfigService {
   /** 按 provider id 缓存已构建的处理器；本进程 reloadAnalysisConfig 或检测到跨进程版本变更时清空 */
@@ -102,10 +71,7 @@ export class AnalysisConfigService {
   constructor(
     private readonly providers: ProvidersRepository,
     private readonly settings: SettingsRepository,
-    private readonly jobs: JobsRepository,
-    private readonly jobSteps: JobStepsRepository,
     private readonly posts: PostsRepository,
-    private readonly gateway?: Dispatcher,
   ) {}
 
   /**
@@ -259,46 +225,7 @@ export class AnalysisConfigService {
     }
   }
 
-  /**
-   * 按 active 模型把一批待分析帖子入队（auto）。
-   * @param batchSize 本轮上限，默认 {@link DEFAULT_BATCH_SIZE}
-   */
-  async enqueueAutoAnalysisRound(batchSize: number = DEFAULT_BATCH_SIZE): Promise<AutoRoundResult> {
-    const active = await this.getActiveProvider();
-    if (!active) return { active: null, enqueued: 0, pending: 0 };
-    const posts = await this.posts.getPostsToAnalyze(batchSize);
-    const enqueued = await this.jobs.enqueueJobs(
-      posts.map((p) => p.id),
-      active.id,
-      active.model,
-      'auto',
-      nowSec(),
-    );
-    if (enqueued > 0) void this.gateway?.tryDispatch();
-    return { active, enqueued, pending: posts.length };
-  }
-
-  /**
-   * 手动运行：把管理员选中的帖子按指定模型入队（trigger=manual）。
-   * @param postIds 选中的帖子 ID
-   * @param providerId 指定使用的模型配置 ID
-   */
-  async enqueueManualRun(postIds: string[], providerId: number): Promise<ManualRunResult> {
-    const row = await this.providers.getProvider(providerId);
-    if (!row) return { ok: false, enqueued: 0, error: '模型配置不存在' };
-    if (!row.enabled) return { ok: false, enqueued: 0, error: '该模型已停用' };
-    const enqueued = await this.jobs.enqueueJobs(
-      postIds,
-      providerId,
-      row.model,
-      'manual',
-      nowSec(),
-    );
-    if (enqueued > 0) void this.gateway?.tryDispatch();
-    return { ok: true, enqueued };
-  }
-
-  // ─── 流水线检视器（inspect）─────────────────────────────────────────────────────────
+  // ─── 检视器 resolve 节点信息（worker execNode 复用；入队/编排已迁至 PipelineService）──────
 
   /**
    * 解析某条模型配置的展示信息（流水线检视器 resolve 节点产物 + 入队前校验）。
@@ -319,108 +246,6 @@ export class AnalysisConfigService {
       providerKind: provider.provider,
       usableKeyCount,
     };
-  }
-
-  /**
-   * 发起一条检视任务：校验模型 → 建 inspect job + 6 个 pending 节点 → 派发。
-   * @param postId 目标帖子 ID
-   * @param providerId 使用的模型配置 ID
-   * @param stepGate 逐节点闸门（true=逐步检视，false=运行到底＋留痕）
-   * @returns ok+jobId；模型不可用 / 该帖已有活跃分析任务时 ok=false + error
-   */
-  async enqueueInspectRun(
-    postId: string,
-    providerId: number,
-    stepGate: boolean,
-  ): Promise<{ ok: true; jobId: number } | { ok: false; error: string }> {
-    const info = await this.getProviderInspectInfo(providerId);
-    if (!info) return { ok: false, error: '模型配置不存在或已停用' };
-    const res = await this.jobs.createInspectJob(
-      postId,
-      providerId,
-      info.model,
-      stepGate,
-      INSPECT_STEP_NAMES,
-      nowSec(),
-    );
-    if (res.ok) void this.gateway?.tryDispatch();
-    return res;
-  }
-
-  /**
-   * 取检视任务的整体视图（任务元信息 + 6 节点轨迹），供 web 轮询展示。
-   * @returns InspectJobView；任务不存在或非检视任务时 null
-   */
-  async getInspectView(jobId: number): Promise<InspectJobView | null> {
-    const job = await this.jobs.getJob(jobId);
-    if (!job || !job.inspect) return null;
-    const [steps, post] = await Promise.all([
-      this.jobSteps.listSteps(jobId),
-      this.posts.getPostById(job.post_id),
-    ]);
-    const provider =
-      job.provider_id != null ? await this.providers.getProvider(job.provider_id) : undefined;
-    return {
-      id: job.id,
-      postId: job.post_id,
-      postTitle: post?.title ?? null,
-      model: job.model,
-      provider: provider?.provider ?? null,
-      status: job.status,
-      stepGate: job.step_gate,
-      trigger: job.trigger,
-      error: job.error,
-      enqueuedAt: job.enqueued_at,
-      startedAt: job.started_at,
-      finishedAt: job.finished_at,
-      steps: steps.map(toStepView),
-    };
-  }
-
-  /**
-   * 放行下一节点：paused→queued + 派发。
-   * @returns 是否实际放行（false = 当前并非 paused）
-   */
-  async resumeInspect(jobId: number): Promise<boolean> {
-    const resumed = await this.jobs.resumeInspectJob(jobId);
-    if (resumed) void this.gateway?.tryDispatch();
-    return resumed;
-  }
-
-  /**
-   * 运行到底：关闭逐节点闸门后，若当前 paused 则放行续跑（执行中则 worker 在下一闸门处实时读到闸门关闭、
-   * 自行连续跑完）。
-   */
-  async runInspectToEnd(jobId: number): Promise<void> {
-    await this.jobs.disableStepGate(jobId);
-    const resumed = await this.jobs.resumeInspectJob(jobId);
-    if (resumed) void this.gateway?.tryDispatch();
-  }
-
-  /**
-   * 重试当前失败节点：复位该 step 回 pending、整条 job failed→queued + 派发，重认领后从该节点重跑
-   * （前序 done 节点的检查点不丢，AI 不会重调，除非崩在 ai_call 自身）。
-   * @returns ok；无失败节点 / 任务非 failed 态时 ok=false + error
-   */
-  async retryInspectStep(jobId: number): Promise<{ ok: boolean; error?: string }> {
-    const job = await this.jobs.getJob(jobId);
-    if (!job || !job.inspect) return { ok: false, error: '检视任务不存在' };
-    if (job.status !== 'failed') return { ok: false, error: '任务当前不可重试（非失败态）' };
-    const failed = (await this.jobSteps.listSteps(jobId)).find((s) => s.status === 'failed');
-    if (!failed) return { ok: false, error: '没有失败的节点可重试' };
-    await this.jobSteps.resetStepToPending(jobId, failed.seq);
-    const requeued = await this.jobs.requeueFailedJob(jobId);
-    if (!requeued) return { ok: false, error: '任务重排失败（状态已变更）' };
-    void this.gateway?.tryDispatch();
-    return { ok: true };
-  }
-
-  /**
-   * 取消检视任务（释放闸门、停止演示）。
-   * @returns 是否实际取消（false = 任务已是终态）
-   */
-  async cancelInspect(jobId: number): Promise<boolean> {
-    return this.jobs.cancelJob(jobId, nowSec());
   }
 
   /**
@@ -486,18 +311,4 @@ export class AnalysisConfigService {
       return { ok: false, error: errMsg(err) };
     }
   }
-}
-
-/** JobStepRow → InspectStepView（snake→camel；jsonb 已是解析后的对象，原样透出）。 */
-function toStepView(s: JobStepRow): InspectStepView {
-  return {
-    seq: s.seq,
-    name: s.name,
-    status: s.status,
-    inputSummary: s.input_summary ?? null,
-    output: s.output ?? null,
-    error: s.error,
-    startedAt: s.started_at,
-    finishedAt: s.finished_at,
-  };
 }

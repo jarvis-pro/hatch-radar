@@ -1,8 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { AppDatabase, DbHandle } from '@hatch-radar/db';
 import { AnalysisConfigService } from '@hatch-radar/analysis';
-import { JobsRepository } from '@hatch-radar/db';
-import { JobStepsRepository } from '@hatch-radar/db';
 import { PostsRepository } from '@hatch-radar/db';
 import { ProvidersRepository } from '@hatch-radar/db';
 import { SettingsRepository } from '@hatch-radar/db';
@@ -17,8 +15,6 @@ function makeService(db: AppDatabase): AnalysisConfigService {
   return new AnalysisConfigService(
     new ProvidersRepository(db),
     new SettingsRepository(db),
-    new JobsRepository(db),
-    new JobStepsRepository(db),
     new PostsRepository(db),
   );
 }

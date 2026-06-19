@@ -109,26 +109,9 @@ export class WorkerAgentService {
       case 'registered':
         logger.info(`[worker-agent] 注册成功（${msg.workerId}）`);
         break;
-      case 'dispatch':
-        void this.executeJob(msg);
-        break;
       case 'dispatch_task':
         void this.executeTask(msg);
         break;
-    }
-  }
-
-  private async executeJob(dispatch: Extract<GatewayMessage, { type: 'dispatch' }>): Promise<void> {
-    const { jobId, postId, providerId } = dispatch;
-    try {
-      await this.worker.executeDispatchedJob(
-        { id: jobId, post_id: postId, provider_id: providerId },
-        (jid) => this.send({ type: 'job_progress', workerId: this.workerId, jobId: jid }),
-      );
-      this.send({ type: 'job_result', workerId: this.workerId, jobId, status: 'succeeded' });
-    } catch (err) {
-      const error = err instanceof Error ? err.message : String(err);
-      this.send({ type: 'job_result', workerId: this.workerId, jobId, status: 'failed', error });
     }
   }
 

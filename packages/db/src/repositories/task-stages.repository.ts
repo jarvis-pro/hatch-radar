@@ -12,7 +12,7 @@ export type { TaskStageRow };
 const MAX_ERROR_CHARS = 500;
 
 /**
- * 任务环节（task_stages）数据访问（Prisma / PostgreSQL）。取代旧 {@link JobStepsRepository}，泛化到所有 kind。
+ * 任务环节（task_stages）数据访问（Prisma / PostgreSQL）：泛化到所有 kind（取代已删除的 job_steps）。
  *
  * 只承载 task_stages 行的读写：产物落库（检查点）、状态流转、重试复位、跳过。任务的「创建」
  * （task + N 个 pending 环节一次性原子插入）在 {@link TasksRepository.createTaskWithStages} 内完成。
@@ -75,6 +75,20 @@ export class TaskStagesRepository {
       where: { task_id: taskId, seq },
       data: { status: 'failed', error: error.slice(0, MAX_ERROR_CHARS), finished_at: BigInt(now) },
     });
+  }
+
+  /** 单环节是否仍挂闸门（worker 在暂停决策前回读：使「运行到底」清闸对执行中的任务即时生效）。 */
+  async isStageGated(taskId: number, seq: number): Promise<boolean> {
+    const row = await this.db.task_stages.findFirst({
+      where: { task_id: taskId, seq },
+      select: { gate: true },
+    });
+    return row?.gate ?? false;
+  }
+
+  /** 清除整条任务所有环节的闸门（「运行到底」：连续跑完剩余环节、不再逐环节暂停）。 */
+  async clearGates(taskId: number): Promise<void> {
+    await this.db.task_stages.updateMany({ where: { task_id: taskId }, data: { gate: false } });
   }
 
   /**

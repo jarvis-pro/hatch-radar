@@ -17,12 +17,11 @@ import { ZodValidationPipe } from '@/common/zod-validation.pipe';
 import {
   AuditLogsRepository,
   ExportService,
-  GatewayService,
-  JobsRepository,
+  PipelineService,
   ProvidersRepository,
   SettingsRepository,
+  TasksRepository,
   TranslationsRepository,
-  nowSec,
 } from '@/domain';
 
 /** Azure Translator 免费档月度配额（字符/月）——用量表参照线。 */
@@ -75,11 +74,11 @@ function startOfMonthSec(): number {
 @Controller('translations')
 export class TranslationsController {
   constructor(
-    private readonly jobs: JobsRepository,
+    private readonly pipeline: PipelineService,
+    private readonly tasks: TasksRepository,
     private readonly translations: TranslationsRepository,
     private readonly providers: ProvidersRepository,
     private readonly settings: SettingsRepository,
-    private readonly gateway: GatewayService,
     private readonly audit: AuditLogsRepository,
     private readonly exportSvc: ExportService,
   ) {}
@@ -97,8 +96,8 @@ export class TranslationsController {
   }> {
     const [progress, active, lastError] = await Promise.all([
       this.translations.getProgress(postId),
-      this.jobs.hasActiveTranslationJob(postId),
-      this.jobs.getRecentTranslationError(postId),
+      this.tasks.hasActiveTask(postId, 'translate'),
+      this.tasks.getRecentError(postId, 'translate'),
     ]);
     const state: TranslationState = active
       ? 'translating'
@@ -165,13 +164,11 @@ export class TranslationsController {
     @Body(new ZodValidationPipe(enqueueSchema)) dto: z.infer<typeof enqueueSchema>,
   ): Promise<{ enqueued: boolean }> {
     const provider = await this.resolveTranslationProvider(dto.providerId);
-    const enqueued = await this.jobs.enqueueTranslationJob(
-      postId,
+    const { enqueued } = await this.pipeline.enqueueTranslation(
+      [postId],
       provider.id,
       provider.model,
-      nowSec(),
     );
-    if (enqueued) void this.gateway.tryDispatch();
     await this.audit.write({
       actorId: actor.id,
       action: 'translation.enqueue',
@@ -179,7 +176,7 @@ export class TranslationsController {
       targetId: postId,
       metadata: { providerId: provider.id, model: provider.model },
     });
-    return { enqueued };
+    return { enqueued: enqueued > 0 };
   }
 
   /**
@@ -220,13 +217,11 @@ export class TranslationsController {
     };
     const ids = await this.exportSvc.selectPostIds(filter);
     const needing = await this.translations.getPostIdsNeedingTranslation(ids);
-    const now = nowSec();
-    let enqueued = 0;
-    for (const postId of needing) {
-      if (await this.jobs.enqueueTranslationJob(postId, provider.id, provider.model, now))
-        enqueued++;
-    }
-    if (enqueued > 0) void this.gateway.tryDispatch();
+    const { enqueued } = await this.pipeline.enqueueTranslation(
+      needing,
+      provider.id,
+      provider.model,
+    );
     await this.audit.write({
       actorId: actor.id,
       action: 'translation.batchEnqueue',

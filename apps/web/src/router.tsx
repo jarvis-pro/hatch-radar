@@ -18,7 +18,6 @@ import { PipelinePage } from '@/pages/pipeline';
 import { PipelineDetailPage } from '@/pages/pipeline-detail';
 import { PostDetailPage } from '@/pages/post-detail';
 import { PostsPage } from '@/pages/posts';
-import { QueuePage } from '@/pages/queue';
 import { RequestsPage } from '@/pages/requests';
 import { SettingsPage } from '@/pages/settings';
 
@@ -38,7 +37,6 @@ export const router = createBrowserRouter([
       { path: 'posts/:id', element: <PostDetailPage /> },
       { path: 'analyze', element: <AnalyzePage /> },
       { path: 'inspect/:jobId', element: <InspectPage /> },
-      { path: 'queue', element: <QueuePage /> },
       { path: 'pipeline', element: <PipelinePage /> },
       { path: 'pipeline/:id', element: <PipelineDetailPage /> },
       { path: 'requests', element: <RequestsPage /> },

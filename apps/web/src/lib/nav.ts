@@ -2,7 +2,6 @@ import {
   FileText,
   Gauge,
   LayoutDashboard,
-  ListChecks,
   ScrollText,
   Settings2,
   Sparkles,
@@ -69,13 +68,6 @@ export const NAV_GROUPS: readonly NavGroup[] = [
         icon: Zap,
         perm: 'analyze:run',
         match: (p) => p.startsWith('/analyze'),
-      },
-      {
-        to: '/queue',
-        label: '任务队列',
-        icon: ListChecks,
-        perm: 'analyze:run',
-        match: (p) => p.startsWith('/queue'),
       },
       {
         to: '/pipeline',

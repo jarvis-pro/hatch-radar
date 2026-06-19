@@ -18,10 +18,6 @@ import type {
 import type {
   CommentPg,
   InsightPgRow,
-  JobPg,
-  JobRow,
-  JobStepPg,
-  JobStepRow,
   PostPg,
   ProviderApiKeyPg,
   ProviderApiKeyRow,
@@ -70,22 +66,6 @@ export function toPostRow(m: PostPg): PostRow {
 /** Prisma comments 行 → 域 CommentRow（时间戳 bigint→number） */
 export function toCommentRow(m: CommentPg): CommentRow {
   return { ...m, created_utc: n(m.created_utc), fetched_at: n(m.fetched_at) };
-}
-
-/** Prisma analysis_jobs 行 → 域 JobRow（时间戳 bigint→number） */
-export function toJobRow(m: JobPg): JobRow {
-  return {
-    ...m,
-    enqueued_at: n(m.enqueued_at),
-    started_at: nOpt(m.started_at),
-    finished_at: nOpt(m.finished_at),
-    heartbeat_at: nOpt(m.heartbeat_at),
-  };
-}
-
-/** Prisma job_steps 行 → 域 JobStepRow（started_at / finished_at bigint→number） */
-export function toJobStepRow(m: JobStepPg): JobStepRow {
-  return { ...m, started_at: nOpt(m.started_at), finished_at: nOpt(m.finished_at) };
 }
 
 // ─── 图纸驱动生命周期映射（时间戳 bigint→number；jsonb 已解析，直接搬） ──────────────────

@@ -1,22 +1,22 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { AppDatabase, DbHandle } from '@hatch-radar/db';
 import {
+  BlueprintsRepository,
   CommentsRepository,
   InsightsRepository,
-  JobsRepository,
-  JobStepsRepository,
-  TasksRepository,
-  TaskStagesRepository,
-  RunsRepository,
   PostsRepository,
   ProvidersRepository,
+  RunsRepository,
   RuntimeSettingsService,
   SettingsRepository,
+  TasksRepository,
+  TaskStagesRepository,
 } from '@hatch-radar/db';
-import { AnalysisConfigService, AnalysisService } from '@hatch-radar/analysis';
-import type { PostProcessor, RawModelOutput } from '@hatch-radar/analysis';
+import { AnalysisService } from '@hatch-radar/analysis';
+import type { AnalysisConfigService, PostProcessor, RawModelOutput } from '@hatch-radar/analysis';
 import type { TranslationService } from '@hatch-radar/analysis';
 import type { Dispatcher } from '@hatch-radar/kernel';
+import { nowSec } from '@hatch-radar/kernel';
 import {
   INSPECT_STEP_NAMES,
   type AiCallOutput,
@@ -26,9 +26,9 @@ import {
   type PersistOutput,
   type ResolveOutput,
 } from '@hatch-radar/shared';
-import { nowSec } from '@hatch-radar/kernel';
-// 跨 app 引 worker 数据面执行器：检视内核（runInspectJob）只有 worker 进程承载，而集成测试的 PG
-// 夹具在 apps/api/test，故以相对路径直引其源码（vitest 内联编译 @hatch-radar/* 依赖）。
+import { PipelineService } from '@/domain';
+// 跨 app 引 worker 数据面执行内核（runTask）：只有 worker 进程承载，而集成测试的 PG 夹具在
+// apps/api/test，故以相对路径直引其源码（vitest 内联编译 @hatch-radar/* 依赖）。
 import { WorkerService } from '../../worker/src/worker.service';
 import type { CollectionExecutor } from '../../worker/src/collection.executor';
 import { setupTestDb, truncateAll } from './helpers';
@@ -70,20 +70,21 @@ function stubConfig(callRaw: () => Promise<RawModelOutput>): AnalysisConfigServi
 }
 
 /**
- * 检视器执行内核闭环测试（不依赖前端）：逐节点暂停—放行—续跑—落库、运行到底、节点失败重试、取消、
- * paused 不被认领/回收。用桩 AnalysisConfigService 隔离真实 AI 调用，其余仓储/落库均真连 PG。
+ * 检视器执行内核闭环（不依赖前端）：检视 = 带闸门的 analyze 任务，验证逐环节暂停—放行—续跑—落库、
+ * 运行到底、环节失败重试、取消、paused 不被认领/回收。用桩 AnalysisConfigService 隔离真实 AI，
+ * 其余仓储/落库均真连 PG。复用 tasks/task_stages 同一执行内核（取代旧 analysis_jobs 检视专路）。
  */
-describe('流水线检视器：执行内核（runInspectJob + 状态机）', () => {
+describe('流水线检视器：执行内核（runTask 闸门状态机）', () => {
   let handle: DbHandle;
   let db: AppDatabase;
-  let jobs: JobsRepository;
-  let jobSteps: JobStepsRepository;
+  let tasks: TasksRepository;
+  let taskStages: TaskStagesRepository;
 
   beforeAll(() => {
     handle = setupTestDb();
     db = handle.db;
-    jobs = new JobsRepository(db);
-    jobSteps = new JobStepsRepository(db);
+    tasks = new TasksRepository(db);
+    taskStages = new TaskStagesRepository(db);
   });
   afterAll(async () => {
     await handle.close();
@@ -108,14 +109,7 @@ describe('流水线检视器：执行内核（runInspectJob + 状态机）', () 
     });
     await db.comments.createMany({
       data: [
-        {
-          id: 'c1',
-          post_id: id,
-          body: '顶层评论',
-          depth: 0,
-          created_utc: 1001n,
-          fetched_at: 1001n,
-        },
+        { id: 'c1', post_id: id, body: '顶层评论', depth: 0, created_utc: 1001n, fetched_at: 1001n },
         {
           id: 'c2',
           post_id: id,
@@ -129,14 +123,37 @@ describe('流水线检视器：执行内核（runInspectJob + 状态机）', () 
     });
   }
 
+  /** 建一张 analyze 图纸 + 一个 analyze 进程（任务的归属，满足 run_id 外键）。 */
+  async function seedRun(): Promise<number> {
+    const bp = await new BlueprintsRepository(db).createBlueprint(
+      { kind: 'analyze', label: '检视', triggerKind: 'manual' },
+      nowSec(),
+    );
+    const run = await new RunsRepository(db).createRun(
+      { blueprintId: bp.id, kind: 'analyze', triggerSource: 'inspect' },
+      nowSec(),
+    );
+    return run.id;
+  }
+
+  /** 派生一个检视用 analyze 任务（6 环节，stepGate 时每环节挂闸门）。 */
+  async function seedTask(stepGate: boolean, runId: number): Promise<number> {
+    const stages = INSPECT_STEP_NAMES.map((name) => ({ name, gate: stepGate }));
+    const res = await tasks.createTaskWithStages(
+      { runId, kind: 'analyze', postId: 'p1', providerId: 1, model: 'model-x' },
+      stages,
+      nowSec(),
+    );
+    if (!res.ok) throw new Error(res.error);
+    return res.taskId;
+  }
+
   /** 用桩 config 构造 WorkerService（其余仓储真连 db）。 */
   function makeWorker(callRaw: () => Promise<RawModelOutput>): WorkerService {
     const settings = new SettingsRepository(db);
     return new WorkerService(
-      jobs,
-      jobSteps,
-      new TasksRepository(db),
-      new TaskStagesRepository(db),
+      tasks,
+      taskStages,
       new RunsRepository(db),
       new PostsRepository(db),
       new CommentsRepository(db),
@@ -150,73 +167,60 @@ describe('流水线检视器：执行内核（runInspectJob + 状态机）', () 
 
   /** 模拟「网关认领 + 分发」一次：claim（queued→running）→ 交 worker 执行。 */
   async function claimAndRun(worker: WorkerService): Promise<void> {
-    const job = await jobs.claimNextJob(nowSec());
-    expect(job).not.toBeNull();
-    await worker.executeDispatchedJob({
-      id: job!.id,
-      post_id: job!.post_id,
-      provider_id: job!.provider_id,
-    });
+    const task = await tasks.claimNextTask(nowSec());
+    expect(task).not.toBeNull();
+    await worker.executeDispatchedTask(task!.id);
   }
 
-  it('createInspectJob 建 queued/inspect/manual 任务 + 6 个 pending 节点', async () => {
+  it('建任务：queued + 6 个 pending 环节，stepGate 时每环节挂闸门', async () => {
     await seedPost();
-    const res = await jobs.createInspectJob('p1', 1, 'model-x', true, INSPECT_STEP_NAMES, nowSec());
-    expect(res.ok).toBe(true);
-    if (!res.ok) return;
-    const job = await jobs.getJob(res.jobId);
-    expect(job).toMatchObject({
-      inspect: true,
-      step_gate: true,
-      status: 'queued',
-      trigger: 'manual',
-    });
-    const steps = await jobSteps.listSteps(res.jobId);
-    expect(steps.map((s) => s.name)).toEqual([...INSPECT_STEP_NAMES]);
-    expect(steps.every((s) => s.status === 'pending')).toBe(true);
+    const runId = await seedRun();
+    const taskId = await seedTask(true, runId);
+    expect(await tasks.getTask(taskId)).toMatchObject({ kind: 'analyze', status: 'queued' });
+    const stages = await taskStages.listStages(taskId);
+    expect(stages.map((s) => s.name)).toEqual([...INSPECT_STEP_NAMES]);
+    expect(stages.every((s) => s.status === 'pending')).toBe(true);
+    expect(stages.every((s) => s.gate)).toBe(true);
   });
 
-  it('同帖已有活跃分析任务时 createInspectJob 拒绝', async () => {
+  it('同帖已有活跃 analyze 任务时再建被去重拒绝', async () => {
     await seedPost();
-    await jobs.enqueueJobs(['p1'], 1, 'model-x', 'auto', nowSec()); // 已有 queued 分析任务
-    const res = await jobs.createInspectJob('p1', 1, 'model-x', true, INSPECT_STEP_NAMES, nowSec());
+    const runId = await seedRun();
+    await seedTask(false, runId);
+    const res = await tasks.createTaskWithStages(
+      { runId, kind: 'analyze', postId: 'p1', providerId: 1, model: 'model-x' },
+      INSPECT_STEP_NAMES.map((name) => ({ name })),
+      nowSec(),
+    );
     expect(res.ok).toBe(false);
   });
 
-  it('逐节点：每节点一停—放行—续跑，末节点落库并整条成功；产物与丢弃统计正确', async () => {
+  it('逐环节：每环节一停—放行—续跑，末环节落库并整条成功；产物与丢弃统计正确', async () => {
     await seedPost();
     const worker = makeWorker(() => Promise.resolve(RAW));
-    const created = await jobs.createInspectJob(
-      'p1',
-      1,
-      'model-x',
-      true,
-      INSPECT_STEP_NAMES,
-      nowSec(),
-    );
-    if (!created.ok) throw new Error('创建失败');
-    const jobId = created.jobId;
+    const runId = await seedRun();
+    const taskId = await seedTask(true, runId);
 
-    // 节点 0..4：每次认领跑一个节点后置 paused；paused 不被再次认领；放行进入下一节点
+    // 环节 0..4：每次认领跑一个环节后置 paused；paused 不被再次认领；放行进入下一环节
     for (let i = 0; i < 5; i++) {
       await claimAndRun(worker);
-      expect((await jobs.getJob(jobId))!.status).toBe('paused');
-      const steps = await jobSteps.listSteps(jobId);
-      expect(steps[i]!.status).toBe('done');
-      expect(steps[i + 1]!.status).toBe('pending');
-      expect(await jobs.claimNextJob(nowSec())).toBeNull(); // paused 天然被「只认领 queued」排除
-      expect(await jobs.resumeInspectJob(jobId)).toBe(true);
+      expect((await tasks.getTask(taskId))!.status).toBe('paused');
+      const stages = await taskStages.listStages(taskId);
+      expect(stages[i]!.status).toBe('done');
+      expect(stages[i + 1]!.status).toBe('pending');
+      expect(await tasks.claimNextTask(nowSec())).toBeNull(); // paused 天然被「只认领 queued」排除
+      expect(await tasks.resumeTask(taskId)).toBe(true);
     }
 
-    // 节点 5 persist：认领跑完 → succeeded，usage 从 ai_call 节点回填
+    // 环节 5 persist：认领跑完 → succeeded，usage 从 ai_call 环节回填
     await claimAndRun(worker);
-    const job = await jobs.getJob(jobId);
-    expect(job!.status).toBe('succeeded');
-    expect(job!.input_tokens).toBe(100);
+    const task = await tasks.getTask(taskId);
+    expect(task!.status).toBe('succeeded');
+    expect(task!.input_tokens).toBe(100);
 
-    const steps = await jobSteps.listSteps(jobId);
-    expect(steps.every((s) => s.status === 'done')).toBe(true);
-    const out = Object.fromEntries(steps.map((s) => [s.name, s.output])) as Record<string, unknown>;
+    const stages = await taskStages.listStages(taskId);
+    expect(stages.every((s) => s.status === 'done')).toBe(true);
+    const out = Object.fromEntries(stages.map((s) => [s.name, s.output])) as Record<string, unknown>;
     expect((out.resolve as ResolveOutput).model).toBe('model-x');
     expect((out.fetch as FetchOutput).commentCount).toBe(2);
     expect((out.fetch as FetchOutput).maxDepth).toBe(1);
@@ -232,26 +236,19 @@ describe('流水线检视器：执行内核（runInspectJob + 状态机）', () 
     expect((await db.posts.findUnique({ where: { id: 'p1' } }))!.analyzed_at).not.toBeNull();
   });
 
-  it('运行到底（step_gate=false）：一次认领连续跑完所有节点并成功', async () => {
+  it('运行到底（无闸门）：一次认领连续跑完所有环节并成功', async () => {
     await seedPost();
     const worker = makeWorker(() => Promise.resolve(RAW));
-    const created = await jobs.createInspectJob(
-      'p1',
-      1,
-      'model-x',
-      false,
-      INSPECT_STEP_NAMES,
-      nowSec(),
-    );
-    if (!created.ok) throw new Error('创建失败');
+    const runId = await seedRun();
+    const taskId = await seedTask(false, runId);
     await claimAndRun(worker);
-    expect((await jobs.getJob(created.jobId))!.status).toBe('succeeded');
-    const steps = await jobSteps.listSteps(created.jobId);
-    expect(steps.every((s) => s.status === 'done')).toBe(true);
+    expect((await tasks.getTask(taskId))!.status).toBe('succeeded');
+    const stages = await taskStages.listStages(taskId);
+    expect(stages.every((s) => s.status === 'done')).toBe(true);
     expect(await db.insights.findUnique({ where: { post_id: 'p1' } })).not.toBeNull();
   });
 
-  it('节点失败 → step+job 置 failed、前序检查点保留；retry（复位 step + 重排）后从该节点续跑成功', async () => {
+  it('环节失败 → 环节+任务置 failed、前序检查点保留；retry（复位环节+重排）后从该环节续跑成功', async () => {
     await seedPost();
     let attempt = 0;
     // 第 1 次 callRaw（ai_call）失败，第 2 次成功——验证「重认领只重调 ai_call、上游不重跑」
@@ -259,94 +256,81 @@ describe('流水线检视器：执行内核（runInspectJob + 状态机）', () 
       attempt += 1;
       return attempt === 1 ? Promise.reject(new Error('限流 boom')) : Promise.resolve(RAW);
     });
-    const created = await jobs.createInspectJob(
-      'p1',
-      1,
-      'model-x',
-      false,
-      INSPECT_STEP_NAMES,
-      nowSec(),
-    );
-    if (!created.ok) throw new Error('创建失败');
-    const jobId = created.jobId;
+    const runId = await seedRun();
+    const taskId = await seedTask(false, runId);
 
     await claimAndRun(worker); // 运行到底，在 ai_call 失败
-    expect((await jobs.getJob(jobId))!.status).toBe('failed');
-    let steps = await jobSteps.listSteps(jobId);
-    expect(steps.find((s) => s.name === 'ai_call')!.status).toBe('failed');
-    expect(steps.find((s) => s.name === 'context')!.status).toBe('done'); // 上游检查点保留
-    expect(steps.find((s) => s.name === 'normalize')!.status).toBe('pending');
+    expect((await tasks.getTask(taskId))!.status).toBe('failed');
+    let stages = await taskStages.listStages(taskId);
+    expect(stages.find((s) => s.name === 'ai_call')!.status).toBe('failed');
+    expect(stages.find((s) => s.name === 'context')!.status).toBe('done'); // 上游检查点保留
+    expect(stages.find((s) => s.name === 'normalize')!.status).toBe('pending');
 
-    // 重试：复位失败节点 + 整条 job failed→queued
-    const aiSeq = steps.find((s) => s.name === 'ai_call')!.seq;
-    await jobSteps.resetStepToPending(jobId, aiSeq);
-    expect(await jobs.requeueFailedJob(jobId)).toBe(true);
+    // 重试：复位失败环节 + 整条任务 failed→queued
+    const aiSeq = stages.find((s) => s.name === 'ai_call')!.seq;
+    await taskStages.resetStageToPending(taskId, aiSeq);
+    expect(await tasks.requeueFailedTask(taskId)).toBe(true);
 
     await claimAndRun(worker); // 从 ai_call 重跑（第 2 次成功）→ 完成
-    expect((await jobs.getJob(jobId))!.status).toBe('succeeded');
-    steps = await jobSteps.listSteps(jobId);
-    expect(steps.every((s) => s.status === 'done')).toBe(true);
+    expect((await tasks.getTask(taskId))!.status).toBe('succeeded');
+    stages = await taskStages.listStages(taskId);
+    expect(stages.every((s) => s.status === 'done')).toBe(true);
     expect(attempt).toBe(2); // ai_call 恰好被调用两次（失败 1 + 成功 1），上游未重调
     expect(await db.insights.findUnique({ where: { post_id: 'p1' } })).not.toBeNull();
   });
 
-  it('取消暂停中的检视任务 → canceled，且不再被认领；僵死回收不动 paused', async () => {
+  it('取消暂停中的任务 → canceled，且不再被认领；僵死回收不动 paused', async () => {
     await seedPost();
     const worker = makeWorker(() => Promise.resolve(RAW));
-    const created = await jobs.createInspectJob(
-      'p1',
-      1,
-      'model-x',
-      true,
-      INSPECT_STEP_NAMES,
-      nowSec(),
-    );
-    if (!created.ok) throw new Error('创建失败');
-    const jobId = created.jobId;
+    const runId = await seedRun();
+    const taskId = await seedTask(true, runId);
 
     await claimAndRun(worker); // 跑 resolve 后 paused
-    expect((await jobs.getJob(jobId))!.status).toBe('paused');
+    expect((await tasks.getTask(taskId))!.status).toBe('paused');
 
     // 僵死回收只扫 running：paused 不被回收
-    expect(await jobs.reclaimRunningJobs(nowSec() + 10_000, null)).toBe(0);
-    expect((await jobs.getJob(jobId))!.status).toBe('paused');
+    expect(await tasks.reclaimRunningTasks(nowSec() + 10_000, null)).toBe(0);
+    expect((await tasks.getTask(taskId))!.status).toBe('paused');
 
     // 取消 → canceled，不再被认领
-    expect(await jobs.cancelJob(jobId, nowSec())).toBe(true);
-    expect((await jobs.getJob(jobId))!.status).toBe('canceled');
-    expect(await jobs.claimNextJob(nowSec())).toBeNull();
+    expect(await tasks.cancelTask(taskId, nowSec())).toBe(true);
+    expect((await tasks.getTask(taskId))!.status).toBe('canceled');
+    expect(await tasks.claimNextTask(nowSec())).toBeNull();
   });
 });
 
 /**
- * 检视器 API 编排（AnalysisConfigService）：发起 / 视图组装 / 放行·运行到底·重试·取消的状态流转
- * 与派发触发。用计数 Dispatcher 验证「写操作后触发一次派发」，其余仓储真连 PG。
+ * 检视器 API 编排（PipelineService）：发起 / 视图组装 / 放行·运行到底·重试·取消的状态流转与派发触发。
+ * 用计数 Dispatcher 验证「写操作后触发一次派发」，其余仓储真连 PG（取代旧 AnalysisConfigService 编排）。
  */
-describe('流水线检视器：AnalysisConfigService 编排（API 层）', () => {
+describe('流水线检视器：PipelineService 编排（API 层）', () => {
   let handle: DbHandle;
   let db: AppDatabase;
-  let jobs: JobsRepository;
-  let jobSteps: JobStepsRepository;
-  let svc: AnalysisConfigService;
+  let tasks: TasksRepository;
+  let taskStages: TaskStagesRepository;
+  let svc: PipelineService;
   let dispatchCount = 0;
 
   beforeAll(() => {
     handle = setupTestDb();
     db = handle.db;
-    jobs = new JobsRepository(db);
-    jobSteps = new JobStepsRepository(db);
+    tasks = new TasksRepository(db);
+    taskStages = new TaskStagesRepository(db);
     const gateway: Dispatcher = {
       tryDispatch: () => {
         dispatchCount += 1;
         return Promise.resolve();
       },
     };
-    svc = new AnalysisConfigService(
-      new ProvidersRepository(db),
-      new SettingsRepository(db),
-      jobs,
-      jobSteps,
+    svc = new PipelineService(
+      new BlueprintsRepository(db),
+      new RunsRepository(db),
+      tasks,
+      taskStages,
       new PostsRepository(db),
+      {} as unknown as AnalysisConfigService,
+      {} as unknown as RuntimeSettingsService,
+      new ProvidersRepository(db),
       gateway,
     );
   });
@@ -388,14 +372,14 @@ describe('流水线检视器：AnalysisConfigService 编排（API 层）', () =>
     return p.id;
   }
 
-  it('enqueueInspectRun：校验模型 → 建 inspect job + 6 节点 → 触发派发', async () => {
+  it('enqueueInspect：校验模型 → 建 analyze 任务 + 6 环节（挂闸门）→ 触发派发', async () => {
     await seedPost();
     const providerId = await seedProvider();
-    const res = await svc.enqueueInspectRun('p1', providerId, true);
+    const res = await svc.enqueueInspect('p1', providerId, true);
     expect(res.ok).toBe(true);
     if (!res.ok) return;
     expect(dispatchCount).toBe(1);
-    const view = await svc.getInspectView(res.jobId);
+    const view = await svc.getInspectView(res.taskId);
     expect(view).not.toBeNull();
     expect(view!.status).toBe('queued');
     expect(view!.stepGate).toBe(true);
@@ -404,53 +388,67 @@ describe('流水线检视器：AnalysisConfigService 编排（API 层）', () =>
     expect(view!.steps.every((s) => s.status === 'pending')).toBe(true);
   });
 
-  it('enqueueInspectRun：模型不存在 → ok=false 且不派发', async () => {
+  it('enqueueInspect：模型不存在 → ok=false 且不派发', async () => {
     await seedPost();
-    const res = await svc.enqueueInspectRun('p1', 9999, true);
+    const res = await svc.enqueueInspect('p1', 9999, true);
     expect(res.ok).toBe(false);
     expect(dispatchCount).toBe(0);
   });
 
-  it('getInspectView：普通（非检视）任务返回 null', async () => {
-    await seedPost();
-    await jobs.enqueueJobs(['p1'], 1, 'm', 'auto', nowSec());
-    const job = await db.analysis_jobs.findFirst({ where: { post_id: 'p1' } });
-    expect(await svc.getInspectView(job!.id)).toBeNull();
+  it('getInspectView：不存在的任务返回 null', async () => {
+    expect(await svc.getInspectView(999999)).toBeNull();
   });
 
   it('resumeInspect / cancelInspect：经服务流转状态并触发派发', async () => {
     await seedPost();
     const providerId = await seedProvider();
-    const res = await svc.enqueueInspectRun('p1', providerId, true);
+    const res = await svc.enqueueInspect('p1', providerId, true);
     if (!res.ok) throw new Error('创建失败');
-    await jobs.claimNextJob(nowSec()); // →running
-    await jobs.pauseJob(res.jobId); // →paused
+    await tasks.claimNextTask(nowSec()); // →running
+    await tasks.pauseTask(res.taskId); // →paused
     dispatchCount = 0;
 
-    expect(await svc.resumeInspect(res.jobId)).toBe(true);
+    expect(await svc.resumeInspect(res.taskId)).toBe(true);
     expect(dispatchCount).toBe(1);
-    expect((await jobs.getJob(res.jobId))!.status).toBe('queued');
+    expect((await tasks.getTask(res.taskId))!.status).toBe('queued');
 
-    expect(await svc.cancelInspect(res.jobId)).toBe(true);
-    expect((await jobs.getJob(res.jobId))!.status).toBe('canceled');
+    expect(await svc.cancelInspect(res.taskId)).toBe(true);
+    expect((await tasks.getTask(res.taskId))!.status).toBe('canceled');
   });
 
-  it('retryInspectStep：失败任务复位失败节点 + 重排 queued + 派发', async () => {
+  it('runInspectToEnd：清除全部环节闸门并放行（暂停→queued）', async () => {
     await seedPost();
     const providerId = await seedProvider();
-    const res = await svc.enqueueInspectRun('p1', providerId, false);
+    const res = await svc.enqueueInspect('p1', providerId, true);
     if (!res.ok) throw new Error('创建失败');
-    const jobId = res.jobId;
-    await jobs.claimNextJob(nowSec()); // →running
-    await jobSteps.markStepFailed(jobId, 3, 'boom', nowSec()); // ai_call 失败
-    await jobs.failJob(jobId, 'boom', nowSec());
+    await tasks.claimNextTask(nowSec()); // →running
+    await tasks.pauseTask(res.taskId); // →paused
     dispatchCount = 0;
 
-    const r = await svc.retryInspectStep(jobId);
+    await svc.runInspectToEnd(res.taskId);
+    expect(dispatchCount).toBe(1);
+    expect((await tasks.getTask(res.taskId))!.status).toBe('queued');
+    const stages = await taskStages.listStages(res.taskId);
+    expect(stages.every((s) => !s.gate)).toBe(true);
+  });
+
+  it('retryInspectStep：失败任务复位失败环节 + 重排 queued + 派发', async () => {
+    await seedPost();
+    const providerId = await seedProvider();
+    const res = await svc.enqueueInspect('p1', providerId, false);
+    if (!res.ok) throw new Error('创建失败');
+    const taskId = res.taskId;
+    await tasks.claimNextTask(nowSec()); // →running
+    await tasks.setCurrentSeq(taskId, 3); // 当前停在 ai_call
+    await taskStages.markStageFailed(taskId, 3, 'boom', nowSec());
+    await tasks.failTask(taskId, 'boom', nowSec());
+    dispatchCount = 0;
+
+    const r = await svc.retryInspectStep(taskId);
     expect(r.ok).toBe(true);
     expect(dispatchCount).toBe(1);
-    expect((await jobs.getJob(jobId))!.status).toBe('queued');
-    const steps = await jobSteps.listSteps(jobId);
-    expect(steps.find((s) => s.seq === 3)!.status).toBe('pending');
+    expect((await tasks.getTask(taskId))!.status).toBe('queued');
+    const stages = await taskStages.listStages(taskId);
+    expect(stages.find((s) => s.seq === 3)!.status).toBe('pending');
   });
 });

@@ -1,22 +1,23 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { AppDatabase, DbHandle } from '@hatch-radar/db';
-import { JobsRepository } from '@hatch-radar/db';
+import { CostRepository } from '@hatch-radar/db';
 import { nowSec } from '@hatch-radar/kernel';
 import { setupTestDb, truncateAll } from './helpers';
 
 /**
  * 看板每日成本走势聚合：密集 0 填充、按日分桶累加 token、按 provider 单价折算成本，
  * 且与 getCostStats（窗口总计）口径一致——两条统计路径共用 computeCost，必须对得上。
+ * 数据源为 tasks(kind=analyze)（分析已全任务化；run_id 软引用、直插即可）。
  */
-describe('JobsRepository.getDailyCost（每日 token 用量 + 成本走势）', () => {
+describe('CostRepository.getDailyCost（每日 token 用量 + 成本走势）', () => {
   let handle: DbHandle;
   let db: AppDatabase;
-  let jobs: JobsRepository;
+  let cost: CostRepository;
 
   beforeAll(async () => {
     handle = await setupTestDb();
     db = handle.db;
-    jobs = new JobsRepository(db);
+    cost = new CostRepository(db);
   });
   afterAll(async () => {
     await handle.close();
@@ -44,8 +45,8 @@ describe('JobsRepository.getDailyCost（每日 token 用量 + 成本走势）', 
     return p.id;
   }
 
-  /** 直插一条 succeeded 且带 token 的任务（绕过队列状态机，专测统计聚合） */
-  async function seedJob(opts: {
+  /** 直插一条 succeeded 且带 token 的 analyze 任务（绕过队列状态机，专测统计聚合） */
+  async function seedTask(opts: {
     postId: string;
     providerId: number | null;
     finishedAt: number;
@@ -54,12 +55,13 @@ describe('JobsRepository.getDailyCost（每日 token 用量 + 成本走势）', 
     cacheWrite?: number;
     cacheRead?: number;
   }): Promise<void> {
-    await db.analysis_jobs.create({
+    await db.tasks.create({
       data: {
+        run_id: 1, // 软引用，统计聚合不关心归属进程
+        kind: 'analyze',
         post_id: opts.postId,
         provider_id: opts.providerId,
         model: 'm',
-        trigger: 'auto',
         status: 'succeeded',
         attempts: 1,
         max_attempts: 3,
@@ -81,7 +83,7 @@ describe('JobsRepository.getDailyCost（每日 token 用量 + 成本走势）', 
     const unpriced = await seedProvider({ input: null, output: null });
 
     // 今天 2 条（带价，其一含缓存）
-    await seedJob({
+    await seedTask({
       postId: 'a',
       providerId: priced,
       finishedAt: now,
@@ -90,9 +92,9 @@ describe('JobsRepository.getDailyCost（每日 token 用量 + 成本走势）', 
       cacheWrite: 100,
       cacheRead: 500,
     });
-    await seedJob({ postId: 'b', providerId: priced, finishedAt: now, input: 2000, output: 400 });
+    await seedTask({ postId: 'b', providerId: priced, finishedAt: now, input: 2000, output: 400 });
     // 3 天前 1 条（带价）
-    await seedJob({
+    await seedTask({
       postId: 'c',
       providerId: priced,
       finishedAt: now - 3 * DAY,
@@ -100,7 +102,7 @@ describe('JobsRepository.getDailyCost（每日 token 用量 + 成本走势）', 
       output: 50,
     });
     // 1 天前 1 条（无价）→ 当天 cost 应为 null，但 token 计入
-    await seedJob({
+    await seedTask({
       postId: 'd',
       providerId: unpriced,
       finishedAt: now - DAY,
@@ -108,7 +110,7 @@ describe('JobsRepository.getDailyCost（每日 token 用量 + 成本走势）', 
       output: 1,
     });
     // 窗口外 1 条（带价）→ 不计入
-    await seedJob({
+    await seedTask({
       postId: 'e',
       providerId: priced,
       finishedAt: now - (DAYS + 5) * DAY,
@@ -116,7 +118,7 @@ describe('JobsRepository.getDailyCost（每日 token 用量 + 成本走势）', 
       output: 7,
     });
 
-    const daily = await jobs.getDailyCost(DAYS);
+    const daily = await cost.getDailyCost(DAYS);
 
     // 密集：长度 = DAYS，日期升序且唯一
     expect(daily).toHaveLength(DAYS);
@@ -129,7 +131,7 @@ describe('JobsRepository.getDailyCost（每日 token 用量 + 成本走势）', 
     expect(sumInput).toBe(1000 + 2000 + 500 + 9999);
 
     // 每日成本累加 ≈ getCostStats 总成本（两条路径同源 computeCost，必须对得上）
-    const stats = await jobs.getCostStats(now - DAYS * DAY);
+    const stats = await cost.getCostStats(now - DAYS * DAY);
     const sumCost = daily.reduce((s, p) => s + (p.cost ?? 0), 0);
     expect(sumCost).toBeGreaterThan(0);
     expect(sumCost).toBeCloseTo(stats.totals.cost ?? 0, 9);
@@ -149,7 +151,7 @@ describe('JobsRepository.getDailyCost（每日 token 用量 + 成本走势）', 
   });
 
   it('窗口内无任务时返回全 0 / cost=null 的密集序列', async () => {
-    const daily = await jobs.getDailyCost(7);
+    const daily = await cost.getDailyCost(7);
     expect(daily).toHaveLength(7);
     for (const p of daily) {
       expect(p.inputTokens).toBe(0);

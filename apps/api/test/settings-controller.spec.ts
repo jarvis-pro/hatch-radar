@@ -4,6 +4,7 @@ import type { AppDatabase, DbHandle } from '@hatch-radar/db';
 import {
   type AnalysisConfigService,
   nowSec,
+  type PipelineService,
   ProvidersRepository,
   type RuntimeSettingsService,
   SettingsRepository,
@@ -38,6 +39,7 @@ describe('SettingsController.update（改 baseUrl 必须重填 API Key）', () =
       providers,
       new SettingsRepository(db),
       analysisConfig,
+      {} as unknown as PipelineService,
       runtimeSettings,
     );
   });
@@ -108,6 +110,7 @@ describe('SettingsController（claude_cli 订阅模式：免 Key）', () => {
       providers,
       new SettingsRepository(db),
       analysisConfig,
+      {} as unknown as PipelineService,
       runtimeSettings,
     );
   });

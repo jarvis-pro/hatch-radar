@@ -2,8 +2,6 @@ import type { AppDatabase } from '@hatch-radar/db';
 import {
   CommentsRepository,
   InsightsRepository,
-  JobsRepository,
-  JobStepsRepository,
   TasksRepository,
   TaskStagesRepository,
   RunsRepository,
@@ -30,8 +28,6 @@ import { WorkerService } from './worker.service';
  * 派发器留空即可。与 api 侧 createCore 的全量装配相对——worker 是薄 runner。
  */
 export function createWorkerCore(db: AppDatabase): { worker: WorkerService } {
-  const jobs = new JobsRepository(db);
-  const jobSteps = new JobStepsRepository(db);
   const tasks = new TasksRepository(db);
   const taskStages = new TaskStagesRepository(db);
   const runs = new RunsRepository(db);
@@ -48,7 +44,7 @@ export function createWorkerCore(db: AppDatabase): { worker: WorkerService } {
 
   const runtimeSettings = new RuntimeSettingsService(settings);
   const analysis = new AnalysisService(insights);
-  const analysisConfig = new AnalysisConfigService(providers, settings, jobs, jobSteps, posts);
+  const analysisConfig = new AnalysisConfigService(providers, settings, posts);
   const translation = new TranslationService(translations, providers);
   const queue = new TokenBucketQueue();
   const crawlerConfig = new CrawlerConfigService(sourceConnectors, queue);
@@ -66,8 +62,6 @@ export function createWorkerCore(db: AppDatabase): { worker: WorkerService } {
     gate,
   );
   const worker = new WorkerService(
-    jobs,
-    jobSteps,
     tasks,
     taskStages,
     runs,
