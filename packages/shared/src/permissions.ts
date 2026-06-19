@@ -1,5 +1,5 @@
 /**
- * 账户系统的角色与能力目录（单一事实源，详见 docs/account-rbac-design.md）。
+ * 账户系统的角色与能力目录（单一事实源）。
  *
  * 纯类型与常量、零运行时依赖——web / server / mobile 共用：web/server 据此做服务端授权，
  * mobile 据此做 UI 显隐。能力 key 在此登记即可，无需 DB 迁移（库里 user_permissions.permission 为 String）。

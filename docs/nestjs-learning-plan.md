@@ -6,7 +6,7 @@
 - **状态**：活文档（边学边勾 ☐/☑）
 - **日期**：2026-06-15
 - **前提**：已掌握 Midway 的 IoC/DI、装饰器路由、Guard/Filter/Pipe、生命周期、配置体系
-- **教材**：`apps/api`（控制面）+ `apps/worker`（数据面）（NestJS 11 + Express + Prisma 7），配套设计文档 `docs/runtime-config-design.md`、`docs/account-rbac-design.md`、`docs/worker-push-gateway-design.md`、`docs/server-nest-postgres-refactor-plan.md`
+- **教材**：`apps/api`（控制面）+ `apps/worker`（数据面）（NestJS 11 + Express + Prisma 7），配套设计文档 `docs/worker-push-gateway-design.md`、`docs/server-nest-postgres-refactor-plan.md`
 - **官方文档**：<https://docs.nestjs.com>（下文「资料」列章节名）
 - **现状校准**：运行期配置中心与账户 RBAC **两大块均已落地**（带测试）——本计划据此以「精读真实实现」为主，实战靶子改为少量真·未建增量（首选**审计 Interceptor**，全仓唯一没用过的横切模式），详见 §4。
 
@@ -143,7 +143,7 @@
 
 **读这些代码**
 
-- [apps/api/src/account/session-auth.guard.ts](apps/api/src/account/session-auth.guard.ts) — 最简 `CanActivate`：校验 httpOnly cookie 会话（原 `bearer-auth.guard.ts` / API_TOKEN 已随后端归一退役）。
+- [apps/api/src/account/session-auth.guard.ts](apps/api/src/account/session-auth.guard.ts) — 最简 `CanActivate`：校验 httpOnly cookie 会话。
 - [apps/api/src/auth/device-or-session.guard.ts](apps/api/src/auth/device-or-session.guard.ts) — **进阶范本**：**双通道**（mobile 设备 Ed25519 **或** web 用户会话）+ `ExecutionContext` + `Reflector.get(...)` 读 `@RequireDevicePermission` 元数据 + 把 `deviceUser`/`user` 挂到 `req`。原 `machine-or-device.guard.ts` 已演进为此。
 - [apps/api/src/auth/device-permission.decorator.ts](apps/api/src/auth/device-permission.decorator.ts) — `SetMetadata` 包出 `@RequireDevicePermission`，`createParamDecorator` 包出 `@DeviceUser()`。**本仓 RBAC 正是大量复用这个模式（已落地）。**
 - [apps/api/src/common/zod-validation.pipe.ts](apps/api/src/common/zod-validation.pipe.ts) — `PipeTransform`，用 Zod 校验 `@Body`。
@@ -153,7 +153,7 @@
 **动手**
 
 1. **补上本仓缺的 Interceptor**：写一个 `LoggingInterceptor`，记录每个请求耗时（`intercept(ctx, next)` 里 `next.handle().pipe(tap(...))`）。这是你练 **RxJS Observable 包裹** 的最佳入口（对照 Midway `@Aspect` 的 around），也是 §4 进阶 capstone（审计 Interceptor）的预热。
-2. **对照已落地代码脱稿重写一个 Guard**：合上代码，凭 account-rbac-design §4.2 能力目录，自己重写 `device-or-session.guard.ts` 的双通道权限判定，再和仓库实现（+ web [lib/auth/guards.ts](apps/web/src/lib/auth/guards.ts) 的 `requirePermission`）对拍。这是 §4 入门 capstone。
+2. **对照已落地代码脱稿重写一个 Guard**：合上代码，凭 [packages/shared/src/permissions.ts](packages/shared/src/permissions.ts) 的能力目录，自己重写 `device-or-session.guard.ts` 的双通道权限判定，再和仓库实现（+ web [lib/auth/guards.ts](apps/web/src/lib/auth/guards.ts) 的 `requirePermission`）对拍。这是 §4 入门 capstone。
 3. 把全局组件三种注册方式都试一遍：`app.useGlobalX()`（main.ts，无法注入依赖）、`@UseGuards()`（路由级）、`APP_GUARD` provider（能注入依赖，§5.7）。
 
 **Midway 对照 & 坑**
@@ -173,7 +173,7 @@
 
 - [apps/api/src/config/app-config.module.ts](apps/api/src/config/app-config.module.ts) — `ConfigModule.forRoot({ isGlobal, cache, validate })`，但真正的强类型配置走 `APP_ENV` 的 `useFactory`（Zod 解析）。
 - [apps/api/src/config/env.ts](apps/api/src/config/env.ts) — Zod schema + `stripEmptyEnv`（空串当未设，[[env-example-required-uncommented]]），产出结构化 `AppEnv`。
-- 配套读设计文档 `docs/runtime-config-design.md` §3.5/§4.6 的「热重载」（`reloadAnalysisConfig()` / bump `crawler_config_version`）——这是「运行期可调配置入库、不重启生效」的 NestJS 落法（已实现）。
+- 跟读「热重载」（`reloadAnalysisConfig()` / bump `crawler_config_version`）——这是「运行期可调配置入库、不重启生效」的 NestJS 落法（已实现）。
 
 **动手**
 
@@ -198,12 +198,12 @@
 - [apps/api/src/database/database.module.ts](apps/api/src/database/database.module.ts) — `DB_HANDLE`→`PRISMA` 的 `useFactory` 链 + 生命周期管理连接（`OnModuleInit/OnApplicationShutdown` 思路）。
 - [packages/db/src/client.ts](packages/db/src/client.ts) + [packages/db/prisma.config.ts](packages/db/prisma.config.ts) — Prisma 7 **driver adapter**（`@prisma/adapter-pg`）、连接串不在 schema 里（[[server-nest-pg-refactor]] 记的坑）。
 - [packages/db/src/repositories/providers.repository.ts](packages/db/src/repositories/providers.repository.ts) — **已落地的多 Key 仓储**（原 `apps/server/src/db/`，已迁 `packages/db`）：框架无关类，经 `CoreModule` 的 `fromCore` 桥接注入 Nest。
-- [packages/analysis/src/analysis-config.service.ts](packages/analysis/src/analysis-config.service.ts) — `selectKey` + 单任务内故障转移 + 冷却自愈（runtime-config-design §3.3 的实现）。
+- [packages/analysis/src/analysis-config.service.ts](packages/analysis/src/analysis-config.service.ts) — `selectKey` + 单任务内故障转移 + 冷却自愈。
 - 一个用事务的仓储，如 [packages/db/src/repositories/posts.repository.ts](packages/db/src/repositories/posts.repository.ts)（`db.$transaction`）。
 
 **动手**
 
-1. **读懂故障转移**：跟一遍「429→冷却该 Key→换下一把→全挂则任务失败」的链路（runtime-config-design §3.3）。这是一段高质量的真实 NestJS 业务代码，比任何 demo 都值得精读。
+1. **读懂故障转移**：跟一遍「429→冷却该 Key→换下一把→全挂则任务失败」的链路。这是一段高质量的真实 NestJS 业务代码，比任何 demo 都值得精读。
 2. 仿 `providers.repository.ts` 写一个新仓储（哪怕玩具表），走通「schema → migrate → 生成类型 → `@Inject(PRISMA)` 注入 → 在某 controller 用」全链路。
 3. 学官方 `PrismaService extends PrismaClient implements OnModuleInit` 的经典接法，对比本仓的 `useFactory + Symbol token` 接法，理解两者取舍。
 
@@ -296,13 +296,13 @@
 
 - **性质**：纯读 + 在测试里重写，零风险，覆盖 M1+M2+M6。
 - **做什么**：
-  1. 跟读 `docs/account-rbac-design.md` → 对照实现逐段印证：服务端 [device-or-session.guard.ts](apps/api/src/auth/device-or-session.guard.ts) + [device-auth.service.ts](apps/api/src/auth/device-auth.service.ts)（via `packages/auth`）+ [device-permission.decorator.ts](apps/api/src/auth/device-permission.decorator.ts)；web 侧 [apps/web/src/lib/auth/guards.ts](apps/web/src/lib/auth/guards.ts)（`requireSession`/`requirePermission`）；共享 [packages/shared/src/permissions.ts](packages/shared/src/permissions.ts)、`packages/auth/src`（scrypt/session/Ed25519）。
-  2. **脱稿重写**：合上实现，凭 §4.3 授权语义 + §4.4 越权护栏自己写一遍 `DeviceOrSessionGuard`（双通道），再用 M6 的 `Test.createTestingModule` + `overrideProvider` 给它写测试，最后和仓库实现对拍。
+  1. 逐段通读账户 RBAC 实现：服务端 [device-or-session.guard.ts](apps/api/src/auth/device-or-session.guard.ts) + [device-auth.service.ts](apps/api/src/auth/device-auth.service.ts)（via `packages/auth`）+ [device-permission.decorator.ts](apps/api/src/auth/device-permission.decorator.ts)；web 侧 [apps/web/src/lib/auth/guards.ts](apps/web/src/lib/auth/guards.ts)（`requireSession`/`requirePermission`）；共享 [packages/shared/src/permissions.ts](packages/shared/src/permissions.ts)、`packages/auth/src`（scrypt/session/Ed25519）。
+  2. **脱稿重写**：合上实现，凭授权语义 + 越权护栏自己写一遍 `DeviceOrSessionGuard`（双通道），再用 M6 的 `Test.createTestingModule` + `overrideProvider` 给它写测试，最后和仓库实现对拍。
 - **练到的**：Guard + `ExecutionContext` + `Reflector` + `createParamDecorator` + 测试 module，把 M2 全套吃透。
 
 ### 进阶 capstone：审计 Interceptor（**全仓唯一没用过的横切模式**）⭐
 
-- **性质**：**真·net-new**。本仓**至今没有任何 Interceptor**（已核实），而审计现在是**手动散写**（server 在 [device-auth.service.ts](apps/api/src/auth/device-auth.service.ts)（via `packages/auth`）、[sync.controller.ts](apps/api/src/http/sync.controller.ts) 里逐处调；web 在 [lib/auth/audit.ts](apps/web/src/lib/auth/audit.ts)）。把它收敛成一个声明式 Interceptor，正好兑现 `runtime-config-design.md` §7 那条未来项「Key/凭据变更写 `audit_logs`，RBAC 落地后接入」（如今 RBAC 已落地，可做）。
+- **性质**：**真·net-new**。本仓**至今没有任何 Interceptor**（已核实），而审计现在是**手动散写**（server 在 [device-auth.service.ts](apps/api/src/auth/device-auth.service.ts)（via `packages/auth`）、[sync.controller.ts](apps/api/src/http/sync.controller.ts) 里逐处调；web 在 [lib/auth/audit.ts](apps/web/src/lib/auth/audit.ts)）。把它收敛成一个声明式 Interceptor，正好兑现那条未来项「Key/凭据变更写 `audit_logs`，RBAC 落地后接入」（如今 RBAC 已落地，可做）。
 - **做什么**：
   1. 写 `@Audit('analyze.run')` 元数据装饰器（`SetMetadata`，仿 `device-permission.decorator.ts`）。
   2. 写 `AuditInterceptor implements NestInterceptor`：`intercept(ctx, next)` 里用 `Reflector` 读 action，`next.handle().pipe(tap(() => writeAudit(...)))` 在处理成功后落 `audit_logs`，附操作者（从 `req.deviceUser`/会话解析）。
@@ -313,8 +313,8 @@
 
 ### 还想多练？任选一个真·未建增量
 
-- **多连接器故障转移**（runtime-config-design §10 / D5，schema 已支持未实现）——和已落地的「多 Key 故障转移」同构，照着 [providers.repository.ts](packages/db/src/repositories/providers.repository.ts) 抄到 [source-connectors.repository.ts](packages/db/src/repositories/source-connectors.repository.ts)。练 M4。
-- **按源定制轮询频率** `sources.config.cadence`（runtime-config-design §10）——调度按 cadence 分桶。练 M5（`SchedulerRegistry` 动态任务）。
+- **多连接器故障转移**（schema 已支持未实现）——和已落地的「多 Key 故障转移」同构，照着 [providers.repository.ts](packages/db/src/repositories/providers.repository.ts) 抄到 [source-connectors.repository.ts](packages/db/src/repositories/source-connectors.repository.ts)。练 M4。
+- **按源定制轮询频率** `sources.config.cadence`——调度按 cadence 分桶。练 M5（`SchedulerRegistry` 动态任务）。
 - **补 Swagger 或健康检查**（M7）——引 `@nestjs/swagger` 给现有 controller 出 OpenAPI，或 `@nestjs/terminus` 把手写 `/api/health` 升级成标准探针。练 net-new NestJS 面。
 
 > 建议路径：**入门 capstone（精读+重写，3–5 天）→ 进阶 capstone 审计 Interceptor（主线，1–2 周）→ 任选增量**。M3–M6 的知识点在做这两条时自然补齐。
@@ -349,8 +349,6 @@
 **本仓配套**
 
 - `docs/server-nest-postgres-refactor-plan.md` — 当初为何/如何迁到 NestJS（理解决策背景）。
-- `docs/runtime-config-design.md` — 运行期配置中心（已落地）的设计依据，§4 增量对照用。
-- `docs/account-rbac-design.md` — 账户 RBAC（已落地）的设计依据，入门 capstone 精读对照。
 - `docs/worker-push-gateway-design.md` — M5 网关部分。
 
 **对照 Midway**

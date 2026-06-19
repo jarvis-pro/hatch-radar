@@ -1,6 +1,6 @@
 # 前端迁移：Next.js → Vite + React Router（同源 SPA）
 
-> 后端归一后 web 退成纯前端（[[backend-consolidation-design]]），Next.js 的 full-stack 那半边就闲置了。
+> 后端归一后 web 退成纯前端，Next.js 的 full-stack 那半边就闲置了。
 > 据用户拍板：**弃用 Next.js，改用 Vite + React Router 的客户端 SPA**，由 NestJS **同源**托管静态产物 + `/api`。
 > 同源让 httpOnly cookie 自动随请求发往 `/api`——**连 BFF / Bearer 转发都省了，server 端到端持有会话 cookie**。
 > 本文是落地前的设计方案。
@@ -8,7 +8,7 @@
 - **状态**：✅ 已落地（分支 `refactor/backend-consolidation`，2026-06-15）——apps/web 已从 Next.js 切到 Vite + React Router 同源 SPA，由 NestJS `ServeStaticModule` 托管；`packages/ui` 去 next-themes 换自带 ThemeProvider。与后端归一同分支一次性完成。
 - **日期**：2026-06-15
 - **范围**：`apps/web`（Next App Router → Vite SPA + React Router）、`packages/ui`（去 `next-themes`，换 Vite 主题 provider）、`apps/server`（新增 `ServeStaticModule` 托管 SPA + 会话改 Set-Cookie/读 cookie）
-- **前置/配套**：本文与 [[backend-consolidation-design]] 配套，并**简化**其鉴权决策（见 §6）；server 单一后端是前提
+- **前置/配套**：本文与后端归一方案配套，并**简化**其鉴权决策（见 §6）；server 单一后端是前提
 - **明确取舍**：React Router 用**库/数据模式（client SPA，`createBrowserRouter`）**，**不**用 RR v7 的 framework/SSR 模式（那会把 Node SSR 层又请回来，与「去 Next 复杂度」初衷相悖）
 
 ---
@@ -40,15 +40,15 @@
 
 ## 3. 核心决策摘要
 
-| #   | 决策     | 取值                                                                                                                                             |
-| --- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| F1  | 路由库   | React Router **客户端模式**（`createBrowserRouter`），Vite 构建，无 SSR                                                                          |
-| F2  | 会话载体 | **同源 httpOnly cookie 自动带**；server 端到端持 cookie（Set-Cookie + 读校验）；**取消** [[backend-consolidation-design]] 的 Bearer 转发(K3)/BFF |
-| F3  | 托管     | NestJS `ServeStaticModule` 发 SPA + SPA fallback；`/api` 同源                                                                                    |
-| F4  | dev 模式 | Vite dev server（HMR）+ `server.proxy` 把 `/api` 代理到 NestJS（`http://localhost:47878`），保持同源体验                                         |
-| F5  | 主题     | `packages/ui` 去 `next-themes`，换 Vite 友好的小 `ThemeProvider`（html class + localStorage + prefers-color-scheme，shadcn Vite 官方做法）       |
-| F6  | UI 复用  | `@hatch-radar/ui` 除主题 3 文件外**原样保留**；业务组件 JSX 基本照搬，只换路由/导航原语                                                          |
-| F7  | 落地节奏 | 独立 workstream F0–F3，可与后端归一并行；F3 完成才删 Next                                                                                        |
+| #   | 决策     | 取值                                                                                                                                       |
+| --- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| F1  | 路由库   | React Router **客户端模式**（`createBrowserRouter`），Vite 构建，无 SSR                                                                    |
+| F2  | 会话载体 | **同源 httpOnly cookie 自动带**；server 端到端持 cookie（Set-Cookie + 读校验）；**取消**后端归一方案的 Bearer 转发(K3)/BFF                 |
+| F3  | 托管     | NestJS `ServeStaticModule` 发 SPA + SPA fallback；`/api` 同源                                                                              |
+| F4  | dev 模式 | Vite dev server（HMR）+ `server.proxy` 把 `/api` 代理到 NestJS（`http://localhost:47878`），保持同源体验                                   |
+| F5  | 主题     | `packages/ui` 去 `next-themes`，换 Vite 友好的小 `ThemeProvider`（html class + localStorage + prefers-color-scheme，shadcn Vite 官方做法） |
+| F6  | UI 复用  | `@hatch-radar/ui` 除主题 3 文件外**原样保留**；业务组件 JSX 基本照搬，只换路由/导航原语                                                    |
+| F7  | 落地节奏 | 独立 workstream F0–F3，可与后端归一并行；F3 完成才删 Next                                                                                  |
 
 ---
 
@@ -98,7 +98,7 @@ SPA 根守卫：进站先 GET /api/auth/session → 拿用户态(角色/权限) 
 
 ## 6. 对后端归一文档的简化（回修）
 
-本决定让 [[backend-consolidation-design]] 几条决策**变简单**，已据此回修：
+本决定让后端归一方案几条决策**变简单**，已据此回修：
 
 - **K3（web→server Bearer 转发）→ 取消**：同源 cookie 自动带，无需 web 读 cookie 转 Bearer、无 BFF。
 - **K4（cookie 归 web 管）→ 改为 server 端到端**：登录 `Set-Cookie`、每请求读 cookie 校验都在 server。
@@ -114,7 +114,7 @@ SPA 根守卫：进站先 GET /api/auth/session → 拿用户态(角色/权限) 
 - **F2 逐页接 server API**：每页从「RSC 直查」改「loader/React Query fetch `/api`」；登录/账户/管理/设置/数据页逐个接上后端归一的端点；删 web 的 lib/db、queries、auth、admin、代理路由。
 - **F3 托管与退役**：NestJS 上 `ServeStaticModule` 发 `dist` + SPA fallback；dev 配 Vite proxy；删 Next 依赖与 `next.config`、`middleware.ts`；web `package.json` 去 next、加 vite/react-router-dom。
 
-> 依赖关系：F2 要消费后端归一的 server 端点，故 F2 与 [[backend-consolidation-design]] 的 P1/P2 配对推进；F0/F1 可提前并行。
+> 依赖关系：F2 要消费后端归一的 server 端点，故 F2 与后端归一方案的 P1/P2 配对推进；F0/F1 可提前并行。
 
 ---
 

@@ -230,7 +230,7 @@ export class RedditClient {
    * - **完整嵌套**：省略 depth 参数，让 Reddit 在单次请求内返回尽可能深的评论树；下钻所有返回层级
    *   （顶层 depth=0，逐层 +1），不再人为限制两层
    * - **不展开 more**：超出 `limit` 累计数的子树会被 Reddit 折叠为 `more` 占位节点；本方法刻意**不**调用
-   *   /api/morechildren 二次展开——官方 API 通道在停用（见 docs/runtime-config-design.md），深抓留给后续爬虫方案。
+   *   /api/morechildren 二次展开——官方 API 通道在停用，深抓留给后续爬虫方案。
    *   被折叠隐藏的评论数计入返回的 `dropped`，使「不完整」可观测而非静默丢弃
    * - 已删除 / 已移除的评论（body 为 [deleted]/[removed]）不包含在结果中
    * @param subreddit 帖子所属版块名称

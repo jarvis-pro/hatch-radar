@@ -9,8 +9,8 @@
   - **落地后补充（种子数据就近化）**：原 §2 把「数据取值」列为非目标，但随后应用户要求把来源种子值从 `config/feeds.ts`+`config/subreddits.ts` 迁入 **`seed/source-lists.ts`**（与 `SourcesSeeder` 同处），并删除二者；`crawler/rss.ts` 改用本地结构类型、不再依赖种子常量。故 §8 目录与 §9.2 的 `@/config/*` 引用路径以现码为准。运行期默认值仍随 `RuntimeSettingsService`（兼读库兜底）、超管仍随 env（密钥），是两个有硬理由的例外。
 - **日期**：2026-06-15
 - **范围**：`apps/server/src/seed/`（新增接口 + 编排器 + 两个 Seeder + 装配）、`apps/server/src/crawler/crawler-config.service.ts`（摘除种子职责）、`apps/server/src/app.module.ts`（固化模块顺序注释）、`apps/server/test/`（新增单测）
-- **不在范围**：种子**数据**本身的取值（subreddit/RSS 列表仍来自现有 `config/` 常量，不改内容）；模型 provider / 连接器的运行期配置（无种子，见 [[runtime-config-design]]）；数据库表结构与迁移（种子不碰 schema）
-- **关系**：账户种子源自 [[backend-consolidation-impl]]（账户权威收进 server）；数据源种子源自 [[runtime-config-design]]（来源入库、env 退役）；DI/import 约定见 [[server-import-alias-convention]] 与 [[server-nest-pg-refactor]]
+- **不在范围**：种子**数据**本身的取值（subreddit/RSS 列表仍来自现有 `config/` 常量，不改内容）；模型 provider / 连接器的运行期配置（无种子）；数据库表结构与迁移（种子不碰 schema）
+- **关系**：账户种子源自后端归一（账户权威收进 server）；数据源种子源自运行期配置中心（来源入库、env 退役）；DI/import 约定见 [[server-import-alias-convention]] 与 [[server-nest-pg-refactor]]
 
 ---
 
