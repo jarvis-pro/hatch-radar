@@ -1,10 +1,3 @@
--- ─────────────────────────────────────────────────────────────────────────
--- 整合基线迁移（squash）：将历史 8 个增量迁移合并为单一初始迁移。
--- 由 `prisma migrate diff --from-empty --to-schema schema.prisma` 从 schema 终态
--- 重新生成；末尾手工补回 Prisma schema 无法表达的部分唯一索引与 CHECK 约束。
--- 整合前的迁移历史见 git。
--- ─────────────────────────────────────────────────────────────────────────
-
 -- CreateSchema
 CREATE SCHEMA IF NOT EXISTS "public";
 
@@ -24,13 +17,13 @@ CREATE TYPE "enrollment_status" AS ENUM ('pending', 'consumed', 'revoked');
 CREATE TYPE "intensity" AS ENUM ('HIGH', 'MEDIUM', 'LOW');
 
 -- CreateEnum
-CREATE TYPE "job_status" AS ENUM ('queued', 'running', 'succeeded', 'failed', 'canceled');
+CREATE TYPE "translation_field" AS ENUM ('post_title', 'post_selftext', 'comment_body');
 
 -- CreateEnum
-CREATE TYPE "job_trigger" AS ENUM ('auto', 'manual');
+CREATE TYPE "translation_status" AS ENUM ('pending', 'translating', 'done', 'failed', 'skipped');
 
 -- CreateEnum
-CREATE TYPE "provider_kind" AS ENUM ('anthropic', 'openai', 'deepseek', 'claude_cli');
+CREATE TYPE "provider_kind" AS ENUM ('anthropic', 'openai', 'deepseek', 'claude_cli', 'azure');
 
 -- CreateEnum
 CREATE TYPE "api_key_status" AS ENUM ('active', 'cooling', 'invalid');
@@ -45,22 +38,119 @@ CREATE TYPE "connector_auth" AS ENUM ('oauth', 'scrape');
 CREATE TYPE "triage_status" AS ENUM ('pending', 'shortlisted', 'archived');
 
 -- CreateTable
-CREATE TABLE "analysis_jobs" (
+CREATE TABLE "blueprints" (
     "id" SERIAL NOT NULL,
-    "post_id" TEXT NOT NULL,
-    "provider_id" INTEGER,
-    "model" TEXT NOT NULL,
-    "trigger" "job_trigger" NOT NULL,
-    "status" "job_status" NOT NULL,
+    "kind" TEXT NOT NULL,
+    "label" TEXT NOT NULL,
+    "enabled" BOOLEAN NOT NULL DEFAULT true,
+    "trigger_kind" TEXT NOT NULL,
+    "trigger_config" JSONB,
+    "params" JSONB,
+    "created_at" BIGINT NOT NULL,
+    "updated_at" BIGINT NOT NULL,
+
+    CONSTRAINT "blueprints_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "runs" (
+    "id" SERIAL NOT NULL,
+    "blueprint_id" INTEGER NOT NULL,
+    "kind" TEXT NOT NULL,
+    "status" TEXT NOT NULL DEFAULT 'running',
+    "trigger_source" TEXT NOT NULL,
+    "sweep_seq" INTEGER,
+    "tasks_total" INTEGER NOT NULL DEFAULT 0,
+    "tasks_done" INTEGER NOT NULL DEFAULT 0,
+    "tasks_skipped" INTEGER NOT NULL DEFAULT 0,
+    "tasks_failed" INTEGER NOT NULL DEFAULT 0,
+    "params" JSONB,
+    "error" TEXT,
+    "started_at" BIGINT NOT NULL,
+    "finished_at" BIGINT,
+
+    CONSTRAINT "runs_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "tasks" (
+    "id" SERIAL NOT NULL,
+    "run_id" INTEGER NOT NULL,
+    "kind" TEXT NOT NULL,
+    "parent_task_id" INTEGER,
+    "post_id" TEXT,
+    "status" TEXT NOT NULL DEFAULT 'queued',
     "attempts" INTEGER NOT NULL DEFAULT 0,
     "max_attempts" INTEGER NOT NULL DEFAULT 3,
+    "current_seq" INTEGER NOT NULL DEFAULT 0,
+    "priority" INTEGER NOT NULL DEFAULT 0,
+    "provider_id" INTEGER,
+    "model" TEXT,
+    "input_tokens" INTEGER,
+    "output_tokens" INTEGER,
+    "cache_write_tokens" INTEGER,
+    "cache_read_tokens" INTEGER,
+    "params" JSONB,
     "error" TEXT,
     "enqueued_at" BIGINT NOT NULL,
     "started_at" BIGINT,
     "finished_at" BIGINT,
     "heartbeat_at" BIGINT,
 
-    CONSTRAINT "analysis_jobs_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "tasks_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "task_stages" (
+    "id" SERIAL NOT NULL,
+    "task_id" INTEGER NOT NULL,
+    "seq" INTEGER NOT NULL,
+    "name" TEXT NOT NULL,
+    "status" TEXT NOT NULL DEFAULT 'pending',
+    "gate" BOOLEAN NOT NULL DEFAULT false,
+    "input_summary" JSONB,
+    "output" JSONB,
+    "error" TEXT,
+    "started_at" BIGINT,
+    "finished_at" BIGINT,
+
+    CONSTRAINT "task_stages_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "request_queue" (
+    "id" SERIAL NOT NULL,
+    "lane" TEXT NOT NULL,
+    "host" TEXT,
+    "method" TEXT NOT NULL DEFAULT 'GET',
+    "url" TEXT NOT NULL,
+    "params" JSONB,
+    "purpose" TEXT NOT NULL,
+    "owner_task_id" INTEGER,
+    "owner_stage_id" INTEGER,
+    "priority" INTEGER NOT NULL DEFAULT 0,
+    "status" TEXT NOT NULL DEFAULT 'pending',
+    "scheduled_at" BIGINT NOT NULL,
+    "attempts" INTEGER NOT NULL DEFAULT 0,
+    "result" JSONB,
+    "error" TEXT,
+    "enqueued_at" BIGINT NOT NULL,
+    "started_at" BIGINT,
+    "finished_at" BIGINT,
+
+    CONSTRAINT "request_queue_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "request_lanes" (
+    "lane" TEXT NOT NULL,
+    "rate_per_minute" INTEGER NOT NULL DEFAULT 90,
+    "burst" INTEGER NOT NULL DEFAULT 10,
+    "max_concurrency" INTEGER NOT NULL DEFAULT 1,
+    "paused" BOOLEAN NOT NULL DEFAULT false,
+    "updated_at" BIGINT NOT NULL,
+
+    CONSTRAINT "request_lanes_pkey" PRIMARY KEY ("lane")
 );
 
 -- CreateTable
@@ -82,8 +172,27 @@ CREATE TABLE "comments" (
     "depth" INTEGER NOT NULL DEFAULT 0,
     "created_utc" BIGINT NOT NULL,
     "fetched_at" BIGINT NOT NULL,
+    "body_hash" TEXT,
 
     CONSTRAINT "comments_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "translations" (
+    "id" SERIAL NOT NULL,
+    "content_hash" TEXT NOT NULL,
+    "source_field" "translation_field" NOT NULL,
+    "source_lang" TEXT,
+    "text" TEXT,
+    "provider_kind" "provider_kind",
+    "provider_id" INTEGER,
+    "status" "translation_status" NOT NULL DEFAULT 'pending',
+    "char_count" INTEGER,
+    "last_error" TEXT,
+    "created_at" BIGINT NOT NULL,
+    "updated_at" BIGINT NOT NULL,
+
+    CONSTRAINT "translations_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -110,8 +219,11 @@ CREATE TABLE "model_providers" (
     "provider" "provider_kind" NOT NULL,
     "label" TEXT NOT NULL,
     "base_url" TEXT,
+    "region" TEXT,
     "model" TEXT NOT NULL,
     "enabled" BOOLEAN NOT NULL DEFAULT true,
+    "input_price" DOUBLE PRECISION,
+    "output_price" DOUBLE PRECISION,
     "created_at" BIGINT NOT NULL,
     "updated_at" BIGINT NOT NULL,
 
@@ -187,6 +299,11 @@ CREATE TABLE "posts" (
     "export_locked_at" BIGINT,
     "analyzed_at" BIGINT,
     "analyze_attempts" INTEGER NOT NULL DEFAULT 0,
+    "title_hash" TEXT,
+    "selftext_hash" TEXT,
+    "recheck_misses" INTEGER NOT NULL DEFAULT 0,
+    "recheck_due_sweep" INTEGER NOT NULL DEFAULT 0,
+    "last_rechecked_at" BIGINT,
 
     CONSTRAINT "posts_pkey" PRIMARY KEY ("id")
 );
@@ -221,6 +338,7 @@ CREATE TABLE "users" (
     "id" TEXT NOT NULL,
     "email" TEXT NOT NULL,
     "name" TEXT NOT NULL,
+    "avatar" TEXT,
     "password_hash" TEXT NOT NULL,
     "role" "user_role" NOT NULL DEFAULT 'admin',
     "status" "user_status" NOT NULL DEFAULT 'active',
@@ -315,13 +433,46 @@ CREATE TABLE "login_attempts" (
 );
 
 -- CreateIndex
-CREATE INDEX "idx_jobs_post" ON "analysis_jobs"("post_id");
+CREATE INDEX "idx_blueprints_kind" ON "blueprints"("kind", "enabled");
 
 -- CreateIndex
-CREATE INDEX "idx_jobs_status" ON "analysis_jobs"("status", "enqueued_at");
+CREATE INDEX "idx_runs_blueprint" ON "runs"("blueprint_id", "started_at");
+
+-- CreateIndex
+CREATE INDEX "idx_runs_status" ON "runs"("status");
+
+-- CreateIndex
+CREATE INDEX "idx_tasks_run" ON "tasks"("run_id");
+
+-- CreateIndex
+CREATE INDEX "idx_tasks_claim" ON "tasks"("status", "priority", "enqueued_at");
+
+-- CreateIndex
+CREATE INDEX "idx_tasks_parent" ON "tasks"("parent_task_id");
+
+-- CreateIndex
+CREATE INDEX "idx_tasks_post" ON "tasks"("post_id");
+
+-- CreateIndex
+CREATE INDEX "idx_task_stages_task" ON "task_stages"("task_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "uniq_task_stages_task_seq" ON "task_stages"("task_id", "seq");
+
+-- CreateIndex
+CREATE INDEX "idx_reqq_dispatch" ON "request_queue"("lane", "status", "priority", "scheduled_at");
+
+-- CreateIndex
+CREATE INDEX "idx_reqq_owner" ON "request_queue"("owner_task_id");
 
 -- CreateIndex
 CREATE INDEX "idx_comments_post" ON "comments"("post_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "idx_translations_hash" ON "translations"("content_hash");
+
+-- CreateIndex
+CREATE INDEX "idx_translations_status" ON "translations"("status");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "idx_insights_post" ON "insights"("post_id");
@@ -401,18 +552,12 @@ ALTER TABLE "device_credentials" ADD CONSTRAINT "device_credentials_user_id_fkey
 -- AddForeignKey
 ALTER TABLE "device_enrollments" ADD CONSTRAINT "device_enrollments_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
--- ─────────────────────────────────────────────────────────────────────────
--- 以下两处对象 Prisma schema 无法表达，由本基线迁移手工维护；prisma migrate diff
--- 看不见它们，故 migrate dev 不会将其判为 drift 删除。整合自原迁移
--- 20260614120000_jobs_active_partial_unique 与历史 triage 建表 CHECK 约束。
--- ─────────────────────────────────────────────────────────────────────────
 
--- 入队幂等的并发兜底：同一帖子在 queued/running 期间至多一条活跃任务。
--- 失败/成功/取消的历史任务可同帖多条（重试跨轮留多条 failed），故用带 WHERE 谓词的
--- 部分唯一索引而非整列唯一。（原迁移含历史重复活跃任务的回填清理，全新库无数据故省略。）
-CREATE UNIQUE INDEX "uniq_jobs_active_post"
-  ON "analysis_jobs" ("post_id")
-  WHERE "status" IN ('queued', 'running');
+-- ─── 以下为 Prisma schema 无法表达、历来手工维护的对象（归一化时保留）─────────────────────
 
--- 人工评分范围约束（与 @hatch-radar/shared TRIAGE_DDL、sync 的 zod min(1).max(5) 一致）。
+-- 同帖同 kind 至多一条活跃任务（去重并发兜底；paused 亦计入活跃）。部分唯一索引，schema 无法声明。
+CREATE UNIQUE INDEX "uniq_tasks_active_post" ON "tasks" ("post_id", "kind")
+  WHERE "status" IN ('queued', 'running', 'paused') AND "post_id" IS NOT NULL;
+
+-- 研判评分 1..5 区间约束。
 ALTER TABLE "triage" ADD CONSTRAINT "triage_rating_range" CHECK ("rating" >= 1 AND "rating" <= 5);

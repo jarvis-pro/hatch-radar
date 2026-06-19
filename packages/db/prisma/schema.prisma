@@ -71,8 +71,8 @@ model runs {
   @@index([status], map: "idx_runs_status")
 }
 
-/// 任务：进程派生的工作单元，绝大多数 = 一条帖子。取代旧 analysis_jobs，泛化到所有 kind。
-/// 认领用 FOR UPDATE SKIP LOCKED（多 worker 不重不漏）；心跳 + max_attempts + 僵死回收沿用旧机制。
+/// 任务：进程派生的工作单元，绝大多数 = 一条帖子，泛化到所有 kind。
+/// 认领用 FOR UPDATE SKIP LOCKED（多 worker 不重不漏）；心跳 + max_attempts + 僵死回收防卡死。
 model tasks {
   id             Int     @id @default(autoincrement())
   /// 所属进程（runs.id 软引用）。
@@ -115,11 +115,11 @@ model tasks {
   @@index([parent_task_id], map: "idx_tasks_parent")
   @@index([post_id], map: "idx_tasks_post")
   // 另有部分唯一索引 uniq_tasks_active_post：UNIQUE(post_id, kind) WHERE status IN (queued,running,paused) AND post_id IS NOT NULL，
-  // 保证同帖同 kind 同时至多一条活跃任务（去重第③层；泛化自 analysis_jobs 的 uniq_jobs_active_post）。
-  // Prisma schema 无法表达部分索引，故由迁移手工维护，勿删。
+  // 保证同帖同 kind 同时至多一条活跃任务（去重第③层并发兜底）。
+  // Prisma schema 无法表达部分索引，故由迁移 0_init（整合基线）末尾手工维护，勿删。
 }
 
-/// 环节：任务内的有名步骤，逐步落检查点。取代旧 job_steps，泛化到所有 kind，并把闸门下放到逐行。
+/// 环节：任务内的有名步骤，逐步落检查点。泛化到所有 kind，并把闸门下放到逐行。
 /// output 既是展示内容，又是下游 / 重认领的检查点输入（尤其 ai_call 原始响应、context 文本不可重算）。
 model task_stages {
   id            Int     @id @default(autoincrement())
@@ -131,7 +131,7 @@ model task_stages {
   name          String
   /// 环节状态：pending | running | done | failed | skipped。
   status        String  @default("pending")
-  /// 闸门：true 则本环节跑完即置任务 paused 等人工放行（逐环节停起的载体；泛化自旧全局 step_gate）。
+  /// 闸门：true 则本环节跑完即置任务 paused 等人工放行（逐环节停起的载体）。
   gate          Boolean @default(false)
   /// 输入摘要（展示用）。
   input_summary Json?
@@ -413,7 +413,7 @@ model posts {
   comments_fetched_at BigInt?
   /// 评论内容发生变化的时间，用于判断是否需要重新分析。
   comments_changed_at BigInt?
-  /// 预留列：导出锁定时间（Unix 秒）。当前 server 未写入、评论 refresh 也不据此暂停，仅随导出产物携带；后续实现「导出冻结」再启用。
+  /// 预留列：导出锁定时间（Unix 秒）。当前未写入、评论 refresh 也不据此暂停，仅随导出产物携带；后续实现「导出冻结」再启用。
   export_locked_at    BigInt?
   /// 完成 AI 分析的时间；为空表示尚未分析。
   analyzed_at         BigInt?
@@ -474,7 +474,7 @@ model triage {
 // 账户系统与权限控制（Web + Mobile 同源 RBAC，详见 docs/account-rbac-design.md）
 // ─────────────────────────────────────────────────────────────────────────
 
-/// 控制台与移动端共用的账户（唯一真相源）。web 直接读写；server（Phase 2）读校验。
+/// 控制台与移动端共用的账户（唯一真相源）。web 经 api 读写、不直连 PG；api 为唯一鉴权权威。
 /// 密码经 node:crypto scrypt 派生入库；密文/哈希永不外发客户端。
 model users {
   id                   String      @id @default(uuid())
@@ -605,7 +605,7 @@ enum device_status {
 }
 
 /// 设备激活码（一次性，短有效期）：管理员为某用户「赋予设备」时生成，
-/// 设备端用激活码 + 自生成公钥换取一条 device_credentials（见 server /api/auth/device/enroll）。
+/// 设备端用激活码 + 自生成公钥换取一条 device_credentials（见 api /api/auth/device/enroll）。
 /// 明文码只在生成时给管理员显示一次；库里只存其 sha256（code_hash）。
 model device_enrollments {
   id          String            @id @default(uuid())
