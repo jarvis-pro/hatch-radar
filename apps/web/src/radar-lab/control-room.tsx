@@ -18,6 +18,7 @@ import {
   Pencil,
   Play,
   Plus,
+  RefreshCw,
   Sparkles,
   Trash2,
   Zap,
@@ -95,7 +96,27 @@ function selectControlRoom(w: World) {
       label: w.processes.find((p) => p.id === r.processId)?.label ?? r.processId,
     }));
 
-  return { insightsToday, postsToday, runsToday, inflight, lanes, processes, alerts, nowMs: w.nowMs };
+  // 复查健康：退避分布（活跃 / 连未变 N → 间隔）
+  const rSweep = w.processes.reduce((mx, p) => {
+    const b = w.blueprints.find((x) => x.id === p.blueprintId);
+    return b?.kind === 'recheck' ? Math.max(mx, p.sweepSeq) : mx;
+  }, 0);
+  const recheck = {
+    sweep: rSweep,
+    total: w.posts.length,
+    dueNow: w.posts.filter((p) => (p.recheckDueSweep ?? 0) <= rSweep).length,
+    dist: [0, 1, 2, 3, 4].map((l) => ({
+      level: l,
+      label: l === 0 ? '活跃' : l === 4 ? '连未变 4+' : `连未变 ${l}`,
+      interval: l === 0 ? '每轮查' : `隔 ${Math.min(2 ** (l - 1), 16)} 轮`,
+      count: w.posts.filter((p) => {
+        const m = p.recheckMisses ?? 0;
+        return l === 4 ? m >= 4 : m === l;
+      }).length,
+    })),
+  };
+
+  return { insightsToday, postsToday, runsToday, inflight, lanes, processes, alerts, recheck, nowMs: w.nowMs };
 }
 
 type CRData = ReturnType<typeof selectControlRoom>;
@@ -265,6 +286,7 @@ function ControlRoom() {
   const d = useWorld(selectControlRoom);
   const blueprints = useWorld((w) => w.blueprints);
   const [newProcOpen, setNewProcOpen] = useState(false);
+  const recheckMax = Math.max(1, ...d.recheck.dist.map((x) => x.count));
 
   return (
     <>
@@ -276,13 +298,12 @@ function ControlRoom() {
 
       <div className="space-y-6">
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <Link to="/radar/posts" className="block transition-opacity hover:opacity-80">
-            <StatCard label="今日新帖" value={d.postsToday} icon={Inbox} hint="帖子库 · 一生 →" />
-          </Link>
+          <StatCard label="今日新帖" value={d.postsToday} icon={Inbox} hint="采集任务完成数" />
           <Link to="/radar/insights" className="block transition-opacity hover:opacity-80">
             <StatCard label="今日洞察" value={d.insightsToday} icon={Sparkles} hint="分析产出 · 看收成 →" />
           </Link>
           <StatCard label="在途任务" value={d.inflight} icon={Activity} hint="运行 + 排队 + 暂停" />
+          {/* 复查健康卡见下方；新帖去掉跳转（浏览交工作区「帖子库」，单帖一生从上下文点入） */}
           <StatCard label="今日运行" value={d.runsToday} icon={Gauge} hint="各进程触发次数" />
         </div>
 
@@ -300,6 +321,36 @@ function ControlRoom() {
           <div className="divide-y">
             {d.lanes.map((l) => (
               <LaneRow key={l.id} lane={l} />
+            ))}
+          </div>
+        </Card>
+
+        <Card className="gap-2 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="inline-flex items-center gap-2 text-sm font-semibold">
+              <RefreshCw className="size-4 text-muted-foreground" /> 复查健康
+            </h2>
+            <span className="text-xs tabular-nums text-muted-foreground">
+              sweep #{d.recheck.sweep} · 本轮到期 {d.recheck.dueNow}/{d.recheck.total}
+            </span>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            活跃多查、沉默渐疏（指数退避 1→2→4→…→16 轮），一旦再活跃即复位。
+          </p>
+          <div className="mt-1 space-y-1.5">
+            {d.recheck.dist.map((x) => (
+              <div key={x.level} className="flex items-center gap-3 text-sm">
+                <span className="w-20 shrink-0 text-muted-foreground">{x.label}</span>
+                <div className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-muted">
+                  <div
+                    className={cn('h-full', x.level === 0 ? 'bg-signal' : 'bg-primary')}
+                    style={{ width: `${(x.count / recheckMax) * 100}%` }}
+                  />
+                </div>
+                <span className="w-24 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
+                  {x.count} 帖 · {x.interval}
+                </span>
+              </div>
             ))}
           </div>
         </Card>

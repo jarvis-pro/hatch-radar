@@ -1,9 +1,9 @@
 import {
-  FileClock,
   FileText,
   Gauge,
   LayoutDashboard,
   LayoutTemplate,
+  Library,
   Lightbulb,
   Radar,
   ScrollText,
@@ -91,19 +91,20 @@ export const NAV_GROUPS: readonly NavGroup[] = [
         match: (p) => p.startsWith('/radar/blueprints'),
       },
       {
+        to: '/radar/posts',
+        label: '帖子库',
+        icon: Library,
+        perm: 'analyze:run',
+        match: (p) => p.startsWith('/radar/posts'),
+      },
+      {
         to: '/radar/insights',
         label: '收成洞察',
         icon: Lightbulb,
         perm: 'analyze:run',
         match: (p) => p.startsWith('/radar/insights'),
       },
-      {
-        to: '/radar/posts',
-        label: '帖子库 · 一生',
-        icon: FileClock,
-        perm: 'analyze:run',
-        match: (p) => p.startsWith('/radar/posts'),
-      },
+      // 帖子一生（/radar/posts/:id）是纯详情，从运行详情 / 收成上下文点入，不占独立菜单位
       {
         to: '/radar/requests',
         label: '请求闸',

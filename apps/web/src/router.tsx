@@ -23,6 +23,7 @@ import { SettingsPage } from '@/pages/settings';
 import { BlueprintsPage } from '@/radar-lab/blueprints';
 import { ControlRoomPage } from '@/radar-lab/control-room';
 import { HarvestPage } from '@/radar-lab/harvest';
+import { LibraryPage } from '@/radar-lab/library';
 import { PostsPage as RadarPostsPage } from '@/radar-lab/posts';
 import { RequestGatePage } from '@/radar-lab/request-gate';
 import { RadarRunDetailPage } from '@/radar-lab/run-detail';
@@ -49,7 +50,7 @@ export const router = createBrowserRouter([
       { path: 'radar/runs/:runId', element: <RadarRunDetailPage /> },
       { path: 'radar/requests', element: <RequestGatePage /> },
       { path: 'radar/insights', element: <HarvestPage /> },
-      { path: 'radar/posts', element: <RadarPostsPage /> },
+      { path: 'radar/posts', element: <LibraryPage /> },
       { path: 'radar/posts/:id', element: <RadarPostsPage /> },
       { path: 'radar/processes/:id/runs', element: <RadarRunsPage /> },
       { path: 'inspect/:jobId', element: <InspectPage /> },
