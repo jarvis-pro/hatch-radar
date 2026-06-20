@@ -14,7 +14,143 @@ const c = (
   children?: Comment[],
 ): Comment => ({ author, score, depth, body, bodyZh, children });
 
-export const POSTS: Post[] = [
+// ── 评论生成器：保留手写特写评论，再按目标条数程序补量（有多有少，含嵌套，带译文） ──
+function hashStr(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+function mulberry32(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function countComments(nodes: Comment[]): number {
+  let n = 0;
+  for (const x of nodes) n += 1 + (x.children ? countComments(x.children) : 0);
+  return n;
+}
+
+const GEN_AUTHORS = [
+  'mvp_mike',
+  'churn_doc',
+  'pricing_nerd',
+  'growth_lola',
+  'bootstrap_ben',
+  'seedstage_sue',
+  'ops_oliver',
+  'retention_ray',
+  'funnel_fay',
+  'cac_carl',
+  'plg_pat',
+  'arr_amy',
+  'devtools_dan',
+  'founder_fred',
+  'lurker_lin',
+  'skeptic_sam',
+  'builder_bea',
+  'vc_vince',
+  'support_sid',
+  'metrics_mei',
+];
+const GEN_POOL: { en: string; zh: string }[] = [
+  {
+    en: 'We hit the exact same wall last year — you are not alone.',
+    zh: '我们去年也撞上了一模一样的墙——不止你一个。',
+  },
+  {
+    en: 'Did you measure this against a control cohort? Easy to fool yourself otherwise.',
+    zh: '你拿对照组量过吗？不然很容易自欺欺人。',
+  },
+  {
+    en: 'Counterpoint: worked for us until ~500 customers, then it broke.',
+    zh: '反例：这招在我们到约 500 客户前都有效，之后就崩了。',
+  },
+  {
+    en: 'The fix was boring — we just called 20 churned users on the phone.',
+    zh: '解法很无聊——我们就是给 20 个流失用户打了电话。',
+  },
+  {
+    en: 'Pricing is downstream of positioning. Fix the latter first.',
+    zh: '定价是定位的下游。先把定位修好。',
+  },
+  {
+    en: 'Honestly this smells like a retention problem dressed up as acquisition.',
+    zh: '说实话这像是把留存问题打扮成了获客问题。',
+  },
+  { en: 'Source? Would love to see the actual numbers.', zh: '有数据来源吗？想看看真实数字。' },
+  { en: 'Tried this. Lasted two weeks. Reverted.', zh: '试过。撑了两周。回滚了。' },
+  {
+    en: 'Strong agree. The hard part is doing it consistently for 6 months.',
+    zh: '强烈同意。难的是坚持做满 6 个月。',
+  },
+  { en: 'What stack did you use to instrument this?', zh: '你用什么技术栈埋点的？' },
+  {
+    en: 'This is survivorship bias — for every win there are 50 silent failures.',
+    zh: '这是幸存者偏差——每个成功背后有 50 个沉默的失败。',
+  },
+  {
+    en: 'We saw the opposite: annual plans hid our churn signal completely.',
+    zh: '我们看到的正相反：年付把流失信号完全藏住了。',
+  },
+  {
+    en: 'The flat 30c is brutal at low ACV, agreed.',
+    zh: '低客单价下那固定 30 美分确实要命，同意。',
+  },
+  {
+    en: 'Curious how this holds once a competitor undercuts you.',
+    zh: '好奇等竞品来压价时这套还撑不撑得住。',
+  },
+  { en: 'Underrated take. Saving this thread.', zh: '被低估的观点。先把这帖存了。' },
+  {
+    en: 'Did support load actually drop, or did tickets just move channels?',
+    zh: '支持负担真降了，还是工单只是换了渠道？',
+  },
+  {
+    en: 'For us the unlock was onboarding, not the feature itself.',
+    zh: '对我们来说破局点是引导，而不是功能本身。',
+  },
+  { en: 'How long was the experiment? Two weeks is noise.', zh: '实验跑了多久？两周都是噪声。' },
+  { en: 'Roughly matches what we see in our own data.', zh: '跟我们自己数据里看到的大致吻合。' },
+  {
+    en: 'Devil is in the segmentation — averages lie here.',
+    zh: '魔鬼藏在分群里——这里平均数会骗人。',
+  },
+];
+
+function genComments(total: number, maxDepth: number, seedNum: number): Comment[] {
+  if (total <= 0) return [];
+  const rnd = mulberry32(seedNum);
+  const pick = <T>(arr: T[]): T => arr[Math.floor(rnd() * arr.length)]!;
+  let made = 0;
+  const build = (depth: number): Comment => {
+    made += 1;
+    const tpl = pick(GEN_POOL);
+    const node: Comment = {
+      author: pick(GEN_AUTHORS),
+      score: Math.floor(rnd() * 130),
+      depth,
+      body: tpl.en,
+      bodyZh: tpl.zh,
+    };
+    if (depth < maxDepth && made < total && rnd() < 0.45) {
+      const kids = 1 + Math.floor(rnd() * 2);
+      const children: Comment[] = [];
+      for (let i = 0; i < kids && made < total; i++) children.push(build(depth + 1));
+      node.children = children;
+    }
+    return node;
+  };
+  const roots: Comment[] = [];
+  while (made < total) roots.push(build(0));
+  return roots;
+}
+
+const RAW: Post[] = [
   {
     id: 't3_saas01',
     source: 'reddit',
@@ -37,15 +173,22 @@ export const POSTS: Post[] = [
         'Onboarding that ties the product to a recurring workflow. If it is not in their weekly routine, you lost.',
         '把产品绑进一个周期性工作流的引导。如果它没进用户每周的例行流程，你就输了。',
         [
-          c('indie_maker_jo', 12, 1, 'Any concrete example of "tying to a workflow"?', '「绑进工作流」有具体例子吗？', [
-            c(
-              'growthq',
-              18,
-              2,
-              'We send a Monday digest they actually need; the digest links back into the app. Usage doubled.',
-              '我们每周一推一份用户真正需要的摘要，摘要里带回应用的链接。使用率翻倍。',
-            ),
-          ]),
+          c(
+            'indie_maker_jo',
+            12,
+            1,
+            'Any concrete example of "tying to a workflow"?',
+            '「绑进工作流」有具体例子吗？',
+            [
+              c(
+                'growthq',
+                18,
+                2,
+                'We send a Monday digest they actually need; the digest links back into the app. Usage doubled.',
+                '我们每周一推一份用户真正需要的摘要，摘要里带回应用的链接。使用率翻倍。',
+              ),
+            ],
+          ),
         ],
       ),
       c(
@@ -78,9 +221,23 @@ export const POSTS: Post[] = [
         0,
         'At $7 ACV nothing beats Stripe meaningfully; the fixed 30c is your killer, not the %. Bundle into larger purchases.',
         '$7 客单价下没什么能明显胜过 Stripe；要命的是固定的 30 美分，不是百分比。把它打包成更大额的购买。',
-        [c('tiny_ticket', 7, 1, 'Yeah the 30c flat is the real pain. Considering credit packs.', '对，固定 30 美分才是真痛点。在考虑做点数包。')],
+        [
+          c(
+            'tiny_ticket',
+            7,
+            1,
+            'Yeah the 30c flat is the real pain. Considering credit packs.',
+            '对，固定 30 美分才是真痛点。在考虑做点数包。',
+          ),
+        ],
       ),
-      c('eu_founder', 14, 0, 'Mollie is cheaper in EU for small tickets, worth a look.', '在欧盟小额场景 Mollie 更便宜，值得看看。'),
+      c(
+        'eu_founder',
+        14,
+        0,
+        'Mollie is cheaper in EU for small tickets, worth a look.',
+        '在欧盟小额场景 Mollie 更便宜，值得看看。',
+      ),
     ],
   },
   {
@@ -97,8 +254,20 @@ export const POSTS: Post[] = [
     commentDepth: 3,
     ageMinutes: 540,
     comments: [
-      c('reply_guy', 55, 0, 'Not dead, just saturated. Deliverability is the whole game now — warm domains, tight lists.', '没死，只是饱和了。现在比的全是送达率——养好的域名、精准的名单。'),
-      c('skeptic7', 19, 0, 'Define dead. We still close 5-figure deals from cold. Your list quality is probably the issue.', '怎么算「死」？我们靠冷邮件照样签五位数的单。问题大概出在你的名单质量。'),
+      c(
+        'reply_guy',
+        55,
+        0,
+        'Not dead, just saturated. Deliverability is the whole game now — warm domains, tight lists.',
+        '没死，只是饱和了。现在比的全是送达率——养好的域名、精准的名单。',
+      ),
+      c(
+        'skeptic7',
+        19,
+        0,
+        'Define dead. We still close 5-figure deals from cold. Your list quality is probably the issue.',
+        '怎么算「死」？我们靠冷邮件照样签五位数的单。问题大概出在你的名单质量。',
+      ),
     ],
   },
   {
@@ -122,7 +291,15 @@ export const POSTS: Post[] = [
         0,
         'Yes. AI raises expectations faster than it meets them. We added confidence labels + "this may be wrong" and tickets dropped 30%.',
         '会。AI 抬高预期的速度快过它兑现的速度。我们加了置信度标签 +「此结果可能有误」，工单降了 30%。',
-        [c('support_swamped', 9, 1, 'Confidence labels — smart. Trying that.', '置信度标签——高。我试试。')],
+        [
+          c(
+            'support_swamped',
+            9,
+            1,
+            'Confidence labels — smart. Trying that.',
+            '置信度标签——高。我试试。',
+          ),
+        ],
       ),
     ],
   },
@@ -140,7 +317,13 @@ export const POSTS: Post[] = [
     commentDepth: 2,
     ageMinutes: 1290,
     comments: [
-      c('hnreader', 44, 0, 'Classic — OSS is distribution, the paid tier is the hosting/ops. Works when self-hosting is genuinely annoying.', '经典——开源是分发渠道，付费档卖的是托管/运维。当自托管确实麻烦时就成立。'),
+      c(
+        'hnreader',
+        44,
+        0,
+        'Classic — OSS is distribution, the paid tier is the hosting/ops. Works when self-hosting is genuinely annoying.',
+        '经典——开源是分发渠道，付费档卖的是托管/运维。当自托管确实麻烦时就成立。',
+      ),
     ],
   },
   {
@@ -157,7 +340,13 @@ export const POSTS: Post[] = [
     commentDepth: 1,
     ageMinutes: 410,
     comments: [
-      c('cro_pat', 33, 0, 'Decoy effect. Now add a "most popular" badge on $29 and watch it climb again.', '诱饵效应。现在给 $29 加个「最受欢迎」标，看它再涨一波。'),
+      c(
+        'cro_pat',
+        33,
+        0,
+        'Decoy effect. Now add a "most popular" badge on $29 and watch it climb again.',
+        '诱饵效应。现在给 $29 加个「最受欢迎」标，看它再涨一波。',
+      ),
     ],
   },
   // ── 以下默认作「待发现」池：discover 会陆续发现它们 ──
@@ -175,7 +364,13 @@ export const POSTS: Post[] = [
     commentDepth: 2,
     ageMinutes: 30,
     comments: [
-      c('audience_skeptic', 22, 0, 'Followers of "building in public" want to BE you, not buy from you. Wrong audience for the product.', '「公开构建」的粉丝想成为你，而不是向你买东西。对产品来说是错的受众。'),
+      c(
+        'audience_skeptic',
+        22,
+        0,
+        'Followers of "building in public" want to BE you, not buy from you. Wrong audience for the product.',
+        '「公开构建」的粉丝想成为你，而不是向你买东西。对产品来说是错的受众。',
+      ),
     ],
   },
   {
@@ -192,7 +387,13 @@ export const POSTS: Post[] = [
     commentDepth: 2,
     ageMinutes: 18,
     comments: [
-      c('cfo_minded', 40, 0, 'No customer over 10% of MRR is the rule. Painful early, lifesaving later.', '单客户不超过 MRR 的 10%，这是铁律。早期难受，后期救命。'),
+      c(
+        'cfo_minded',
+        40,
+        0,
+        'No customer over 10% of MRR is the rule. Painful early, lifesaving later.',
+        '单客户不超过 MRR 的 10%，这是铁律。早期难受，后期救命。',
+      ),
     ],
   },
   {
@@ -209,7 +410,13 @@ export const POSTS: Post[] = [
     commentDepth: 1,
     ageMinutes: 8,
     comments: [
-      c('plg_vet', 27, 0, 'Do not kill it, gate it. Cap the expensive operation, keep the cheap value. Free tier is your funnel.', '别砍，设闸。把昂贵的操作设上限，留住廉价的价值。免费档是你的漏斗。'),
+      c(
+        'plg_vet',
+        27,
+        0,
+        'Do not kill it, gate it. Cap the expensive operation, keep the cheap value. Free tier is your funnel.',
+        '别砍，设闸。把昂贵的操作设上限，留住廉价的价值。免费档是你的漏斗。',
+      ),
     ],
   },
   {
@@ -232,7 +439,15 @@ export const POSTS: Post[] = [
         0,
         'How does this handle row-level security? That is where every "instant API" tool falls over.',
         '它怎么处理行级安全（RLS）？所有「即时 API」工具都栽在这上面。',
-        [c('pg_hacker', 31, 1, 'RLS is passed through; we generate policies from your existing roles. Demo in the README.', 'RLS 直接透传；我们根据你已有的角色生成策略。README 里有演示。')],
+        [
+          c(
+            'pg_hacker',
+            31,
+            1,
+            'RLS is passed through; we generate policies from your existing roles. Demo in the README.',
+            'RLS 直接透传；我们根据你已有的角色生成策略。README 里有演示。',
+          ),
+        ],
       ),
     ],
   },
@@ -250,7 +465,13 @@ export const POSTS: Post[] = [
     commentDepth: 2,
     ageMinutes: 12,
     comments: [
-      c('vc_logic', 45, 0, 'Because CLIs do not have expansion revenue. Platforms do. Follow the money.', '因为 CLI 没有扩张性营收，平台有。跟着钱走就懂了。'),
+      c(
+        'vc_logic',
+        45,
+        0,
+        'Because CLIs do not have expansion revenue. Platforms do. Follow the money.',
+        '因为 CLI 没有扩张性营收，平台有。跟着钱走就懂了。',
+      ),
     ],
   },
   {
@@ -269,3 +490,32 @@ export const POSTS: Post[] = [
     comments: [],
   },
 ];
+
+/**
+ * 最终语料：每帖在手写特写评论基础上，按目标条数补量到「有多有少」（25 ~ 90，且不超过 numComments）。
+ * rss 等 numComments=0 的帖不补；补出的评论同样带中文译文。
+ */
+/**
+ * 给评论树逐节点派生「年龄」（分钟）：确定性（按帖 id 播种）、比帖子新、回复比父评论更新。
+ * 评论缺乏真实时间戳，故在此一次性补；随模拟时钟推进，显示的「X 前」会一起变老（同帖子）。
+ */
+function withCommentTimes(post: Post): Post {
+  const rnd = mulberry32(hashStr(post.id) ^ 0x9e3779b9);
+  const walk = (nodes: Comment[], maxAge: number): Comment[] =>
+    nodes.map((n) => {
+      const ageMinutes = Math.max(1, Math.round(maxAge * (0.1 + rnd() * 0.85)));
+      return { ...n, ageMinutes, children: n.children ? walk(n.children, ageMinutes) : undefined };
+    });
+  return { ...post, comments: walk(post.comments, post.ageMinutes) };
+}
+
+export const POSTS: Post[] = RAW.map((p) => {
+  const have = countComments(p.comments);
+  const target = Math.min(p.numComments, 25 + (hashStr(p.id) % 65));
+  const extra = Math.max(0, target - have);
+  const filled =
+    extra > 0
+      ? { ...p, comments: [...p.comments, ...genComments(extra, 2, hashStr(p.id) + 7)] }
+      : p;
+  return withCommentTimes(filled);
+});

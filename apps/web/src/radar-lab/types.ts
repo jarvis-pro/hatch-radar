@@ -43,6 +43,8 @@ export interface Comment {
   body: string;
   /** 评论正文中文译文。 */
   bodyZh?: string;
+  /** 评论年龄（分钟，相对帖子发布；比帖子新、回复比父评论新）。用于显示「X 前」。 */
+  ageMinutes?: number;
   children?: Comment[];
 }
 
