@@ -1,8 +1,4 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom';
-import { BlueprintLabPage } from '@/blueprint-lab/page';
-import { ProcessesPage } from '@/blueprint-lab/processes';
-import { ProcessRunsPage } from '@/blueprint-lab/process-runs';
-import { RunDetailPage } from '@/blueprint-lab/run-detail';
 import { ProtectedLayout } from '@/layout';
 import { PermissionsPage } from '@/pages/account-permissions';
 import { ProfilePage } from '@/pages/account-profile';
@@ -47,10 +43,6 @@ export const router = createBrowserRouter([
       { path: 'posts', element: <PostsPage /> },
       { path: 'posts/:id', element: <PostDetailPage /> },
       { path: 'analyze', element: <AnalyzePage /> },
-      { path: 'blueprints', element: <BlueprintLabPage /> },
-      { path: 'processes', element: <ProcessesPage /> },
-      { path: 'processes/:id/runs', element: <ProcessRunsPage /> },
-      { path: 'processes/:id/runs/:runId', element: <RunDetailPage /> },
       // 雷达指挥室（radar-lab，全新 mock 闭环原型）
       { path: 'radar', element: <ControlRoomPage /> },
       { path: 'radar/blueprints', element: <BlueprintsPage /> },

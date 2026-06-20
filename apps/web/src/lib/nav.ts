@@ -1,10 +1,11 @@
 import {
+  FileClock,
   FileText,
   Gauge,
   LayoutDashboard,
   LayoutTemplate,
+  Lightbulb,
   Radar,
-  Repeat,
   ScrollText,
   Settings2,
   Sparkles,
@@ -25,7 +26,7 @@ export interface NavItem {
   match: (pathname: string) => boolean;
 }
 
-/** 导航分组（= RBAC 能力分组：工作区/运营/系统，详见 docs/web-redesign-design.md §4.2）。 */
+/** 导航分组（= RBAC 能力分组：工作区/运营/系统；「运营 · Mock」为 radar-lab 演示原型）。 */
 export interface NavGroup {
   label: string;
   items: NavItem[];
@@ -34,18 +35,13 @@ export interface NavGroup {
 /**
  * 全站导航的单一事实源 —— 侧边栏与命令面板（⌘K）共用。
  * 分组刻意对齐权限语义：数据浏览→工作区、运营操作→运营、系统管理→系统。
+ * 「运营 · Mock」单列 radar-lab 的「活的模拟世界」演示（纯 mock，与上方真实运营页区隔）。
  */
 export const NAV_GROUPS: readonly NavGroup[] = [
   {
     label: '工作区',
     items: [
-      {
-        to: '/',
-        label: '数据看板',
-        icon: LayoutDashboard,
-        perm: 'insights:view',
-        match: (p) => p === '/',
-      },
+      { to: '/', label: '数据看板', icon: LayoutDashboard, perm: 'insights:view', match: (p) => p === '/' },
       {
         to: '/insights',
         label: '需求洞察',
@@ -53,46 +49,13 @@ export const NAV_GROUPS: readonly NavGroup[] = [
         perm: 'insights:view',
         match: (p) => p.startsWith('/insights'),
       },
-      {
-        to: '/posts',
-        label: '帖子库',
-        icon: FileText,
-        perm: 'posts:view',
-        match: (p) => p.startsWith('/posts'),
-      },
+      { to: '/posts', label: '帖子库', icon: FileText, perm: 'posts:view', match: (p) => p.startsWith('/posts') },
     ],
   },
   {
     label: '运营',
     items: [
-      {
-        to: '/radar',
-        label: '指挥室',
-        icon: Radar,
-        perm: 'analyze:run',
-        match: (p) => p.startsWith('/radar'),
-      },
-      {
-        to: '/blueprints',
-        label: '图纸',
-        icon: LayoutTemplate,
-        perm: 'analyze:run',
-        match: (p) => p.startsWith('/blueprints'),
-      },
-      {
-        to: '/processes',
-        label: '进程',
-        icon: Repeat,
-        perm: 'analyze:run',
-        match: (p) => p.startsWith('/processes'),
-      },
-      {
-        to: '/analyze',
-        label: '发起分析',
-        icon: Zap,
-        perm: 'analyze:run',
-        match: (p) => p.startsWith('/analyze'),
-      },
+      { to: '/analyze', label: '发起分析', icon: Zap, perm: 'analyze:run', match: (p) => p.startsWith('/analyze') },
       {
         to: '/pipeline',
         label: '检视器',
@@ -106,6 +69,47 @@ export const NAV_GROUPS: readonly NavGroup[] = [
         icon: Gauge,
         perm: 'analyze:run',
         match: (p) => p.startsWith('/requests'),
+      },
+    ],
+  },
+  {
+    label: '运营 · Mock',
+    items: [
+      {
+        to: '/radar',
+        label: '指挥室',
+        icon: Radar,
+        perm: 'analyze:run',
+        // 枢纽 + 运行详情 / 运行历史（其余 radar 子页各自高亮）
+        match: (p) => p === '/radar' || p.startsWith('/radar/runs') || p.startsWith('/radar/processes'),
+      },
+      {
+        to: '/radar/blueprints',
+        label: '图纸',
+        icon: LayoutTemplate,
+        perm: 'analyze:run',
+        match: (p) => p.startsWith('/radar/blueprints'),
+      },
+      {
+        to: '/radar/insights',
+        label: '收成洞察',
+        icon: Lightbulb,
+        perm: 'analyze:run',
+        match: (p) => p.startsWith('/radar/insights'),
+      },
+      {
+        to: '/radar/posts',
+        label: '帖子库 · 一生',
+        icon: FileClock,
+        perm: 'analyze:run',
+        match: (p) => p.startsWith('/radar/posts'),
+      },
+      {
+        to: '/radar/requests',
+        label: '请求闸',
+        icon: Gauge,
+        perm: 'analyze:run',
+        match: (p) => p.startsWith('/radar/requests'),
       },
     ],
   },
