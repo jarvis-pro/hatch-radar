@@ -38,6 +38,11 @@ export interface StageDef {
   name: string;
   costMs: number;
   fetch?: 'source' | 'ai';
+  /**
+   * 可选环节：默认不生成，仅当图纸 {@link Blueprint.enabledStages} 含其复合键 `kind:name`
+   * 时才进入运行（如翻译）。在图纸执行流程图里渲染成开关，而非「暂停点」。
+   */
+  optional?: boolean;
 }
 
 /** 每种 task kind 的固定可执行环节序列。 */
@@ -87,6 +92,19 @@ export const STAGE_META: Record<string, { label: string }> = {
 
 export function stageLabel(name: string): string {
   return STAGE_META[name]?.label ?? name;
+}
+
+/**
+ * 图纸 kind → 运行时实际会经历的 task kind 阶段链（单一事实源）。
+ * collect 图纸先发现、再逐帖采集、再逐帖分析；recheck 图纸逐帖复查、有变化才分析。
+ */
+export function blueprintFlow(kind: BlueprintKind): TaskKind[] {
+  return kind === 'collect' ? ['discover', 'collect', 'analyze'] : ['recheck', 'analyze'];
+}
+
+/** 闸门复合键 = 阶段(task kind) + 环节名。跨阶段同名环节（如多处 persist）借此互不串扰。 */
+export function gateKey(kind: TaskKind, name: string): string {
+  return `${kind}:${name}`;
 }
 
 export const KIND_META: Record<BlueprintKind, { label: string; icon: LucideIcon; blurb: string }> =

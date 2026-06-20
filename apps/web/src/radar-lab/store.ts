@@ -6,7 +6,7 @@
  * 后端落地时，这一层 read 换成 react-query + WS（实时通道），组件契约不变。
  */
 import { useSyncExternalStore } from 'react';
-import { STAGE_TEMPLATES, type Speed, TICK_MS } from './constants';
+import { blueprintFlow, gateKey, STAGE_TEMPLATES, type Speed, TICK_MS } from './constants';
 import { startRun, tick } from './engine';
 import type {
   Blueprint,
@@ -181,9 +181,12 @@ export function toggleGate(taskId: string, seq: number): void {
 
 // ─── 定义层 CRUD：图纸 / 进程 ───────────────────────────────────────────────────
 
-/** 只保留对该 kind 环节模板有效的闸门名。 */
+/** 只保留该图纸阶段链内有效的闸门复合键（kind:name）。 */
 function validGates(kind: BlueprintKind, gates: string[]): string[] {
-  return gates.filter((g) => STAGE_TEMPLATES[kind].some((s) => s.name === g));
+  const valid = new Set(
+    blueprintFlow(kind).flatMap((tk) => STAGE_TEMPLATES[tk].map((s) => gateKey(tk, s.name))),
+  );
+  return gates.filter((g) => valid.has(g));
 }
 
 export function createBlueprint(input: {
@@ -220,13 +223,11 @@ export function updateBlueprint(
   emit();
 }
 
-/** 图纸级挂 / 摘环节闸门（配方默认闸门，运行时落到任务环节）。 */
-export function toggleBlueprintGate(id: string, stageName: string): void {
+/** 图纸级挂 / 摘环节闸门（配方默认闸门，复合键 kind:name；运行时落到任务环节）。 */
+export function toggleBlueprintGate(id: string, key: string): void {
   const b = world.blueprints.find((x) => x.id === id);
   if (!b) return;
-  b.gates = b.gates.includes(stageName)
-    ? b.gates.filter((g) => g !== stageName)
-    : [...b.gates, stageName];
+  b.gates = b.gates.includes(key) ? b.gates.filter((g) => g !== key) : [...b.gates, key];
   emit();
 }
 

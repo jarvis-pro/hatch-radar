@@ -1,13 +1,28 @@
 /**
  * 图纸管理（/radar/blueprints）—— 闭环的「定义」端。
  *
- * 左列图纸清单，右侧详情：源 / 参数 + **该 kind 固定环节模板的有序条带**，逐环节挂/摘闸门
- * （写 blueprint.gates，engine 已据此让运行时任务停在该环节——收敛到可执行、所见即所跑）。
- * 底部列该图纸的进程，可直接新建进程给它挂节奏。
+ * 左列图纸清单，右侧详情：标题 + 配方概要（源 / 参数）+ **执行流程**（主体）+ 进程。
+ * 执行流程是一张**竖向阶段管道图**：按 blueprintFlow 铺开 发现→采集→分析→洞察 的完整链路，
+ * 每阶段一条泳道、卡内是该阶段固定环节序列（标注成本 / 是否经请求闸 / 走哪个 lane），
+ * 逐环节可挂/摘闸门（写 blueprint.gates 的复合键 kind:name，engine 据此让运行时任务停在该环节）。
  */
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Lock, LockOpen, MoreHorizontal, Pencil, Plus, Trash2 } from 'lucide-react';
+import {
+  ArrowRight,
+  Check,
+  ChevronsUpDown,
+  CornerDownRight,
+  GitBranch,
+  Globe,
+  Lightbulb,
+  MoreHorizontal,
+  Pause,
+  Pencil,
+  Plus,
+  Sparkles,
+  Trash2,
+} from 'lucide-react';
 import { Badge } from '@hatch-radar/ui/components/badge';
 import { Button } from '@hatch-radar/ui/components/button';
 import { Card } from '@hatch-radar/ui/components/card';
@@ -23,11 +38,31 @@ import { cn } from '@hatch-radar/ui/lib/utils';
 import { RequirePerm } from '@/auth/require-perm';
 import { EmptyState } from '@/components/empty';
 import { PageHeader } from '@/components/page-header';
-import { KIND_META, SOURCE_META, STAGE_TEMPLATES, stageLabel, TRIGGER_META } from './constants';
+import {
+  blueprintFlow,
+  gateKey,
+  KIND_META,
+  LANE_META,
+  SOURCE_META,
+  sourceToLane,
+  type StageDef,
+  STAGE_TEMPLATES,
+  stageLabel,
+  TASK_KIND_META,
+  TRIGGER_META,
+} from './constants';
 import { ConfirmDelete } from './confirm-delete';
 import { BlueprintFormDialog, ProcessFormDialog } from './forms';
 import { deleteBlueprint, toggleBlueprintGate, useWorld } from './store';
-import type { Blueprint, CollectParams, Process, RecheckParams, World } from './types';
+import type {
+  Blueprint,
+  CollectParams,
+  LaneId,
+  Process,
+  RecheckParams,
+  TaskKind,
+  World,
+} from './types';
 import { triggerSummary } from './util';
 
 function selectBlueprints(w: World) {
@@ -57,64 +92,259 @@ function paramChips(b: Blueprint): { label: string; value: number }[] {
   ];
 }
 
-// ─── 环节流程条带（挂闸） ───────────────────────────────────────────────────────
+// ─── 执行流程（竖向阶段管道） ───────────────────────────────────────────────────
 
-function StageStrip({ blueprint }: { blueprint: Blueprint }) {
-  const stages = STAGE_TEMPLATES[blueprint.kind];
+/** 各阶段在图纸态的展示文案：扇出说明（头部右侧）+ 派生到下一阶段的说明（连接符）。 */
+const PHASE_NOTE: Record<TaskKind, { fanout: string; spawn?: string }> = {
+  discover: { fanout: '每轮发现 2~4 条新帖', spawn: '每条新帖派生一个采集任务' },
+  collect: { fanout: '× 每条新帖', spawn: '每帖采集完派生一个分析任务' },
+  recheck: { fanout: '× 每个到期旧帖', spawn: '有变化的帖派生一个分析任务' },
+  analyze: { fanout: '产出洞察 · × 每帖' },
+};
+
+/** 图纸态下该环节经请求闸时走哪些 lane（source 类按图纸数据源推导，ai 类固定 ai）。 */
+function stageLanes(def: StageDef, blueprint: Blueprint): LaneId[] {
+  if (def.fetch === 'ai') return ['ai'];
+  if (def.fetch === 'source')
+    return [...new Set(blueprint.sources.map((s) => sourceToLane(s.kind)))];
+  return [];
+}
+
+/** 单个环节小卡：名称 + 这步在做什么（联网抓取 / 调用 AI / 本地处理）+ 耗时 + 暂停点（整卡可点）。 */
+function StageNode({
+  blueprint,
+  kind,
+  def,
+}: {
+  blueprint: Blueprint;
+  kind: TaskKind;
+  def: StageDef;
+}) {
+  const key = gateKey(kind, def.name);
+  const gated = blueprint.gates.includes(key);
+  const lanes = stageLanes(def, blueprint);
+  const isAi = def.fetch === 'ai';
+  const isSource = def.fetch === 'source';
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      {stages.map((st, i) => {
-        const gated = blueprint.gates.includes(st.name);
-        return (
-          <div key={st.name} className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => toggleBlueprintGate(blueprint.id, st.name)}
-              title={gated ? '点击摘闸门' : '点击挂闸门（运行时任务跑到此处停、等放行）'}
-              className={cn(
-                'inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs transition-colors',
-                gated
-                  ? 'border-intensity-medium/60 bg-intensity-medium/10 text-foreground'
-                  : 'border-border text-muted-foreground hover:bg-muted/50',
-              )}
-            >
-              {gated ? (
-                <Lock className="size-3 text-intensity-medium" />
-              ) : (
-                <LockOpen className="size-3 opacity-50" />
-              )}
-              {stageLabel(st.name)}
-            </button>
+    <button
+      type="button"
+      onClick={() => toggleBlueprintGate(blueprint.id, key)}
+      title={
+        gated
+          ? '已设暂停点 · 点击取消（运行时不再停在这一步）'
+          : '点击设为暂停点：运行到这一步会停下、等你手动放行（用于逐步排查）'
+      }
+      className={cn(
+        'flex min-w-[8.5rem] flex-col gap-1.5 rounded-md border px-3 py-2 text-left transition-colors',
+        gated
+          ? 'border-intensity-medium bg-intensity-medium/10'
+          : 'border-border bg-card hover:bg-muted/50',
+      )}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-sm font-medium">{stageLabel(def.name)}</span>
+        {gated ? (
+          <span className="inline-flex shrink-0 items-center gap-1 rounded bg-intensity-medium/20 px-1.5 py-0.5 text-[11px] font-medium text-intensity-medium">
+            <Pause className="size-3" /> 暂停点
+          </span>
+        ) : null}
+      </div>
+      {isSource ? (
+        <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+          <Globe className={cn('size-3 shrink-0', lanes[0] ? LANE_META[lanes[0]].color : '')} />
+          联网抓取 · {lanes.map((l) => LANE_META[l].label).join(' / ')}
+        </span>
+      ) : isAi ? (
+        <span className="inline-flex flex-wrap items-center gap-x-1 text-xs text-primary">
+          <span className="inline-flex items-center gap-1">
+            <Sparkles className="size-3 shrink-0" /> 调用 AI 模型
+          </span>
+          <span className="text-intensity-high">· 花钱、不可重算</span>
+        </span>
+      ) : (
+        <span className="text-xs text-muted-foreground/80">本地处理</span>
+      )}
+    </button>
+  );
+}
+
+/** 阶段间的派生连接符（↳ + 一句扇出说明）。 */
+function FanoutConnector({ note }: { note: string }) {
+  return (
+    <div className="flex items-center gap-1.5 py-1.5 pl-4 text-xs text-muted-foreground">
+      <CornerDownRight className="size-3.5 shrink-0 text-muted-foreground/50" />
+      <span>{note}</span>
+    </div>
+  );
+}
+
+/** 一条阶段泳道：序号 + 阶段名 + 扇出说明 + 该阶段环节序列（+ recheck 的分叉说明）。 */
+function PhaseLane({
+  blueprint,
+  kind,
+  index,
+}: {
+  blueprint: Blueprint;
+  kind: TaskKind;
+  index: number;
+}) {
+  const meta = TASK_KIND_META[kind];
+  const stages = STAGE_TEMPLATES[kind];
+  return (
+    <div className="rounded-lg border bg-muted/30 p-3">
+      <div className="mb-2.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-background text-[11px] font-semibold tabular-nums text-muted-foreground">
+          {index + 1}
+        </span>
+        <meta.icon className={cn('size-4 shrink-0', meta.color)} />
+        <span className="text-sm font-semibold">{meta.label}</span>
+        <span className="font-mono text-[11px] text-muted-foreground/50">{kind}</span>
+        <span className="ml-auto text-xs text-muted-foreground">{PHASE_NOTE[kind].fanout}</span>
+      </div>
+      <div className="flex flex-wrap items-stretch gap-1.5">
+        {stages.map((def, i) => (
+          <Fragment key={def.name}>
+            <StageNode blueprint={blueprint} kind={kind} def={def} />
             {i < stages.length - 1 ? (
-              <ArrowRight className="size-3 shrink-0 text-muted-foreground/40" />
+              <ArrowRight className="size-3.5 shrink-0 self-center text-muted-foreground/40" />
             ) : null}
-          </div>
-        );
-      })}
+          </Fragment>
+        ))}
+      </div>
+      {kind === 'recheck' ? (
+        <p className="mt-2.5 flex items-start gap-1.5 text-[11px] leading-relaxed text-muted-foreground">
+          <GitBranch className="mt-0.5 size-3 shrink-0 text-intensity-medium" />
+          <span>
+            <span className="font-medium text-foreground">比对变化后分叉</span>：未变 →
+            指数退避、跳过本帖；有变 → 继续重抓评论 + 落库 + 派生分析。
+          </span>
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+/** 执行流程主体：blueprintFlow 阶段链逐条泳道 + 派生连接 + 洞察终点。 */
+function StageFlow({ blueprint }: { blueprint: Blueprint }) {
+  const flow = blueprintFlow(blueprint.kind);
+  return (
+    <div>
+      {flow.map((kind, i) => (
+        <Fragment key={kind}>
+          <PhaseLane blueprint={blueprint} kind={kind} index={i} />
+          <FanoutConnector
+            note={
+              i < flow.length - 1
+                ? (PHASE_NOTE[kind].spawn ?? '')
+                : '分析产出洞察 · 按 post_id 幂等落库'
+            }
+          />
+        </Fragment>
+      ))}
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed border-intensity-high/40 bg-intensity-high/5 px-3 py-2.5">
+        <Lightbulb className="size-4 shrink-0 text-intensity-high" />
+        <span className="text-sm font-medium">洞察入库</span>
+        <span className="ml-auto text-xs text-muted-foreground">进收成研判台 · 痛点 / 机会</span>
+      </div>
     </div>
   );
 }
 
 // ─── 图纸详情 ──────────────────────────────────────────────────────────────────
 
-function BlueprintDetail({ blueprint, processes }: { blueprint: Blueprint; processes: Process[] }) {
+/** 标题处的图纸切换下拉：列出所有图纸（带进程数 / 当前勾选）+ 新建入口。 */
+function BlueprintSwitcher({
+  blueprints,
+  selected,
+  procByBp,
+  onSelect,
+  onNew,
+}: {
+  blueprints: Blueprint[];
+  selected: Blueprint;
+  procByBp: { id: string; processes: Process[] }[];
+  onSelect: (id: string) => void;
+  onNew: () => void;
+}) {
+  const km = KIND_META[selected.kind];
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className="-mx-2 -my-1 flex max-w-full items-center gap-2 rounded-md px-2 py-1 transition-colors hover:bg-muted/50"
+        >
+          <km.icon className="size-4 shrink-0 text-primary" />
+          <span className="truncate text-lg font-semibold">{selected.label}</span>
+          <Badge variant="outline" className="shrink-0">
+            {km.label}
+          </Badge>
+          <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-72">
+        {blueprints.map((b) => {
+          const m = KIND_META[b.kind];
+          const count = procByBp.find((x) => x.id === b.id)?.processes.length ?? 0;
+          const active = b.id === selected.id;
+          return (
+            <DropdownMenuItem key={b.id} onClick={() => onSelect(b.id)} className="gap-2">
+              <m.icon
+                className={cn('size-4 shrink-0', active ? 'text-primary' : 'text-muted-foreground')}
+              />
+              <span className="min-w-0 flex-1 truncate">{b.label}</span>
+              {active ? <Check className="size-4 shrink-0 text-primary" /> : null}
+              <Badge variant="secondary" className="shrink-0 tabular-nums">
+                {count}
+              </Badge>
+            </DropdownMenuItem>
+          );
+        })}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={onNew}>
+          <Plus className="size-4" /> 新建图纸
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function BlueprintDetail({
+  blueprint,
+  processes,
+  blueprints,
+  procByBp,
+  onSelect,
+  onNew,
+}: {
+  blueprint: Blueprint;
+  processes: Process[];
+  blueprints: Blueprint[];
+  procByBp: { id: string; processes: Process[] }[];
+  onSelect: (id: string) => void;
+  onNew: () => void;
+}) {
   const [editOpen, setEditOpen] = useState(false);
   const [delOpen, setDelOpen] = useState(false);
   const [newProcOpen, setNewProcOpen] = useState(false);
   const km = KIND_META[blueprint.kind];
+  const flowLen = blueprintFlow(blueprint.kind).length;
 
   return (
     <Card className="gap-5 p-5">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 space-y-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <km.icon className="size-4 text-primary" />
-            <span className="text-lg font-semibold">{blueprint.label}</span>
-            <Badge variant="outline">{km.label}</Badge>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0 flex-1 space-y-1">
+          <BlueprintSwitcher
+            blueprints={blueprints}
+            selected={blueprint}
+            procByBp={procByBp}
+            onSelect={onSelect}
+            onNew={onNew}
+          />
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 pl-0.5 text-xs text-muted-foreground">
+            <span>{km.blurb}</span>
+            {blueprint.note ? <span>· {blueprint.note}</span> : null}
           </div>
-          {blueprint.note ? (
-            <p className="text-sm text-muted-foreground">{blueprint.note}</p>
-          ) : null}
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <Button size="sm" variant="outline" onClick={() => setNewProcOpen(true)}>
@@ -144,43 +374,51 @@ function BlueprintDetail({ blueprint, processes }: { blueprint: Blueprint; proce
         </div>
       </div>
 
-      <div className="space-y-2">
-        <div className="text-xs font-medium text-muted-foreground">数据源</div>
-        <div className="flex flex-wrap gap-2">
-          {blueprint.sources.map((s) => {
-            const m = SOURCE_META[s.kind];
-            return (
-              <span
-                key={s.kind}
-                className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs"
-              >
-                <m.icon className="size-3.5 text-muted-foreground" />
-                <span className="font-medium">{m.label}</span>
-                <span className="text-muted-foreground">{s.channels.join(' · ')}</span>
+      {/* 配方概要：源 + 参数 */}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-2">
+          <div className="text-xs font-medium text-muted-foreground">数据源</div>
+          <div className="flex flex-wrap gap-2">
+            {blueprint.sources.map((s) => {
+              const m = SOURCE_META[s.kind];
+              return (
+                <span
+                  key={s.kind}
+                  className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs"
+                >
+                  <m.icon className="size-3.5 text-muted-foreground" />
+                  <span className="font-medium">{m.label}</span>
+                  <span className="text-muted-foreground">{s.channels.join(' · ')}</span>
+                </span>
+              );
+            })}
+          </div>
+        </div>
+        <div className="space-y-2">
+          <div className="text-xs font-medium text-muted-foreground">参数</div>
+          <div className="flex flex-wrap gap-2">
+            {paramChips(blueprint).map((p) => (
+              <span key={p.label} className="rounded-md bg-muted px-2.5 py-1 text-xs">
+                {p.label} <span className="font-medium tabular-nums">{p.value}</span>
               </span>
-            );
-          })}
+            ))}
+          </div>
         </div>
       </div>
 
-      <div className="space-y-2">
-        <div className="text-xs font-medium text-muted-foreground">参数</div>
-        <div className="flex flex-wrap gap-2">
-          {paramChips(blueprint).map((p) => (
-            <span key={p.label} className="rounded-md bg-muted px-2.5 py-1 text-xs">
-              {p.label} <span className="font-medium tabular-nums">{p.value}</span>
-            </span>
-          ))}
+      {/* 执行流程：详情卡主体 */}
+      <div className="space-y-2.5">
+        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+          <h3 className="text-sm font-semibold">执行流程</h3>
+          <span className="text-xs text-muted-foreground">
+            跑起来会经历 {flowLen}{' '}
+            个阶段。点任意环节可设「暂停点」——运行到那一步会停下、等你手动放行（便于逐步排查）。
+          </span>
         </div>
+        <StageFlow blueprint={blueprint} />
       </div>
 
-      <div className="space-y-2">
-        <div className="text-xs font-medium text-muted-foreground">
-          执行流程（点环节挂/摘闸门 —— 运行时任务跑到挂闸环节即停、等放行）
-        </div>
-        <StageStrip blueprint={blueprint} />
-      </div>
-
+      {/* 进程 */}
       <div className="space-y-2">
         <div className="text-xs font-medium text-muted-foreground">进程（{processes.length}）</div>
         {processes.length === 0 ? (
@@ -208,6 +446,9 @@ function BlueprintDetail({ blueprint, processes }: { blueprint: Blueprint; proce
                     return <Icon className="size-3.5" />;
                   })()}
                   {triggerSummary(p.trigger)}
+                </span>
+                <span className="hidden shrink-0 text-xs tabular-nums text-muted-foreground/70 sm:inline">
+                  已跑 {p.runsTotal}
                 </span>
               </Link>
             ))}
@@ -258,42 +499,17 @@ function BlueprintsView() {
 
       {blueprints.length === 0 ? (
         <EmptyState title="还没有图纸" hint="新建第一张图纸——定义要抓哪些源、做采集还是复查。" />
-      ) : (
-        <div className="grid gap-4 lg:grid-cols-[18rem_1fr]">
-          <div className="space-y-1.5">
-            {blueprints.map((b) => {
-              const count = procByBp.find((x) => x.id === b.id)?.processes.length ?? 0;
-              const active = selected?.id === b.id;
-              const km = KIND_META[b.kind];
-              return (
-                <button
-                  key={b.id}
-                  type="button"
-                  onClick={() => setSelectedId(b.id)}
-                  className={cn(
-                    'flex w-full items-center gap-2.5 rounded-lg border p-3 text-left transition-colors',
-                    active ? 'border-primary bg-primary/5' : 'hover:bg-muted/50',
-                  )}
-                >
-                  <km.icon
-                    className={cn(
-                      'size-4 shrink-0',
-                      active ? 'text-primary' : 'text-muted-foreground',
-                    )}
-                  />
-                  <span className="min-w-0 flex-1 truncate text-sm font-medium">{b.label}</span>
-                  <Badge variant="secondary" className="shrink-0 tabular-nums">
-                    {count}
-                  </Badge>
-                </button>
-              );
-            })}
-          </div>
-          {selected ? (
-            <BlueprintDetail key={selected.id} blueprint={selected} processes={procs} />
-          ) : null}
-        </div>
-      )}
+      ) : selected ? (
+        <BlueprintDetail
+          key={selected.id}
+          blueprint={selected}
+          processes={procs}
+          blueprints={blueprints}
+          procByBp={procByBp}
+          onSelect={setSelectedId}
+          onNew={() => setNewOpen(true)}
+        />
+      ) : null}
 
       <BlueprintFormDialog
         open={newOpen}

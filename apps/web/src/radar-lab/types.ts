@@ -101,8 +101,14 @@ export interface Blueprint {
   note?: string;
   sources: { kind: SourceKind; channels: string[] }[];
   params: CollectParams | RecheckParams;
-  /** 默认挂闸门的环节名集合（配方级 gate；运行时落到具体 Stage.gate）。 */
+  /** 默认挂闸门的环节复合键 `kind:name` 集合（配方级 gate；运行时落到具体 Stage.gate）。 */
   gates: string[];
+  /**
+   * 已启用的「可选环节」复合键 `kind:name` 集合（如翻译；默认空 = 不启用）。
+   * 缺省或未含某可选环节 → 运行时根本不生成该环节（engine.buildStages 据此过滤），
+   * 对应真实后端「默认不翻、按需开启」。区别于 {@link gates}（挂闸=跑到此暂停等放行）。
+   */
+  enabledStages?: string[];
 }
 
 /** 进程 = 图纸 + 节奏 + 启停，常驻调度。 */

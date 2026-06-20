@@ -8,9 +8,10 @@
  * 必须 lane 未暂停且有令牌才被放行（running）→ 跑满 costMs → done → 该环节 done。
  * 于是「暂停某 lane → 抓取环节 park → 运行变慢」天然成立。
  */
-import { STAGE_TEMPLATES, sourceToLane } from './constants';
+import { gateKey, STAGE_TEMPLATES, sourceToLane } from './constants';
 import type {
   Blueprint,
+  Comment,
   Intensity,
   Insight,
   LaneId,
@@ -199,7 +200,7 @@ function buildStages(
     seq: i,
     name: def.name,
     status: 'pending',
-    gate: blueprint?.gates.includes(def.name) ?? false,
+    gate: blueprint?.gates.includes(gateKey(kind, def.name)) ?? false,
     costMs: def.costMs,
     elapsedMs: 0,
     lane: def.fetch === 'ai' ? 'ai' : def.fetch === 'source' ? sourceLane : undefined,
@@ -304,6 +305,8 @@ function stageOutput(world: World, task: Task, stage: Stage): string {
       return '比对基线';
     case 'recrawl':
       return '全量重抓评论 · replaceComments';
+    case 'translate':
+      return '调用 AI 译为中文';
     case 'resolve':
       return '取帖 + provider 快照';
     case 'fetch':
@@ -363,6 +366,7 @@ function onStageComplete(world: World, task: Task, stage: Stage): void {
   // 副作用挂在有意义的环节上
   if (stage.name === 'spawn') doDiscover(world, task, stage);
   else if (stage.name === 'detect') doDetect(world, task, stage);
+  else if (stage.name === 'translate') doTranslate(world, task, stage);
   else if (stage.name === 'persist') {
     if (task.kind === 'collect' || task.kind === 'recheck') spawnAnalyze(world, task);
     else if (task.kind === 'analyze') emitInsight(world, task);
@@ -444,6 +448,51 @@ function emitInsight(world: World, task: Task): void {
     createdAt: world.nowMs,
   };
   world.insights.unshift(insight);
+}
+
+// ─── 翻译（可选环节产物） ───────────────────────────────────────────────────────
+
+/** SYNTH 模板的原文→译文对照（标题 / 正文 / 示例评论），翻译环节据此查填精修译文。 */
+const ZH_DICT = new Map<string, string>();
+for (const s of SYNTH) {
+  if (s.title) ZH_DICT.set(s.title, s.titleZh);
+  if (s.body) ZH_DICT.set(s.body, s.bodyZh);
+}
+ZH_DICT.set('This resonates — we hit the same wall.', '深有同感——我们撞过同一堵墙。');
+
+/** mock 译文：命中对照表用精修中文，否则给规则化中文占位（演示「确实译了」而非真翻译）。 */
+function mockZh(text: string): string {
+  const hit = ZH_DICT.get(text);
+  if (hit) return hit;
+  const head = text.length > 48 ? `${text.slice(0, 48)}…` : text;
+  return `〔中文译文〕${head}`;
+}
+
+/** 翻译环节：给帖标题 / 正文 + 各级评论补中文译文（已有则跳过）。 */
+function doTranslate(world: World, task: Task, stage: Stage): void {
+  const post = task.post;
+  if (!post) return;
+  let n = 0;
+  if (post.title && !post.titleZh) {
+    post.titleZh = mockZh(post.title);
+    n++;
+  }
+  if (post.body && !post.bodyZh) {
+    post.bodyZh = mockZh(post.body);
+    n++;
+  }
+  const walk = (cs?: Comment[]): void => {
+    if (!cs) return;
+    for (const c of cs) {
+      if (c.body && !c.bodyZh) {
+        c.bodyZh = mockZh(c.body);
+        n++;
+      }
+      walk(c.children);
+    }
+  };
+  walk(post.comments);
+  stage.output = `译为中文 · ${n} 段（标题 / 正文 / 评论）`;
 }
 
 function finishTaskSuccess(world: World, task: Task): void {
