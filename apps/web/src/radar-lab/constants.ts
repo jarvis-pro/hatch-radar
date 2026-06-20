@@ -55,12 +55,14 @@ export const STAGE_TEMPLATES: Record<TaskKind, StageDef[]> = {
   collect: [
     { name: 'fetch_detail', costMs: 800, fetch: 'source' },
     { name: 'fetch_comments', costMs: 1500, fetch: 'source' },
+    { name: 'translate', costMs: 2500, fetch: 'ai', optional: true },
     { name: 'persist', costMs: 400 },
   ],
   recheck: [
     { name: 'probe', costMs: 600, fetch: 'source' },
     { name: 'detect', costMs: 200 },
     { name: 'recrawl', costMs: 1500, fetch: 'source' },
+    { name: 'translate', costMs: 2500, fetch: 'ai', optional: true },
     { name: 'persist', costMs: 400 },
   ],
   analyze: [
@@ -83,6 +85,7 @@ export const STAGE_META: Record<string, { label: string }> = {
   probe: { label: '探测' },
   detect: { label: '比对变化' },
   recrawl: { label: '重抓评论' },
+  translate: { label: '翻译' },
   resolve: { label: '取帖' },
   fetch: { label: '取上下文' },
   context: { label: '组装上下文' },

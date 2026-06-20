@@ -15,12 +15,15 @@ import {
   CornerDownRight,
   GitBranch,
   Globe,
+  Languages,
   Lightbulb,
   MoreHorizontal,
   Pause,
   Pencil,
   Plus,
   Sparkles,
+  ToggleLeft,
+  ToggleRight,
   Trash2,
 } from 'lucide-react';
 import { Badge } from '@hatch-radar/ui/components/badge';
@@ -53,7 +56,7 @@ import {
 } from './constants';
 import { ConfirmDelete } from './confirm-delete';
 import { BlueprintFormDialog, ProcessFormDialog } from './forms';
-import { deleteBlueprint, toggleBlueprintGate, useWorld } from './store';
+import { deleteBlueprint, toggleBlueprintGate, toggleBlueprintStage, useWorld } from './store';
 import type {
   Blueprint,
   CollectParams,
@@ -121,6 +124,56 @@ function StageNode({
   def: StageDef;
 }) {
   const key = gateKey(kind, def.name);
+
+  // 可选环节（如翻译）：渲染成「启用 / 跳过」开关，而非暂停点。
+  if (def.optional) {
+    const enabled = blueprint.enabledStages?.includes(key) ?? false;
+    return (
+      <button
+        type="button"
+        onClick={() => toggleBlueprintStage(blueprint.id, key)}
+        title={
+          enabled
+            ? '可选环节 · 已启用，点击跳过（运行时不再生成这一步）'
+            : '可选环节 · 已跳过，点击启用（运行时才生成这一步、走 AI 翻译）'
+        }
+        className={cn(
+          'flex w-48 flex-col gap-1.5 rounded-md border px-3 py-2 text-left transition-colors',
+          enabled
+            ? 'border-primary/50 bg-primary/5 hover:bg-primary/10'
+            : 'border-dashed border-border bg-muted/20 hover:bg-muted/40',
+        )}
+      >
+        <div className="flex items-center justify-between gap-2">
+          <span
+            className={cn(
+              'inline-flex items-center gap-1.5 text-sm font-medium',
+              enabled ? '' : 'text-muted-foreground',
+            )}
+          >
+            <Languages className="size-3.5 shrink-0" />
+            {stageLabel(def.name)}
+          </span>
+          {enabled ? (
+            <ToggleRight className="size-4 shrink-0 text-primary" />
+          ) : (
+            <ToggleLeft className="size-4 shrink-0 text-muted-foreground/50" />
+          )}
+        </div>
+        {enabled ? (
+          <span className="inline-flex flex-wrap items-center gap-x-1 text-xs text-primary">
+            <span className="inline-flex items-center gap-1">
+              <Sparkles className="size-3 shrink-0" /> 调用 AI 译为中文
+            </span>
+            <span className="text-muted-foreground">· 走 AI 闸</span>
+          </span>
+        ) : (
+          <span className="text-xs text-muted-foreground/70">可选 · 默认跳过，点击启用</span>
+        )}
+      </button>
+    );
+  }
+
   const gated = blueprint.gates.includes(key);
   const lanes = stageLanes(def, blueprint);
   const isAi = def.fetch === 'ai';
@@ -144,7 +197,7 @@ function StageNode({
       <div className="flex items-center justify-between gap-2">
         <span className="text-sm font-medium">{stageLabel(def.name)}</span>
         {gated ? (
-          <span className="inline-flex shrink-0 items-center gap-1 rounded bg-intensity-medium/20 px-1.5 py-0.5 text-[11px] font-medium text-intensity-medium">
+          <span className="inline-flex h-5 shrink-0 items-center gap-1 rounded bg-intensity-medium/20 px-1.5 text-[11px] font-medium text-intensity-medium">
             <Pause className="size-3" /> 暂停点
           </span>
         ) : null}
@@ -241,8 +294,8 @@ function StageFlow({ blueprint }: { blueprint: Blueprint }) {
           />
         </Fragment>
       ))}
-      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed border-intensity-high/40 bg-intensity-high/5 px-3 py-2.5">
-        <Lightbulb className="size-4 shrink-0 text-intensity-high" />
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed border-signal/40 bg-signal/5 px-3 py-2.5">
+        <Lightbulb className="size-4 shrink-0 text-signal" />
         <span className="text-sm font-medium">洞察入库</span>
         <span className="ml-auto text-xs text-muted-foreground">进收成研判台 · 痛点 / 机会</span>
       </div>
@@ -272,7 +325,7 @@ function BlueprintSwitcher({
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className="-mx-2 -my-1 flex max-w-full items-center gap-2 rounded-md px-2 py-1 transition-colors hover:bg-muted/50"
+          className="-mx-2 flex max-w-full items-center gap-2 rounded-md px-2 py-1 transition-colors hover:bg-muted/50"
         >
           <km.icon className="size-4 shrink-0 text-primary" />
           <span className="truncate text-lg font-semibold">{selected.label}</span>
@@ -412,7 +465,8 @@ function BlueprintDetail({
           <h3 className="text-sm font-semibold">执行流程</h3>
           <span className="text-xs text-muted-foreground">
             跑起来会经历 {flowLen}{' '}
-            个阶段。点任意环节可设「暂停点」——运行到那一步会停下、等你手动放行（便于逐步排查）。
+            个阶段。点普通环节设「暂停点」（运行到那步停下等放行）；点虚线的「可选环节」可启用 /
+            跳过（如翻译，默认跳过）。
           </span>
         </div>
         <StageFlow blueprint={blueprint} />

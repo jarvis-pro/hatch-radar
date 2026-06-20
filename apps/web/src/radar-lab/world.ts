@@ -7,9 +7,20 @@
  */
 import { DEFAULT_COLLECT_PARAMS, DEFAULT_LANES, DEFAULT_RECHECK_PARAMS } from './constants';
 import { POSTS } from './corpus';
-import type { Blueprint, Insight, Lane, Process, Run, World } from './types';
+import type { Blueprint, Comment, Insight, Lane, Post, Process, Run, World } from './types';
 
 const MIN = 60_000;
+
+/** 抹掉帖子预置译文（标题 / 正文 / 各级评论）——「待发现」池默认未翻译，开了翻译环节才补中文。 */
+function stripZh(p: Post): Post {
+  const strip = (cs: Comment[]): Comment[] =>
+    cs.map((c) => ({
+      ...c,
+      bodyZh: undefined,
+      children: c.children ? strip(c.children) : undefined,
+    }));
+  return { ...p, titleZh: undefined, bodyZh: undefined, comments: strip(p.comments) };
+}
 
 export function createInitialWorld(): World {
   const now = Date.now();
@@ -23,6 +34,7 @@ export function createInitialWorld(): World {
       sources: [{ kind: 'reddit', channels: ['r/SaaS', 'r/startups', 'r/Entrepreneur'] }],
       params: { ...DEFAULT_COLLECT_PARAMS },
       gates: [],
+      enabledStages: ['collect:translate'], // 主力线默认开翻译——采进来的新帖会补中文
     },
     {
       id: 'bp_hn',
@@ -88,9 +100,9 @@ export function createInitialWorld(): World {
     recentReleases: [],
   }));
 
-  // 前 6 帖作「已采集」（带历史洞察），其余作「待发现」池。post 浅拷贝避免跨 reset 串改。
+  // 前 6 帖作「已采集」（带历史洞察、保留译文作存量），其余作「待发现」池（抹译文，待翻译环节补）。
   const posts = POSTS.slice(0, 6).map((p) => ({ ...p }));
-  const undiscovered = POSTS.slice(6).map((p) => ({ ...p }));
+  const undiscovered = POSTS.slice(6).map((p) => stripZh({ ...p }));
 
   // 历史完成运行（pr_saas 最近 3 轮），让运行历史开局非空。
   const runs: Run[] = [1, 2, 3].map((i) => ({

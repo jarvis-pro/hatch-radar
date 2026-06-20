@@ -189,6 +189,16 @@ function validGates(kind: BlueprintKind, gates: string[]): string[] {
   return gates.filter((g) => valid.has(g));
 }
 
+/** 只保留该图纸阶段链内「可选环节」的复合键（kind:name），如翻译。 */
+function validEnabledStages(kind: BlueprintKind, keys: string[]): string[] {
+  const valid = new Set(
+    blueprintFlow(kind).flatMap((tk) =>
+      STAGE_TEMPLATES[tk].filter((s) => s.optional).map((s) => gateKey(tk, s.name)),
+    ),
+  );
+  return keys.filter((k) => valid.has(k));
+}
+
 export function createBlueprint(input: {
   kind: BlueprintKind;
   label: string;
@@ -196,6 +206,7 @@ export function createBlueprint(input: {
   sources: { kind: SourceKind; channels: string[] }[];
   params: CollectParams | RecheckParams;
   gates?: string[];
+  enabledStages?: string[];
 }): string {
   world.seq += 1;
   const id = `bp_${world.seq.toString(36)}`;
@@ -207,6 +218,7 @@ export function createBlueprint(input: {
     sources: input.sources,
     params: input.params,
     gates: validGates(input.kind, input.gates ?? []),
+    enabledStages: validEnabledStages(input.kind, input.enabledStages ?? []),
   });
   emit();
   return id;
@@ -214,12 +226,15 @@ export function createBlueprint(input: {
 
 export function updateBlueprint(
   id: string,
-  patch: Partial<Pick<Blueprint, 'label' | 'note' | 'kind' | 'sources' | 'params' | 'gates'>>,
+  patch: Partial<
+    Pick<Blueprint, 'label' | 'note' | 'kind' | 'sources' | 'params' | 'gates' | 'enabledStages'>
+  >,
 ): void {
   const b = world.blueprints.find((x) => x.id === id);
   if (!b) return;
   Object.assign(b, patch);
   b.gates = validGates(b.kind, b.gates);
+  b.enabledStages = validEnabledStages(b.kind, b.enabledStages ?? []);
   emit();
 }
 
@@ -228,6 +243,15 @@ export function toggleBlueprintGate(id: string, key: string): void {
   const b = world.blueprints.find((x) => x.id === id);
   if (!b) return;
   b.gates = b.gates.includes(key) ? b.gates.filter((g) => g !== key) : [...b.gates, key];
+  emit();
+}
+
+/** 图纸级启用 / 跳过可选环节（如翻译，复合键 kind:name；写 enabledStages，运行时据此生成或略过该环节）。 */
+export function toggleBlueprintStage(id: string, key: string): void {
+  const b = world.blueprints.find((x) => x.id === id);
+  if (!b) return;
+  const cur = b.enabledStages ?? [];
+  b.enabledStages = cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key];
   emit();
 }
 

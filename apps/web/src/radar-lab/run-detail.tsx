@@ -128,14 +128,25 @@ function segStatusOf(stages: Stage[], task: Task | undefined): SegStatus {
 const ANALYZE_PREP = ['resolve', 'fetch', 'context', 'ai_call', 'normalize'];
 
 function buildSegments(main: Task, analyze: Task | undefined): Seg[] {
+  // 开了翻译（main 链里有 translate 环节）才显示翻译段；落库 persist 并入「最后一个采集段」保时序顺。
+  const hasTranslate = main.stages.some((s) => s.name === 'translate');
+  const translateSeg: Seg = {
+    key: 'translate',
+    label: '翻译',
+    status: segStatusOf(pick(main, ['translate', 'persist']), main),
+  };
   if (main.kind === 'collect') {
     return [
       { key: 'fetch', label: '抓取', status: segStatusOf(pick(main, ['fetch_detail']), main) },
       {
         key: 'comments',
         label: '评论',
-        status: segStatusOf(pick(main, ['fetch_comments', 'persist']), main),
+        status: segStatusOf(
+          pick(main, hasTranslate ? ['fetch_comments'] : ['fetch_comments', 'persist']),
+          main,
+        ),
       },
+      ...(hasTranslate ? [translateSeg] : []),
       { key: 'analyze', label: '分析', status: segStatusOf(pick(analyze, ANALYZE_PREP), analyze) },
       {
         key: 'insight',
@@ -155,8 +166,9 @@ function buildSegments(main: Task, analyze: Task | undefined): Seg[] {
     {
       key: 'recrawl',
       label: '重抓',
-      status: segStatusOf(pick(main, ['recrawl', 'persist']), main),
+      status: segStatusOf(pick(main, hasTranslate ? ['recrawl'] : ['recrawl', 'persist']), main),
     },
+    ...(hasTranslate ? [translateSeg] : []),
     { key: 'analyze', label: '分析', status: aStatus(ANALYZE_PREP) },
     { key: 'insight', label: '洞察', payoff: true, status: aStatus(['persist']) },
   ];

@@ -9,6 +9,7 @@
  * 于是「暂停某 lane → 抓取环节 park → 运行变慢」天然成立。
  */
 import { gateKey, STAGE_TEMPLATES, sourceToLane } from './constants';
+import { POSTS } from './corpus';
 import type {
   Blueprint,
   Comment,
@@ -156,14 +157,13 @@ function synthPost(world: World, prefer: SourceKind[]): Post {
   const list = pool.length ? pool : SYNTH;
   const base = list[world.seq % list.length]!;
   const n = world.seq;
+  // 新帖默认无译文（titleZh/bodyZh 留空）——开了翻译环节才由 doTranslate 经 ZH_DICT 补中文。
   return {
     id: nextId(world, base.source === 'hackernews' ? 'hn' : 't3'),
     source: base.source,
     channel: base.channel,
     title: base.title,
-    titleZh: base.titleZh,
     body: base.body,
-    bodyZh: base.bodyZh,
     author: `user_${(n % 900) + 100}`,
     score: base.score + (n % 40),
     numComments: base.numComments + (n % 12),
@@ -176,7 +176,6 @@ function synthPost(world: World, prefer: SourceKind[]): Post {
             score: 10 + (n % 30),
             depth: 0,
             body: 'This resonates — we hit the same wall.',
-            bodyZh: '深有同感——我们撞过同一堵墙。',
           },
         ]
       : [],
@@ -196,17 +195,22 @@ function buildStages(
     : blueprint
       ? sourceToLane(blueprint.sources[0]!.kind)
       : undefined;
-  return STAGE_TEMPLATES[kind].map((def, i) => ({
-    seq: i,
-    name: def.name,
-    status: 'pending',
-    gate: blueprint?.gates.includes(gateKey(kind, def.name)) ?? false,
-    costMs: def.costMs,
-    elapsedMs: 0,
-    lane: def.fetch === 'ai' ? 'ai' : def.fetch === 'source' ? sourceLane : undefined,
-    output: null,
-    error: null,
-  }));
+  // 可选环节（如翻译）：仅当图纸 enabledStages 含其复合键时才进入运行，否则根本不生成
+  // （对应真实「默认不翻、按需开」）。seq 按过滤后下标连续编号，task 内自洽。
+  const enabled = blueprint?.enabledStages ?? [];
+  return STAGE_TEMPLATES[kind]
+    .filter((def) => !def.optional || enabled.includes(gateKey(kind, def.name)))
+    .map((def, i) => ({
+      seq: i,
+      name: def.name,
+      status: 'pending',
+      gate: blueprint?.gates.includes(gateKey(kind, def.name)) ?? false,
+      costMs: def.costMs,
+      elapsedMs: 0,
+      lane: def.fetch === 'ai' ? 'ai' : def.fetch === 'source' ? sourceLane : undefined,
+      output: null,
+      error: null,
+    }));
 }
 
 function createTask(
@@ -459,6 +463,18 @@ for (const s of SYNTH) {
   if (s.body) ZH_DICT.set(s.body, s.bodyZh);
 }
 ZH_DICT.set('This resonates — we hit the same wall.', '深有同感——我们撞过同一堵墙。');
+// corpus 帖的原文→译文：「待发现」池被 stripZh 抹了译文，翻译环节据此恢复真中文（而非占位）。
+const collectCommentZh = (cs: Comment[]): void => {
+  for (const cc of cs) {
+    if (cc.body && cc.bodyZh) ZH_DICT.set(cc.body, cc.bodyZh);
+    if (cc.children) collectCommentZh(cc.children);
+  }
+};
+for (const p of POSTS) {
+  if (p.title && p.titleZh) ZH_DICT.set(p.title, p.titleZh);
+  if (p.body && p.bodyZh) ZH_DICT.set(p.body, p.bodyZh);
+  collectCommentZh(p.comments);
+}
 
 /** mock 译文：命中对照表用精修中文，否则给规则化中文占位（演示「确实译了」而非真翻译）。 */
 function mockZh(text: string): string {
