@@ -4,7 +4,16 @@
  */
 import {
   CalendarClock,
-  Download,
+  Database,
+  DownloadCloud,
+  FileText,
+  Filter,
+  Gauge,
+  GitCompare,
+  Inbox,
+  Languages,
+  Lightbulb,
+  ListOrdered,
   type LucideIcon,
   MessagesSquare,
   Newspaper,
@@ -12,6 +21,7 @@ import {
   RefreshCw,
   Repeat,
   Rss,
+  Search,
   Zap,
 } from 'lucide-react';
 import type {
@@ -33,7 +43,7 @@ type BadgeVariant = 'default' | 'secondary' | 'destructive' | 'outline';
 /** 图纸类型元信息。 */
 export const KIND_META: Record<BlueprintKind, { label: string; icon: LucideIcon; blurb: string }> =
   {
-    collect: { label: '采集', icon: Download, blurb: '只抓新帖' },
+    collect: { label: '采集', icon: Inbox, blurb: '只抓新帖' },
     recheck: { label: '复查', icon: RefreshCw, blurb: '只查旧帖 · 探变化' },
   };
 
@@ -116,6 +126,8 @@ export interface StageType {
   name: string;
   /** 显示名。 */
   label: string;
+  /** 专属图标：按环节语义刻意区分（节点卡片图标位 + 创建菜单项共用）。 */
+  icon: LucideIcon;
   /** 适用图纸种类（决定出现在哪个 kind 的节点池）。 */
   kinds: BlueprintKind[];
   /** 派生环节（如事件派生的分析），视觉上虚线弱化。 */
@@ -134,39 +146,63 @@ export const STAGE_TYPES: StageType[] = [
   {
     name: 'fetch_listing',
     label: '采集帖子列表',
+    icon: ListOrdered,
     kinds: ['collect'],
     desc: '按来源翻页拉取帖子列表',
   },
   {
     name: 'dedup',
     label: '过滤已知帖子',
+    icon: Filter,
     kinds: ['collect'],
     desc: '反连接已入库 / 在途帖，只留新帖',
   },
-  { name: 'fetch_detail', label: '采集帖子详情', kinds: ['collect'], desc: '抓取单帖正文与元数据' },
-  { name: 'fetch_comments', label: '采集帖子评论', kinds: ['collect'], desc: '翻页抓取评论树' },
+  {
+    name: 'fetch_detail',
+    label: '采集帖子详情',
+    icon: FileText,
+    kinds: ['collect'],
+    desc: '抓取单帖正文与元数据',
+  },
+  {
+    name: 'fetch_comments',
+    label: '采集帖子评论',
+    icon: MessagesSquare,
+    kinds: ['collect'],
+    desc: '翻页抓取评论树',
+  },
   {
     name: 'probe',
     label: '探测评论计数',
+    icon: Gauge,
     kinds: ['recheck'],
     desc: '轻请求取现网评论数，与基线比对',
   },
   {
     name: 'detect',
     label: '检测评论变化',
+    icon: GitCompare,
     kinds: ['recheck'],
     desc: '判定是否有新评论、决定是否重采',
   },
-  { name: 'recrawl', label: '重新采集评论', kinds: ['recheck'], desc: '有变化则全量重抓评论' },
+  {
+    name: 'recrawl',
+    label: '重新采集评论',
+    icon: DownloadCloud,
+    kinds: ['recheck'],
+    desc: '有变化则全量重抓评论',
+  },
   {
     name: 'persist',
     label: '写入数据库',
+    icon: Database,
     kinds: ['collect', 'recheck'],
     desc: '落库 + 刷新记账 / 基线',
   },
   {
     name: 'analyze',
     label: '派生分析任务',
+    icon: Lightbulb,
     kinds: ['collect', 'recheck'],
     derived: true,
     desc: '入库成功后派生 AI 分析任务',
@@ -183,21 +219,43 @@ export function stageType(name: string): StageType | undefined {
   return STAGE_TYPES.find((t) => t.name === name);
 }
 
-/** 初始流程的节点横向间距。 */
-const FLOW_GAP_X = 220;
+/**
+ * 流程首尾哨兵节点的保留类型名 —— 非执行环节，而是 UI 书挡：起始 / 终点。
+ * 每张图纸的 flow 恒以 START_NODE 开头、END_NODE 结尾，样式特殊且不可删除（见 flow-editor）。
+ */
+export const START_NODE = 'start';
+export const END_NODE = 'end';
 
-/** 把一串环节 name 连成一条线性 DAG —— 新建图纸的初始脚手架，进编辑器后可自由改。 */
+/** 是否首尾哨兵节点（渲染特殊样式 / 禁删时判定）。 */
+export function isTerminal(type: string): boolean {
+  return type === START_NODE || type === END_NODE;
+}
+
+/** 初始流程的节点间距（横向逐级推进 + 纵向奇偶错落 → 默认连线走折线、用足空间，不再是平尺）。 */
+const FLOW_GAP_X = 240;
+const FLOW_GAP_Y = 96;
+
+/** 节点 id：首尾哨兵用固定 id，其余按类型。 */
+const flowNodeId = (type: string): string =>
+  type === START_NODE ? 'n_start' : type === END_NODE ? 'n_end' : `n_${type}`;
+
+/**
+ * 把一串环节 name 连成一条线性 DAG，并自动前缀「开始」、后缀「结束」哨兵 ——
+ * 新建图纸的初始脚手架（起止节点恒在、默认从头连通到尾），进编辑器后环节可自由增删 / 连线。
+ * 布局：横向逐级推进、纵向按奇偶交替错落（zigzag），让默认连线即用上纵向空间。
+ */
 function linearFlow(names: string[]): FlowGraph {
+  const seq = [START_NODE, ...names, END_NODE];
   return {
-    nodes: names.map((type, i) => ({
-      id: `n_${type}`,
+    nodes: seq.map((type, i) => ({
+      id: flowNodeId(type),
       type,
-      position: { x: i * FLOW_GAP_X, y: 0 },
+      position: { x: i * FLOW_GAP_X, y: (i % 2) * FLOW_GAP_Y },
     })),
-    edges: names.slice(1).map((type, i) => ({
-      id: `e_${names[i]}_${type}`,
-      source: `n_${names[i]}`,
-      target: `n_${type}`,
+    edges: seq.slice(1).map((type, i) => ({
+      id: `e_${flowNodeId(seq[i])}_${flowNodeId(type)}`,
+      source: flowNodeId(seq[i]),
+      target: flowNodeId(type),
     })),
   };
 }
@@ -254,13 +312,13 @@ export const PARAM_HELP: Record<BlueprintKind, { label: string; desc: string }[]
 
 // ─── 运行下钻：任务 / 环节元信息（运行详情星图 + 侧栏用） ──────────────────────────────
 
-/** 任务种类元信息：中文名 + 单字标（星图节点用）。 */
-export const TASK_KIND_META: Record<TaskKind, { label: string; tag: string }> = {
-  discover: { label: '发现', tag: '发' },
-  collect: { label: '采集', tag: '采' },
-  recheck: { label: '复查', tag: '查' },
-  analyze: { label: '分析', tag: '析' },
-  translate: { label: '翻译', tag: '译' },
+/** 任务种类元信息：中文名 + 单字标（兜底）+ 图标（星图节点 / 图例用）。 */
+export const TASK_KIND_META: Record<TaskKind, { label: string; tag: string; icon: LucideIcon }> = {
+  discover: { label: '发现', tag: '发', icon: Search },
+  collect: { label: '采集', tag: '采', icon: Inbox },
+  recheck: { label: '复查', tag: '查', icon: RefreshCw },
+  analyze: { label: '分析', tag: '析', icon: Lightbulb },
+  translate: { label: '翻译', tag: '译', icon: Languages },
 };
 
 /** 任务状态元信息（侧栏徽标）。 */
@@ -292,6 +350,34 @@ export const TASK_STAGE_TEMPLATE: Record<TaskKind, { name: string; gate?: boolea
   ],
   translate: [{ name: 'resolve' }, { name: 'translate_call', gate: true }, { name: 'persist' }],
 };
+
+/**
+ * 运行环节名（= task_stages.name）→ 简短中文名。星图环节弧 / 详情面板展示用。
+ * 与 STAGE_TYPES.label（连线编辑器节点池、偏正式长名）刻意分开：此处求短，兼顾环节弧标签。
+ */
+export const STAGE_NAME_LABEL: Record<string, string> = {
+  fetch_listing: '采集列表',
+  dedup: '过滤已知',
+  spawn: '派生子任务',
+  fetch_detail: '采集详情',
+  fetch_comments: '采集评论',
+  probe: '探测计数',
+  detect: '检测变化',
+  recrawl: '重抓评论',
+  persist: '写入数据库',
+  resolve: '解析模型',
+  fetch: '拉取内容',
+  context: '拼装上下文',
+  ai_call: '调用 AI',
+  normalize: '解析洞察',
+  translate_call: '调用翻译',
+  analyze: '派生分析',
+};
+
+/** 取环节中文名，未登记则回退原 name（容忍未来新增环节）。 */
+export function stageLabel(name: string): string {
+  return STAGE_NAME_LABEL[name] ?? name;
+}
 
 /** 各环节的产物摘要样例（检查点 jsonb 的展示侧；原型用，后端落地后由真实产物替换）。 */
 export const STAGE_OUTPUT: Record<string, string> = {
