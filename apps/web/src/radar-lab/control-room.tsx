@@ -276,7 +276,9 @@ function ControlRoom() {
 
       <div className="space-y-6">
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <StatCard label="今日新帖" value={d.postsToday} icon={Inbox} hint="采集任务完成数" />
+          <Link to="/radar/posts" className="block transition-opacity hover:opacity-80">
+            <StatCard label="今日新帖" value={d.postsToday} icon={Inbox} hint="帖子库 · 一生 →" />
+          </Link>
           <Link to="/radar/insights" className="block transition-opacity hover:opacity-80">
             <StatCard label="今日洞察" value={d.insightsToday} icon={Sparkles} hint="分析产出 · 看收成 →" />
           </Link>

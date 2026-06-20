@@ -59,6 +59,12 @@ export interface Post {
   /** 发布距种子时刻的分钟数。 */
   ageMinutes: number;
   comments: Comment[];
+  /** 复查记账（可选，缺省视为 0）：连续未变次数。 */
+  recheckMisses?: number;
+  /** 下次有资格被复查的 sweep 序号（recheckDueSweep ≤ 当前 sweep 即到期）。 */
+  recheckDueSweep?: number;
+  /** 最近一次被复查的 sweep。 */
+  lastRecheckedSweep?: number;
 }
 
 // ─── 定义层：图纸 / 进程 ────────────────────────────────────────────────────────

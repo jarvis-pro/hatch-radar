@@ -222,7 +222,11 @@ export function startRun(world: World, processId: string, triggerSource: Run['tr
   } else {
     const kinds = blueprint.sources.map((s) => s.kind);
     const batchSize = (blueprint.params as RecheckParams).batchSize ?? 12;
-    const due = world.posts.filter((p) => kinds.includes(p.source)).slice(0, batchSize);
+    const sweep = run.sweepSeq ?? 0;
+    // 到期集合：recheckDueSweep ≤ 当前 sweep（指数退避驱动）
+    const due = world.posts
+      .filter((p) => kinds.includes(p.source) && (p.recheckDueSweep ?? 0) <= sweep)
+      .slice(0, batchSize);
     if (due.length === 0) {
       run.status = 'completed';
       run.finishedAt = world.nowMs;
@@ -339,12 +343,27 @@ function doDiscover(world: World, task: Task, stage: Stage): void {
 
 function doDetect(world: World, task: Task, stage: Stage): void {
   const run = world.runs.find((r) => r.id === task.runId);
+  const blueprint = run && world.blueprints.find((b) => b.id === run.blueprintId);
   const sweep = run?.sweepSeq ?? 0;
-  const changed = (hashStr(task.postId ?? '') + sweep) % 3 === 0;
+  const cap = blueprint ? ((blueprint.params as RecheckParams).backoffCap ?? 16) : 16;
+  const post = task.post;
+  // 帖级波动性 + sweep 决定有无变化（约 1/4 概率变化）
+  const changed = post ? hashStr(`${post.id}:${sweep}`) % 4 === 0 : false;
+  if (post) post.lastRecheckedSweep = sweep;
   if (changed) {
-    stage.output = '有变化 · 触发重抓 + 重新分析';
+    if (post) {
+      post.recheckMisses = 0;
+      post.recheckDueSweep = sweep + 1; // 复位：下轮必查
+    }
+    stage.output = '有变化 · 触发重抓 + 重新分析（退避复位）';
   } else {
-    stage.output = '未变化 · 退避 +1，本帖跳过本轮';
+    let skip = 1;
+    if (post) {
+      post.recheckMisses = (post.recheckMisses ?? 0) + 1;
+      skip = Math.min(2 ** (post.recheckMisses - 1), cap); // 1,2,4,…,CAP
+      post.recheckDueSweep = sweep + skip;
+    }
+    stage.output = `未变化 · 连续未变 ${post?.recheckMisses ?? 1} 次，退避跳过 ${skip} 轮`;
     // 跳过 recrawl + persist，任务整体 skipped
     for (const s of task.stages) if (s.status === 'pending') s.status = 'skipped';
     task.status = 'skipped';
