@@ -15,10 +15,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@hatch-radar/ui/components/dropdown-menu';
-import { Badge } from '@hatch-radar/ui/components/badge';
 import { Button } from '@hatch-radar/ui/components/button';
-import { Card, CardContent } from '@hatch-radar/ui/components/card';
-import { Separator } from '@hatch-radar/ui/components/separator';
 import { Skeleton } from '@hatch-radar/ui/components/skeleton';
 import { toast } from '@hatch-radar/ui/components/sonner';
 import { RequirePerm } from '@/auth/require-perm';
@@ -26,38 +23,13 @@ import { EmptyState, LoadError } from '@/components/empty';
 import { PageHeader } from '@/components/page-header';
 import { BlueprintPicker } from './blueprint-picker';
 import { ConfirmDelete } from './confirm-delete';
-import { SOURCE_META } from './constants';
 import { InlineFlowEditor } from './flow-editor';
 import { BlueprintFormDialog } from './forms';
 import { mockApi } from './mock';
-import type { Blueprint, CollectParams, RecheckParams } from './types';
+import type { Blueprint } from './types';
 import { KEYS } from './util';
 
-// ─── 图纸详情（右栏） ──────────────────────────────────────────────────────────
-
-function ParamChips({ blueprint }: { blueprint: Blueprint }) {
-  const chips: string[] = [];
-  if (blueprint.kind === 'collect') {
-    const p = blueprint.params as CollectParams;
-    chips.push(
-      `翻页上限 ${p.limit}`,
-      `连命中 ${p.stopAfterKnown} 停`,
-      `评论预算 ${p.commentBudget}`,
-    );
-  } else {
-    const p = blueprint.params as RecheckParams;
-    chips.push(`每批 ${p.batchSize}`, `冷却 ${p.batchIntervalSec}s`, `退避封顶 ${p.backoffCap}`);
-  }
-  return (
-    <div className="flex flex-wrap gap-1.5">
-      {chips.map((c) => (
-        <Badge key={c} variant="outline" className="font-normal text-muted-foreground">
-          {c}
-        </Badge>
-      ))}
-    </div>
-  );
-}
+// ─── 图纸详情 ─────────────────────────────────────────────────────────────────
 
 function BlueprintDetail({
   blueprint,
@@ -75,7 +47,7 @@ function BlueprintDetail({
   const [delOpen, setDelOpen] = useState(false);
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <div className="flex items-start justify-between gap-3">
         <BlueprintPicker
           blueprints={blueprints}
@@ -111,37 +83,9 @@ function BlueprintDetail({
         </DropdownMenu>
       </div>
 
-      <Card>
-        <CardContent className="space-y-4 pt-6">
-          <div className="space-y-2">
-            <div className="text-xs font-medium text-muted-foreground">数据源</div>
-            <div className="flex flex-wrap gap-1.5">
-              {blueprint.sources.map((s) => {
-                const Icon = SOURCE_META[s.kind].icon;
-                return (
-                  <Badge key={s.kind} variant="outline" className="gap-1 font-normal">
-                    <Icon className="size-3" />
-                    {SOURCE_META[s.kind].label}
-                    {s.channels.length > 0 ? `：${s.channels.join('、')}` : ''}
-                  </Badge>
-                );
-              })}
-            </div>
-          </div>
-          <div className="space-y-2">
-            <div className="text-xs font-medium text-muted-foreground">参数</div>
-            <ParamChips blueprint={blueprint} />
-          </div>
-          <Separator />
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <div className="text-xs font-medium text-muted-foreground">执行流程</div>
-              <span className="text-xs text-muted-foreground/70">· 拖拽编辑 · 改动自动保存</span>
-            </div>
-            <InlineFlowEditor blueprint={blueprint} />
-          </div>
-        </CardContent>
-      </Card>
+      {/* 执行流程为主体：数据源 / 参数等只读信息浮在画布顶部覆盖层（见 InlineFlowEditor → InfoBar），
+          画布占满空间、拖拽编辑、改动自动保存。 */}
+      <InlineFlowEditor blueprint={blueprint} />
 
       <BlueprintFormDialog open={editOpen} onOpenChange={setEditOpen} editing={blueprint} />
       <ConfirmDelete
