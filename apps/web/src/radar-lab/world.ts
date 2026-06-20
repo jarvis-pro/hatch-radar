@@ -107,49 +107,50 @@ export function createInitialWorld(): World {
   }));
 
   // 历史洞察（绑已采集帖 + 历史运行 run_h1），让「收成」开局非空、可溯源。
-  const seedInsights: Array<Pick<Insight, 'postId' | 'intensity' | 'painPoint' | 'tags' | 'painCount' | 'oppCount'>> =
-    [
-      {
-        postId: 't3_saas01',
-        intensity: 'high',
-        painPoint: '用户激活后很快流失——产品没进入日常工作流，提醒/邮件都无效。',
-        tags: ['churn', 'onboarding', 'retention'],
-        painCount: 3,
-        oppCount: 2,
-      },
-      {
-        postId: 't3_saas04',
-        intensity: 'high',
-        painPoint: 'AI 功能抬高了用户预期却兑现不了，支持工单量翻倍。',
-        tags: ['ai-feature', 'support-load', 'expectations'],
-        painCount: 2,
-        oppCount: 2,
-      },
-      {
-        postId: 't3_saas02',
-        intensity: 'medium',
-        painPoint: '小额订单下 Stripe 固定 30c 手续费占比过高，吞掉利润。',
-        tags: ['payments', 'fees', 'micro-saas'],
-        painCount: 1,
-        oppCount: 1,
-      },
-      {
-        postId: 't3_saas06',
-        intensity: 'medium',
-        painPoint: '定价锚定——砍掉最低档反而提升了向上转化。',
-        tags: ['pricing', 'anchoring', 'conversion'],
-        painCount: 1,
-        oppCount: 3,
-      },
-      {
-        postId: 't3_saas05',
-        intensity: 'low',
-        painPoint: '开源核心是否会侵蚀付费层的长期疑虑。',
-        tags: ['open-source', 'monetization'],
-        painCount: 1,
-        oppCount: 2,
-      },
-    ];
+  const seedInsights: Array<
+    Pick<Insight, 'postId' | 'intensity' | 'painPoint' | 'tags' | 'painCount' | 'oppCount'>
+  > = [
+    {
+      postId: 't3_saas01',
+      intensity: 'high',
+      painPoint: '用户激活后很快流失——产品没进入日常工作流，提醒/邮件都无效。',
+      tags: ['churn', 'onboarding', 'retention'],
+      painCount: 3,
+      oppCount: 2,
+    },
+    {
+      postId: 't3_saas04',
+      intensity: 'high',
+      painPoint: 'AI 功能抬高了用户预期却兑现不了，支持工单量翻倍。',
+      tags: ['ai-feature', 'support-load', 'expectations'],
+      painCount: 2,
+      oppCount: 2,
+    },
+    {
+      postId: 't3_saas02',
+      intensity: 'medium',
+      painPoint: '小额订单下 Stripe 固定 30c 手续费占比过高，吞掉利润。',
+      tags: ['payments', 'fees', 'micro-saas'],
+      painCount: 1,
+      oppCount: 1,
+    },
+    {
+      postId: 't3_saas06',
+      intensity: 'medium',
+      painPoint: '定价锚定——砍掉最低档反而提升了向上转化。',
+      tags: ['pricing', 'anchoring', 'conversion'],
+      painCount: 1,
+      oppCount: 3,
+    },
+    {
+      postId: 't3_saas05',
+      intensity: 'low',
+      painPoint: '开源核心是否会侵蚀付费层的长期疑虑。',
+      tags: ['open-source', 'monetization'],
+      painCount: 1,
+      oppCount: 2,
+    },
+  ];
 
   const insights: Insight[] = seedInsights.map((s, i) => {
     const post = posts.find((p) => p.id === s.postId)!;

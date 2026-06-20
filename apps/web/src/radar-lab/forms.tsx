@@ -15,11 +15,7 @@ import {
 } from '@hatch-radar/ui/components/drawer';
 import { Input } from '@hatch-radar/ui/components/input';
 import { Label } from '@hatch-radar/ui/components/label';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@hatch-radar/ui/components/popover';
+import { Popover, PopoverContent, PopoverTrigger } from '@hatch-radar/ui/components/popover';
 import {
   Select,
   SelectContent,
@@ -39,12 +35,7 @@ import {
   SOURCE_META,
   TRIGGER_META,
 } from './constants';
-import {
-  createBlueprint,
-  createProcess,
-  updateBlueprint,
-  updateProcess,
-} from './store';
+import { createBlueprint, createProcess, updateBlueprint, updateProcess } from './store';
 import type {
   Blueprint,
   BlueprintKind,
@@ -58,14 +49,26 @@ import type {
 import { triggerSummary } from './util';
 
 const SOURCE_KINDS: SourceKind[] = ['reddit', 'hackernews', 'rss'];
-const SOURCE_FORM: Record<SourceKind, { channelLabel: string; placeholder: string; preset: string[] }> = {
-  reddit: { channelLabel: '版块', placeholder: 'r/SaaS, r/startups', preset: ['r/SaaS', 'r/startups', 'r/Entrepreneur'] },
+const SOURCE_FORM: Record<
+  SourceKind,
+  { channelLabel: string; placeholder: string; preset: string[] }
+> = {
+  reddit: {
+    channelLabel: '版块',
+    placeholder: 'r/SaaS, r/startups',
+    preset: ['r/SaaS', 'r/startups', 'r/Entrepreneur'],
+  },
   hackernews: { channelLabel: '列表', placeholder: 'front, new', preset: ['front', 'new'] },
-  rss: { channelLabel: '订阅', placeholder: 'TechCrunch, Hacker Newsletter', preset: ['TechCrunch', 'Hacker Newsletter'] },
+  rss: {
+    channelLabel: '订阅',
+    placeholder: 'TechCrunch, Hacker Newsletter',
+    preset: ['TechCrunch', 'Hacker Newsletter'],
+  },
 };
 
 const pad2 = (n: number): string => String(n).padStart(2, '0');
-const secToHHMM = (s: number): string => `${pad2(Math.floor(s / 3600))}:${pad2(Math.floor((s % 3600) / 60))}`;
+const secToHHMM = (s: number): string =>
+  `${pad2(Math.floor(s / 3600))}:${pad2(Math.floor((s % 3600) / 60))}`;
 const hhmmToSec = (v: string): number => {
   const [h, m] = v.split(':').map((x) => Number(x) || 0);
   return h * 3600 + m * 60;
@@ -121,14 +124,21 @@ function initSources(editing?: Blueprint): SourceDraft {
     rss: { enabled: false, channels: '' },
   };
   if (editing) {
-    for (const s of editing.sources) base[s.kind] = { enabled: true, channels: s.channels.join(', ') };
+    for (const s of editing.sources)
+      base[s.kind] = { enabled: true, channels: s.channels.join(', ') };
   } else {
     base.reddit = { enabled: true, channels: '' };
   }
   return base;
 }
 
-function BlueprintBody({ editing, onDone }: { editing?: Blueprint; onDone: (id?: string) => void }) {
+function BlueprintBody({
+  editing,
+  onDone,
+}: {
+  editing?: Blueprint;
+  onDone: (id?: string) => void;
+}) {
   const [label, setLabel] = useState(editing?.label ?? '');
   const [note, setNote] = useState(editing?.note ?? '');
   const [kind, setKind] = useState<BlueprintKind>(editing?.kind ?? 'collect');
@@ -157,7 +167,10 @@ function BlueprintBody({ editing, onDone }: { editing?: Blueprint; onDone: (id?:
     if (x.label || x.sources || x.channels) return;
     const selected = enabled.map((k) => ({
       kind: k,
-      channels: sources[k].channels.split(',').map((c) => c.trim()).filter(Boolean),
+      channels: sources[k].channels
+        .split(',')
+        .map((c) => c.trim())
+        .filter(Boolean),
     }));
     const params = kind === 'collect' ? collect : recheck;
     if (editing) {
@@ -171,7 +184,13 @@ function BlueprintBody({ editing, onDone }: { editing?: Blueprint; onDone: (id?:
       toast.success('图纸已更新');
       onDone();
     } else {
-      const id = createBlueprint({ kind, label: label.trim(), note: note.trim() || undefined, sources: selected, params });
+      const id = createBlueprint({
+        kind,
+        label: label.trim(),
+        note: note.trim() || undefined,
+        sources: selected,
+        params,
+      });
       toast.success('图纸已创建');
       onDone(id);
     }
@@ -181,18 +200,31 @@ function BlueprintBody({ editing, onDone }: { editing?: Blueprint; onDone: (id?:
     <>
       <DrawerHeader className="shrink-0 text-left">
         <DrawerTitle>{editing ? '编辑图纸' : '新建图纸'}</DrawerTitle>
-        <DrawerDescription>图纸是「配方」：抓哪些源、采集还是复查、各项参数——不含节奏（节奏在进程上设）。</DrawerDescription>
+        <DrawerDescription>
+          图纸是「配方」：抓哪些源、采集还是复查、各项参数——不含节奏（节奏在进程上设）。
+        </DrawerDescription>
       </DrawerHeader>
 
       <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 pb-2">
         <div className="space-y-1.5">
           <Label htmlFor="bp-label">名称</Label>
-          <Input id="bp-label" value={label} onChange={(ev) => setLabel(ev.target.value)} placeholder="请输入图纸名称" aria-invalid={e.label} />
+          <Input
+            id="bp-label"
+            value={label}
+            onChange={(ev) => setLabel(ev.target.value)}
+            placeholder="请输入图纸名称"
+            aria-invalid={e.label}
+          />
           {e.label ? <p className="text-sm text-destructive">请填写图纸名称</p> : null}
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="bp-note">说明（可选）</Label>
-          <Input id="bp-note" value={note} onChange={(ev) => setNote(ev.target.value)} placeholder="一句话说明" />
+          <Input
+            id="bp-note"
+            value={note}
+            onChange={(ev) => setNote(ev.target.value)}
+            placeholder="一句话说明"
+          />
         </div>
 
         <div className="space-y-2">
@@ -211,7 +243,12 @@ function BlueprintBody({ editing, onDone }: { editing?: Blueprint; onDone: (id?:
                     active ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/50',
                   )}
                 >
-                  <m.icon className={cn('mt-0.5 size-4', active ? 'text-primary' : 'text-muted-foreground')} />
+                  <m.icon
+                    className={cn(
+                      'mt-0.5 size-4',
+                      active ? 'text-primary' : 'text-muted-foreground',
+                    )}
+                  />
                   <div className="min-w-0">
                     <div className="text-sm font-medium">{m.label}</div>
                     <div className="text-xs text-muted-foreground">{m.blurb}</div>
@@ -242,29 +279,42 @@ function BlueprintBody({ editing, onDone }: { editing?: Blueprint; onDone: (id?:
                   <Switch
                     checked={d.enabled}
                     disabled={enabled.length === 1 && d.enabled}
-                    onCheckedChange={(v) => setSources((s) => ({ ...s, [k]: { ...s[k], enabled: v } }))}
+                    onCheckedChange={(v) =>
+                      setSources((s) => ({ ...s, [k]: { ...s[k], enabled: v } }))
+                    }
                   />
                 </div>
                 {d.enabled ? (
                   <div className="mt-2 space-y-1">
                     <div className="flex items-center gap-1.5">
-                      <span className="shrink-0 text-xs text-muted-foreground">{fm.channelLabel}</span>
+                      <span className="shrink-0 text-xs text-muted-foreground">
+                        {fm.channelLabel}
+                      </span>
                       <Input
                         value={d.channels}
                         aria-invalid={cErr}
-                        onChange={(ev) => setSources((s) => ({ ...s, [k]: { ...s[k], channels: ev.target.value } }))}
+                        onChange={(ev) =>
+                          setSources((s) => ({ ...s, [k]: { ...s[k], channels: ev.target.value } }))
+                        }
                         placeholder={fm.placeholder}
                       />
                       <Button
                         size="icon-sm"
                         variant="outline"
                         aria-label="填入推荐预设"
-                        onClick={() => setSources((s) => ({ ...s, [k]: { ...s[k], channels: fm.preset.join(', ') } }))}
+                        onClick={() =>
+                          setSources((s) => ({
+                            ...s,
+                            [k]: { ...s[k], channels: fm.preset.join(', ') },
+                          }))
+                        }
                       >
                         <Wand2 className="size-3.5" />
                       </Button>
                     </div>
-                    {cErr ? <p className="text-xs text-destructive">请填写{fm.channelLabel}</p> : null}
+                    {cErr ? (
+                      <p className="text-xs text-destructive">请填写{fm.channelLabel}</p>
+                    ) : null}
                   </div>
                 ) : null}
               </div>
@@ -277,7 +327,11 @@ function BlueprintBody({ editing, onDone }: { editing?: Blueprint; onDone: (id?:
             <Label>{kind === 'collect' ? '采集参数' : '复查参数'}</Label>
             <Popover>
               <PopoverTrigger asChild>
-                <button type="button" aria-label="参数说明" className="text-muted-foreground hover:text-foreground">
+                <button
+                  type="button"
+                  aria-label="参数说明"
+                  className="text-muted-foreground hover:text-foreground"
+                >
                   <Info className="size-4" />
                 </button>
               </PopoverTrigger>
@@ -290,22 +344,53 @@ function BlueprintBody({ editing, onDone }: { editing?: Blueprint; onDone: (id?:
           </div>
           {kind === 'collect' ? (
             <div className="grid grid-cols-3 gap-3 rounded-lg border p-3">
-              <NumberField label="翻页上限" value={collect.limit} onChange={(n) => setCollect((c) => ({ ...c, limit: n }))} min={1} />
-              <NumberField label="连续命中即停" value={collect.stopAfterKnown} onChange={(n) => setCollect((c) => ({ ...c, stopAfterKnown: n }))} min={1} />
-              <NumberField label="评论预算" value={collect.commentBudget} onChange={(n) => setCollect((c) => ({ ...c, commentBudget: n }))} />
+              <NumberField
+                label="翻页上限"
+                value={collect.limit}
+                onChange={(n) => setCollect((c) => ({ ...c, limit: n }))}
+                min={1}
+              />
+              <NumberField
+                label="连续命中即停"
+                value={collect.stopAfterKnown}
+                onChange={(n) => setCollect((c) => ({ ...c, stopAfterKnown: n }))}
+                min={1}
+              />
+              <NumberField
+                label="评论预算"
+                value={collect.commentBudget}
+                onChange={(n) => setCollect((c) => ({ ...c, commentBudget: n }))}
+              />
             </div>
           ) : (
             <div className="grid grid-cols-3 gap-3 rounded-lg border p-3">
-              <NumberField label="每批帖数" value={recheck.batchSize} onChange={(n) => setRecheck((r) => ({ ...r, batchSize: n }))} min={1} />
-              <NumberField label="批间冷却(秒)" value={recheck.batchIntervalSec} onChange={(n) => setRecheck((r) => ({ ...r, batchIntervalSec: n }))} min={1} />
-              <NumberField label="退避封顶(轮)" value={recheck.backoffCap} onChange={(n) => setRecheck((r) => ({ ...r, backoffCap: n }))} min={1} />
+              <NumberField
+                label="每批帖数"
+                value={recheck.batchSize}
+                onChange={(n) => setRecheck((r) => ({ ...r, batchSize: n }))}
+                min={1}
+              />
+              <NumberField
+                label="批间冷却(秒)"
+                value={recheck.batchIntervalSec}
+                onChange={(n) => setRecheck((r) => ({ ...r, batchIntervalSec: n }))}
+                min={1}
+              />
+              <NumberField
+                label="退避封顶(轮)"
+                value={recheck.backoffCap}
+                onChange={(n) => setRecheck((r) => ({ ...r, backoffCap: n }))}
+                min={1}
+              />
             </div>
           )}
         </div>
       </div>
 
       <DrawerFooter className="shrink-0 flex-row justify-end gap-2">
-        <Button variant="outline" onClick={() => onDone()}>取消</Button>
+        <Button variant="outline" onClick={() => onDone()}>
+          取消
+        </Button>
         <Button onClick={submit}>{editing ? '保存' : '创建图纸'}</Button>
       </DrawerFooter>
     </>
@@ -361,7 +446,9 @@ function ProcessBody({
   const [intervalTime, setIntervalTime] = useState(
     secToHHMM(editing?.trigger.kind === 'interval' ? editing.trigger.everySec : 1800),
   );
-  const [cronTime, setCronTime] = useState(editing?.trigger.kind === 'cron' ? cronTimeOf(editing.trigger.expr) : '09:00');
+  const [cronTime, setCronTime] = useState(
+    editing?.trigger.kind === 'cron' ? cronTimeOf(editing.trigger.expr) : '09:00',
+  );
 
   function buildTrigger(): TriggerConfig {
     if (tk === 'once') return { kind: 'once' };
@@ -388,7 +475,9 @@ function ProcessBody({
       <DrawerHeader className="shrink-0 text-left">
         <DrawerTitle>{editing ? '编辑进程' : '新建进程'}</DrawerTitle>
         <DrawerDescription>
-          {editing ? '调整进程名与节奏（所属图纸不变）。' : '选一张图纸、设定节奏；同一图纸可建多个不同节奏的进程。'}
+          {editing
+            ? '调整进程名与节奏（所属图纸不变）。'
+            : '选一张图纸、设定节奏；同一图纸可建多个不同节奏的进程。'}
         </DrawerDescription>
       </DrawerHeader>
 
@@ -407,12 +496,19 @@ function ProcessBody({
               ))}
             </SelectContent>
           </Select>
-          {editing ? <p className="text-xs text-muted-foreground">进程创建后所属图纸不可更改。</p> : null}
+          {editing ? (
+            <p className="text-xs text-muted-foreground">进程创建后所属图纸不可更改。</p>
+          ) : null}
         </div>
 
         <div className="space-y-1.5">
           <Label htmlFor="pr-label">进程名（留空自动生成）</Label>
-          <Input id="pr-label" value={label} onChange={(ev) => setLabel(ev.target.value)} placeholder="请输入进程名称" />
+          <Input
+            id="pr-label"
+            value={label}
+            onChange={(ev) => setLabel(ev.target.value)}
+            placeholder="请输入进程名称"
+          />
         </div>
 
         <div className="space-y-2">
@@ -430,7 +526,9 @@ function ProcessBody({
                     className={cn(
                       'flex items-center justify-center gap-2 py-2.5 text-sm font-medium transition-colors',
                       i > 0 && 'border-l',
-                      active ? 'bg-primary/5 text-primary' : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground',
+                      active
+                        ? 'bg-primary/5 text-primary'
+                        : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground',
                     )}
                   >
                     <m.icon className="size-4" />
@@ -446,19 +544,33 @@ function ProcessBody({
                 <div className="space-y-1.5">
                   <div className="flex items-center gap-2">
                     <span className="text-muted-foreground">每隔</span>
-                    <Input type="time" value={intervalTime} onChange={(ev) => setIntervalTime(ev.target.value)} className="w-32 dark:[&::-webkit-calendar-picker-indicator]:invert" />
+                    <Input
+                      type="time"
+                      value={intervalTime}
+                      onChange={(ev) => setIntervalTime(ev.target.value)}
+                      className="w-32 dark:[&::-webkit-calendar-picker-indicator]:invert"
+                    />
                     <span className="text-muted-foreground">跑一次</span>
                   </div>
-                  <p className="text-xs text-muted-foreground">上一轮跑完冷却后再开下一轮，结构上不堆积。</p>
+                  <p className="text-xs text-muted-foreground">
+                    上一轮跑完冷却后再开下一轮，结构上不堆积。
+                  </p>
                 </div>
               ) : (
                 <div className="space-y-1.5">
                   <div className="flex items-center gap-2">
                     <span className="text-muted-foreground">每天</span>
-                    <Input type="time" value={cronTime} onChange={(ev) => setCronTime(ev.target.value)} className="w-32 dark:[&::-webkit-calendar-picker-indicator]:invert" />
+                    <Input
+                      type="time"
+                      value={cronTime}
+                      onChange={(ev) => setCronTime(ev.target.value)}
+                      className="w-32 dark:[&::-webkit-calendar-picker-indicator]:invert"
+                    />
                     <span className="text-muted-foreground">触发</span>
                   </div>
-                  <p className="text-xs text-muted-foreground">墙钟定时触发；适合规律发现新内容。</p>
+                  <p className="text-xs text-muted-foreground">
+                    墙钟定时触发；适合规律发现新内容。
+                  </p>
                 </div>
               )}
             </div>
@@ -467,8 +579,12 @@ function ProcessBody({
       </div>
 
       <DrawerFooter className="shrink-0 flex-row justify-end gap-2">
-        <Button variant="outline" onClick={onDone}>取消</Button>
-        <Button onClick={submit} disabled={!blueprint}>{editing ? '保存' : '创建进程'}</Button>
+        <Button variant="outline" onClick={onDone}>
+          取消
+        </Button>
+        <Button onClick={submit} disabled={!blueprint}>
+          {editing ? '保存' : '创建进程'}
+        </Button>
       </DrawerFooter>
     </>
   );
@@ -491,7 +607,12 @@ export function ProcessFormDialog({
     <Drawer open={open} onOpenChange={onOpenChange} direction={isMobile ? 'bottom' : 'right'}>
       <DrawerContent className="data-[vaul-drawer-direction=right]:sm:max-w-lg">
         <div className="mx-auto flex w-full max-w-xl flex-1 flex-col overflow-hidden">
-          <ProcessBody key={k} blueprints={blueprints} editing={editing} onDone={() => onOpenChange(false)} />
+          <ProcessBody
+            key={k}
+            blueprints={blueprints}
+            editing={editing}
+            onDone={() => onOpenChange(false)}
+          />
         </div>
       </DrawerContent>
     </Drawer>

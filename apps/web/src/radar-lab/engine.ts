@@ -184,7 +184,12 @@ function synthPost(world: World, prefer: SourceKind[]): Post {
 
 // ─── 任务 / 运行创建 ────────────────────────────────────────────────────────────
 
-function buildStages(world: World, kind: TaskKind, blueprint: Blueprint | undefined, post: Post | null): Stage[] {
+function buildStages(
+  world: World,
+  kind: TaskKind,
+  blueprint: Blueprint | undefined,
+  post: Post | null,
+): Stage[] {
   const sourceLane: LaneId | undefined = post
     ? sourceToLane(post.source)
     : blueprint
@@ -203,7 +208,13 @@ function buildStages(world: World, kind: TaskKind, blueprint: Blueprint | undefi
   }));
 }
 
-function createTask(world: World, run: Run, kind: TaskKind, post: Post | null, parentId: string | null): Task {
+function createTask(
+  world: World,
+  run: Run,
+  kind: TaskKind,
+  post: Post | null,
+  parentId: string | null,
+): Task {
   const blueprint = world.blueprints.find((b) => b.id === run.blueprintId);
   const task: Task = {
     id: nextId(world, 'task'),
@@ -225,7 +236,11 @@ function createTask(world: World, run: Run, kind: TaskKind, post: Post | null, p
 }
 
 /** 开一条运行（手动 / 调度触发共用）。 */
-export function startRun(world: World, processId: string, triggerSource: Run['triggerSource']): Run | null {
+export function startRun(
+  world: World,
+  processId: string,
+  triggerSource: Run['triggerSource'],
+): Run | null {
   const process = world.processes.find((p) => p.id === processId);
   if (!process) return null;
   const blueprint = world.blueprints.find((b) => b.id === process.blueprintId);
@@ -498,7 +513,13 @@ function completeRequests(world: World): void {
     r.finishedAt = world.nowMs;
     const task = world.tasks.find((t) => t.id === r.taskId);
     const stage = task?.stages.find((s) => s.seq === r.stageSeq);
-    if (task && stage && task.status === 'running' && stage.status === 'waiting' && stage.requestId === r.id) {
+    if (
+      task &&
+      stage &&
+      task.status === 'running' &&
+      stage.status === 'waiting' &&
+      stage.requestId === r.id
+    ) {
       onStageComplete(world, task, stage);
     }
   }

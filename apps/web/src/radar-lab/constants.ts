@@ -89,10 +89,11 @@ export function stageLabel(name: string): string {
   return STAGE_META[name]?.label ?? name;
 }
 
-export const KIND_META: Record<BlueprintKind, { label: string; icon: LucideIcon; blurb: string }> = {
-  collect: { label: '采集', icon: Download, blurb: '只抓新帖' },
-  recheck: { label: '复查', icon: RefreshCw, blurb: '只查旧帖、探变化' },
-};
+export const KIND_META: Record<BlueprintKind, { label: string; icon: LucideIcon; blurb: string }> =
+  {
+    collect: { label: '采集', icon: Download, blurb: '只抓新帖' },
+    recheck: { label: '复查', icon: RefreshCw, blurb: '只查旧帖、探变化' },
+  };
 
 export const TASK_KIND_META: Record<TaskKind, { label: string; icon: LucideIcon; color: string }> =
   {
@@ -112,13 +113,15 @@ export function sourceToLane(s: SourceKind): LaneId {
   return SOURCE_META[s].lane;
 }
 
-export const LANE_META: Record<LaneId, { label: string; icon: LucideIcon; color: string; bar: string }> =
-  {
-    reddit: { label: 'Reddit', icon: MessageSquare, color: 'text-orange-500', bar: 'bg-orange-500' },
-    hackernews: { label: 'Hacker News', icon: Newspaper, color: 'text-sky-500', bar: 'bg-sky-500' },
-    rss: { label: 'RSS', icon: Rss, color: 'text-violet-500', bar: 'bg-violet-500' },
-    ai: { label: 'AI', icon: Sparkles, color: 'text-primary', bar: 'bg-primary' },
-  };
+export const LANE_META: Record<
+  LaneId,
+  { label: string; icon: LucideIcon; color: string; bar: string }
+> = {
+  reddit: { label: 'Reddit', icon: MessageSquare, color: 'text-orange-500', bar: 'bg-orange-500' },
+  hackernews: { label: 'Hacker News', icon: Newspaper, color: 'text-sky-500', bar: 'bg-sky-500' },
+  rss: { label: 'RSS', icon: Rss, color: 'text-violet-500', bar: 'bg-violet-500' },
+  ai: { label: 'AI', icon: Sparkles, color: 'text-primary', bar: 'bg-primary' },
+};
 
 export const TRIGGER_META: Record<TriggerKind, { label: string; icon: LucideIcon }> = {
   once: { label: '单次', icon: Play },
@@ -128,16 +131,18 @@ export const TRIGGER_META: Record<TriggerKind, { label: string; icon: LucideIcon
 
 type BadgeVariant = 'default' | 'secondary' | 'outline' | 'destructive';
 
-export const TASK_STATUS_META: Record<TaskStatus, { label: string; dot: string; variant: BadgeVariant }> =
-  {
-    queued: { label: '排队', dot: 'bg-muted-foreground/30', variant: 'outline' },
-    running: { label: '运行中', dot: 'bg-primary', variant: 'default' },
-    paused: { label: '暂停', dot: 'bg-intensity-medium', variant: 'secondary' },
-    succeeded: { label: '完成', dot: 'bg-muted-foreground', variant: 'outline' },
-    skipped: { label: '略过', dot: 'bg-muted-foreground/30', variant: 'outline' },
-    failed: { label: '失败', dot: 'bg-intensity-high', variant: 'destructive' },
-    canceled: { label: '取消', dot: 'bg-muted-foreground/30', variant: 'outline' },
-  };
+export const TASK_STATUS_META: Record<
+  TaskStatus,
+  { label: string; dot: string; variant: BadgeVariant }
+> = {
+  queued: { label: '排队', dot: 'bg-muted-foreground/30', variant: 'outline' },
+  running: { label: '运行中', dot: 'bg-primary', variant: 'default' },
+  paused: { label: '暂停', dot: 'bg-intensity-medium', variant: 'secondary' },
+  succeeded: { label: '完成', dot: 'bg-muted-foreground', variant: 'outline' },
+  skipped: { label: '略过', dot: 'bg-muted-foreground/30', variant: 'outline' },
+  failed: { label: '失败', dot: 'bg-intensity-high', variant: 'destructive' },
+  canceled: { label: '取消', dot: 'bg-muted-foreground/30', variant: 'outline' },
+};
 
 export const STAGE_STATUS_META: Record<StageStatus, { label: string; dot: string }> = {
   pending: { label: '待执行', dot: 'bg-muted-foreground/25' },

@@ -85,7 +85,9 @@ function StageStrip({ blueprint }: { blueprint: Blueprint }) {
               )}
               {stageLabel(st.name)}
             </button>
-            {i < stages.length - 1 ? <ArrowRight className="size-3 shrink-0 text-muted-foreground/40" /> : null}
+            {i < stages.length - 1 ? (
+              <ArrowRight className="size-3 shrink-0 text-muted-foreground/40" />
+            ) : null}
           </div>
         );
       })}
@@ -95,13 +97,7 @@ function StageStrip({ blueprint }: { blueprint: Blueprint }) {
 
 // ─── 图纸详情 ──────────────────────────────────────────────────────────────────
 
-function BlueprintDetail({
-  blueprint,
-  processes,
-}: {
-  blueprint: Blueprint;
-  processes: Process[];
-}) {
+function BlueprintDetail({ blueprint, processes }: { blueprint: Blueprint; processes: Process[] }) {
   const [editOpen, setEditOpen] = useState(false);
   const [delOpen, setDelOpen] = useState(false);
   const [newProcOpen, setNewProcOpen] = useState(false);
@@ -116,7 +112,9 @@ function BlueprintDetail({
             <span className="text-lg font-semibold">{blueprint.label}</span>
             <Badge variant="outline">{km.label}</Badge>
           </div>
-          {blueprint.note ? <p className="text-sm text-muted-foreground">{blueprint.note}</p> : null}
+          {blueprint.note ? (
+            <p className="text-sm text-muted-foreground">{blueprint.note}</p>
+          ) : null}
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <Button size="sm" variant="outline" onClick={() => setNewProcOpen(true)}>
@@ -124,7 +122,12 @@ function BlueprintDetail({
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button size="icon-sm" variant="ghost" className="text-muted-foreground" aria-label="图纸操作">
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                className="text-muted-foreground"
+                aria-label="图纸操作"
+              >
                 <MoreHorizontal className="size-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -147,7 +150,10 @@ function BlueprintDetail({
           {blueprint.sources.map((s) => {
             const m = SOURCE_META[s.kind];
             return (
-              <span key={s.kind} className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs">
+              <span
+                key={s.kind}
+                className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs"
+              >
                 <m.icon className="size-3.5 text-muted-foreground" />
                 <span className="font-medium">{m.label}</span>
                 <span className="text-muted-foreground">{s.channels.join(' · ')}</span>
@@ -178,7 +184,9 @@ function BlueprintDetail({
       <div className="space-y-2">
         <div className="text-xs font-medium text-muted-foreground">进程（{processes.length}）</div>
         {processes.length === 0 ? (
-          <p className="text-sm text-muted-foreground/70">还没有进程——点「新建进程」给它挂个节奏。</p>
+          <p className="text-sm text-muted-foreground/70">
+            还没有进程——点「新建进程」给它挂个节奏。
+          </p>
         ) : (
           <div className="divide-y rounded-md border">
             {processes.map((p) => (
@@ -267,7 +275,12 @@ function BlueprintsView() {
                     active ? 'border-primary bg-primary/5' : 'hover:bg-muted/50',
                   )}
                 >
-                  <km.icon className={cn('size-4 shrink-0', active ? 'text-primary' : 'text-muted-foreground')} />
+                  <km.icon
+                    className={cn(
+                      'size-4 shrink-0',
+                      active ? 'text-primary' : 'text-muted-foreground',
+                    )}
+                  />
                   <span className="min-w-0 flex-1 truncate text-sm font-medium">{b.label}</span>
                   <Badge variant="secondary" className="shrink-0 tabular-nums">
                     {count}
@@ -276,11 +289,17 @@ function BlueprintsView() {
               );
             })}
           </div>
-          {selected ? <BlueprintDetail key={selected.id} blueprint={selected} processes={procs} /> : null}
+          {selected ? (
+            <BlueprintDetail key={selected.id} blueprint={selected} processes={procs} />
+          ) : null}
         </div>
       )}
 
-      <BlueprintFormDialog open={newOpen} onOpenChange={setNewOpen} onCreated={(id) => setSelectedId(id)} />
+      <BlueprintFormDialog
+        open={newOpen}
+        onOpenChange={setNewOpen}
+        onCreated={(id) => setSelectedId(id)}
+      />
     </>
   );
 }

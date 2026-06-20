@@ -269,13 +269,17 @@ export function createProcess(input: {
   return id;
 }
 
-export function updateProcess(id: string, patch: { label?: string; trigger?: TriggerConfig }): void {
+export function updateProcess(
+  id: string,
+  patch: { label?: string; trigger?: TriggerConfig },
+): void {
   const p = world.processes.find((x) => x.id === id);
   if (!p) return;
   if (patch.label !== undefined) p.label = patch.label;
   if (patch.trigger !== undefined) {
     p.trigger = patch.trigger;
-    if (p.status === 'active') p.nextRunAt = patch.trigger.kind === 'once' ? null : world.nowMs + 5000;
+    if (p.status === 'active')
+      p.nextRunAt = patch.trigger.kind === 'once' ? null : world.nowMs + 5000;
   }
   emit();
 }

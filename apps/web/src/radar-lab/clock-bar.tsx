@@ -36,14 +36,21 @@ export function ClockBar() {
             onClick={() => setSpeed(s)}
             className={cn(
               'rounded px-1.5 py-0.5 font-medium tabular-nums transition-colors',
-              speed === s ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground',
+              speed === s
+                ? 'bg-primary/10 text-primary'
+                : 'text-muted-foreground hover:text-foreground',
             )}
           >
             ×{s}
           </button>
         ))}
       </div>
-      <Button size="icon-sm" variant="ghost" onClick={togglePaused} aria-label={paused ? '继续' : '暂停'}>
+      <Button
+        size="icon-sm"
+        variant="ghost"
+        onClick={togglePaused}
+        aria-label={paused ? '继续' : '暂停'}
+      >
         {paused ? <Play className="size-4" /> : <Pause className="size-4" />}
       </Button>
       {paused ? (
