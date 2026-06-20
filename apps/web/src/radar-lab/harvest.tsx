@@ -1,17 +1,29 @@
 /**
- * 收成 · 洞察（/radar/insights）—— 洞察浏览器 / 研判台。
+ * 洞察库（/radar/insights）—— 洞察浏览器 / 研判台（帖子库的产出对应物：原始语料 → 提炼洞察）。
  *
  * 这页的独占职责是**翻查产出、淘出有价值的痛点**（聚合计数归指挥室，不在这里重复仪表盘）。
  * 故它是个可查询的数据台，不是流、也不是第二块仪表盘：
- *   筛选（强度 / 来源 / 版块 / 进程）+ 搜索（痛点 / 标题 / 标签）+ 排序 + **真分页**。
+ *   筛选（强度 / 来源）+ 关键词搜索 + 列头点击排序 + **真分页**。
+ * 搜索栏走**延迟提交**（仿帖子库：改下拉 / 输入只动草稿，点「搜索」才写进 URL），与其余页即时 FilterBar 区隔。
+ * 排序下放到列头：点「痛机 / 时间」即时切排序，再点切方向（默认时间最新优先）。
  *
  * 抗规模：筛选 / 排序在 selector 内对 world.insights 现算，**永不静默截断**——
- * 翻页只渲染当页（PAGE_SIZE 行），DOM 恒有界，1 条还是 10 万条同样跑得动。
- * 复用 app house 件 FilterBar / Pagination（URL search params 驱动，可分享、可回退）。
+ * 翻页只渲染当页，DOM 恒有界，1 条还是 10 万条同样跑得动。
  * 每条可溯源回它的源帖一生（点行 → /radar/posts/:id）。
  */
+import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { ArrowDown, ArrowUp, ChevronsUpDown, Search } from 'lucide-react';
 import { Badge } from '@hatch-radar/ui/components/badge';
+import { Button } from '@hatch-radar/ui/components/button';
+import { Input } from '@hatch-radar/ui/components/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@hatch-radar/ui/components/select';
 import {
   Table,
   TableBody,
@@ -23,93 +35,84 @@ import {
 import { cn } from '@hatch-radar/ui/lib/utils';
 import { RequirePerm } from '@/auth/require-perm';
 import { EmptyState } from '@/components/empty';
-import { FilterBar } from '@/components/filter-bar';
 import { PageHeader } from '@/components/page-header';
 import { Pagination } from '@/components/pagination';
-import { ClockBar } from './clock-bar';
 import { INTENSITY_META, SOURCE_META } from './constants';
 import { useLang, useWorld } from './store';
 import type { Insight, Intensity, SourceKind, World } from './types';
 import { relPast, tText } from './util';
 
-/** 每页行数。翻页只渲染当页 → DOM 有界，与总量无关。 */
-const PAGE_SIZE = 25;
+const PAGE_SIZES = [10, 25, 50];
+const DEFAULT_SIZE = 25;
 const INTENSITIES: Intensity[] = ['high', 'medium', 'low'];
 const SOURCES: SourceKind[] = ['reddit', 'hackernews', 'rss'];
-const INTENSITY_RANK: Record<Intensity, number> = { high: 3, medium: 2, low: 1 };
+// Radix Select 不接受空字符串 value，用哨兵代表「全部」（提交时还原为去掉该参数）
+const ALL = '__all__';
+
+// 排序：列头点击驱动。key=维度，dir=方向；默认 time-desc（最新优先，URL 省略以保持简洁）
+type SortKey = 'pain' | 'time';
+type SortDir = 'asc' | 'desc';
+const SORT_KEYS: SortKey[] = ['pain', 'time'];
+const DEFAULT_SORT = 'time-desc';
+
+/** 解析 URL 上的 sort（`{key}-{dir}`）；非法或缺省回落到默认时间倒序。 */
+function parseSort(v: string | null): { key: SortKey; dir: SortDir } {
+  const [k, d] = (v ?? '').split('-');
+  if (SORT_KEYS.includes(k as SortKey) && (d === 'asc' || d === 'desc'))
+    return { key: k as SortKey, dir: d };
+  return { key: 'time', dir: 'desc' };
+}
 
 interface HarvestFilters {
   source: string;
-  channel: string;
   intensity: string;
-  process: string;
-  sort: string;
   q: string;
+  sort: string;
   page: number;
+  size: number;
 }
 
 function selectHarvest(w: World, f: HarvestFilters) {
-  const procLabel = (pid: string): string => w.processes.find((p) => p.id === pid)?.label ?? pid;
   const all = w.insights;
+  const titleZhOf = new Map(w.posts.map((p) => [p.id, p.titleZh]));
+  const procLabel = (pid: string): string => w.processes.find((p) => p.id === pid)?.label ?? pid;
 
-  // facet 选项（按当前产出频次排序；进程 / 版块带计数，「谁在产出价值」并入筛选）
-  const procCount = new Map<string, number>();
-  const chanCount = new Map<string, number>();
-  for (const i of all) {
-    procCount.set(i.processId, (procCount.get(i.processId) ?? 0) + 1);
-    chanCount.set(i.channel, (chanCount.get(i.channel) ?? 0) + 1);
-  }
-  const byCountDesc = (a: [string, number], b: [string, number]): number => b[1] - a[1];
-  const procOptions = [...procCount.entries()]
-    .sort(byCountDesc)
-    .map(([pid, c]) => ({ value: pid, label: `${procLabel(pid)} · ${c}` }));
-  const channelOptions = [...chanCount.entries()]
-    .sort(byCountDesc)
-    .map(([ch, c]) => ({ value: ch, label: `${ch} · ${c}` }));
+  // 来源 facet：只列当前产出里出现过的来源
   const present = new Set(all.map((i) => i.source));
   const sourceOptions = SOURCES.filter((s) => present.has(s)).map((s) => ({
     value: s,
     label: SOURCE_META[s].label,
   }));
 
-  // 筛选
+  // 筛选（强度 / 来源 + 关键词；关键词扫痛点 / 标题〔中英〕/ 标签）
   const ql = f.q.toLowerCase();
   const rows = all.filter(
     (i) =>
       (!f.source || i.source === f.source) &&
-      (!f.channel || i.channel === f.channel) &&
       (!f.intensity || i.intensity === f.intensity) &&
-      (!f.process || i.processId === f.process) &&
       (!ql ||
         i.painPoint.toLowerCase().includes(ql) ||
         i.postTitle.toLowerCase().includes(ql) ||
+        (titleZhOf.get(i.postId) ?? '').toLowerCase().includes(ql) ||
         i.tags.some((t) => t.toLowerCase().includes(ql))),
   );
 
-  // 统计 = 当前查询的强度切片（不是仪表盘 vanity 计数）
-  const split: Record<Intensity, number> = { high: 0, medium: 0, low: 0 };
-  for (const i of rows) split[i.intensity] += 1;
-
-  // 排序
+  // 排序（列头驱动；同值按最新兜底，asc 整体取反）
+  const { key, dir } = parseSort(f.sort);
   rows.sort((a, b) => {
-    if (f.sort === 'intensity')
-      return INTENSITY_RANK[b.intensity] - INTENSITY_RANK[a.intensity] || b.createdAt - a.createdAt;
-    if (f.sort === 'pain') return b.painCount - a.painCount || b.createdAt - a.createdAt;
-    if (f.sort === 'opp') return b.oppCount - a.oppCount || b.createdAt - a.createdAt;
-    return b.createdAt - a.createdAt; // 默认：最新优先
+    const cmp = key === 'pain' ? b.painCount - a.painCount : b.createdAt - a.createdAt;
+    return (cmp || b.createdAt - a.createdAt) * (dir === 'asc' ? -1 : 1);
   });
 
   // 分页（钳制页码；只切当页）
   const total = rows.length;
-  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const pageCount = Math.max(1, Math.ceil(total / f.size));
   const page = Math.min(Math.max(1, f.page), pageCount);
-  const pageRows = rows
-    .slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
-    .map((i) => ({
-      ...i,
-      procLabel: procLabel(i.processId),
-      titleZh: w.posts.find((p) => p.id === i.postId)?.titleZh,
-    }));
+  const pageRows = rows.slice((page - 1) * f.size, page * f.size).map((i) => ({
+    ...i,
+    procLabel: procLabel(i.processId),
+    titleZh: titleZhOf.get(i.postId),
+  }));
 
   return {
     pageRows,
@@ -117,12 +120,50 @@ function selectHarvest(w: World, f: HarvestFilters) {
     grandTotal: all.length,
     page,
     pageCount,
-    split,
     sourceOptions,
-    channelOptions,
-    procOptions,
     nowMs: w.nowMs,
   };
+}
+
+/** 可点击排序的列头：显示当前方向箭头，未激活列以淡色双箭头提示可排序。 */
+function SortHeader({
+  label,
+  sortKey,
+  activeKey,
+  dir,
+  align,
+  className,
+  onSort,
+}: {
+  label: string;
+  sortKey: SortKey;
+  activeKey: SortKey;
+  dir: SortDir;
+  align?: 'right';
+  className?: string;
+  onSort: (k: SortKey) => void;
+}) {
+  const active = activeKey === sortKey;
+  const Icon = !active ? ChevronsUpDown : dir === 'desc' ? ArrowDown : ArrowUp;
+  return (
+    <TableHead className={className}>
+      <button
+        type="button"
+        onClick={() => onSort(sortKey)}
+        aria-label={`按${label}排序`}
+        className={cn(
+          'group -mx-1 inline-flex items-center gap-1 rounded px-1 transition-colors hover:text-foreground',
+          align === 'right' && 'flex-row-reverse',
+          active ? 'text-foreground' : 'text-muted-foreground',
+        )}
+      >
+        {label}
+        <Icon
+          className={cn('size-3.5 shrink-0', !active && 'opacity-40 group-hover:opacity-100')}
+        />
+      </button>
+    </TableHead>
+  );
 }
 
 function InsightRow({
@@ -183,87 +224,126 @@ function InsightRow({
 }
 
 function Harvest() {
-  const [sp] = useSearchParams();
   const navigate = useNavigate();
+  const [sp] = useSearchParams();
   const preferOriginal = useLang();
+
+  // URL 上「已提交」的筛选 —— 表格按它渲染、翻页 / 排序随它保留
   const source = sp.get('source') ?? '';
-  const channel = sp.get('channel') ?? '';
   const intensity = INTENSITIES.includes(sp.get('intensity') as Intensity)
     ? (sp.get('intensity') as string)
     : '';
-  const process = sp.get('process') ?? '';
-  const sortParam = sp.get('sort') ?? '';
-  const sort = ['intensity', 'pain', 'opp'].includes(sortParam) ? sortParam : '';
   const q = sp.get('q')?.trim() ?? '';
+  const sort = sp.get('sort') ?? '';
+  const { key: sortKey, dir: sortDir } = parseSort(sort);
   const page = Math.max(1, Number.parseInt(sp.get('page') ?? '1', 10) || 1);
-  const hasFilter = Boolean(source || channel || intensity || process || sort || q);
+  const size = PAGE_SIZES.includes(Number(sp.get('size'))) ? Number(sp.get('size')) : DEFAULT_SIZE;
 
-  const d = useWorld((w) => selectHarvest(w, { source, channel, intensity, process, sort, q, page }));
+  // 搜索草稿（延迟提交，仿帖子库）：改下拉 / 输入只动本地，点「搜索」才写进 URL；
+  // URL 上条件变化（提交本身 / 外部带参导航 / 列头排序）时回灌——翻页 / 排序只改其他参数不动这三者
+  const [draft, setDraft] = useState({ source, intensity, q });
+  useEffect(() => setDraft({ source, intensity, q }), [source, intensity, q]);
+
+  const d = useWorld((w) => selectHarvest(w, { source, intensity, q, sort, page, size }));
+
+  /** 把一组条件写进 URL（回第 1 页；保留排序与每页条数这两项浏览偏好）。 */
+  const apply = (next: { source: string; intensity: string; q: string }): void => {
+    const params = new URLSearchParams();
+    if (next.source) params.set('source', next.source);
+    if (next.intensity) params.set('intensity', next.intensity);
+    if (next.q.trim()) params.set('q', next.q.trim());
+    if (sort) params.set('sort', sort);
+    if (size !== DEFAULT_SIZE) params.set('size', String(size));
+    const qs = params.toString();
+    navigate(qs ? `/radar/insights?${qs}` : '/radar/insights');
+  };
+  const reset = (): void => apply({ source: '', intensity: '', q: '' });
+
+  /** 列头点击排序（即时，作用于已提交的筛选；回第 1 页，同列切方向、换列以倒序起步）。 */
+  const applySort = (key: SortKey): void => {
+    const dir: SortDir = sortKey === key && sortDir === 'desc' ? 'asc' : 'desc';
+    const nextSort = `${key}-${dir}`;
+    const params = new URLSearchParams();
+    if (source) params.set('source', source);
+    if (intensity) params.set('intensity', intensity);
+    if (q) params.set('q', q);
+    if (nextSort !== DEFAULT_SORT) params.set('sort', nextSort);
+    if (size !== DEFAULT_SIZE) params.set('size', String(size));
+    const qs = params.toString();
+    navigate(qs ? `/radar/insights?${qs}` : '/radar/insights');
+  };
 
   return (
     <>
       <PageHeader
-        title="收成 · 洞察"
-        description="翻查这台雷达挖出的洞察——筛选 / 搜索 / 排序，每条可溯源回它的源帖一生。"
-        actions={<ClockBar />}
+        title="洞察库"
+        description="AI 从语料里淘出的用户痛点与产品机会——按强度、来源筛选，或按关键词搜痛点 / 标题 / 标签，每条都能溯源回它的源帖一生。"
       />
 
-      <FilterBar
-        basePath="/radar/insights"
-        hasFilter={hasFilter}
-        searchValue={q}
-        searchPlaceholder="搜索痛点 / 标题 / 标签"
-        selects={[
-          {
-            name: 'intensity',
-            placeholder: '全部强度',
-            value: intensity,
-            options: INTENSITIES.map((k) => ({ value: k, label: `${INTENSITY_META[k].label}信号` })),
-          },
-          { name: 'source', placeholder: '全部来源', value: source, options: d.sourceOptions },
-          { name: 'channel', placeholder: '全部版块', value: channel, options: d.channelOptions },
-          { name: 'process', placeholder: '全部进程', value: process, options: d.procOptions },
-          {
-            name: 'sort',
-            placeholder: '默认排序',
-            value: sort,
-            options: [
-              { value: 'intensity', label: '强度高→低' },
-              { value: 'pain', label: '痛点最多' },
-              { value: 'opp', label: '机会最多' },
-            ],
-          },
-        ]}
-      />
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          apply(draft);
+        }}
+        className="mb-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center"
+      >
+        <Select
+          value={draft.intensity || ALL}
+          onValueChange={(v) => setDraft((s) => ({ ...s, intensity: v === ALL ? '' : v }))}
+        >
+          <SelectTrigger className="w-full sm:w-auto sm:min-w-34" aria-label="全部强度">
+            <SelectValue placeholder="全部强度" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>全部强度</SelectItem>
+            {INTENSITIES.map((k) => (
+              <SelectItem key={k} value={k}>
+                {INTENSITY_META[k].label}信号
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select
+          value={draft.source || ALL}
+          onValueChange={(v) => setDraft((s) => ({ ...s, source: v === ALL ? '' : v }))}
+        >
+          <SelectTrigger className="w-full sm:w-auto sm:min-w-34" aria-label="全部来源">
+            <SelectValue placeholder="全部来源" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>全部来源</SelectItem>
+            {d.sourceOptions.map((o) => (
+              <SelectItem key={o.value} value={o.value}>
+                {o.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <div className="relative min-w-0 flex-1 sm:min-w-48">
+          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            type="search"
+            value={draft.q}
+            onChange={(e) => setDraft((s) => ({ ...s, q: e.target.value }))}
+            placeholder="搜索痛点 / 标题 / 标签"
+            className="pl-8"
+          />
+        </div>
+
+        <Button type="submit">搜索</Button>
+        <Button type="button" variant="outline" onClick={reset}>
+          重置
+        </Button>
+      </form>
 
       {d.grandTotal === 0 ? (
         <EmptyState title="还没有洞察" hint="等采集 / 分析跑起来，产出会陆续出现在这里。" />
       ) : d.total === 0 ? (
-        <EmptyState title="没有符合条件的洞察" hint="试试放宽筛选条件。" />
+        <EmptyState title="没有符合条件的洞察" hint="换个强度 / 来源，或调整搜索词后重试。" />
       ) : (
         <>
-          {/* 统计 = 当前查询的强度切片（随筛选实时变，非仪表盘计数） */}
-          <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-            <span>
-              共 <span className="font-medium tabular-nums text-foreground">{d.total}</span> 条
-              {d.total !== d.grandTotal ? (
-                <>
-                  {' '}
-                  · 全部 <span className="tabular-nums">{d.grandTotal}</span>
-                </>
-              ) : null}
-            </span>
-            <span className="inline-flex items-center gap-3">
-              {INTENSITIES.map((k) => (
-                <span key={k} className="inline-flex items-center gap-1">
-                  <span aria-hidden className={cn('size-1.5 rounded-full', INTENSITY_META[k].bar)} />
-                  {INTENSITY_META[k].label}
-                  <span className="tabular-nums text-foreground">{d.split[k]}</span>
-                </span>
-              ))}
-            </span>
-          </div>
-
           <div className="overflow-hidden rounded-lg border">
             <Table className="table-fixed">
               <TableHeader>
@@ -273,8 +353,24 @@ function Harvest() {
                   <TableHead className="hidden w-40 md:table-cell">来源 · 版块</TableHead>
                   <TableHead className="hidden w-32 lg:table-cell">产自进程</TableHead>
                   <TableHead className="hidden w-48 xl:table-cell">标签</TableHead>
-                  <TableHead className="w-16 text-right">痛/机</TableHead>
-                  <TableHead className="w-20 text-right">时间</TableHead>
+                  <SortHeader
+                    label="痛/机"
+                    sortKey="pain"
+                    activeKey={sortKey}
+                    dir={sortDir}
+                    align="right"
+                    className="w-20 text-right"
+                    onSort={applySort}
+                  />
+                  <SortHeader
+                    label="时间"
+                    sortKey="time"
+                    activeKey={sortKey}
+                    dir={sortDir}
+                    align="right"
+                    className="w-20 text-right"
+                    onSort={applySort}
+                  />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -296,7 +392,9 @@ function Harvest() {
             pageCount={d.pageCount}
             total={d.total}
             basePath="/radar/insights"
-            query={{ source, channel, intensity, process, sort, q }}
+            query={{ source, intensity, q, sort }}
+            pageSize={size}
+            pageSizeOptions={PAGE_SIZES}
           />
         </>
       )}

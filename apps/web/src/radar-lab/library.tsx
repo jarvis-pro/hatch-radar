@@ -1,30 +1,51 @@
 /**
  * 帖子库（/radar/posts）—— 浏览 / 检索 mock 世界的语料。
  *
- * 单一职责＝**找到一条帖**：搜索（标题/id，中英皆可）+ 来源 / 状态筛选 + 分页（只渲当页一屏，抗规模）。
- * 译文优先显示标题。点行 → /radar/posts/:id 完整详情（内容 + 一生）。
- * 退避分布在「指挥室·复查健康」、单帖完整内容在详情页——这里不堆图表也不堆详情。
+ * 传统表格展示（单条信息量小，一行足以）：标题（译文优先，已译帖在标题后标注翻译图标）/ 版块 / 复查状态 / 节奏 / 热度。
+ * 专属搜索栏走**延迟提交**：改下拉或输入并不立即查，点「搜索」才把条件写进 URL 生效，「重置」一键清空；
+ * 区别于其余页共用的即时 FilterBar（故此页内联自己的栏，不复用）。URL search params 驱动可分享可回退，
+ * 配统一 Pagination 翻页只渲当页抗规模。点行 → 详情。
  */
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ArrowBigUp, ChevronLeft, ChevronRight, MessageSquare, Search, X } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { ArrowBigUp, Languages, MessageSquare, Search } from 'lucide-react';
 import { Button } from '@hatch-radar/ui/components/button';
 import { Input } from '@hatch-radar/ui/components/input';
-import { cn } from '@hatch-radar/ui/lib/utils';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@hatch-radar/ui/components/select';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@hatch-radar/ui/components/table';
 import { RequirePerm } from '@/auth/require-perm';
 import { EmptyState } from '@/components/empty';
 import { PageHeader } from '@/components/page-header';
-import { ClockBar } from './clock-bar';
+import { Pagination } from '@/components/pagination';
 import { SOURCE_META } from './constants';
 import { useLang, useWorld } from './store';
 import type { SourceKind, World } from './types';
-import { tText } from './util';
+import { isTranslated, tText } from './util';
 
-const PAGE_SIZE = 12;
 const CAP = 16;
-
-type StatusFilter = 'all' | 'due' | 'active' | 'quiet';
-type SourceFilter = 'all' | SourceKind;
+const PAGE_SIZES = [10, 25, 50];
+const DEFAULT_SIZE = 25;
+const SOURCES: SourceKind[] = ['reddit', 'hackernews', 'rss'];
+const STATUS_OPTIONS = [
+  { value: 'due', label: '到期' },
+  { value: 'active', label: '活跃' },
+  { value: 'quiet', label: '沉默' },
+];
+// Radix Select 不接受空字符串 value，用哨兵代表「全部」（提交时还原为去掉该参数）
+const ALL = '__all__';
 
 function recheckSweepOf(w: World): number {
   return w.processes.reduce((mx, p) => {
@@ -35,206 +56,235 @@ function recheckSweepOf(w: World): number {
 function intervalLabel(misses: number): string {
   return misses <= 0 ? '每轮查' : `隔 ${Math.min(2 ** (misses - 1), CAP)} 轮`;
 }
+/** URL 上的 status 须在白名单内才算数，否则视为「全部」。 */
+function validStatus(v: string | null): string {
+  return STATUS_OPTIONS.some((s) => s.value === v) ? (v as string) : '';
+}
 
-function select(w: World, f: { q: string; source: SourceFilter; status: StatusFilter; page: number }) {
+function select(
+  w: World,
+  f: { source: string; status: string; q: string; page: number; size: number },
+) {
   const sweep = recheckSweepOf(w);
-  const ql = f.q.trim().toLowerCase();
-  const filtered = w.posts
-    .map((p) => ({ post: p, misses: p.recheckMisses ?? 0, dueNow: (p.recheckDueSweep ?? 0) <= sweep }))
-    .filter((r) => f.source === 'all' || r.post.source === f.source)
+  const ql = f.q.toLowerCase();
+  const rows = w.posts
+    .map((p) => ({
+      post: p,
+      misses: p.recheckMisses ?? 0,
+      dueNow: (p.recheckDueSweep ?? 0) <= sweep,
+    }))
+    .filter((r) => !f.source || r.post.source === f.source)
     .filter((r) =>
-      f.status === 'all'
-        ? true
-        : f.status === 'due'
-          ? r.dueNow
-          : f.status === 'active'
-            ? r.misses === 0
-            : r.misses >= 1,
+      f.status === 'due'
+        ? r.dueNow
+        : f.status === 'active'
+          ? r.misses === 0
+          : f.status === 'quiet'
+            ? r.misses >= 1
+            : true,
     )
+    // 标题 + 正文（中英）模糊搜索
     .filter(
       (r) =>
         !ql ||
         r.post.title.toLowerCase().includes(ql) ||
         (r.post.titleZh ?? '').toLowerCase().includes(ql) ||
-        r.post.id.toLowerCase().includes(ql),
+        r.post.body.toLowerCase().includes(ql) ||
+        (r.post.bodyZh ?? '').toLowerCase().includes(ql),
     )
     .sort((a, b) => a.misses - b.misses || b.post.score - a.post.score);
 
-  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const total = rows.length;
+  const pageCount = Math.max(1, Math.ceil(total / f.size));
   const page = Math.min(Math.max(1, f.page), pageCount);
   return {
-    total: w.posts.length,
-    filteredCount: filtered.length,
-    pageRows: filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    total,
+    grandTotal: w.posts.length,
+    pageRows: rows.slice((page - 1) * f.size, page * f.size),
     page,
     pageCount,
   };
 }
 
-const SOURCE_FILTERS: { key: SourceFilter; label: string }[] = [
-  { key: 'all', label: '全部' },
-  { key: 'reddit', label: 'Reddit' },
-  { key: 'hackernews', label: 'HN' },
-  { key: 'rss', label: 'RSS' },
-];
-const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
-  { key: 'all', label: '全部' },
-  { key: 'due', label: '到期' },
-  { key: 'active', label: '活跃' },
-  { key: 'quiet', label: '沉默' },
-];
-
-function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        'rounded-full border px-2.5 py-1 text-xs transition-colors',
-        active ? 'border-primary bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted/50',
-      )}
-    >
-      {children}
-    </button>
-  );
-}
-
 function LibraryView() {
   const navigate = useNavigate();
+  const [sp] = useSearchParams();
+  // URL 上「已提交」的条件 —— 表格按它渲染、分页随它保留
+  const source = sp.get('source') ?? '';
+  const status = validStatus(sp.get('status'));
+  const q = sp.get('q')?.trim() ?? '';
+  const page = Math.max(1, Number.parseInt(sp.get('page') ?? '1', 10) || 1);
+  const size = PAGE_SIZES.includes(Number(sp.get('size'))) ? Number(sp.get('size')) : DEFAULT_SIZE;
+
+  // 搜索草稿（延迟提交）：改下拉 / 输入只动本地，点「搜索」才写进 URL；
+  // URL 上的条件变化（提交本身 / 外部带参导航）时回灌——翻页只改 page 不动这三者，故草稿不被冲掉
+  const [draft, setDraft] = useState({ source, status, q });
+  useEffect(() => setDraft({ source, status, q }), [source, status, q]);
+
+  // 标题语言跟随全局「译文 / 原文」偏好（译文优先）；已译帖在标题后标注翻译图标，仅作标识、不可点切换
   const preferOriginal = useLang();
-  const [q, setQ] = useState('');
-  const [source, setSource] = useState<SourceFilter>('all');
-  const [status, setStatus] = useState<StatusFilter>('all');
-  const [page, setPage] = useState(1);
-  const d = useWorld((w) => select(w, { q, source, status, page }));
-  const filterActive = q.trim() !== '' || source !== 'all' || status !== 'all';
-  const reset = (fn: () => void): void => {
-    fn();
-    setPage(1);
+
+  const d = useWorld((w) => select(w, { source, status, q, page, size }));
+
+  /** 把一组条件写进 URL（回第 1 页；保留非默认的每页条数这一浏览偏好）。 */
+  const apply = (next: { source: string; status: string; q: string }): void => {
+    const params = new URLSearchParams();
+    if (next.source) params.set('source', next.source);
+    if (next.status) params.set('status', next.status);
+    if (next.q.trim()) params.set('q', next.q.trim());
+    if (size !== DEFAULT_SIZE) params.set('size', String(size));
+    const qs = params.toString();
+    navigate(qs ? `/radar/posts?${qs}` : '/radar/posts');
   };
+  const reset = (): void => apply({ source: '', status: '', q: '' });
 
   return (
     <>
       <PageHeader
         title="帖子库"
-        description="浏览 / 检索语料——找到一条帖，点进去看完整内容与它的一生（译文优先显示）。"
-        actions={<ClockBar />}
+        description="浏览雷达采集入库的原始语料——按来源、复查状态与关键词检索，逐条下钻完整内容，追溯其一生（采集 → 复查退避 → 重分析 → 洞察）。译文优先显示。"
       />
-      <div className="space-y-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative min-w-[14rem] flex-1">
-            <Search className="absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={q}
-              onChange={(e) => reset(() => setQ(e.target.value))}
-              placeholder="搜索标题 / id（中英皆可）"
-              className="h-9 pl-8"
-            />
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {SOURCE_FILTERS.map((s) => (
-              <Chip key={s.key} active={source === s.key} onClick={() => reset(() => setSource(s.key))}>
-                {s.label}
-              </Chip>
+
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          apply(draft);
+        }}
+        className="mb-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center"
+      >
+        <Select
+          value={draft.source || ALL}
+          onValueChange={(v) => setDraft((s) => ({ ...s, source: v === ALL ? '' : v }))}
+        >
+          <SelectTrigger className="w-full sm:w-auto sm:min-w-34" aria-label="全部来源">
+            <SelectValue placeholder="全部来源" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>全部来源</SelectItem>
+            {SOURCES.map((s) => (
+              <SelectItem key={s} value={s}>
+                {SOURCE_META[s].label}
+              </SelectItem>
             ))}
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {STATUS_FILTERS.map((s) => (
-              <Chip key={s.key} active={status === s.key} onClick={() => reset(() => setStatus(s.key))}>
-                {s.label}
-              </Chip>
+          </SelectContent>
+        </Select>
+
+        <Select
+          value={draft.status || ALL}
+          onValueChange={(v) => setDraft((s) => ({ ...s, status: v === ALL ? '' : v }))}
+        >
+          <SelectTrigger className="w-full sm:w-auto sm:min-w-34" aria-label="全部状态">
+            <SelectValue placeholder="全部状态" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>全部状态</SelectItem>
+            {STATUS_OPTIONS.map((o) => (
+              <SelectItem key={o.value} value={o.value}>
+                {o.label}
+              </SelectItem>
             ))}
-          </div>
+          </SelectContent>
+        </Select>
+
+        <div className="relative min-w-0 flex-1 sm:min-w-48">
+          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            type="search"
+            value={draft.q}
+            onChange={(e) => setDraft((s) => ({ ...s, q: e.target.value }))}
+            placeholder="搜索标题 / 正文"
+            className="pl-8"
+          />
         </div>
 
-        <div className="flex items-center justify-between px-0.5 text-xs text-muted-foreground">
-          <span className="tabular-nums">
-            共 {d.filteredCount} 帖{filterActive && d.filteredCount !== d.total ? ` / ${d.total}` : ''}
-          </span>
-          {filterActive ? (
-            <button
-              type="button"
-              onClick={() =>
-                reset(() => {
-                  setQ('');
-                  setSource('all');
-                  setStatus('all');
-                })
-              }
-              className="inline-flex items-center gap-0.5 hover:text-foreground"
-            >
-              <X className="size-3" /> 清除
-            </button>
-          ) : null}
-        </div>
+        <Button type="submit">搜索</Button>
+        <Button type="button" variant="outline" onClick={reset}>
+          重置
+        </Button>
+      </form>
 
-        {d.total === 0 ? (
-          <EmptyState title="还没有帖子" hint="等采集跑起来，入库的帖会出现在这里。" />
-        ) : d.pageRows.length === 0 ? (
-          <p className="rounded-lg border py-10 text-center text-sm text-muted-foreground/70">没有匹配的帖子。</p>
-        ) : (
-          <div className="space-y-1.5">
-            {d.pageRows.map(({ post, misses, dueNow }) => {
-              const SrcIcon = SOURCE_META[post.source].icon;
-              return (
-                <button
-                  key={post.id}
-                  type="button"
-                  onClick={() => navigate(`/radar/posts/${post.id}`)}
-                  className="flex w-full items-center gap-3 rounded-lg border p-3 text-left transition-colors hover:bg-muted/50"
-                >
-                  <SrcIcon className="size-4 shrink-0 text-muted-foreground" />
-                  <span className="min-w-0 flex-1">
-                    <span className="line-clamp-1 text-sm font-medium">
-                      {tText(post.title, post.titleZh, preferOriginal)}
-                    </span>
-                    <span className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px] text-muted-foreground">
-                      <span>{post.channel}</span>
-                      <span>·</span>
-                      <span className={cn(misses === 0 && 'text-signal')}>
-                        {misses === 0 ? '活跃' : `连未变 ${misses}`}
-                      </span>
-                      <span>·</span>
-                      <span>{intervalLabel(misses)}</span>
-                      {dueNow ? <span className="text-intensity-medium">· 到期</span> : null}
-                    </span>
-                  </span>
-                  <span className="hidden shrink-0 items-center gap-3 text-xs tabular-nums text-muted-foreground sm:inline-flex">
-                    <span className="inline-flex items-center gap-0.5">
-                      <ArrowBigUp className="size-3.5" />
-                      {post.score.toLocaleString()}
-                    </span>
-                    <span className="inline-flex items-center gap-1">
-                      <MessageSquare className="size-3" />
-                      {post.numComments}
-                    </span>
-                  </span>
-                  <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
-                </button>
-              );
-            })}
+      {d.grandTotal === 0 ? (
+        <EmptyState title="还没有帖子" hint="等采集跑起来，入库的帖会出现在这里。" />
+      ) : d.total === 0 ? (
+        <EmptyState title="没有符合条件的帖子" hint="换个来源 / 状态，或调整搜索词后重试。" />
+      ) : (
+        <>
+          <div className="overflow-hidden rounded-lg border">
+            <Table className="table-fixed">
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead>标题</TableHead>
+                  <TableHead className="hidden w-36 md:table-cell">版块</TableHead>
+                  <TableHead className="w-28">状态</TableHead>
+                  <TableHead className="hidden w-24 lg:table-cell">复查节奏</TableHead>
+                  <TableHead className="hidden w-28 text-right sm:table-cell">热度</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {d.pageRows.map(({ post, misses, dueNow }) => {
+                  const SrcIcon = SOURCE_META[post.source].icon;
+                  return (
+                    <TableRow
+                      key={post.id}
+                      className="cursor-pointer"
+                      onClick={() => navigate(`/radar/posts/${post.id}`)}
+                    >
+                      <TableCell>
+                        <div className="flex items-center gap-1.5">
+                          <SrcIcon className="size-4 shrink-0 text-muted-foreground" />
+                          <span className="min-w-0 truncate font-medium">
+                            {tText(post.title, post.titleZh, preferOriginal)}
+                          </span>
+                          {isTranslated(post) ? (
+                            <Languages
+                              aria-label="已翻译"
+                              className="size-3.5 shrink-0 text-muted-foreground/50"
+                            />
+                          ) : null}
+                        </div>
+                      </TableCell>
+                      <TableCell className="hidden text-muted-foreground md:table-cell">
+                        <div className="truncate">{post.channel}</div>
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        <span className={misses === 0 ? 'text-signal' : 'text-muted-foreground'}>
+                          {misses === 0 ? '活跃' : `连未变 ${misses}`}
+                        </span>
+                        {dueNow ? <span className="ml-1.5 text-intensity-medium">到期</span> : null}
+                      </TableCell>
+                      <TableCell className="hidden text-xs text-muted-foreground lg:table-cell">
+                        {intervalLabel(misses)}
+                      </TableCell>
+                      <TableCell className="hidden text-right text-xs tabular-nums text-muted-foreground sm:table-cell">
+                        <span className="inline-flex items-center justify-end gap-3">
+                          <span className="inline-flex items-center gap-0.5">
+                            <ArrowBigUp className="size-3.5" />
+                            {post.score.toLocaleString()}
+                          </span>
+                          <span className="inline-flex items-center gap-1">
+                            <MessageSquare className="size-3" />
+                            {post.numComments}
+                          </span>
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
           </div>
-        )}
 
-        {d.pageCount > 1 ? (
-          <div className="flex items-center justify-between pt-1">
-            <Button size="sm" variant="outline" disabled={d.page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
-              <ChevronLeft className="size-3.5" /> 上一页
-            </Button>
-            <span className="text-xs tabular-nums text-muted-foreground">
-              第 {d.page} / {d.pageCount} 页
-            </span>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={d.page >= d.pageCount}
-              onClick={() => setPage((p) => p + 1)}
-            >
-              下一页 <ChevronRight className="size-3.5" />
-            </Button>
-          </div>
-        ) : null}
-      </div>
+          <Pagination
+            page={d.page}
+            pageCount={d.pageCount}
+            total={d.total}
+            basePath="/radar/posts"
+            query={{ source, status, q }}
+            pageSize={size}
+            pageSizeOptions={PAGE_SIZES}
+          />
+        </>
+      )}
     </>
   );
 }

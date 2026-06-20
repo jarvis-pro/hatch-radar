@@ -41,7 +41,13 @@ export const NAV_GROUPS: readonly NavGroup[] = [
   {
     label: '工作区',
     items: [
-      { to: '/', label: '数据看板', icon: LayoutDashboard, perm: 'insights:view', match: (p) => p === '/' },
+      {
+        to: '/',
+        label: '数据看板',
+        icon: LayoutDashboard,
+        perm: 'insights:view',
+        match: (p) => p === '/',
+      },
       {
         to: '/insights',
         label: '需求洞察',
@@ -49,13 +55,25 @@ export const NAV_GROUPS: readonly NavGroup[] = [
         perm: 'insights:view',
         match: (p) => p.startsWith('/insights'),
       },
-      { to: '/posts', label: '帖子库', icon: FileText, perm: 'posts:view', match: (p) => p.startsWith('/posts') },
+      {
+        to: '/posts',
+        label: '帖子库',
+        icon: FileText,
+        perm: 'posts:view',
+        match: (p) => p.startsWith('/posts'),
+      },
     ],
   },
   {
     label: '运营',
     items: [
-      { to: '/analyze', label: '发起分析', icon: Zap, perm: 'analyze:run', match: (p) => p.startsWith('/analyze') },
+      {
+        to: '/analyze',
+        label: '发起分析',
+        icon: Zap,
+        perm: 'analyze:run',
+        match: (p) => p.startsWith('/analyze'),
+      },
       {
         to: '/pipeline',
         label: '检视器',
@@ -81,7 +99,8 @@ export const NAV_GROUPS: readonly NavGroup[] = [
         icon: Radar,
         perm: 'analyze:run',
         // 枢纽 + 运行详情 / 运行历史（其余 radar 子页各自高亮）
-        match: (p) => p === '/radar' || p.startsWith('/radar/runs') || p.startsWith('/radar/processes'),
+        match: (p) =>
+          p === '/radar' || p.startsWith('/radar/runs') || p.startsWith('/radar/processes'),
       },
       {
         to: '/radar/blueprints',
@@ -99,7 +118,7 @@ export const NAV_GROUPS: readonly NavGroup[] = [
       },
       {
         to: '/radar/insights',
-        label: '收成洞察',
+        label: '洞察库',
         icon: Lightbulb,
         perm: 'analyze:run',
         match: (p) => p.startsWith('/radar/insights'),
