@@ -6,9 +6,18 @@
  * 后端落地时，这一层 read 换成 react-query + WS（实时通道），组件契约不变。
  */
 import { useSyncExternalStore } from 'react';
-import { type Speed, TICK_MS } from './constants';
+import { STAGE_TEMPLATES, type Speed, TICK_MS } from './constants';
 import { startRun, tick } from './engine';
-import type { ProcessStatus, World } from './types';
+import type {
+  Blueprint,
+  BlueprintKind,
+  CollectParams,
+  ProcessStatus,
+  RecheckParams,
+  SourceKind,
+  TriggerConfig,
+  World,
+} from './types';
 import { createInitialWorld } from './world';
 
 let world = createInitialWorld();
@@ -156,4 +165,112 @@ export function toggleGate(taskId: string, seq: number): void {
     s.gate = !s.gate;
     emit();
   }
+}
+
+// ─── 定义层 CRUD：图纸 / 进程 ───────────────────────────────────────────────────
+
+/** 只保留对该 kind 环节模板有效的闸门名。 */
+function validGates(kind: BlueprintKind, gates: string[]): string[] {
+  return gates.filter((g) => STAGE_TEMPLATES[kind].some((s) => s.name === g));
+}
+
+export function createBlueprint(input: {
+  kind: BlueprintKind;
+  label: string;
+  note?: string;
+  sources: { kind: SourceKind; channels: string[] }[];
+  params: CollectParams | RecheckParams;
+  gates?: string[];
+}): string {
+  world.seq += 1;
+  const id = `bp_${world.seq.toString(36)}`;
+  world.blueprints.unshift({
+    id,
+    kind: input.kind,
+    label: input.label,
+    note: input.note,
+    sources: input.sources,
+    params: input.params,
+    gates: validGates(input.kind, input.gates ?? []),
+  });
+  emit();
+  return id;
+}
+
+export function updateBlueprint(
+  id: string,
+  patch: Partial<Pick<Blueprint, 'label' | 'note' | 'kind' | 'sources' | 'params' | 'gates'>>,
+): void {
+  const b = world.blueprints.find((x) => x.id === id);
+  if (!b) return;
+  Object.assign(b, patch);
+  b.gates = validGates(b.kind, b.gates);
+  emit();
+}
+
+/** 图纸级挂 / 摘环节闸门（配方默认闸门，运行时落到任务环节）。 */
+export function toggleBlueprintGate(id: string, stageName: string): void {
+  const b = world.blueprints.find((x) => x.id === id);
+  if (!b) return;
+  b.gates = b.gates.includes(stageName)
+    ? b.gates.filter((g) => g !== stageName)
+    : [...b.gates, stageName];
+  emit();
+}
+
+/** 级联删除一组运行及其任务 / 孤儿请求。 */
+function dropRuns(runIds: string[]): void {
+  const drop = new Set(runIds);
+  world.runs = world.runs.filter((r) => !drop.has(r.id));
+  world.tasks = world.tasks.filter((t) => !drop.has(t.runId));
+  const taskIds = new Set(world.tasks.map((t) => t.id));
+  world.requests = world.requests.filter((r) => taskIds.has(r.taskId));
+}
+
+export function deleteBlueprint(id: string): void {
+  world.processes = world.processes.filter((p) => p.blueprintId !== id);
+  dropRuns(world.runs.filter((r) => r.blueprintId === id).map((r) => r.id));
+  world.insights = world.insights.filter((i) => i.blueprintId !== id);
+  world.blueprints = world.blueprints.filter((b) => b.id !== id);
+  emit();
+}
+
+export function createProcess(input: {
+  blueprintId: string;
+  label: string;
+  trigger: TriggerConfig;
+}): string {
+  world.seq += 1;
+  const id = `pr_${world.seq.toString(36)}`;
+  world.processes.unshift({
+    id,
+    blueprintId: input.blueprintId,
+    label: input.label,
+    trigger: input.trigger,
+    status: 'active',
+    lastRunAt: null,
+    nextRunAt: input.trigger.kind === 'once' ? null : world.nowMs + 5000,
+    sweepSeq: 0,
+    runsTotal: 0,
+  });
+  emit();
+  return id;
+}
+
+export function updateProcess(id: string, patch: { label?: string; trigger?: TriggerConfig }): void {
+  const p = world.processes.find((x) => x.id === id);
+  if (!p) return;
+  if (patch.label !== undefined) p.label = patch.label;
+  if (patch.trigger !== undefined) {
+    p.trigger = patch.trigger;
+    if (p.status === 'active') p.nextRunAt = patch.trigger.kind === 'once' ? null : world.nowMs + 5000;
+  }
+  emit();
+}
+
+export function deleteProcess(id: string): void {
+  dropRuns(world.runs.filter((r) => r.processId === id).map((r) => r.id));
+  world.insights = world.insights.filter((i) => i.processId !== id);
+  world.processes = world.processes.filter((p) => p.id !== id);
+  emit();
 }

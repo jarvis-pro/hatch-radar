@@ -24,6 +24,7 @@ import { PostDetailPage } from '@/pages/post-detail';
 import { PostsPage } from '@/pages/posts';
 import { RequestsPage } from '@/pages/requests';
 import { SettingsPage } from '@/pages/settings';
+import { BlueprintsPage } from '@/radar-lab/blueprints';
 import { ControlRoomPage } from '@/radar-lab/control-room';
 import { HarvestPage } from '@/radar-lab/harvest';
 import { RequestGatePage } from '@/radar-lab/request-gate';
@@ -51,6 +52,7 @@ export const router = createBrowserRouter([
       { path: 'processes/:id/runs/:runId', element: <RunDetailPage /> },
       // 雷达指挥室（radar-lab，全新 mock 闭环原型）
       { path: 'radar', element: <ControlRoomPage /> },
+      { path: 'radar/blueprints', element: <BlueprintsPage /> },
       { path: 'radar/runs/:runId', element: <RadarRunDetailPage /> },
       { path: 'radar/requests', element: <RequestGatePage /> },
       { path: 'radar/insights', element: <HarvestPage /> },

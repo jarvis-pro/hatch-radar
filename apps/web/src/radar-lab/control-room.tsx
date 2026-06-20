@@ -1,10 +1,10 @@
 /**
- * 指挥室首页（/radar）—— 这台情报雷达「此刻在干什么」。
+ * 指挥室首页（/radar）—— 这台情报雷达「此刻在干什么」+ 闭环各面的枢纽。
  *
- * 四块：今日收成（新帖/洞察/运行/在途）· 请求闸实时（各 lane 速率/深度，可暂停）·
- * 活跃进程（脉动 + 当前运行进度 + 立即触发）· 告警（最近失败运行）。
- * 全部订阅活的 world，每帧重渲染——打开就看到它在动。
+ * 今日收成 · 请求闸实时 · 活跃进程（脉动/进度/触发/编辑删除/新建）· 告警。
+ * 出链：今日洞察→收成、请求闸→执行计划、进程→运行详情/历史、图纸→定义端。全屏订阅活的 world。
  */
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Activity,
@@ -12,14 +12,26 @@ import {
   ChevronRight,
   Gauge,
   Inbox,
+  LayoutTemplate,
+  MoreHorizontal,
   Pause,
+  Pencil,
   Play,
+  Plus,
   Sparkles,
+  Trash2,
   Zap,
 } from 'lucide-react';
 import { Badge } from '@hatch-radar/ui/components/badge';
 import { Button } from '@hatch-radar/ui/components/button';
 import { Card } from '@hatch-radar/ui/components/card';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@hatch-radar/ui/components/dropdown-menu';
 import { Progress } from '@hatch-radar/ui/components/progress';
 import { toast } from '@hatch-radar/ui/components/sonner';
 import { cn } from '@hatch-radar/ui/lib/utils';
@@ -27,9 +39,11 @@ import { RequirePerm } from '@/auth/require-perm';
 import { PageHeader } from '@/components/page-header';
 import { StatCard } from '@/components/stat-card';
 import { ClockBar } from './clock-bar';
+import { ConfirmDelete } from './confirm-delete';
 import { KIND_META, LANE_META, TRIGGER_META } from './constants';
-import { pauseLane, setProcessStatus, triggerProcess, useWorld } from './store';
-import type { World } from './types';
+import { ProcessFormDialog } from './forms';
+import { deleteProcess, pauseLane, setProcessStatus, triggerProcess, useWorld } from './store';
+import type { Blueprint, World } from './types';
 import { relFuture, relPast, triggerSummary } from './util';
 
 function selectControlRoom(w: World) {
@@ -86,8 +100,6 @@ function selectControlRoom(w: World) {
 
 type CRData = ReturnType<typeof selectControlRoom>;
 
-// ─── 请求闸实时（lane 速率/深度，可暂停） ──────────────────────────────────────
-
 function LaneRow({ lane }: { lane: CRData['lanes'][number] }) {
   const meta = LANE_META[lane.id];
   const Icon = meta.icon;
@@ -114,23 +126,27 @@ function LaneRow({ lane }: { lane: CRData['lanes'][number] }) {
         aria-label={lane.paused ? '恢复 lane' : '暂停 lane'}
         onClick={() => pauseLane(lane.id, !lane.paused)}
       >
-        {lane.paused ? (
-          <Play className="size-3.5 text-intensity-medium" />
-        ) : (
-          <Pause className="size-3.5" />
-        )}
+        {lane.paused ? <Play className="size-3.5 text-intensity-medium" /> : <Pause className="size-3.5" />}
       </Button>
     </div>
   );
 }
 
-// ─── 活跃进程卡（脉动 + 当前运行进度 + 立即触发） ──────────────────────────────
-
-function ProcessRow({ row, nowMs }: { row: CRData['processes'][number]; nowMs: number }) {
+function ProcessRow({
+  row,
+  nowMs,
+  blueprints,
+}: {
+  row: CRData['processes'][number];
+  nowMs: number;
+  blueprints: Blueprint[];
+}) {
   const navigate = useNavigate();
   const { p, blueprint, run, total, done, latestRunId } = row;
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
   const TriggerIcon = TRIGGER_META[p.trigger.kind].icon;
+  const [editOpen, setEditOpen] = useState(false);
+  const [delOpen, setDelOpen] = useState(false);
 
   const open = (): void => {
     if (run) navigate(`/radar/runs/${run.id}`);
@@ -171,6 +187,25 @@ function ProcessRow({ row, nowMs }: { row: CRData['processes'][number]; nowMs: n
           >
             <Zap className="size-3.5" />
           </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="icon-sm" variant="ghost" className="text-muted-foreground" aria-label="进程操作">
+                <MoreHorizontal className="size-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-36">
+              <DropdownMenuItem onClick={() => navigate(`/radar/processes/${p.id}/runs`)}>
+                运行记录
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setEditOpen(true)}>
+                <Pencil className="size-4" /> 编辑节奏
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem variant="destructive" onClick={() => setDelOpen(true)}>
+                <Trash2 className="size-4" /> 删除进程
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -210,14 +245,27 @@ function ProcessRow({ row, nowMs }: { row: CRData['processes'][number]; nowMs: n
           </span>
         </div>
       )}
+
+      <ProcessFormDialog open={editOpen} onOpenChange={setEditOpen} blueprints={blueprints} editing={p} />
+      <ConfirmDelete
+        open={delOpen}
+        onOpenChange={setDelOpen}
+        title="删除进程"
+        description={`将删除进程「${p.label}」及其运行记录。图纸本身保留。`}
+        onConfirm={() => {
+          deleteProcess(p.id);
+          toast.success('进程已删除');
+        }}
+      />
     </Card>
   );
 }
 
-// ─── 页面 ──────────────────────────────────────────────────────────────────────
-
 function ControlRoom() {
   const d = useWorld(selectControlRoom);
+  const blueprints = useWorld((w) => w.blueprints);
+  const [newProcOpen, setNewProcOpen] = useState(false);
+
   return (
     <>
       <PageHeader
@@ -255,10 +303,22 @@ function ControlRoom() {
         </Card>
 
         <div>
-          <h2 className="mb-2 text-sm font-semibold">活跃进程</h2>
+          <div className="mb-2 flex items-center justify-between">
+            <h2 className="text-sm font-semibold">活跃进程</h2>
+            <div className="flex items-center gap-2">
+              <Button asChild size="sm" variant="ghost" className="text-muted-foreground">
+                <Link to="/radar/blueprints">
+                  <LayoutTemplate className="size-3.5" /> 图纸
+                </Link>
+              </Button>
+              <Button size="sm" disabled={blueprints.length === 0} onClick={() => setNewProcOpen(true)}>
+                <Plus className="size-3.5" /> 新建进程
+              </Button>
+            </div>
+          </div>
           <div className="grid grid-cols-[repeat(auto-fill,minmax(min(22rem,100%),1fr))] gap-3">
             {d.processes.map((row) => (
-              <ProcessRow key={row.p.id} row={row} nowMs={d.nowMs} />
+              <ProcessRow key={row.p.id} row={row} nowMs={d.nowMs} blueprints={blueprints} />
             ))}
           </div>
         </div>
@@ -288,6 +348,8 @@ function ControlRoom() {
           </Card>
         ) : null}
       </div>
+
+      <ProcessFormDialog open={newProcOpen} onOpenChange={setNewProcOpen} blueprints={blueprints} />
     </>
   );
 }
