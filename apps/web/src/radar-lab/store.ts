@@ -23,6 +23,8 @@ import { createInitialWorld } from './world';
 let world = createInitialWorld();
 let speed: Speed = 4;
 let paused = false;
+/** 全局显示语言偏好：false=译文优先（默认），true=显示原文。处处生效。 */
+let preferOriginal = false;
 let version = 0;
 
 const listeners = new Set<() => void>();
@@ -63,6 +65,16 @@ export function useWorld<T>(selector: (w: World) => T): T {
 export function useClock(): { nowMs: number; speed: Speed; paused: boolean } {
   useSyncExternalStore(subscribe, getVersion, getVersion);
   return { nowMs: world.nowMs, speed, paused };
+}
+
+/** 全局显示语言偏好：false=译文优先（默认），true=显示原文。 */
+export function useLang(): boolean {
+  useSyncExternalStore(subscribe, getVersion, getVersion);
+  return preferOriginal;
+}
+export function setPreferOriginal(v: boolean): void {
+  preferOriginal = v;
+  emit();
 }
 
 // ─── 时钟控制 ──────────────────────────────────────────────────────────────────

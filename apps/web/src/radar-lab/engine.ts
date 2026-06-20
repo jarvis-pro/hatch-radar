@@ -71,63 +71,84 @@ function tagsFor(post: Post): string[] {
 }
 
 // 待发现池耗尽时合成新帖，让采集可持续产出。
-const SYNTH: { source: SourceKind; channel: string; title: string; body: string; score: number; numComments: number; commentDepth: number }[] =
-  [
-    {
-      source: 'reddit',
-      channel: 'r/SaaS',
-      title: 'Trial-to-paid stuck at 2% — what finally moved it for you?',
-      body: 'Tons of trials, almost nobody upgrades. We gate features, send emails… still 2%. What actually worked?',
-      score: 156,
-      numComments: 44,
-      commentDepth: 2,
-    },
-    {
-      source: 'reddit',
-      channel: 'r/startups',
-      title: 'Investor wants 30% — is it ever worth it at pre-seed?',
-      body: 'First check, big name, but 30% feels brutal this early. How did you think about it?',
-      score: 233,
-      numComments: 61,
-      commentDepth: 2,
-    },
-    {
-      source: 'reddit',
-      channel: 'r/Entrepreneur',
-      title: 'I automated my whole support queue and customers hate it',
-      body: 'Full AI support. CSAT tanked. Turns out people want a human for billing issues specifically.',
-      score: 188,
-      numComments: 52,
-      commentDepth: 2,
-    },
-    {
-      source: 'hackernews',
-      channel: 'new',
-      title: 'Ask HN: How do you price a developer tool nobody has seen before?',
-      body: 'New category, no comparables. Seat-based? Usage? Flat? Lost on where to even start.',
-      score: 174,
-      numComments: 98,
-      commentDepth: 2,
-    },
-    {
-      source: 'reddit',
-      channel: 'r/SaaS',
-      title: 'Annual plans saved our cash flow but killed our churn signal',
-      body: 'Everyone on annual now. Cash is great, but we only learn about unhappy customers at renewal — too late.',
-      score: 142,
-      numComments: 37,
-      commentDepth: 1,
-    },
-    {
-      source: 'hackernews',
-      channel: 'front',
-      title: 'Show HN: A tiny CLI that diffs two API responses semantically',
-      body: '',
-      score: 421,
-      numComments: 130,
-      commentDepth: 3,
-    },
-  ];
+const SYNTH: {
+  source: SourceKind;
+  channel: string;
+  title: string;
+  titleZh: string;
+  body: string;
+  bodyZh: string;
+  score: number;
+  numComments: number;
+  commentDepth: number;
+}[] = [
+  {
+    source: 'reddit',
+    channel: 'r/SaaS',
+    title: 'Trial-to-paid stuck at 2% — what finally moved it for you?',
+    titleZh: '试用转付费卡在 2%——你们最后靠什么撬动的？',
+    body: 'Tons of trials, almost nobody upgrades. We gate features, send emails… still 2%. What actually worked?',
+    bodyZh: '试用一大堆，几乎没人升级。功能设了闸、邮件也发了……还是 2%。到底什么管用？',
+    score: 156,
+    numComments: 44,
+    commentDepth: 2,
+  },
+  {
+    source: 'reddit',
+    channel: 'r/startups',
+    title: 'Investor wants 30% — is it ever worth it at pre-seed?',
+    titleZh: '投资人要 30%——种子前阶段这值得吗？',
+    body: 'First check, big name, but 30% feels brutal this early. How did you think about it?',
+    bodyZh: '第一张支票、名头很大，但这么早就 30% 太狠了。你们当时怎么权衡的？',
+    score: 233,
+    numComments: 61,
+    commentDepth: 2,
+  },
+  {
+    source: 'reddit',
+    channel: 'r/Entrepreneur',
+    title: 'I automated my whole support queue and customers hate it',
+    titleZh: '我把整个客服队列自动化了，结果客户恨死了',
+    body: 'Full AI support. CSAT tanked. Turns out people want a human for billing issues specifically.',
+    bodyZh: '全 AI 客服。CSAT 暴跌。原来一到账单问题，用户就是想找真人。',
+    score: 188,
+    numComments: 52,
+    commentDepth: 2,
+  },
+  {
+    source: 'hackernews',
+    channel: 'new',
+    title: 'Ask HN: How do you price a developer tool nobody has seen before?',
+    titleZh: 'Ask HN：一个前所未见的开发者工具，定价怎么定？',
+    body: 'New category, no comparables. Seat-based? Usage? Flat? Lost on where to even start.',
+    bodyZh: '全新品类，没有可对标的。按席位？按用量？一口价？连从哪下手都没头绪。',
+    score: 174,
+    numComments: 98,
+    commentDepth: 2,
+  },
+  {
+    source: 'reddit',
+    channel: 'r/SaaS',
+    title: 'Annual plans saved our cash flow but killed our churn signal',
+    titleZh: '年付救了现金流，却毁了我们的流失信号',
+    body: 'Everyone on annual now. Cash is great, but we only learn about unhappy customers at renewal — too late.',
+    bodyZh: '现在大家都年付。现金很爽，但我们只有到续费时才知道哪些客户不满——太晚了。',
+    score: 142,
+    numComments: 37,
+    commentDepth: 1,
+  },
+  {
+    source: 'hackernews',
+    channel: 'front',
+    title: 'Show HN: A tiny CLI that diffs two API responses semantically',
+    titleZh: 'Show HN：一个语义化对比两个 API 响应的小 CLI',
+    body: '',
+    bodyZh: '',
+    score: 421,
+    numComments: 130,
+    commentDepth: 3,
+  },
+];
 
 function synthPost(world: World, prefer: SourceKind[]): Post {
   const pool = SYNTH.filter((s) => prefer.includes(s.source));
@@ -139,14 +160,24 @@ function synthPost(world: World, prefer: SourceKind[]): Post {
     source: base.source,
     channel: base.channel,
     title: base.title,
+    titleZh: base.titleZh,
     body: base.body,
+    bodyZh: base.bodyZh,
     author: `user_${(n % 900) + 100}`,
     score: base.score + (n % 40),
     numComments: base.numComments + (n % 12),
     commentDepth: base.commentDepth,
     ageMinutes: 1 + (n % 9),
     comments: base.body
-      ? [{ author: 'commenter', score: 10 + (n % 30), depth: 0, body: 'This resonates — we hit the same wall.' }]
+      ? [
+          {
+            author: 'commenter',
+            score: 10 + (n % 30),
+            depth: 0,
+            body: 'This resonates — we hit the same wall.',
+            bodyZh: '深有同感——我们撞过同一堵墙。',
+          },
+        ]
       : [],
   };
 }

@@ -32,6 +32,17 @@ export function fmtDur(ms: number): string {
   return r ? `${m}m ${r}s` : `${m}m`;
 }
 
+/** 译文优先取值：preferOriginal 时取原文；否则有译文取译文、无则回退原文。 */
+export function tText(original: string, zh: string | undefined, preferOriginal: boolean): string {
+  if (preferOriginal) return original;
+  return zh && zh.length > 0 ? zh : original;
+}
+
+/** 该帖是否已翻译（有标题译文即视为已翻译）。 */
+export function isTranslated(p: { titleZh?: string }): boolean {
+  return !!(p.titleZh && p.titleZh.length > 0);
+}
+
 /** 触发节奏一句话。 */
 export function triggerSummary(t: TriggerConfig): string {
   if (t.kind === 'once') return '单次';

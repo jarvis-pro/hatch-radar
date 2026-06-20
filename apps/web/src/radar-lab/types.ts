@@ -41,6 +41,8 @@ export interface Comment {
   /** 嵌套深度（0 = 顶层）。 */
   depth: number;
   body: string;
+  /** 评论正文中文译文。 */
+  bodyZh?: string;
   children?: Comment[];
 }
 
@@ -50,7 +52,11 @@ export interface Post {
   /** reddit=r/版块 · hackernews=front/new · rss=订阅名。 */
   channel: string;
   title: string;
+  /** 标题中文译文（有则视为「已翻译」）。 */
+  titleZh?: string;
   body: string;
+  /** 正文中文译文。 */
+  bodyZh?: string;
   author: string;
   score: number;
   /** 源站评论计数（复查基线即此值）。 */
