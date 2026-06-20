@@ -24,6 +24,11 @@ import { PostDetailPage } from '@/pages/post-detail';
 import { PostsPage } from '@/pages/posts';
 import { RequestsPage } from '@/pages/requests';
 import { SettingsPage } from '@/pages/settings';
+import { ControlRoomPage } from '@/radar-lab/control-room';
+import { HarvestPage } from '@/radar-lab/harvest';
+import { RequestGatePage } from '@/radar-lab/request-gate';
+import { RadarRunDetailPage } from '@/radar-lab/run-detail';
+import { RadarRunsPage } from '@/radar-lab/runs';
 
 /**
  * 客户端路由（React Router 数据路由，无 SSR）。
@@ -44,6 +49,12 @@ export const router = createBrowserRouter([
       { path: 'processes', element: <ProcessesPage /> },
       { path: 'processes/:id/runs', element: <ProcessRunsPage /> },
       { path: 'processes/:id/runs/:runId', element: <RunDetailPage /> },
+      // 雷达指挥室（radar-lab，全新 mock 闭环原型）
+      { path: 'radar', element: <ControlRoomPage /> },
+      { path: 'radar/runs/:runId', element: <RadarRunDetailPage /> },
+      { path: 'radar/requests', element: <RequestGatePage /> },
+      { path: 'radar/insights', element: <HarvestPage /> },
+      { path: 'radar/processes/:id/runs', element: <RadarRunsPage /> },
       { path: 'inspect/:jobId', element: <InspectPage /> },
       { path: 'pipeline', element: <PipelinePage /> },
       { path: 'pipeline/:id', element: <PipelineDetailPage /> },

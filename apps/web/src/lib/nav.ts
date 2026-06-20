@@ -3,6 +3,7 @@ import {
   Gauge,
   LayoutDashboard,
   LayoutTemplate,
+  Radar,
   Repeat,
   ScrollText,
   Settings2,
@@ -64,6 +65,13 @@ export const NAV_GROUPS: readonly NavGroup[] = [
   {
     label: '运营',
     items: [
+      {
+        to: '/radar',
+        label: '指挥室',
+        icon: Radar,
+        perm: 'analyze:run',
+        match: (p) => p.startsWith('/radar'),
+      },
       {
         to: '/blueprints',
         label: '图纸',
