@@ -17,7 +17,6 @@ import { RequirePerm } from '@/auth/require-perm';
 import { EmptyState } from '@/components/empty';
 import { PageHeader } from '@/components/page-header';
 import { StatCard } from '@/components/stat-card';
-import { ClockBar } from './clock-bar';
 import { KIND_META, RUN_STATUS_META } from './constants';
 import { useWorld } from './store';
 import type { World } from './types';
@@ -25,7 +24,9 @@ import { fmtDur, relPast, triggerSummary } from './util';
 
 function selectRuns(w: World, processId: string) {
   const process = w.processes.find((p) => p.id === processId) ?? null;
-  const blueprint = process ? (w.blueprints.find((b) => b.id === process.blueprintId) ?? null) : null;
+  const blueprint = process
+    ? (w.blueprints.find((b) => b.id === process.blueprintId) ?? null)
+    : null;
   const all = w.runs
     .filter((r) => r.processId === processId)
     .sort((a, b) => b.startedAt - a.startedAt)
@@ -34,7 +35,8 @@ function selectRuns(w: World, processId: string) {
       const total = ts.length;
       const done = ts.filter((t) => t.status === 'succeeded' || t.status === 'skipped').length;
       const failed = ts.filter((t) => t.status === 'failed').length;
-      const pct = total > 0 ? Math.round((done / total) * 100) : run.status === 'completed' ? 100 : 0;
+      const pct =
+        total > 0 ? Math.round((done / total) * 100) : run.status === 'completed' ? 100 : 0;
       return { run, total, done, failed, pct };
     });
   const completed = all.filter((r) => r.run.status === 'completed').length;
@@ -76,7 +78,6 @@ function RunsView() {
             ) : null}
           </span>
         }
-        actions={<ClockBar />}
       />
       <div className="space-y-5">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -127,7 +128,9 @@ function RunsView() {
                     >
                       <TableCell>
                         <div className="font-mono text-sm font-medium tabular-nums">#{ordinal}</div>
-                        <div className="text-xs text-muted-foreground">{relPast(run.startedAt, d.nowMs)}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {relPast(run.startedAt, d.nowMs)}
+                        </div>
                       </TableCell>
                       <TableCell>
                         <Badge variant={meta.variant} title={run.error ?? undefined}>
@@ -146,10 +149,15 @@ function RunsView() {
                           </div>
                           <div className="text-xs tabular-nums text-muted-foreground">
                             {total > 0 ? `${done}/${total} 任务` : '—'}
-                            {failed > 0 ? <span className="text-destructive"> · 失败 {failed}</span> : null}
+                            {failed > 0 ? (
+                              <span className="text-destructive"> · 失败 {failed}</span>
+                            ) : null}
                           </div>
                           {run.status === 'failed' && run.error ? (
-                            <div className={cn('truncate text-xs text-destructive/90')} title={run.error}>
+                            <div
+                              className={cn('truncate text-xs text-destructive/90')}
+                              title={run.error}
+                            >
                               {run.error}
                             </div>
                           ) : null}

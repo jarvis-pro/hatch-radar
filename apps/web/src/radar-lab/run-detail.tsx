@@ -9,7 +9,16 @@
  */
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Activity, ArrowBigUp, ChevronRight, Layers, Lock, LockOpen, MessageSquare, Sparkles } from 'lucide-react';
+import {
+  Activity,
+  ArrowBigUp,
+  ChevronRight,
+  Layers,
+  Lock,
+  LockOpen,
+  MessageSquare,
+  Sparkles,
+} from 'lucide-react';
 import { Badge } from '@hatch-radar/ui/components/badge';
 import { Button } from '@hatch-radar/ui/components/button';
 import { Card } from '@hatch-radar/ui/components/card';
@@ -18,7 +27,6 @@ import { RequirePerm } from '@/auth/require-perm';
 import { EmptyState } from '@/components/empty';
 import { PageHeader } from '@/components/page-header';
 import { commentAvatarDataUri } from '@/lib/avatar';
-import { ClockBar } from './clock-bar';
 import {
   KIND_META,
   LANE_META,
@@ -160,7 +168,8 @@ function selectRun(w: World, runId: string) {
     })
     .filter((p) => p.total > 0);
 
-  const elapsed = (run.status === 'running' ? w.nowMs : (run.finishedAt ?? w.nowMs)) - run.startedAt;
+  const elapsed =
+    (run.status === 'running' ? w.nowMs : (run.finishedAt ?? w.nowMs)) - run.startedAt;
   const insights = w.insights.filter((i) => i.runId === runId).length;
 
   return {
@@ -232,8 +241,19 @@ function joinLanes(lanes: [LaneId, number][]): string {
 }
 
 function RunOverview({ data }: { data: RunData }) {
-  const { run, total, done, counts, runningByStage, waitingByLane, pausedByStage, phases, elapsed, inflight, insights } =
-    data;
+  const {
+    run,
+    total,
+    done,
+    counts,
+    runningByStage,
+    waitingByLane,
+    pausedByStage,
+    phases,
+    elapsed,
+    inflight,
+    insights,
+  } = data;
   const isRunning = run.status === 'running';
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
   const hasLive = counts.executing + counts.waiting + counts.paused + counts.queued > 0;
@@ -242,7 +262,9 @@ function RunOverview({ data }: { data: RunData }) {
     <Card className="gap-3 p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="inline-flex items-center gap-2 text-sm font-semibold">
-          <Activity className={cn('size-4', isRunning ? 'text-primary' : 'text-muted-foreground')} />
+          <Activity
+            className={cn('size-4', isRunning ? 'text-primary' : 'text-muted-foreground')}
+          />
           {isRunning ? '运行此刻' : '运行结果'}
         </h2>
         <span className="text-xs tabular-nums text-muted-foreground">
@@ -329,7 +351,10 @@ function RunOverview({ data }: { data: RunData }) {
           className="inline-flex w-fit items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
         >
           <Sparkles className="size-3.5 text-intensity-high" />
-          本次已收成 <span className="font-medium tabular-nums text-foreground">{insights}</span> 条洞察
+          本次已收成 <span className="font-medium tabular-nums text-foreground">
+            {insights}
+          </span>{' '}
+          条洞察
           <ChevronRight className="size-3.5" />
         </Link>
       ) : null}
@@ -356,7 +381,11 @@ function StageDots({ stages }: { stages: Stage[] }) {
 type Tone = 'primary' | 'amber' | 'red' | 'done' | 'muted';
 const TONE: Record<Tone, { text: string; dot: string; tint: string }> = {
   primary: { text: 'text-primary', dot: 'bg-primary', tint: 'bg-primary/5' },
-  amber: { text: 'text-intensity-medium', dot: 'bg-intensity-medium', tint: 'bg-intensity-medium/10' },
+  amber: {
+    text: 'text-intensity-medium',
+    dot: 'bg-intensity-medium',
+    tint: 'bg-intensity-medium/10',
+  },
   red: { text: 'text-destructive', dot: 'bg-intensity-high', tint: 'bg-destructive/5' },
   done: { text: 'text-muted-foreground', dot: 'bg-muted-foreground', tint: '' },
   muted: { text: 'text-muted-foreground/70', dot: 'bg-muted-foreground/30', tint: '' },
@@ -385,7 +414,10 @@ function liveState(task: Task): { tone: Tone; label: string } {
     case 'succeeded':
       return {
         tone: 'done',
-        label: task.startedAt && task.finishedAt ? `完成·${fmtDur(task.finishedAt - task.startedAt)}` : '完成',
+        label:
+          task.startedAt && task.finishedAt
+            ? `完成·${fmtDur(task.finishedAt - task.startedAt)}`
+            : '完成',
       };
     case 'skipped':
       return { tone: 'done', label: '略过' };
@@ -430,10 +462,15 @@ function TaskRow({
       <Icon className={cn('size-4 shrink-0', meta.color)} />
       <span className="shrink-0 font-medium">{meta.label}</span>
       <span className="min-w-0 flex-1 truncate text-muted-foreground">
-        {task.post ? tText(task.post.title, task.post.titleZh, preferOriginal) : '列表发现 + 去重 + 派生'}
+        {task.post
+          ? tText(task.post.title, task.post.titleZh, preferOriginal)
+          : '列表发现 + 去重 + 派生'}
       </span>
       <StageDots stages={task.stages} />
-      <span className={cn('w-24 shrink-0 truncate text-right text-xs tabular-nums', tone.text)} title={live.label}>
+      <span
+        className={cn('w-24 shrink-0 truncate text-right text-xs tabular-nums', tone.text)}
+        title={live.label}
+      >
         {live.label}
       </span>
     </button>
@@ -456,7 +493,9 @@ function CommentNode({ c }: { c: Comment }) {
         <span className="font-medium text-foreground">u/{c.author}</span>
         <span className="text-muted-foreground">· ↑{c.score}</span>
       </div>
-      <p className="text-xs leading-relaxed text-muted-foreground">{tText(c.body, c.bodyZh, preferOriginal)}</p>
+      <p className="text-xs leading-relaxed text-muted-foreground">
+        {tText(c.body, c.bodyZh, preferOriginal)}
+      </p>
       {c.children && c.children.length > 0 ? (
         <div className="mt-1.5 space-y-2 border-l pl-2.5">
           {c.children.map((ch, i) => (
@@ -480,7 +519,9 @@ function PostCard({ post, nowMs }: { post: Post; nowMs: number }) {
         </span>
         <span className="ml-auto">{relPast(nowMs - post.ageMinutes * 60_000, nowMs)}</span>
       </div>
-      <p className="text-sm leading-snug font-medium">{tText(post.title, post.titleZh, preferOriginal)}</p>
+      <p className="text-sm leading-snug font-medium">
+        {tText(post.title, post.titleZh, preferOriginal)}
+      </p>
       {post.body ? (
         <p className="max-h-32 overflow-y-auto text-xs leading-relaxed whitespace-pre-line text-muted-foreground">
           {tText(post.body, post.bodyZh, preferOriginal)}
@@ -500,7 +541,8 @@ function PostCard({ post, nowMs }: { post: Post; nowMs: number }) {
         </span>
         {post.commentDepth > 0 ? (
           <span className="inline-flex items-center gap-1">
-            <Layers className="size-3" />最深 {post.commentDepth} 层
+            <Layers className="size-3" />
+            最深 {post.commentDepth} 层
           </span>
         ) : null}
       </div>
@@ -540,7 +582,9 @@ function TaskPanel({ task, nowMs }: { task: Task; nowMs: number }) {
       <div className="flex flex-wrap items-center gap-2">
         <kindMeta.icon className={cn('size-4', kindMeta.color)} />
         <span className="text-sm font-medium">{kindMeta.label}</span>
-        {task.post ? <span className="font-mono text-xs text-muted-foreground">{task.post.id}</span> : null}
+        {task.post ? (
+          <span className="font-mono text-xs text-muted-foreground">{task.post.id}</span>
+        ) : null}
         <Badge variant={meta.variant}>{meta.label}</Badge>
       </div>
 
@@ -569,17 +613,32 @@ function TaskPanel({ task, nowMs }: { task: Task; nowMs: number }) {
                   seq === s.seq ? 'bg-accent' : '',
                 )}
               >
-                <span className={cn('size-2 shrink-0 rounded-full', s.status === 'running' && 'signal-pulse', STAGE_STATUS_META[s.status].dot)} />
-                <button type="button" onClick={() => setSeq(s.seq)} className="flex min-w-0 flex-1 items-center gap-2 text-left">
+                <span
+                  className={cn(
+                    'size-2 shrink-0 rounded-full',
+                    s.status === 'running' && 'signal-pulse',
+                    STAGE_STATUS_META[s.status].dot,
+                  )}
+                />
+                <button
+                  type="button"
+                  onClick={() => setSeq(s.seq)}
+                  className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                >
                   <span className="shrink-0">{stageLabel(s.name)}</span>
-                  <span className="min-w-0 truncate font-mono text-[11px] text-muted-foreground/60">{s.name}</span>
+                  <span className="min-w-0 truncate font-mono text-[11px] text-muted-foreground/60">
+                    {s.name}
+                  </span>
                 </button>
                 <button
                   type="button"
                   disabled={!canGate}
                   onClick={() => toggleGate(task.id, s.seq)}
                   aria-label={s.gate ? '摘闸门' : '挂闸门'}
-                  className={cn('shrink-0', canGate ? 'hover:text-foreground' : 'cursor-default opacity-40')}
+                  className={cn(
+                    'shrink-0',
+                    canGate ? 'hover:text-foreground' : 'cursor-default opacity-40',
+                  )}
                 >
                   {s.gate ? (
                     <Lock className="size-3.5 text-intensity-medium" />
@@ -600,7 +659,9 @@ function TaskPanel({ task, nowMs }: { task: Task; nowMs: number }) {
         <div className="rounded-md border bg-background p-3 text-sm">
           <div className="mb-1.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
             产物 · <span className="text-foreground">{stageLabel(stage.name)}</span>
-            {stage.name === 'ai_call' ? <span className="text-intensity-high">· 不可重算</span> : null}
+            {stage.name === 'ai_call' ? (
+              <span className="text-intensity-high">· 不可重算</span>
+            ) : null}
           </div>
           {stage.error ? (
             <p className="text-destructive">{stage.error}</p>
@@ -621,7 +682,12 @@ function TaskPanel({ task, nowMs }: { task: Task; nowMs: number }) {
       {controls.length > 0 ? (
         <div className="flex flex-wrap gap-2">
           {controls.map((c) => (
-            <Button key={c.label} size="sm" variant={c.primary ? 'default' : 'outline'} onClick={c.run}>
+            <Button
+              key={c.label}
+              size="sm"
+              variant={c.primary ? 'default' : 'outline'}
+              onClick={c.run}
+            >
               {c.label}
             </Button>
           ))}
@@ -655,11 +721,12 @@ function RunDetailView() {
                 {KIND_META[blueprint.kind].label} · {blueprint.label}
               </span>
             ) : null}
-            {run.sweepSeq != null ? <span className="text-muted-foreground">sweep #{run.sweepSeq}</span> : null}
+            {run.sweepSeq != null ? (
+              <span className="text-muted-foreground">sweep #{run.sweepSeq}</span>
+            ) : null}
             <span className="text-muted-foreground">· {relPast(run.startedAt, nowMs)}起</span>
           </span>
         }
-        actions={<ClockBar />}
       />
 
       <div className="space-y-4">
@@ -686,7 +753,9 @@ function RunDetailView() {
               <TaskPanel task={selected} nowMs={nowMs} />
             ) : (
               <Card className="p-6">
-                <p className="text-sm text-muted-foreground">点左侧某个任务，查看它的帖子、逐环节产物与控制。</p>
+                <p className="text-sm text-muted-foreground">
+                  点左侧某个任务，查看它的帖子、逐环节产物与控制。
+                </p>
               </Card>
             )}
           </div>

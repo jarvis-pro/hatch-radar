@@ -17,6 +17,7 @@ import { can } from '@/auth/auth-context';
 import { CommandPalette } from '@/components/command-palette';
 import { SystemPulse } from '@/components/system-pulse';
 import { NAV_GROUPS } from '@/lib/nav';
+import { ClockBar } from '@/radar-lab/clock-bar';
 
 interface Crumb {
   label: string;
@@ -54,6 +55,10 @@ function crumbsFor(pathname: string): Crumb[] {
   // radar 运行详情 /radar/runs/:id
   if (/^\/radar\/runs\/[^/]+/.test(pathname)) {
     return [{ label: section.label, to: section.to }, { label: '运行详情' }];
+  }
+  // radar 帖子详情 /radar/posts/:id —— 嵌到「帖子库」下级，可点面包屑回退
+  if (/^\/radar\/posts\/[^/]+/.test(pathname)) {
+    return [{ label: section.label, to: section.to }, { label: '帖子详情' }];
   }
   if (/^\/insights\/[^/]+/.test(pathname) || /^\/posts\/[^/]+/.test(pathname)) {
     return [{ label: section.label, to: section.to }, { label: '详情' }];
@@ -102,6 +107,16 @@ export function TopBar({ user }: { user: CurrentUser }) {
         ) : null}
 
         <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
+          {/* 模拟时钟（radar-lab 调试工具）：仅 /radar 段常驻，避免破坏各页 UI */}
+          {pathname.startsWith('/radar') ? (
+            <>
+              <ClockBar />
+              <Separator
+                orientation="vertical"
+                className="mx-0.5 data-[orientation=vertical]:h-4"
+              />
+            </>
+          ) : null}
           <button
             type="button"
             onClick={() => setCmdOpen(true)}

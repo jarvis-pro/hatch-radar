@@ -39,7 +39,6 @@ import { cn } from '@hatch-radar/ui/lib/utils';
 import { RequirePerm } from '@/auth/require-perm';
 import { PageHeader } from '@/components/page-header';
 import { StatCard } from '@/components/stat-card';
-import { ClockBar } from './clock-bar';
 import { ConfirmDelete } from './confirm-delete';
 import { KIND_META, LANE_META, TRIGGER_META } from './constants';
 import { ProcessFormDialog } from './forms';
@@ -66,8 +65,9 @@ function selectControlRoom(w: World) {
     paused: l.paused,
     rate: l.recentReleases.length,
     ratePerMin: l.ratePerMin,
-    depth: w.requests.filter((r) => r.lane === l.id && (r.status === 'pending' || r.status === 'running'))
-      .length,
+    depth: w.requests.filter(
+      (r) => r.lane === l.id && (r.status === 'pending' || r.status === 'running'),
+    ).length,
   }));
 
   const processes = w.processes.map((p) => {
@@ -81,7 +81,9 @@ function selectControlRoom(w: World) {
       done = ts.filter((t) => t.status === 'succeeded' || t.status === 'skipped').length;
     }
     const latest =
-      run ?? w.runs.filter((r) => r.processId === p.id).sort((a, b) => b.startedAt - a.startedAt)[0] ?? null;
+      run ??
+      w.runs.filter((r) => r.processId === p.id).sort((a, b) => b.startedAt - a.startedAt)[0] ??
+      null;
     return { p, blueprint, run, total, done, latestRunId: latest?.id ?? null };
   });
 
@@ -116,7 +118,17 @@ function selectControlRoom(w: World) {
     })),
   };
 
-  return { insightsToday, postsToday, runsToday, inflight, lanes, processes, alerts, recheck, nowMs: w.nowMs };
+  return {
+    insightsToday,
+    postsToday,
+    runsToday,
+    inflight,
+    lanes,
+    processes,
+    alerts,
+    recheck,
+    nowMs: w.nowMs,
+  };
 }
 
 type CRData = ReturnType<typeof selectControlRoom>;
@@ -127,7 +139,12 @@ function LaneRow({ lane }: { lane: CRData['lanes'][number] }) {
   const util = lane.ratePerMin > 0 ? Math.min(100, (lane.rate / lane.ratePerMin) * 100) : 0;
   return (
     <div className="flex items-center gap-3 py-2">
-      <span className={cn('inline-flex w-28 shrink-0 items-center gap-1.5 text-sm font-medium', meta.color)}>
+      <span
+        className={cn(
+          'inline-flex w-28 shrink-0 items-center gap-1.5 text-sm font-medium',
+          meta.color,
+        )}
+      >
         <Icon className="size-4" />
         {meta.label}
       </span>
@@ -147,7 +164,11 @@ function LaneRow({ lane }: { lane: CRData['lanes'][number] }) {
         aria-label={lane.paused ? '恢复 lane' : '暂停 lane'}
         onClick={() => pauseLane(lane.id, !lane.paused)}
       >
-        {lane.paused ? <Play className="size-3.5 text-intensity-medium" /> : <Pause className="size-3.5" />}
+        {lane.paused ? (
+          <Play className="size-3.5 text-intensity-medium" />
+        ) : (
+          <Pause className="size-3.5" />
+        )}
       </Button>
     </div>
   );
@@ -178,11 +199,19 @@ function ProcessRow({
   return (
     <Card className="gap-3 p-4">
       <div className="flex items-start justify-between gap-2">
-        <button type="button" onClick={open} className="flex min-w-0 flex-1 items-center gap-2 text-left">
+        <button
+          type="button"
+          onClick={open}
+          className="flex min-w-0 flex-1 items-center gap-2 text-left"
+        >
           <span
             className={cn(
               'size-2 shrink-0 rounded-full',
-              run ? 'signal-pulse bg-primary' : p.status === 'active' ? 'bg-emerald-500' : 'bg-muted-foreground/50',
+              run
+                ? 'signal-pulse bg-primary'
+                : p.status === 'active'
+                  ? 'bg-emerald-500'
+                  : 'bg-muted-foreground/50',
             )}
           />
           <span className="truncate font-medium hover:text-primary">{p.label}</span>
@@ -210,7 +239,12 @@ function ProcessRow({
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button size="icon-sm" variant="ghost" className="text-muted-foreground" aria-label="进程操作">
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                className="text-muted-foreground"
+                aria-label="进程操作"
+              >
                 <MoreHorizontal className="size-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -236,7 +270,9 @@ function ProcessRow({
           {triggerSummary(p.trigger)}
         </span>
         {blueprint ? (
-          <span className="min-w-0 truncate">{KIND_META[blueprint.kind].label} · {blueprint.label}</span>
+          <span className="min-w-0 truncate">
+            {KIND_META[blueprint.kind].label} · {blueprint.label}
+          </span>
         ) : null}
         <Link
           to={`/radar/processes/${p.id}/runs`}
@@ -267,7 +303,12 @@ function ProcessRow({
         </div>
       )}
 
-      <ProcessFormDialog open={editOpen} onOpenChange={setEditOpen} blueprints={blueprints} editing={p} />
+      <ProcessFormDialog
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        blueprints={blueprints}
+        editing={p}
+      />
       <ConfirmDelete
         open={delOpen}
         onOpenChange={setDelOpen}
@@ -293,14 +334,18 @@ function ControlRoom() {
       <PageHeader
         title="指挥室"
         description="这台情报雷达此刻在干什么——实时进程、出站请求、今日收成，一屏掌握。"
-        actions={<ClockBar />}
       />
 
       <div className="space-y-6">
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <StatCard label="今日新帖" value={d.postsToday} icon={Inbox} hint="采集任务完成数" />
           <Link to="/radar/insights" className="block transition-opacity hover:opacity-80">
-            <StatCard label="今日洞察" value={d.insightsToday} icon={Sparkles} hint="分析产出 · 看收成 →" />
+            <StatCard
+              label="今日洞察"
+              value={d.insightsToday}
+              icon={Sparkles}
+              hint="分析产出 · 去洞察库 →"
+            />
           </Link>
           <StatCard label="在途任务" value={d.inflight} icon={Activity} hint="运行 + 排队 + 暂停" />
           {/* 复查健康卡见下方；新帖去掉跳转（浏览交工作区「帖子库」，单帖一生从上下文点入） */}
@@ -364,7 +409,11 @@ function ControlRoom() {
                   <LayoutTemplate className="size-3.5" /> 图纸
                 </Link>
               </Button>
-              <Button size="sm" disabled={blueprints.length === 0} onClick={() => setNewProcOpen(true)}>
+              <Button
+                size="sm"
+                disabled={blueprints.length === 0}
+                onClick={() => setNewProcOpen(true)}
+              >
                 <Plus className="size-3.5" /> 新建进程
               </Button>
             </div>

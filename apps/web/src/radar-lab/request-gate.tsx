@@ -13,7 +13,6 @@ import { cn } from '@hatch-radar/ui/lib/utils';
 import { RequirePerm } from '@/auth/require-perm';
 import { EmptyState } from '@/components/empty';
 import { PageHeader } from '@/components/page-header';
-import { ClockBar } from './clock-bar';
 import { LANE_META, stageLabel } from './constants';
 import { pauseLane, useWorld } from './store';
 import type { RequestRow, World } from './types';
@@ -44,10 +43,19 @@ const REQ_STATUS: Record<RequestRow['status'], { label: string; dot: string }> =
 
 function ReqRow({ req, nowMs }: { req: RequestRow; nowMs: number }) {
   const st = REQ_STATUS[req.status];
-  const age = req.status === 'running' && req.releasedAt ? `${Math.round((nowMs - req.releasedAt) / 1000)}s` : '';
+  const age =
+    req.status === 'running' && req.releasedAt
+      ? `${Math.round((nowMs - req.releasedAt) / 1000)}s`
+      : '';
   return (
     <div className="flex items-center gap-2 py-1 text-xs">
-      <span className={cn('size-1.5 shrink-0 rounded-full', req.status === 'running' && 'signal-pulse', st.dot)} />
+      <span
+        className={cn(
+          'size-1.5 shrink-0 rounded-full',
+          req.status === 'running' && 'signal-pulse',
+          st.dot,
+        )}
+      />
       <span className="shrink-0 font-medium">{stageLabel(req.purpose)}</span>
       <span className="min-w-0 flex-1 truncate text-muted-foreground">{req.detail}</span>
       <span className="shrink-0 tabular-nums text-muted-foreground/70">{age}</span>
@@ -56,7 +64,13 @@ function ReqRow({ req, nowMs }: { req: RequestRow; nowMs: number }) {
   );
 }
 
-function LaneCard({ data, nowMs }: { data: ReturnType<typeof selectLanes>[number]; nowMs: number }) {
+function LaneCard({
+  data,
+  nowMs,
+}: {
+  data: ReturnType<typeof selectLanes>[number];
+  nowMs: number;
+}) {
   const { lane, rate, depth, etaSec, running, pending, recent } = data;
   const meta = LANE_META[lane.id];
   const Icon = meta.icon;
@@ -78,16 +92,31 @@ function LaneCard({ data, nowMs }: { data: ReturnType<typeof selectLanes>[number
             aria-label={lane.paused ? '恢复 lane' : '暂停 lane'}
             onClick={() => pauseLane(lane.id, !lane.paused)}
           >
-            {lane.paused ? <Play className="size-3.5 text-intensity-medium" /> : <Pause className="size-3.5" />}
+            {lane.paused ? (
+              <Play className="size-3.5 text-intensity-medium" />
+            ) : (
+              <Pause className="size-3.5" />
+            )}
           </Button>
         </div>
       </div>
 
       <div className="flex items-center gap-4 text-xs tabular-nums text-muted-foreground">
-        <span>速率 <span className="font-medium text-foreground">{rate}</span>/min</span>
-        <span>队列 <span className="font-medium text-foreground">{depth}</span></span>
         <span>
-          排空 {lane.paused ? '—' : etaSec != null ? `~${fmtDur(etaSec * 1000)}` : depth > 0 ? '—' : '空闲'}
+          速率 <span className="font-medium text-foreground">{rate}</span>/min
+        </span>
+        <span>
+          队列 <span className="font-medium text-foreground">{depth}</span>
+        </span>
+        <span>
+          排空{' '}
+          {lane.paused
+            ? '—'
+            : etaSec != null
+              ? `~${fmtDur(etaSec * 1000)}`
+              : depth > 0
+                ? '—'
+                : '空闲'}
         </span>
         <span className="ml-auto">上限 {lane.ratePerMin}/min</span>
       </div>
@@ -119,7 +148,6 @@ function RequestGate() {
       <PageHeader
         title="请求闸"
         description="所有外站请求的共享收口：按 lane 限速、排队、可暂停。暂停某 lane，相关运行的抓取环节会停在「等放行」。"
-        actions={<ClockBar />}
       />
       <div className="mb-4 flex items-center gap-2">
         <Button
