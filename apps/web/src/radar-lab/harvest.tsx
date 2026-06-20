@@ -181,17 +181,20 @@ function InsightRow({
   const SrcIcon = SOURCE_META[insight.source].icon;
   return (
     <TableRow className="cursor-pointer" onClick={onClick}>
-      <TableCell>
-        <Badge variant="outline" className={cn('gap-1 px-1.5', im.text)}>
-          <span aria-hidden className={cn('size-1.5 rounded-full', im.bar)} />
-          {im.label}
-        </Badge>
+      <TableCell className="hidden font-mono text-xs text-muted-foreground/70 sm:table-cell">
+        <span className="block truncate">{insight.id}</span>
       </TableCell>
       <TableCell>
         <div className="truncate font-medium">{insight.painPoint}</div>
         <div className="truncate text-xs text-muted-foreground">
           {tText(insight.postTitle, insight.titleZh, preferOriginal)}
         </div>
+      </TableCell>
+      <TableCell>
+        <Badge variant="outline" className={cn('gap-1 px-1.5', im.text)}>
+          <span aria-hidden className={cn('size-1.5 rounded-full', im.bar)} />
+          {im.label}
+        </Badge>
       </TableCell>
       <TableCell className="hidden text-xs text-muted-foreground md:table-cell">
         <span className="inline-flex items-center gap-1 truncate">
@@ -348,8 +351,9 @@ function Harvest() {
             <Table className="table-fixed">
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
-                  <TableHead className="w-[4.5rem]">强度</TableHead>
+                  <TableHead className="hidden w-28 sm:table-cell">ID</TableHead>
                   <TableHead>痛点 · 帖</TableHead>
+                  <TableHead className="w-[4.5rem]">强度</TableHead>
                   <TableHead className="hidden w-40 md:table-cell">来源 · 版块</TableHead>
                   <TableHead className="hidden w-32 lg:table-cell">产自进程</TableHead>
                   <TableHead className="hidden w-48 xl:table-cell">标签</TableHead>

@@ -1,7 +1,7 @@
 /**
  * 帖子库（/radar/posts）—— 浏览 / 检索 mock 世界的语料。
  *
- * 传统表格展示（单条信息量小，一行足以）：标题（译文优先，已译帖在标题后标注翻译图标）/ 版块 / 复查状态 / 节奏 / 热度。
+ * 传统表格展示（单条信息量小，一行足以）：ID / 标题（译文优先，已译帖在标题后标注翻译图标）/ 版块 / 复查状态 / 节奏 / 热度。
  * 专属搜索栏走**延迟提交**：改下拉或输入并不立即查，点「搜索」才把条件写进 URL 生效，「重置」一键清空；
  * 区别于其余页共用的即时 FilterBar（故此页内联自己的栏，不复用）。URL search params 驱动可分享可回退，
  * 配统一 Pagination 翻页只渲当页抗规模。点行 → 详情。
@@ -213,6 +213,7 @@ function LibraryView() {
             <Table className="table-fixed">
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
+                  <TableHead className="hidden w-28 sm:table-cell">ID</TableHead>
                   <TableHead>标题</TableHead>
                   <TableHead className="hidden w-36 md:table-cell">版块</TableHead>
                   <TableHead className="w-28">状态</TableHead>
@@ -229,6 +230,9 @@ function LibraryView() {
                       className="cursor-pointer"
                       onClick={() => navigate(`/radar/posts/${post.id}`)}
                     >
+                      <TableCell className="hidden font-mono text-xs text-muted-foreground/70 sm:table-cell">
+                        <span className="block truncate">{post.id}</span>
+                      </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1.5">
                           <SrcIcon className="size-4 shrink-0 text-muted-foreground" />
