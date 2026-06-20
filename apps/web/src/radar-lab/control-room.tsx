@@ -23,7 +23,6 @@ import {
   Trash2,
   Zap,
 } from 'lucide-react';
-import { Badge } from '@hatch-radar/ui/components/badge';
 import { Button } from '@hatch-radar/ui/components/button';
 import { Card } from '@hatch-radar/ui/components/card';
 import {
@@ -33,7 +32,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@hatch-radar/ui/components/dropdown-menu';
-import { Progress } from '@hatch-radar/ui/components/progress';
 import { toast } from '@hatch-radar/ui/components/sonner';
 import { cn } from '@hatch-radar/ui/lib/utils';
 import { RequirePerm } from '@/auth/require-perm';
@@ -186,6 +184,17 @@ function ProcessRow({
   const navigate = useNavigate();
   const { p, blueprint, run, total, done, latestRunId } = row;
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+  // 待触发时进度条表示「距下次触发的进度」（蓄力 → 释放循环）：(周期 - 剩余) / 周期。
+  const intervalMs =
+    p.trigger.kind === 'interval'
+      ? p.trigger.everySec * 1000
+      : p.trigger.kind === 'cron'
+        ? 3_600_000
+        : 0;
+  const countdownPct =
+    p.status === 'active' && p.nextRunAt != null && intervalMs > 0
+      ? Math.max(0, Math.min(100, (1 - (p.nextRunAt - nowMs) / intervalMs) * 100))
+      : 0;
   const TriggerIcon = TRIGGER_META[p.trigger.kind].icon;
   const [editOpen, setEditOpen] = useState(false);
   const [delOpen, setDelOpen] = useState(false);
@@ -282,26 +291,34 @@ function ProcessRow({
         </Link>
       </div>
 
-      {run ? (
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between text-xs">
-            <Badge variant="default" className="gap-1">
-              <Activity className="size-3" /> 运行中
-            </Badge>
-            <span className="tabular-nums text-muted-foreground">
-              {done}/{total} 任务 · {pct}%
-            </span>
-          </div>
-          <Progress value={pct} className="h-1.5" />
+      {/* 进度条与状态并行（恒定一行，避免运行/待触发切换时卡片高度抖动）。
+          运行中 = 任务完成度（实色）；待触发 = 倒计时进度（淡色）；已暂停 = 空轨道。 */}
+      <div className="flex items-center gap-3">
+        <span
+          className={cn(
+            'shrink-0 text-xs font-medium',
+            run ? 'text-primary' : 'text-muted-foreground',
+          )}
+        >
+          {run ? '运行中' : p.status === 'active' ? '待触发' : '已暂停'}
+        </span>
+        <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-muted">
+          <div
+            className={cn(
+              'h-full rounded-full transition-all',
+              run ? 'bg-primary' : 'bg-primary/30',
+            )}
+            style={{ width: `${run ? pct : countdownPct}%` }}
+          />
         </div>
-      ) : (
-        <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>{p.status === 'active' ? '待下次触发' : '已暂停'}</span>
-          <span className="tabular-nums">
-            {p.status === 'active' && p.nextRunAt ? relFuture(p.nextRunAt, nowMs) : '—'}
-          </span>
-        </div>
-      )}
+        <span className="shrink-0 text-right text-xs tabular-nums text-muted-foreground">
+          {run
+            ? `${done}/${total} · ${pct}%`
+            : p.status === 'active' && p.nextRunAt
+              ? relFuture(p.nextRunAt, nowMs)
+              : '—'}
+        </span>
+      </div>
 
       <ProcessFormDialog
         open={editOpen}
