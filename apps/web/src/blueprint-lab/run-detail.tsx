@@ -17,7 +17,8 @@ import { Skeleton } from '@hatch-radar/ui/components/skeleton';
 import { toast } from '@hatch-radar/ui/components/sonner';
 import { RequirePerm } from '@/auth/require-perm';
 import { EmptyState, LoadError } from '@/components/empty';
-import { SOURCE_META, TASK_KIND_META, TASK_STATUS_META } from './constants';
+import { commentAvatarDataUri } from '@/lib/avatar';
+import { SOURCE_META, stageLabel, TASK_KIND_META, TASK_STATUS_META } from './constants';
 import { mockApi } from './mock';
 import { RunConstellation } from './run-constellation';
 import type { MockComment, MockPost, StageStatus, Task } from './types';
@@ -60,9 +61,15 @@ function countComments(nodes: MockComment[]): number {
 function CommentNode({ c }: { c: MockComment }) {
   return (
     <div className="space-y-1">
-      <div className="text-xs">
+      <div className="flex items-center gap-1.5 text-xs">
+        <img
+          src={commentAvatarDataUri(c.author)}
+          alt=""
+          aria-hidden
+          className="size-4 shrink-0 rounded-full bg-muted"
+        />
         <span className="font-medium text-foreground">u/{c.author}</span>
-        <span className="text-muted-foreground"> · ↑{c.score}</span>
+        <span className="text-muted-foreground">· ↑{c.score}</span>
       </div>
       <p className="text-xs leading-relaxed text-muted-foreground">{c.body}</p>
       {c.children && c.children.length > 0 ? (
@@ -157,7 +164,10 @@ function TaskPanel({
               }`}
             >
               <span className={`size-2 shrink-0 rounded-full ${STAGE_DOT[s.status]}`} />
-              <span className="font-mono">{s.name}</span>
+              <span className="shrink-0">{stageLabel(s.name)}</span>
+              <span className="min-w-0 truncate font-mono text-[11px] text-muted-foreground/60">
+                {s.name}
+              </span>
               {s.gate ? (
                 <Lock className="size-3 shrink-0 text-intensity-medium" aria-label="闸门" />
               ) : null}
@@ -171,8 +181,9 @@ function TaskPanel({
 
       {stage ? (
         <div className="rounded-md border bg-background p-3">
-          <div className="mb-1.5 flex items-center gap-1.5 text-xs text-muted-foreground">
-            产物 · <span className="font-mono">{stage.name}</span>
+          <div className="mb-1.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+            产物 · <span className="text-foreground">{stageLabel(stage.name)}</span>
+            <span className="font-mono text-[11px] text-muted-foreground/60">{stage.name}</span>
             {stage.name === 'ai_call' ? (
               <span className="text-intensity-high">· 不可重算</span>
             ) : null}

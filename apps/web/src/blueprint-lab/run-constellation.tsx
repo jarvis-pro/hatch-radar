@@ -3,17 +3,20 @@
  *
  * 设计要点（见对话定稿）：
  * - 无「运行」中心节点：discover（采集根）/ recheck（复查根）即顶层；连线 = 派生血缘。
- * - 节点 = 任务，内嵌 kind 单字标 + 标签（帖子标题，可开关）；颜色编码状态、让问题跳出来。
+ * - 节点 = 任务，内嵌 kind 图标 + 标签（帖子标题，默认显示、可一键开关；hover/选中高亮血缘）；颜色编码状态、让问题跳出来。
  * - L3 折进画布：点中任务 → 原地绽放出按 seq 排布的环节弧（守时序）。
  * - 全画布 + 上层悬浮：概要 / 筛选 / 缩放 / 全屏 / 图例 / 选中面板全部 absolute 浮在画布上。
  * - 缩放 + 平移（滚轮 / 按钮 / 拖背景）+ 全屏（Fullscreen API，root 全屏含所有 overlay）。
+ * - 节点可拖动摆放：拖 = sticky 钉住停在落点（角标示意）、双击释放回力导向；discover 枢纽常驻。
  *
  * 仅用 d3-force 跑模拟（base 坐标），缩放/平移由外层 <g> 变换施加，物理不受缩放影响。
  * 零自定义 CSS——颜色走主题 token 的 tailwind `fill-*`/`stroke-*`/`bg-*` 类。
  */
 import {
+  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
+  useCallback,
   useEffect,
   useMemo,
   useReducer,
@@ -31,10 +34,10 @@ import {
   type SimulationLinkDatum,
   type SimulationNodeDatum,
 } from 'd3-force';
-import { Maximize, Minimize, X, ZoomIn, ZoomOut } from 'lucide-react';
+import { Info, Maximize, Minimize, X, ZoomIn, ZoomOut } from 'lucide-react';
 import { Badge } from '@hatch-radar/ui/components/badge';
 import { Button } from '@hatch-radar/ui/components/button';
-import { KIND_META, RUN_STATUS_META, TASK_KIND_META } from './constants';
+import { KIND_META, RUN_STATUS_META, stageLabel, TASK_KIND_META } from './constants';
 import type { Run, Task, TaskKind } from './types';
 import { relTime } from './util';
 
@@ -42,7 +45,6 @@ const W = 600;
 const H = 460;
 const CX = W / 2;
 const CY = H / 2;
-const LABEL_PAD = 42;
 const ZOOM_MIN = 0.3;
 const ZOOM_MAX = 4;
 
@@ -56,7 +58,7 @@ interface GNode extends SimulationNodeDatum {
 type GLink = SimulationLinkDatum<GNode>;
 
 function radiusOf(kind: TaskKind): number {
-  return kind === 'discover' ? 13 : kind === 'analyze' || kind === 'translate' ? 8.5 : 11;
+  return kind === 'discover' ? 14 : kind === 'analyze' || kind === 'translate' ? 10.5 : 12;
 }
 
 const NODE_FILL: Record<string, string> = {
@@ -118,6 +120,7 @@ const LEGEND_STATUS: { dot: string; label: string }[] = [
   { dot: 'bg-intensity-high', label: '失败' },
   { dot: 'bg-muted-foreground/30', label: '跳过' },
 ];
+const KIND_LEGEND: TaskKind[] = ['discover', 'collect', 'recheck', 'analyze', 'translate'];
 
 export function RunConstellation({
   run,
@@ -145,6 +148,7 @@ export function RunConstellation({
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isFs, setIsFs] = useState(false);
+  const [legendOpen, setLegendOpen] = useState(false);
 
   const rootRef = useRef<HTMLDivElement | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -154,7 +158,7 @@ export function RunConstellation({
   const zoomRef = useRef(1);
   const panRef = useRef({ x: 0, y: 0 });
   const dragRef = useRef<
-    | { kind: 'node'; n: GNode; moved: boolean; sx: number; sy: number }
+    | { kind: 'node'; n: GNode; moved: boolean; sx: number; sy: number; wasPinned: boolean }
     | { kind: 'pan'; moved: boolean; sx: number; sy: number; px: number; py: number }
     | null
   >(null);
@@ -187,6 +191,36 @@ export function RunConstellation({
     return s;
   }
 
+  // 适应视图：缩放 / 平移到恰好框住全部节点（图摊开后一键看全；摊开本身可超出 viewBox）。
+  const fitView = useCallback(() => {
+    const ns = nodesRef.current;
+    if (ns.length === 0) return;
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const n of ns) {
+      const x = n.x ?? CX;
+      const y = n.y ?? CY;
+      const pad = n.r + 16;
+      minX = Math.min(minX, x - pad);
+      minY = Math.min(minY, y - pad);
+      maxX = Math.max(maxX, x + pad);
+      maxY = Math.max(maxY, y + pad);
+    }
+    const w = maxX - minX;
+    const h = maxY - minY;
+    if (w <= 0 || h <= 0) return;
+    const nz = clamp(Math.min(W / w, H / h) * 0.92, ZOOM_MIN, ZOOM_MAX);
+    const cx = (minX + maxX) / 2;
+    const cy = (minY + maxY) / 2;
+    const np = { x: W / 2 - cx * nz, y: H / 2 - cy * nz };
+    zoomRef.current = nz;
+    panRef.current = np;
+    setZoom(nz);
+    setPan(np);
+  }, []);
+
   useEffect(() => {
     const gnodes: GNode[] = tasks.map((t) => ({
       id: t.id,
@@ -218,25 +252,19 @@ export function RunConstellation({
           .id((d) => d.id)
           .distance((l) => {
             const k = (l.target as GNode).kind;
-            return k === 'analyze' || k === 'translate' ? 34 : k === 'discover' ? 58 : 52;
+            return k === 'analyze' || k === 'translate' ? 95 : 150;
           })
-          .strength(0.75),
+          .strength(0.68),
       )
-      .force('charge', forceManyBody<GNode>().strength(-150))
+      .force('charge', forceManyBody<GNode>().strength(-680))
       .force(
         'collide',
-        forceCollide<GNode>().radius((d) => d.r + 7),
+        forceCollide<GNode>().radius((d) => d.r + 18),
       )
-      .force('x', forceX<GNode>(CX).strength(0.06))
-      .force('y', forceY<GNode>(CY).strength(0.06))
-      .on('tick', () => {
-        for (const n of gnodes) {
-          if (n.fx != null) continue;
-          n.x = clamp(n.x ?? CX, n.r + 6, W - n.r - 6);
-          n.y = clamp(n.y ?? CY, n.r + 6, H - n.r - LABEL_PAD);
-        }
-        bump();
-      });
+      .force('x', forceX<GNode>(CX).strength(0.02))
+      .force('y', forceY<GNode>(CY).strength(0.02))
+      // tick 不夹紧坐标、settle 后也不自动缩放——缩放/平移全交用户（点右上 % 一键适应）。
+      .on('tick', () => bump());
     (sim as SeededSim).randomSource?.(mulberry32(seedFrom(run.id)));
 
     nodesRef.current = gnodes;
@@ -302,12 +330,6 @@ export function RunConstellation({
     setZoom(nz);
     setPan(np);
   }
-  function resetView(): void {
-    zoomRef.current = 1;
-    panRef.current = { x: 0, y: 0 };
-    setZoom(1);
-    setPan({ x: 0, y: 0 });
-  }
   function toggleFullscreen(): void {
     if (document.fullscreenElement) void document.exitFullscreen();
     else void rootRef.current?.requestFullscreen?.();
@@ -315,7 +337,14 @@ export function RunConstellation({
 
   function onNodeDown(e: ReactPointerEvent, n: GNode): void {
     e.stopPropagation();
-    dragRef.current = { kind: 'node', n, moved: false, sx: e.clientX, sy: e.clientY };
+    dragRef.current = {
+      kind: 'node',
+      n,
+      moved: false,
+      sx: e.clientX,
+      sy: e.clientY,
+      wasPinned: n.fx != null,
+    };
     n.fx = n.x;
     n.fy = n.y;
     simRef.current?.alphaTarget(0.3).restart();
@@ -337,6 +366,7 @@ export function RunConstellation({
     const p = toSvg(e.clientX, e.clientY);
     if (!p) return;
     if (d.kind === 'node') {
+      // 自由定位：钉到光标处，可拖出画布（靠缩放 / 适应视图找回）。
       d.n.fx = (p.x - panRef.current.x) / zoomRef.current;
       d.n.fy = (p.y - panRef.current.y) / zoomRef.current;
     } else {
@@ -349,15 +379,28 @@ export function RunConstellation({
     if (!d) return;
     if (d.kind === 'node') {
       simRef.current?.alphaTarget(0);
-      if (d.n.fx != null && d.n.kind !== 'discover') {
-        d.n.fx = null;
-        d.n.fy = null;
+      // 拖动 = sticky 钉住：保留 fx/fy，节点停在落点。
+      // 纯点击（未移动）只作选中，且还原拖前钉/未钉态——不让"点一下"意外把节点钉死。
+      if (!d.moved) {
+        if (!d.wasPinned) {
+          d.n.fx = null;
+          d.n.fy = null;
+        }
+        onSelectTask(d.n.id);
       }
-      if (!d.moved) onSelectTask(d.n.id);
     } else if (!d.moved) {
       onSelectTask(null);
     }
     dragRef.current = null;
+  }
+
+  // 双击释放：把用户钉住的节点交还力导向（discover 枢纽常驻、不释放）。
+  function onNodeDoubleClick(e: ReactMouseEvent, n: GNode): void {
+    e.stopPropagation();
+    if (n.kind === 'discover' || n.fx == null) return;
+    n.fx = null;
+    n.fy = null;
+    simRef.current?.alphaTarget(0).alpha(0.5).restart();
   }
 
   const nodes = nodesRef.current;
@@ -419,7 +462,11 @@ export function RunConstellation({
   })();
 
   return (
-    <div ref={rootRef} className="relative h-full w-full overflow-hidden rounded-lg border bg-card">
+    <div
+      ref={rootRef}
+      className="relative h-full w-full overflow-hidden rounded-lg border bg-card"
+      onContextMenu={(e) => e.preventDefault()}
+    >
       <svg
         ref={svgRef}
         viewBox={`0 0 ${W} ${H}`}
@@ -510,12 +557,10 @@ export function RunConstellation({
                     className={`${fillClass(b.st.status)} stroke-background`}
                     strokeWidth={1.5}
                   />
-                  {showLabels ? (
-                    <text x={7} dy="0.32em" fontSize={9} className="fill-muted-foreground">
-                      {b.st.name}
-                    </text>
-                  ) : null}
-                  <title>{`${b.st.name}${b.st.gate ? ' · 闸门' : ''} · ${b.st.status}`}</title>
+                  <text x={7} dy="0.32em" fontSize={9} className="fill-muted-foreground">
+                    {stageLabel(b.st.name)}
+                  </text>
+                  <title>{`${stageLabel(b.st.name)}（${b.st.name}）${b.st.gate ? ' · 闸门' : ''} · ${b.st.status}`}</title>
                 </g>
               ))}
             </g>
@@ -524,6 +569,8 @@ export function RunConstellation({
           <g>
             {nodes.map((n) => {
               const halo = HALO_STROKE[n.status];
+              const Icon = TASK_KIND_META[n.kind].icon;
+              const iconSize = Math.round(n.r * 1.3);
               return (
                 <g
                   key={n.id}
@@ -532,6 +579,7 @@ export function RunConstellation({
                   className="cursor-pointer"
                   style={{ pointerEvents: vis(n) ? 'auto' : 'none' }}
                   onPointerDown={(e) => onNodeDown(e, n)}
+                  onDoubleClick={(e) => onNodeDoubleClick(e, n)}
                   onPointerEnter={() => !dragRef.current && setHover(n.id)}
                   onPointerLeave={() => setHover((h) => (h === n.id ? null : h))}
                 >
@@ -557,15 +605,23 @@ export function RunConstellation({
                     className={`${fillClass(n.status)} stroke-background`}
                     strokeWidth={1.5}
                   />
-                  <text
-                    textAnchor="middle"
-                    dy="0.34em"
-                    fontSize={Math.round(n.r * 1.02)}
-                    className="fill-background font-medium"
+                  <g
+                    transform={`translate(${-iconSize / 2},${-iconSize / 2})`}
+                    className="text-background"
                   >
-                    {TASK_KIND_META[n.kind]?.tag ?? '?'}
-                  </text>
-                  {showLabels || hover === n.id || selectedId === n.id ? (
+                    <Icon width={iconSize} height={iconSize} strokeWidth={2.5} />
+                  </g>
+                  {n.fx != null && n.kind !== 'discover' ? (
+                    <circle
+                      cx={n.r * 0.72}
+                      cy={-n.r * 0.72}
+                      r={3}
+                      className="fill-foreground stroke-background"
+                      strokeWidth={1}
+                    />
+                  ) : null}
+                  {/* 选中某节点时隐藏所有标题标签（只留环节弧 + 侧栏），避免「点开详情就重叠」；未选中时按开关全显。 */}
+                  {hover === n.id || (showLabels && !selectedId) ? (
                     <text
                       textAnchor="middle"
                       y={n.r + 11}
@@ -637,9 +693,9 @@ export function RunConstellation({
         </Button>
         <button
           type="button"
-          onClick={resetView}
+          onClick={fitView}
           className="min-w-12 rounded px-1 text-xs tabular-nums text-muted-foreground hover:text-foreground"
-          aria-label="重置视图"
+          aria-label="适应视图（缩放至全图可见）"
         >
           {Math.round(zoom * 100)}%
         </button>
@@ -678,17 +734,45 @@ export function RunConstellation({
         </aside>
       ) : null}
 
-      {/* 左下：图例 */}
-      <div className="absolute bottom-3 left-3 z-10 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border bg-card/90 px-3 py-1.5 text-xs text-muted-foreground backdrop-blur-sm">
-        {LEGEND_STATUS.map((s) => (
-          <span key={s.label} className="inline-flex items-center gap-1">
-            <span className={`size-2 shrink-0 rounded-full ${s.dot}`} />
-            {s.label}
-          </span>
-        ))}
-        <span className="h-3 w-px bg-border" />
-        <span>发/采/查/析 = 发现/采集/复查/分析</span>
-      </div>
+      {/* 左下：图例（默认收起为 Info 按钮，点开淡入上移展开） */}
+      {legendOpen ? (
+        <div className="absolute bottom-3 left-3 z-10 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border bg-card/90 px-3 py-1.5 text-xs text-muted-foreground backdrop-blur-sm duration-200 animate-in fade-in slide-in-from-bottom-1">
+          {LEGEND_STATUS.map((s) => (
+            <span key={s.label} className="inline-flex items-center gap-1">
+              <span className={`size-2 shrink-0 rounded-full ${s.dot}`} />
+              {s.label}
+            </span>
+          ))}
+          <span className="h-3 w-px bg-border" />
+          {KIND_LEGEND.map((k) => {
+            const M = TASK_KIND_META[k];
+            return (
+              <span key={k} className="inline-flex items-center gap-1">
+                <M.icon className="size-3 shrink-0" />
+                {M.label}
+              </span>
+            );
+          })}
+          <span className="h-3 w-px bg-border" />
+          <button
+            type="button"
+            aria-label="收起图例"
+            className="-mr-1 inline-flex size-5 items-center justify-center rounded text-muted-foreground hover:text-foreground"
+            onClick={() => setLegendOpen(false)}
+          >
+            <X className="size-3.5" />
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          aria-label="显示图例"
+          className="absolute bottom-3 left-3 z-10 inline-flex size-8 items-center justify-center rounded-lg border bg-card/90 text-muted-foreground backdrop-blur-sm hover:text-foreground"
+          onClick={() => setLegendOpen(true)}
+        >
+          <Info className="size-4" />
+        </button>
+      )}
     </div>
   );
 }
