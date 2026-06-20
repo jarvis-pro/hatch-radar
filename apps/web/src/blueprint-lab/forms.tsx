@@ -82,13 +82,6 @@ function cronTimeOf(expr: string): string {
   return m ? `${pad2(Number(m[1]))}:${m[2]}` : '09:00';
 }
 
-/** 节奏卡片的一句话副标题。 */
-const TRIGGER_TAGLINE: Record<TriggerKind, string> = {
-  once: '手动一次',
-  interval: '周期循环',
-  cron: '每天定点',
-};
-
 // Reddit 暂不打算用，放末位；列表首项作为新建时的默认启用源。
 const SOURCE_KINDS: SourceKind[] = ['hackernews', 'rss', 'reddit'];
 
@@ -594,67 +587,69 @@ function ProcessFormBody({
           />
         </div>
 
-        <div className="space-y-3">
+        <div className="space-y-2">
           <Label>节奏</Label>
-          <div className="grid grid-cols-3 gap-2">
-            {(['once', 'interval', 'cron'] as TriggerKind[]).map((k) => {
-              const m = TRIGGER_META[k];
-              const Icon = m.icon;
-              const active = triggerKind === k;
-              return (
-                <button
-                  key={k}
-                  type="button"
-                  onClick={() => setTriggerKind(k)}
-                  className={cn(
-                    'flex flex-col items-center gap-1.5 rounded-lg border-2 px-2 py-3 text-center transition-colors',
-                    active ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/50',
-                  )}
-                >
-                  <Icon
-                    className={cn('size-5', active ? 'text-primary' : 'text-muted-foreground')}
-                  />
-                  <span className="text-sm font-medium">{m.label}</span>
-                  <span className="text-[11px] leading-tight text-muted-foreground">
-                    {TRIGGER_TAGLINE[k]}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+          {/* 选择器 + 配置合为一张卡片：顶部分段三选一、底部随选项展开配置 —— */}
+          {/* 走表单内既有的 border 盒子语言，去掉原先突兀的独立灰底块，让节奏回归「一个字段块」。 */}
+          <div className="overflow-hidden rounded-lg border">
+            <div className="grid grid-cols-3">
+              {(['once', 'interval', 'cron'] as TriggerKind[]).map((k, i) => {
+                const m = TRIGGER_META[k];
+                const Icon = m.icon;
+                const active = triggerKind === k;
+                return (
+                  <button
+                    key={k}
+                    type="button"
+                    onClick={() => setTriggerKind(k)}
+                    className={cn(
+                      'flex items-center justify-center gap-2 py-2.5 text-sm font-medium transition-colors',
+                      i > 0 && 'border-l',
+                      active
+                        ? 'bg-primary/5 text-primary'
+                        : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground',
+                    )}
+                  >
+                    <Icon className="size-4" />
+                    {m.label}
+                  </button>
+                );
+              })}
+            </div>
 
-          <div className="rounded-lg border bg-muted/20 p-3">
-            {triggerKind === 'once' ? (
-              <p className="text-sm text-muted-foreground">{TRIGGER_META.once.hint}</p>
-            ) : triggerKind === 'interval' ? (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-sm">
-                  <span className="text-muted-foreground">每隔</span>
-                  <Input
-                    type="time"
-                    value={intervalTime}
-                    onChange={(e) => setIntervalTime(e.target.value)}
-                    className="w-32 dark:[&::-webkit-calendar-picker-indicator]:invert"
-                  />
-                  <span className="text-muted-foreground">跑一次</span>
+            <div className="border-t p-3">
+              {triggerKind === 'once' ? (
+                <p className="text-sm text-muted-foreground">{TRIGGER_META.once.hint}</p>
+              ) : triggerKind === 'interval' ? (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="text-muted-foreground">每隔</span>
+                    <Input
+                      type="time"
+                      value={intervalTime}
+                      onChange={(e) => setIntervalTime(e.target.value)}
+                      className="w-32 dark:[&::-webkit-calendar-picker-indicator]:invert"
+                    />
+                    <span className="text-muted-foreground">跑一次</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">{TRIGGER_META.interval.hint}</p>
                 </div>
-                <p className="text-xs text-muted-foreground">{TRIGGER_META.interval.hint}</p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-sm">
-                  <span className="text-muted-foreground">每天</span>
-                  <Input
-                    type="time"
-                    value={cronTime}
-                    onChange={(e) => setCronTime(e.target.value)}
-                    className="w-32 dark:[&::-webkit-calendar-picker-indicator]:invert"
-                  />
-                  <span className="text-muted-foreground">触发</span>
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="text-muted-foreground">每天</span>
+                    <Input
+                      type="time"
+                      value={cronTime}
+                      onChange={(e) => setCronTime(e.target.value)}
+                      className="w-32 dark:[&::-webkit-calendar-picker-indicator]:invert"
+                    />
+                    <span className="text-muted-foreground">触发</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">{TRIGGER_META.cron.hint}</p>
                 </div>
-                <p className="text-xs text-muted-foreground">{TRIGGER_META.cron.hint}</p>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
       </div>
