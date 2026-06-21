@@ -1,22 +1,60 @@
 import {
   BlueprintsRepository,
   PostsRepository,
+  ProcessesRepository,
   ProvidersRepository,
   RunsRepository,
   RuntimeSettingsService,
   TasksRepository,
   TaskStagesRepository,
   type BlueprintRow,
+  type ProcessRow,
 } from '@hatch-radar/db';
+import { CronExpressionParser } from 'cron-parser';
 import { AnalysisConfigService } from '@hatch-radar/analysis';
 import type { Dispatcher } from '@hatch-radar/kernel';
 import { logger, nowSec } from '@hatch-radar/kernel';
-import { INSPECT_STEP_NAMES, type InspectJobView, type InspectStepView } from '@hatch-radar/shared';
+import {
+  buildStages,
+  INSPECT_STEP_NAMES,
+  type InspectJobView,
+  type InspectStepView,
+  type StageRecipe,
+} from '@hatch-radar/shared';
 
 /** analyze 任务的环节模板（= 检视器 6 节点；无闸门→worker 一口气运行到底）。 */
-const ANALYZE_STAGES = INSPECT_STEP_NAMES.map((name) => ({ name }));
+const ANALYZE_STAGES = buildStages('analyze');
 /** 单次复查 sweep 最多纳入的到期帖数 */
 const RECHECK_BATCH = 50;
+
+/** 把 JsonValue 安全读成字符串数组（gates / enabledStages 复合键）。 */
+function asStrArr(v: unknown): string[] {
+  return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+}
+
+/** 从图纸读出建环节配方（gates=暂停点 / enabledStages=已启用可选环节）。 */
+function recipeFromBlueprint(bp: BlueprintRow): StageRecipe {
+  return { gates: asStrArr(bp.gates), enabledStages: asStrArr(bp.enabled_stages) };
+}
+
+/** 据进程触发配置算下次到期时刻（epoch 秒）；once / 非 active 为 null。 */
+function computeNextRunAt(process: ProcessRow, now: number): number | null {
+  if (process.status !== 'active' || process.trigger_kind === 'once') return null;
+  const cfg = (process.trigger_config ?? {}) as { everySec?: unknown; expr?: unknown };
+  if (process.trigger_kind === 'interval') {
+    const everySec = typeof cfg.everySec === 'number' && cfg.everySec > 0 ? cfg.everySec : 1800;
+    return now + everySec;
+  }
+  if (process.trigger_kind === 'cron' && typeof cfg.expr === 'string') {
+    try {
+      const it = CronExpressionParser.parse(cfg.expr, { currentDate: new Date(now * 1000) });
+      return Math.floor(it.next().getTime() / 1000);
+    } catch {
+      return now + 3600; // cron 表达式非法兜底：1 小时后
+    }
+  }
+  return null;
+}
 
 /** runAnalyzeSweep 结果（供调度日志） */
 export interface AnalyzeSweepResult {
@@ -47,18 +85,15 @@ export class PipelineService {
     private readonly analysisConfig: AnalysisConfigService,
     private readonly runtimeSettings: RuntimeSettingsService,
     private readonly providers: ProvidersRepository,
+    private readonly processes: ProcessesRepository,
     private readonly gateway?: Dispatcher,
   ) {}
 
   /** 找或建一张指定 kind 的默认图纸（首次触发时惰性种子，免单独 seeder）。 */
-  private async ensureBlueprint(
-    kind: string,
-    label: string,
-    triggerKind = 'cron',
-  ): Promise<BlueprintRow> {
+  private async ensureBlueprint(kind: string, label: string): Promise<BlueprintRow> {
     const existing = (await this.blueprints.listBlueprints(kind))[0];
     if (existing) return existing;
-    return this.blueprints.createBlueprint({ kind, label, triggerKind }, nowSec());
+    return this.blueprints.createBlueprint({ kind, label }, nowSec());
   }
 
   /**
@@ -109,60 +144,151 @@ export class PipelineService {
   }
 
   /**
-   * 采集一轮：建 collect 进程 + 一个 discover 根任务。worker 认领 discover 后抓列表 → 去重 →
-   * 为新帖派生 collect 任务 → collect 抓评论 → 派生 analyze。整链路在「进程」页可见。
-   * @param triggerSource 触发来源（cron / manual）
+   * 采集一轮：建 collect 运行 + 一个 discover 根任务。worker 认领 discover 后抓列表 → 去重 →
+   * 为新帖派生 collect 任务 → collect 抓评论 → 派生 analyze。整链路在「运行」页可见。
+   * @param triggerSource 触发来源（manual / cron / interval）
+   * @param process 进程调度触发时传入（带 process_id + 图纸配方）；手动触发省略（惰性默认图纸）
    */
-  async runCollectSweep(triggerSource = 'cron'): Promise<{ runId: number }> {
-    const bp = await this.ensureBlueprint('collect', '采集');
+  async runCollectSweep(triggerSource = 'cron', process?: ProcessRow): Promise<{ runId: number }> {
+    const bp = process
+      ? await this.blueprints.getBlueprint(process.blueprint_id)
+      : await this.ensureBlueprint('collect', '采集');
+    if (!bp) throw new Error(`进程#${process?.id} 绑定的图纸不存在`);
+    const recipe = recipeFromBlueprint(bp);
     const run = await this.runs.createRun(
-      { blueprintId: bp.id, kind: 'collect', triggerSource },
+      {
+        blueprintId: bp.id,
+        processId: process?.id ?? null,
+        kind: 'collect',
+        triggerSource,
+        params: recipe,
+      },
       nowSec(),
     );
     const res = await this.tasks.createTaskWithStages(
-      { runId: run.id, kind: 'discover' },
-      [{ name: 'discover' }],
+      { runId: run.id, processId: process?.id ?? null, kind: 'discover' },
+      buildStages('discover', recipe),
       nowSec(),
     );
     if (res.ok) await this.runs.incrementCounters(run.id, { total: 1 });
     void this.gateway?.tryDispatch();
-    logger.info(`[pipeline] collect 进程#${run.id} 已创建 discover 任务`);
+    logger.info(`[pipeline] collect 运行#${run.id} 已创建 discover 任务`);
     return { runId: run.id };
   }
 
   /**
-   * 复查一轮（sweep）：sweep 序号 = 该图纸已用最大值 + 1；选 recheck_due_sweep ≤ sweep 的到期旧帖，
-   * 逐帖派生 recheck 任务（params 带 sweep 供退避计算）。worker 复查时变则重抓+重新分析、否则指数退避。
-   * @param triggerSource 触发来源（cron / manual）
+   * 复查一轮（sweep）：进程模式 sweep = process.sweep_seq++，手动模式 = 该图纸已用最大值 + 1；
+   * 选 recheck_due_sweep ≤ sweep 的到期旧帖，逐帖派生 recheck 任务（params 带 sweep 供退避计算）。
+   * worker 复查时变则重抓 + 重新分析、否则指数退避。
+   * @param triggerSource 触发来源（manual / cron / interval）
+   * @param process 进程调度触发时传入；手动触发省略
    */
   async runRecheckSweep(
     triggerSource = 'cron',
+    process?: ProcessRow,
   ): Promise<{ runId: number; sweep: number; due: number }> {
-    const bp = await this.ensureBlueprint('recheck', '复查');
-    const sweep = (await this.runs.maxSweep(bp.id)) + 1;
+    const bp = process
+      ? await this.blueprints.getBlueprint(process.blueprint_id)
+      : await this.ensureBlueprint('recheck', '复查');
+    if (!bp) throw new Error(`进程#${process?.id} 绑定的图纸不存在`);
+    const recipe = recipeFromBlueprint(bp);
+    const sweep = process
+      ? await this.processes.bumpSweep(process.id)
+      : (await this.runs.maxSweep(bp.id)) + 1;
     const run = await this.runs.createRun(
-      { blueprintId: bp.id, kind: 'recheck', triggerSource, sweepSeq: sweep },
+      {
+        blueprintId: bp.id,
+        processId: process?.id ?? null,
+        kind: 'recheck',
+        triggerSource,
+        sweepSeq: sweep,
+        params: recipe,
+      },
       nowSec(),
     );
     const posts = await this.posts.getPostsToRecheck(sweep, RECHECK_BATCH);
     let created = 0;
     for (const p of posts) {
       const res = await this.tasks.createTaskWithStages(
-        { runId: run.id, kind: 'recheck', postId: p.id, params: { sweep } },
-        [{ name: 'recheck' }],
+        {
+          runId: run.id,
+          processId: process?.id ?? null,
+          kind: 'recheck',
+          postId: p.id,
+          params: { sweep },
+        },
+        buildStages('recheck', recipe),
         nowSec(),
       );
       if (res.ok) created += 1;
     }
     await this.runs.incrementCounters(run.id, { total: created });
-    await this.runs.finishRun(run.id, 'completed', nowSec());
+    // 空轮（无到期帖）即时完成；非空运行交 finalizeRunningRuns 在任务全终结后收尾（驱动进程重排）。
+    if (created === 0) await this.runs.finishRun(run.id, 'completed', nowSec());
+    else void this.gateway?.tryDispatch();
     if (created > 0) {
-      void this.gateway?.tryDispatch();
       logger.info(
-        `[pipeline] recheck sweep#${sweep} 进程#${run.id} 派生 ${created} 复查任务（${posts.length} 到期）`,
+        `[pipeline] recheck sweep#${sweep} 运行#${run.id} 派生 ${created} 复查任务（${posts.length} 到期）`,
       );
     }
     return { runId: run.id, sweep, due: posts.length };
+  }
+
+  // ─── 进程调度（取代旧 4 个 @Cron；由 SchedulerService 心跳每若干秒调用）──────────────────
+
+  /** 触发所有到期进程：active 且 next_run_at ≤ now、且当前无进行中运行（按进程非重入）。 */
+  async fireDueProcesses(): Promise<void> {
+    const due = await this.processes.listDue(nowSec());
+    for (const process of due) {
+      if (await this.runs.hasRunningRunForProcess(process.id)) continue;
+      await this.fireProcess(process);
+    }
+  }
+
+  /** 触发单个进程：按图纸 kind 开 collect / recheck 运行 + 记账（markFired）；空轮即时重排下一轮。 */
+  async fireProcess(process: ProcessRow, triggerSource?: string): Promise<void> {
+    const bp = await this.blueprints.getBlueprint(process.blueprint_id);
+    if (!bp) {
+      logger.warn(`[scheduler] 进程#${process.id} 绑定图纸缺失，跳过`);
+      return;
+    }
+    const src = triggerSource ?? (process.trigger_kind === 'cron' ? 'cron' : 'interval');
+    if (bp.kind === 'collect') await this.runCollectSweep(src, process);
+    else if (bp.kind === 'recheck') await this.runRecheckSweep(src, process);
+    else {
+      logger.warn(`[scheduler] 进程#${process.id} 图纸 kind=${bp.kind} 不可调度，跳过`);
+      return;
+    }
+    // 记账：runs_total++ / last_run_at / next_run_at=null（防本次运行完成前被重复触发）
+    await this.processes.markFired(process.id, nowSec());
+    // 空轮已收尾（进程无 running run）→ 立即重排；非空运行仍在跑 → 交 finalizeRunningRuns 完成后重排。
+    if (!(await this.runs.hasRunningRunForProcess(process.id))) await this.scheduleNext(process);
+  }
+
+  /** 收尾所有任务已全部终结的运行（completed / failed），并为其进程重排下一轮。 */
+  async finalizeRunningRuns(): Promise<void> {
+    const running = await this.runs.listRunningRuns();
+    for (const run of running) {
+      const counts = await this.tasks.countByRun(run.id);
+      // 仍有未终结任务（含 paused 闸门停等）或运行暂无任务 → 继续等下一轮心跳
+      if (counts.total === 0 || counts.active > 0) continue;
+      const status = counts.failed > 0 ? 'failed' : 'completed';
+      await this.runs.finishRun(
+        run.id,
+        status,
+        nowSec(),
+        status === 'failed' ? '部分任务失败（见任务树）' : null,
+      );
+      if (run.process_id != null) {
+        const proc = await this.processes.getProcess(run.process_id);
+        if (proc) await this.scheduleNext(proc);
+      }
+    }
+  }
+
+  /** 为进程排下一轮触发时刻（interval / cron 续期；once / 已暂停则置空）。 */
+  private async scheduleNext(process: ProcessRow): Promise<void> {
+    await this.processes.setNextRunAt(process.id, computeNextRunAt(process, nowSec()), nowSec());
   }
 
   /**
@@ -232,7 +358,7 @@ export class PipelineService {
     for (const id of [...new Set(postIds)]) {
       const res = await this.tasks.createTaskWithStages(
         { runId: run.id, kind: 'translate', postId: id, providerId, model },
-        [{ name: 'translate' }],
+        buildStages('translate'),
         nowSec(),
       );
       if (res.ok) enqueued += 1;
@@ -355,5 +481,10 @@ export class PipelineService {
   /** 取消检视任务：活跃态（queued/running/paused）→ canceled。返回 false = 当前已是终态。 */
   async cancelInspect(taskId: number): Promise<boolean> {
     return this.tasks.cancelTask(taskId, nowSec());
+  }
+
+  /** 运行前挂 / 摘某环节暂停点（仅 pending 环节可改）。返回是否生效。 */
+  async toggleStageGate(taskId: number, seq: number, gate: boolean): Promise<boolean> {
+    return this.taskStages.setStageGate(taskId, seq, gate);
   }
 }

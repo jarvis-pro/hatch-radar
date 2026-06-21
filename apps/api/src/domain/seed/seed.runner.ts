@@ -1,4 +1,6 @@
 import { logger } from '@hatch-radar/kernel';
+import { BlueprintsSeeder } from './blueprints.seeder';
+import { ProcessesSeeder } from './processes.seeder';
 import { RuntimeSettingsSeeder } from './runtime-settings.seeder';
 import type { Seeder, SeedContext } from './seeder';
 import { SourcesSeeder } from './sources.seeder';
@@ -17,6 +19,8 @@ export class SeedRunner {
     private readonly sourcesSeeder: SourcesSeeder,
     private readonly superAdminSeeder: SuperAdminSeeder,
     private readonly runtimeSettingsSeeder: RuntimeSettingsSeeder,
+    private readonly blueprintsSeeder: BlueprintsSeeder,
+    private readonly processesSeeder: ProcessesSeeder,
   ) {}
 
   async run(now: number): Promise<void> {
@@ -25,6 +29,8 @@ export class SeedRunner {
       this.sourcesSeeder,
       this.superAdminSeeder,
       this.runtimeSettingsSeeder,
+      this.blueprintsSeeder,
+      this.processesSeeder,
     ];
     const ordered = [...seeders].sort((a, b) => a.order - b.order);
     for (const seeder of ordered) {

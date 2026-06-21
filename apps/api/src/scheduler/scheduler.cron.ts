@@ -1,35 +1,24 @@
-import { Injectable, type OnApplicationBootstrap } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { SchedulerService } from '@/domain';
 
 /**
- * Nest 侧定时任务薄封装：把 @nestjs/schedule 的 @Cron 挂在方法上,委托 core 的 SchedulerService
- * （非重入 guard、采集/复查/分析/归档触发、初始化轮次都在 core）。抓取已下沉 worker（经请求闸）。
+ * Nest 侧定时任务薄封装：把 @nestjs/schedule 的 @Cron 挂在方法上，委托 core 的 SchedulerService。
+ *
+ * 调度已图纸 / 进程化——固定 4 cron（scan/comments/analyze/archive）收敛为：一个「心跳」
+ * （触发到期进程 + 收尾完成的运行）+ 一个每日归档。初始触发由种子进程的 next_run_at 驱动，无需 onApplicationBootstrap。
  */
 @Injectable()
-export class SchedulerCron implements OnApplicationBootstrap {
+export class SchedulerCron {
   constructor(private readonly scheduler: SchedulerService) {}
 
-  /** 启动后跑一轮初始化（扫描 → 评论补全 → 分析入队），不阻塞 HTTP 监听。 */
-  onApplicationBootstrap(): void {
-    void this.scheduler.runInitialRound();
+  /** 调度心跳：每 15 秒触发到期进程并收尾完成的运行（6 段 cron，含秒）。 */
+  @Cron('*/15 * * * * *')
+  heartbeat(): Promise<void> {
+    return this.scheduler.heartbeat();
   }
 
-  @Cron('0,30 * * * *')
-  collect(): Promise<void> {
-    return this.scheduler.collect();
-  }
-
-  @Cron('10,40 * * * *')
-  recheck(): Promise<void> {
-    return this.scheduler.recheck();
-  }
-
-  @Cron('20 * * * *')
-  analyze(): Promise<void> {
-    return this.scheduler.analyze();
-  }
-
+  /** 历史归档：每天凌晨 3:30。 */
   @Cron('30 3 * * *')
   archive(): Promise<void> {
     return this.scheduler.archive();

@@ -7,6 +7,7 @@ import { DeviceCredentialsRepository } from '@hatch-radar/db';
 import { DeviceEnrollmentsRepository } from '@hatch-radar/db';
 import { InsightsRepository } from '@hatch-radar/db';
 import { BlueprintsRepository } from '@hatch-radar/db';
+import { ProcessesRepository } from '@hatch-radar/db';
 import { RunsRepository } from '@hatch-radar/db';
 import { TasksRepository } from '@hatch-radar/db';
 import { TaskStagesRepository } from '@hatch-radar/db';
@@ -33,6 +34,7 @@ import { AnalysisConfigService } from '@hatch-radar/analysis';
 import { TranslationService } from '@hatch-radar/analysis';
 import { GatewayService } from './gateway/gateway.service';
 import { PipelineService } from './pipeline/pipeline.service';
+import { RadarService } from './radar/radar.service';
 import { DataService } from './data/data.service';
 import { AccountService } from './account/account.service';
 import { AdminService } from './admin/admin.service';
@@ -42,6 +44,8 @@ import { ExportService } from './export/export.service';
 import { SchedulerService } from './scheduler/scheduler.service';
 // seed
 import { SourcesSeeder } from './seed/sources.seeder';
+import { BlueprintsSeeder } from './seed/blueprints.seeder';
+import { ProcessesSeeder } from './seed/processes.seeder';
 import { SuperAdminSeeder } from './seed/super-admin.seeder';
 import { RuntimeSettingsSeeder } from './seed/runtime-settings.seeder';
 import { SeedRunner } from './seed/seed.runner';
@@ -62,6 +66,7 @@ export function createCore(db: AppDatabase, env: AppEnv) {
   const insights = new InsightsRepository(db);
   // 图纸驱动生命周期仓储（新执行模型；过渡期与 jobs / jobSteps 并存）
   const blueprints = new BlueprintsRepository(db);
+  const processes = new ProcessesRepository(db);
   const runs = new RunsRepository(db);
   const tasks = new TasksRepository(db);
   const taskStages = new TaskStagesRepository(db);
@@ -99,7 +104,19 @@ export function createCore(db: AppDatabase, env: AppEnv) {
     analysisConfig,
     runtimeSettings,
     providers,
+    processes,
     gateway,
+  );
+  const radar = new RadarService(
+    db,
+    blueprints,
+    processes,
+    pipeline,
+    runs,
+    tasks,
+    taskStages,
+    requestQueue,
+    requestLanes,
   );
   const data = new DataService(db);
   const account = new AccountService(users, sessions, loginAttempts, auditLogs, runtimeSettings);
@@ -111,9 +128,17 @@ export function createCore(db: AppDatabase, env: AppEnv) {
 
   // ── 种子 ─────────────────────────────────────────────────────────────
   const sourcesSeeder = new SourcesSeeder(sources);
+  const blueprintsSeeder = new BlueprintsSeeder(blueprints);
+  const processesSeeder = new ProcessesSeeder(processes, blueprints);
   const superAdminSeeder = new SuperAdminSeeder(env, users);
   const runtimeSettingsSeeder = new RuntimeSettingsSeeder(runtimeSettings);
-  const seedRunner = new SeedRunner(sourcesSeeder, superAdminSeeder, runtimeSettingsSeeder);
+  const seedRunner = new SeedRunner(
+    sourcesSeeder,
+    superAdminSeeder,
+    runtimeSettingsSeeder,
+    blueprintsSeeder,
+    processesSeeder,
+  );
 
   return {
     auditLogs,
@@ -122,6 +147,7 @@ export function createCore(db: AppDatabase, env: AppEnv) {
     deviceEnrollments,
     insights,
     blueprints,
+    processes,
     runs,
     tasks,
     taskStages,
@@ -146,6 +172,7 @@ export function createCore(db: AppDatabase, env: AppEnv) {
     analysisConfig,
     translation,
     pipeline,
+    radar,
     data,
     account,
     admin,
@@ -154,6 +181,8 @@ export function createCore(db: AppDatabase, env: AppEnv) {
     export: exportService,
     scheduler,
     sourcesSeeder,
+    blueprintsSeeder,
+    processesSeeder,
     superAdminSeeder,
     runtimeSettingsSeeder,
     seedRunner,

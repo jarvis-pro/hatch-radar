@@ -1,0 +1,264 @@
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  NotFoundException,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
+import { z } from 'zod';
+import { RequirePermission } from '@/account/auth-user.decorator';
+import { SessionAuthGuard } from '@/account/session-auth.guard';
+import { ZodValidationPipe } from '@/common/zod-validation.pipe';
+import { RadarService } from '@/domain';
+import { logger } from '@/logger';
+import type { RadarIntensity } from '@hatch-radar/shared';
+
+const sourceSchema = z.object({
+  kind: z.enum(['reddit', 'hackernews', 'rss']),
+  channels: z.array(z.string()),
+});
+
+const createBlueprintSchema = z.object({
+  kind: z.enum(['collect', 'recheck']),
+  label: z.string().trim().min(1),
+  note: z.string().trim().optional(),
+  sources: z.array(sourceSchema).optional(),
+  params: z.record(z.string(), z.unknown()).optional(),
+  gates: z.array(z.string()).optional(),
+  enabledStages: z.array(z.string()).optional(),
+});
+
+const updateBlueprintSchema = z.object({
+  label: z.string().trim().min(1).optional(),
+  note: z.string().trim().optional(),
+  sources: z.array(sourceSchema).optional(),
+  params: z.record(z.string(), z.unknown()).optional(),
+  gates: z.array(z.string()).optional(),
+  enabledStages: z.array(z.string()).optional(),
+});
+
+const triggerSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('once') }),
+  z.object({ kind: z.literal('interval'), everySec: z.number().int().positive() }),
+  z.object({ kind: z.literal('cron'), expr: z.string().trim().min(1) }),
+]);
+
+const createProcessSchema = z.object({
+  blueprintId: z.number().int().positive(),
+  label: z.string().trim().min(1),
+  trigger: triggerSchema,
+});
+
+const updateProcessSchema = z.object({
+  label: z.string().trim().min(1).optional(),
+  trigger: triggerSchema.optional(),
+});
+
+/**
+ * /api/blueprints/* —— 图纸（纯配方）CRUD。读 pipeline:run，写 pipeline:control。
+ */
+@UseGuards(SessionAuthGuard)
+@RequirePermission('pipeline:run')
+@Controller('blueprints')
+export class BlueprintsController {
+  constructor(private readonly radar: RadarService) {}
+
+  @Get()
+  list() {
+    return this.radar.listBlueprints();
+  }
+
+  @Get(':id')
+  async get(@Param('id', ParseIntPipe) id: number) {
+    const bp = await this.radar.getBlueprint(id);
+    if (!bp) throw new NotFoundException('图纸不存在');
+    return bp;
+  }
+
+  @Post()
+  @RequirePermission('pipeline:control')
+  async create(
+    @Body(new ZodValidationPipe(createBlueprintSchema)) dto: z.infer<typeof createBlueprintSchema>,
+  ) {
+    const bp = await this.radar.createBlueprint(dto);
+    logger.info(`[图纸] 新建 #${bp.id}：${bp.kind}/${bp.label}`);
+    return bp;
+  }
+
+  @Patch(':id')
+  @RequirePermission('pipeline:control')
+  async update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body(new ZodValidationPipe(updateBlueprintSchema)) dto: z.infer<typeof updateBlueprintSchema>,
+  ) {
+    if (!(await this.radar.getBlueprint(id))) throw new NotFoundException('图纸不存在');
+    await this.radar.updateBlueprint(id, dto);
+    return { ok: true };
+  }
+
+  @Delete(':id')
+  @RequirePermission('pipeline:control')
+  async remove(@Param('id', ParseIntPipe) id: number) {
+    const res = await this.radar.deleteBlueprint(id);
+    if (!res.ok) throw new BadRequestException(res.reason ?? '无法删除');
+    logger.info(`[图纸] 删除 #${id}`);
+    return { ok: true };
+  }
+}
+
+/**
+ * /api/processes/* —— 进程（图纸 + 触发节奏）CRUD + 暂停/恢复/触发。
+ * 读 + 触发 pipeline:run；编辑/启停/删除 pipeline:control。
+ */
+@UseGuards(SessionAuthGuard)
+@RequirePermission('pipeline:run')
+@Controller('processes')
+export class ProcessesController {
+  constructor(private readonly radar: RadarService) {}
+
+  @Get()
+  list() {
+    return this.radar.listProcesses();
+  }
+
+  @Get(':id')
+  async get(@Param('id', ParseIntPipe) id: number) {
+    const p = await this.radar.getProcess(id);
+    if (!p) throw new NotFoundException('进程不存在');
+    return p;
+  }
+
+  @Get(':id/runs')
+  runs(@Param('id', ParseIntPipe) id: number) {
+    return this.radar.processRuns(id);
+  }
+
+  @Post()
+  @RequirePermission('pipeline:control')
+  async create(
+    @Body(new ZodValidationPipe(createProcessSchema)) dto: z.infer<typeof createProcessSchema>,
+  ) {
+    const res = await this.radar.createProcess(dto);
+    if ('error' in res) throw new BadRequestException(res.error);
+    logger.info(`[进程] 新建 #${res.id}：${res.label}`);
+    return res;
+  }
+
+  @Patch(':id')
+  @RequirePermission('pipeline:control')
+  async update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body(new ZodValidationPipe(updateProcessSchema)) dto: z.infer<typeof updateProcessSchema>,
+  ) {
+    if (!(await this.radar.getProcess(id))) throw new NotFoundException('进程不存在');
+    await this.radar.updateProcess(id, dto);
+    return { ok: true };
+  }
+
+  @Post(':id/pause')
+  @HttpCode(200)
+  @RequirePermission('pipeline:control')
+  async pause(@Param('id', ParseIntPipe) id: number) {
+    await this.radar.pauseProcess(id);
+    return { ok: true };
+  }
+
+  @Post(':id/resume')
+  @HttpCode(200)
+  @RequirePermission('pipeline:control')
+  async resume(@Param('id', ParseIntPipe) id: number) {
+    await this.radar.resumeProcess(id);
+    return { ok: true };
+  }
+
+  @Post(':id/trigger')
+  @HttpCode(200)
+  async trigger(@Param('id', ParseIntPipe) id: number) {
+    const res = await this.radar.triggerProcess(id);
+    if (!res.ok) throw new BadRequestException(res.reason ?? '无法触发');
+    logger.info(`[进程] 手动触发 #${id}`);
+    return { ok: true };
+  }
+
+  @Delete(':id')
+  @RequirePermission('pipeline:control')
+  async remove(@Param('id', ParseIntPipe) id: number) {
+    if (!(await this.radar.getProcess(id))) throw new NotFoundException('进程不存在');
+    await this.radar.deleteProcess(id);
+    logger.info(`[进程] 删除 #${id}`);
+    return { ok: true };
+  }
+}
+
+const INTENSITIES: readonly RadarIntensity[] = ['high', 'medium', 'low'];
+
+/**
+ * /api/radar/* —— 雷达指挥室只读 / 聚合视图（鉴权 pipeline:run）。
+ * 指挥室聚合 / lane 概览 / 运行详情 / 收成洞察 / 帖子库 / 帖子一生。
+ */
+@UseGuards(SessionAuthGuard)
+@RequirePermission('pipeline:run')
+@Controller('radar')
+export class RadarController {
+  constructor(private readonly radar: RadarService) {}
+
+  @Get('control-room')
+  controlRoom() {
+    return this.radar.controlRoom();
+  }
+
+  @Get('lanes')
+  lanes() {
+    return this.radar.lanes();
+  }
+
+  @Get('runs/:id')
+  async runDetail(@Param('id', ParseIntPipe) id: number) {
+    const res = await this.radar.runDetail(id);
+    if (!res) throw new NotFoundException('运行不存在');
+    return res;
+  }
+
+  @Get('insights')
+  insights(@Query() q: Record<string, string>) {
+    const intensity = INTENSITIES.includes(q.intensity as RadarIntensity)
+      ? (q.intensity as RadarIntensity)
+      : undefined;
+    return this.radar.listInsights({
+      source: q.source || undefined,
+      intensity,
+      q: q.q || undefined,
+      sort: q.sort === 'pain' ? 'pain' : 'time',
+      page: q.page ? Number(q.page) : undefined,
+      size: q.size ? Number(q.size) : undefined,
+    });
+  }
+
+  @Get('posts')
+  posts(@Query() q: Record<string, string>) {
+    const status =
+      q.status === 'due' || q.status === 'quiet' || q.status === 'new' ? q.status : undefined;
+    return this.radar.listPosts({
+      source: q.source || undefined,
+      status,
+      q: q.q || undefined,
+      page: q.page ? Number(q.page) : undefined,
+      size: q.size ? Number(q.size) : undefined,
+    });
+  }
+
+  @Get('posts/:id')
+  async postDetail(@Param('id') id: string) {
+    const res = await this.radar.postDetail(id);
+    if (!res) throw new NotFoundException('帖子不存在');
+    return res;
+  }
+}

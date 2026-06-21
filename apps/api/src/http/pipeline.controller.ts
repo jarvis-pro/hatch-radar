@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  Body,
   Controller,
   Get,
   HttpCode,
@@ -184,6 +185,21 @@ export class PipelineController {
   async cancelTask(@Param('id') idRaw: string) {
     const ok = await this.pipeline.cancelInspect(parseId(idRaw));
     if (!ok) throw new BadRequestException('当前不可取消（任务已是终态）');
+    return { ok: true };
+  }
+
+  /** 运行前挂 / 摘某环节暂停点（body.gate）；仅 pending 环节可改。 */
+  @Post('tasks/:id/stages/:seq/gate')
+  @HttpCode(200)
+  async toggleStageGate(
+    @Param('id') idRaw: string,
+    @Param('seq') seqRaw: string,
+    @Body() body: { gate?: boolean },
+  ) {
+    const seq = Number(seqRaw);
+    if (!Number.isInteger(seq) || seq < 0) throw new BadRequestException('seq 非法');
+    const ok = await this.pipeline.toggleStageGate(parseId(idRaw), seq, body.gate === true);
+    if (!ok) throw new BadRequestException('当前不可设置暂停点（环节非待执行）');
     return { ok: true };
   }
 }
