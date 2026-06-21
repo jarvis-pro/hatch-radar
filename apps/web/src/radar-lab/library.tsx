@@ -261,7 +261,7 @@ function LibraryView() {
 
 export function LibraryPage() {
   return (
-    <RequirePerm perm="analyze:run">
+    <RequirePerm perm="posts:view">
       <LibraryView />
     </RequirePerm>
   );

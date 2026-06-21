@@ -11,7 +11,9 @@ import type {
   LaneDTO,
   Paged,
   ProcessDTO,
+  RadarFilterOptions,
   RadarInsightDTO,
+  RadarInsightDetailDTO,
   RadarInsightFilter,
   RadarPostDTO,
   RadarPostDetailDTO,
@@ -102,6 +104,23 @@ export function useInsights(filter: RadarInsightFilter) {
     queryKey: radarKeys.insights(filter),
     queryFn: () => api.get<Paged<RadarInsightDTO>>(`/radar/insights${qs({ ...filter })}`),
     placeholderData: keepPreviousData,
+  });
+}
+
+/** 单条洞察详情（痛点 / 机会 / 研判全展开）。 */
+export function useInsightDetail(id: string) {
+  return useQuery({
+    queryKey: radarKeys.insight(id),
+    queryFn: () => api.get<RadarInsightDetailDTO>(`/radar/insights/${id}`),
+  });
+}
+
+/** 来源 / 版块去重清单（洞察库筛选下拉 + 导出批次；变动慢，缓存 5 分钟）。 */
+export function useRadarFilterOptions() {
+  return useQuery({
+    queryKey: radarKeys.filters,
+    queryFn: () => api.get<RadarFilterOptions>('/radar/insights/filters'),
+    staleTime: 5 * 60_000,
   });
 }
 

@@ -9,7 +9,7 @@
  *
  * 抗规模：筛选 / 排序 / 分页全在**服务端**（react-query 命中 /api/radar/insights），
  * 翻页只取当页、keepPreviousData 平滑切换；DOM 恒有界，1 条还是 10 万条同样跑得动。
- * 每条可溯源回它的源帖一生（点行 → /radar/posts/:postId）。
+ * 每条可点开看痛点 / 机会全文与人工研判（点行 → /radar/insights/:id），并可下钻其源帖一生。
  */
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -37,11 +37,12 @@ import {
 import { cn } from '@hatch-radar/ui/lib/utils';
 import { RequirePerm } from '@/auth/require-perm';
 import { EmptyState, LoadError } from '@/components/empty';
+import { ExportBatchButton } from '@/components/export-batch';
 import { PageHeader } from '@/components/page-header';
 import { Pagination } from '@/components/pagination';
 import { timeAgo } from '@/lib/format';
 import { INTENSITY_META, SOURCE_META } from './constants';
-import { useInsights } from './hooks';
+import { useInsights, useRadarFilterOptions } from './hooks';
 
 const PAGE_SIZES = [10, 25, 50];
 const DEFAULT_SIZE = 25;
@@ -157,6 +158,7 @@ function Harvest() {
 
   // URL 上「已提交」的筛选 —— 表格按它渲染、翻页 / 排序随它保留
   const source = sp.get('source') ?? '';
+  const subreddit = sp.get('subreddit') ?? '';
   const intensity = INTENSITIES.includes(sp.get('intensity') as RadarIntensity)
     ? (sp.get('intensity') as string)
     : '';
@@ -166,14 +168,22 @@ function Harvest() {
   const page = Math.max(1, Number.parseInt(sp.get('page') ?? '1', 10) || 1);
   const size = PAGE_SIZES.includes(Number(sp.get('size'))) ? Number(sp.get('size')) : DEFAULT_SIZE;
 
+  // 来源 / 版块去重清单（版块下拉 + 导出批次共用；变动慢，缓存）
+  const optionsQ = useRadarFilterOptions();
+  const subreddits = optionsQ.data?.subreddits ?? [];
+
   // 搜索草稿（延迟提交，仿帖子库）：改下拉 / 输入只动本地，点「搜索」才写进 URL；
-  // URL 上条件变化（提交本身 / 外部带参导航 / 列头排序）时回灌——翻页 / 排序只改其他参数不动这三者
-  const [draft, setDraft] = useState({ source, intensity, q });
-  useEffect(() => setDraft({ source, intensity, q }), [source, intensity, q]);
+  // URL 上条件变化（提交本身 / 外部带参导航 / 列头排序）时回灌——翻页 / 排序只改其他参数不动这四者
+  const [draft, setDraft] = useState({ source, subreddit, intensity, q });
+  useEffect(
+    () => setDraft({ source, subreddit, intensity, q }),
+    [source, subreddit, intensity, q],
+  );
 
   // 服务端筛选 / 排序 / 分页：把已提交条件喂给 /api/radar/insights（排序只取维度，方向由列头交互附带）
   const queryResult = useInsights({
     source: source || undefined,
+    subreddit: subreddit || undefined,
     intensity: (intensity || undefined) as RadarIntensity | undefined,
     q: q || undefined,
     sort: sortKey,
@@ -186,9 +196,10 @@ function Harvest() {
   const rows = data?.items ?? [];
 
   /** 把一组条件写进 URL（回第 1 页；保留排序与每页条数这两项浏览偏好）。 */
-  const apply = (next: { source: string; intensity: string; q: string }): void => {
+  const apply = (next: { source: string; subreddit: string; intensity: string; q: string }): void => {
     const params = new URLSearchParams();
     if (next.source) params.set('source', next.source);
+    if (next.subreddit) params.set('subreddit', next.subreddit);
     if (next.intensity) params.set('intensity', next.intensity);
     if (next.q.trim()) params.set('q', next.q.trim());
     if (sort) params.set('sort', sort);
@@ -196,7 +207,7 @@ function Harvest() {
     const qStr = params.toString();
     navigate(qStr ? `/radar/insights?${qStr}` : '/radar/insights');
   };
-  const reset = (): void => apply({ source: '', intensity: '', q: '' });
+  const reset = (): void => apply({ source: '', subreddit: '', intensity: '', q: '' });
 
   /** 列头点击排序（即时，作用于已提交的筛选；回第 1 页，同列切方向、换列以倒序起步）。 */
   const applySort = (key: SortKey): void => {
@@ -204,6 +215,7 @@ function Harvest() {
     const nextSort = `${key}-${dir}`;
     const params = new URLSearchParams();
     if (source) params.set('source', source);
+    if (subreddit) params.set('subreddit', subreddit);
     if (intensity) params.set('intensity', intensity);
     if (q) params.set('q', q);
     if (nextSort !== DEFAULT_SORT) params.set('sort', nextSort);
@@ -216,7 +228,8 @@ function Harvest() {
     <>
       <PageHeader
         title="洞察库"
-        description="AI 从语料里淘出的用户痛点与产品机会——按强度、来源筛选，或按关键词搜痛点 / 标题 / 标签，每条都能溯源回它的源帖一生。"
+        description="AI 从语料里淘出的用户痛点与产品机会——按强度、来源、版块筛选或关键词搜索，点开看痛点 / 机会全文与人工研判，每条可溯源回源帖一生。"
+        actions={<ExportBatchButton subreddits={subreddits} />}
       />
 
       <form
@@ -259,6 +272,25 @@ function Harvest() {
             ))}
           </SelectContent>
         </Select>
+
+        {subreddits.length > 0 ? (
+          <Select
+            value={draft.subreddit || ALL}
+            onValueChange={(v) => setDraft((s) => ({ ...s, subreddit: v === ALL ? '' : v }))}
+          >
+            <SelectTrigger className="w-full sm:w-auto sm:min-w-34" aria-label="全部版块">
+              <SelectValue placeholder="全部版块" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>全部版块</SelectItem>
+              {subreddits.map((s) => (
+                <SelectItem key={s} value={s}>
+                  {s}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : null}
 
         <div className="relative min-w-0 flex-1 sm:min-w-48">
           <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -322,7 +354,7 @@ function Harvest() {
                   <InsightRow
                     key={i.id}
                     insight={i}
-                    onClick={() => navigate(`/radar/posts/${i.postId}`)}
+                    onClick={() => navigate(`/radar/insights/${i.id}`)}
                   />
                 ))}
               </TableBody>
@@ -334,7 +366,7 @@ function Harvest() {
             pageCount={pageCount}
             total={total}
             basePath="/radar/insights"
-            query={{ source, intensity, q, sort }}
+            query={{ source, subreddit, intensity, q, sort }}
             pageSize={size}
             pageSizeOptions={PAGE_SIZES}
           />
@@ -346,7 +378,7 @@ function Harvest() {
 
 export function HarvestPage() {
   return (
-    <RequirePerm perm="analyze:run">
+    <RequirePerm perm="insights:view">
       <Harvest />
     </RequirePerm>
   );

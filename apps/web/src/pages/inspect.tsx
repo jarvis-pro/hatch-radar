@@ -104,7 +104,7 @@ function InspectView() {
           <div className="flex items-center gap-2">
             <Badge variant={statusMeta.variant}>{statusMeta.label}</Badge>
             <Button asChild variant="ghost" size="sm">
-              <Link to={`/posts/${job.postId}`}>查看原帖</Link>
+              <Link to={`/radar/posts/${job.postId}`}>查看原帖</Link>
             </Button>
           </div>
         }
@@ -173,7 +173,7 @@ function InspectView() {
 
         {job.status === 'succeeded' ? (
           <Button asChild variant="outline">
-            <Link to={`/posts/${job.postId}`}>查看帖子与洞察 →</Link>
+            <Link to={`/radar/posts/${job.postId}`}>查看帖子与洞察 →</Link>
           </Button>
         ) : null}
       </div>

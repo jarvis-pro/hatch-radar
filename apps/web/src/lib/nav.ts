@@ -1,5 +1,4 @@
 import {
-  FileText,
   Gauge,
   LayoutDashboard,
   LayoutTemplate,
@@ -8,7 +7,6 @@ import {
   Radar,
   ScrollText,
   Settings2,
-  Sparkles,
   Users,
   Zap,
   type LucideIcon,
@@ -25,7 +23,7 @@ export interface NavItem {
   match: (pathname: string) => boolean;
 }
 
-/** 导航分组（= RBAC 能力分组：工作区/运营/系统；「运营 · Mock」为 radar-lab 演示原型）。 */
+/** 导航分组（= RBAC 能力分组：工作区＝数据浏览 / 运营＝操作控制 / 系统＝管理）。 */
 export interface NavGroup {
   label: string;
   items: NavItem[];
@@ -34,7 +32,8 @@ export interface NavGroup {
 /**
  * 全站导航的单一事实源 —— 侧边栏与命令面板（⌘K）共用。
  * 分组刻意对齐权限语义：数据浏览→工作区、运营操作→运营、系统管理→系统。
- * 「运营 · Mock」单列 radar-lab 的「活的模拟世界」演示（纯 mock，与上方真实运营页区隔）。
+ * 「数据看板 / 洞察库 / 帖子库」是回顾分析与研判的浏览面（insights:view / posts:view）；
+ * 「指挥室 / 图纸 / 请求闸」是实时操作面（pipeline:run / requests:control）。
  */
 export const NAV_GROUPS: readonly NavGroup[] = [
   {
@@ -48,18 +47,18 @@ export const NAV_GROUPS: readonly NavGroup[] = [
         match: (p) => p === '/',
       },
       {
-        to: '/insights',
-        label: '需求洞察',
-        icon: Sparkles,
+        to: '/radar/insights',
+        label: '洞察库',
+        icon: Lightbulb,
         perm: 'insights:view',
-        match: (p) => p.startsWith('/insights'),
+        match: (p) => p.startsWith('/radar/insights'),
       },
       {
-        to: '/posts',
+        to: '/radar/posts',
         label: '帖子库',
-        icon: FileText,
+        icon: Library,
         perm: 'posts:view',
-        match: (p) => p.startsWith('/posts'),
+        match: (p) => p.startsWith('/radar/posts'),
       },
     ],
   },
@@ -89,21 +88,6 @@ export const NAV_GROUPS: readonly NavGroup[] = [
         perm: 'pipeline:run',
         match: (p) => p.startsWith('/radar/blueprints'),
       },
-      {
-        to: '/radar/insights',
-        label: '洞察库',
-        icon: Lightbulb,
-        perm: 'pipeline:run',
-        match: (p) => p.startsWith('/radar/insights'),
-      },
-      {
-        to: '/radar/posts',
-        label: '帖子库',
-        icon: Library,
-        perm: 'pipeline:run',
-        match: (p) => p.startsWith('/radar/posts'),
-      },
-      // 帖子一生（/radar/posts/:id）是纯详情，从运行详情 / 收成上下文点入，不占独立菜单位
       {
         to: '/radar/requests',
         label: '请求闸',

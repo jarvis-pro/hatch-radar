@@ -224,7 +224,7 @@ function PersistPanel({ o, postId }: { o: PersistOutput; postId: string }) {
       </div>
       {o.saved ? (
         <Button asChild variant="outline" size="sm">
-          <Link to={`/posts/${postId}`}>查看帖子与洞察 →</Link>
+          <Link to={`/radar/posts/${postId}`}>查看帖子与洞察 →</Link>
         </Button>
       ) : null}
     </div>

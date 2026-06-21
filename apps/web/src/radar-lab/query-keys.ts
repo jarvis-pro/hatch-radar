@@ -14,4 +14,6 @@ export const radarKeys = {
   insights: (f: RadarInsightFilter) => ['radar', 'insights', f] as const,
   posts: (f: RadarPostFilter) => ['radar', 'posts', f] as const,
   post: (id: string) => ['radar', 'post', id] as const,
+  insight: (id: string) => ['radar', 'insight', id] as const,
+  filters: ['radar', 'filters'] as const,
 };

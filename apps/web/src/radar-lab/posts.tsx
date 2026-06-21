@@ -13,8 +13,10 @@ import type { PostLifecycleEvent, RadarCommentDTO, RadarSourceKind } from '@hatc
 import { Badge } from '@hatch-radar/ui/components/badge';
 import { Skeleton } from '@hatch-radar/ui/components/skeleton';
 import { cn } from '@hatch-radar/ui/lib/utils';
+import { can, useAuth } from '@/auth/auth-context';
 import { RequirePerm } from '@/auth/require-perm';
 import { LoadError } from '@/components/empty';
+import { InspectLaunchButton } from '@/components/inspect-launch';
 import { PageHeader } from '@/components/page-header';
 import { TranslationButton } from '@/components/translation-button';
 import { commentAvatarDataUri } from '@/lib/avatar';
@@ -99,6 +101,7 @@ function SectionLabel({ children }: { children: ReactNode }) {
 
 function PostDetailView() {
   const { id } = useParams<{ id: string }>();
+  const { user } = useAuth();
   const queryResult = usePostDetail(id ?? '');
   const tr = usePostTranslation(id);
 
@@ -141,7 +144,14 @@ function PostDetailView() {
             评论），右栏看它的一生：复查退避节奏、跨运行轨迹与产出洞察。
           </span>
         }
-        actions={<TranslationButton t={tr} />}
+        actions={
+          <>
+            {can(user, 'analyze:run') ? (
+              <InspectLaunchButton postId={post.id} />
+            ) : null}
+            <TranslationButton t={tr} />
+          </>
+        }
       />
 
       <div className="grid items-start gap-x-8 gap-y-8 lg:grid-cols-[minmax(0,1fr)_22rem]">
