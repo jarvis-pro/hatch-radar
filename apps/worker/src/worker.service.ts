@@ -196,13 +196,13 @@ export class WorkerService {
         if (!post) return Promise.reject(new Error('analyze 任务缺少帖子'));
         return this.execNode(stageName, task.provider_id, task.model ?? '', post, stages, signal);
       case 'discover':
-        return this.collection.discover(task);
+        return this.collection.runDiscoverStage(stageName, task, stages);
       case 'collect':
         if (!post) return Promise.reject(new Error('collect 任务缺少帖子'));
-        return this.collection.collectComments(task, post);
+        return this.collection.runCollectStage(stageName, task, post, stages);
       case 'recheck':
         if (!post) return Promise.reject(new Error('recheck 任务缺少帖子'));
-        return this.collection.recheckPost(task, post);
+        return this.collection.runRecheckStage(stageName, task, post, stages);
       case 'translate':
         if (!post) return Promise.reject(new Error('translate 任务缺少帖子'));
         // 译文按 content_hash 落 translations 表；产物含 usage 供成本回填。

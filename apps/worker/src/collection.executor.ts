@@ -16,7 +16,7 @@ import {
   type TaskRow,
 } from '@hatch-radar/db';
 import { logger, nowSec } from '@hatch-radar/kernel';
-import { INSPECT_STEP_NAMES } from '@hatch-radar/shared';
+import { buildStages, type RedditComment, type StageRecipe } from '@hatch-radar/shared';
 import { RequestGate } from './request-gate';
 
 /** 评论抓取后写入的 comment_pass 值（≥1 即可进入分析） */
@@ -24,10 +24,6 @@ const COMMENT_FETCHED_PASS = 2;
 /** HN 端点白名单 */
 const HN_ENDPOINTS = ['topstories', 'askstories', 'showstories'] as const;
 type HnEndpoint = (typeof HN_ENDPOINTS)[number];
-/** analyze 任务环节模板（= 检视器 6 节点，无闸门→运行到底） */
-const ANALYZE_STAGES = INSPECT_STEP_NAMES.map((name) => ({ name }));
-/** collect 任务环节模板（单环节：抓评论 + 派生分析） */
-const COLLECT_STAGES = [{ name: 'fetch_comments' }];
 /** 复查指数退避封顶：连续未变最多跳过的 sweep 数 */
 const RECHECK_BACKOFF_CAP = 16;
 
@@ -58,36 +54,59 @@ function readSweep(params: unknown): number {
   return 0;
 }
 
-/** discover 环节产物 */
-export interface DiscoverOutput {
-  sourcesFetched: number;
-  added: number;
-  updated: number;
-  collectSpawned: number;
+/** 上游环节产物读取的最小形状（worker 传入的 task_stages 满足）。 */
+type StageLike = { name: string; output: unknown };
+
+/** 取某上游环节已落库的产物（检查点）；未跑 / 无产物为 undefined。 */
+function stageOutput<T>(stages: readonly StageLike[], name: string): T | undefined {
+  const out = stages.find((s) => s.name === name)?.output;
+  return (out ?? undefined) as T | undefined;
 }
 
-/** collect 环节产物 */
-export interface CollectOutput {
+/** discover.fetch_listing 产物：抓列表 + upsert 后的新帖 id 与计数。 */
+export interface DiscoverListingOutput {
+  newPostIds: string[];
+  added: number;
+  updated: number;
+  sourcesFetched: number;
+}
+/** discover.dedup 产物：待派生采集的新帖 id（活跃任务去重由 createTaskWithStages 兜底）。 */
+export interface DiscoverDedupOutput {
+  toSpawn: string[];
+}
+/** discover.spawn 产物：派生的 collect 任务数。 */
+export interface DiscoverSpawnOutput {
+  collectSpawned: number;
+}
+/** collect.fetch_comments / recheck.recrawl 产物：抓回的评论（jsonb 检查点，persist 据此落库）。 */
+export interface FetchCommentsOutput {
   source: string;
+  commentCount: number;
+  dropped: number;
+  comments: RedditComment[];
+}
+/** collect.persist 产物。 */
+export interface CollectPersistOutput {
   commentCount: number;
   dropped: number;
   analyzeSpawned: boolean;
 }
-
-/** recheck 环节产物 */
-export interface RecheckOutput {
+/** recheck.persist 产物。 */
+export interface RecheckPersistOutput {
   changed: boolean;
   analyzeSpawned: boolean;
 }
 
 /**
- * 采集执行器（worker 侧）：承载图纸生命周期里 discover / collect 两类任务环节的实际抓取。
+ * 采集执行器（worker 侧）：承载图纸生命周期里 discover / collect / recheck 任务的**逐环节**抓取与落库。
  *
- * - discover：抓所有启用来源的列表 → upsertPosts（去重靠 upsert 返回的 newPosts）→ 为每条新帖派生 collect 任务。
- * - collect：抓单帖评论（reddit/hn；rss 跳过）→ replaceComments → 派生 analyze 任务（采集即分析）。
+ * 环节拆分（与 {@link buildStages} 的模板一致），每环节产物落 task_stages.output 做检查点：
+ * - discover：fetch_listing（抓所有启用源列表 + upsertPosts → 新帖 id）→ dedup → spawn（为新帖派生 collect）
+ * - collect：fetch_comments（抓评论树，落 jsonb 检查点）→ persist（replaceComments + 派生 analyze）
+ * - recheck：recrawl（重抓评论）→ persist（replaceComments 指纹判变 + 指数退避 + 变则派生 analyze）
  *
- * 派生用 {@link TasksRepository.createTaskWithStages}，同帖同 kind 已有活跃任务即去重跳过（故环节重跑幂等）。
- * 抓取经各自的 crawler 客户端（内含令牌桶限速）。
+ * 「抓取/落库分环节」让任意环节可挂暂停点（task_stages.gate），且重认领从下一环节续跑（检查点不丢、所见即所跑）。
+ * 派生用 {@link TasksRepository.createTaskWithStages}，同帖同 kind 已有活跃任务即去重跳过。抓取经请求闸（lane 限速 / 可暂停）。
  */
 export class CollectionExecutor {
   constructor(
@@ -102,14 +121,29 @@ export class CollectionExecutor {
     private readonly gate: RequestGate,
   ) {}
 
-  /** discover 环节：抓列表 + upsert + 为新帖派生 collect 任务。 */
-  async discover(task: TaskRow): Promise<DiscoverOutput> {
-    const runId = task.run_id;
+  // ─── discover：抓列表 → 去重 → 派生采集 ───────────────────────────────────────
+
+  /** 按环节名分派 discover 任务的执行。 */
+  runDiscoverStage(name: string, task: TaskRow, stages: readonly StageLike[]): Promise<unknown> {
+    switch (name) {
+      case 'fetch_listing':
+        return this.discoverFetchListing();
+      case 'dedup':
+        return Promise.resolve(this.discoverDedup(stages));
+      case 'spawn':
+        return this.discoverSpawn(task, stages);
+      default:
+        return Promise.reject(new Error(`未知 discover 环节: ${name}`));
+    }
+  }
+
+  /** fetch_listing：抓所有启用源列表 + upsertPosts；产物 = 新帖 id + 计数（检查点）。 */
+  private async discoverFetchListing(): Promise<DiscoverListingOutput> {
     const now = nowSec();
     let added = 0;
     let updated = 0;
     let sourcesFetched = 0;
-    const fresh: { id: string; subreddit: string }[] = [];
+    const newPostIds: string[] = [];
 
     const reddit = await this.crawlerConfig.getRedditClient();
     if (reddit) {
@@ -125,7 +159,7 @@ export class CollectionExecutor {
             added += r.added;
             updated += r.updated;
             sourcesFetched += 1;
-            for (const p of r.newPosts) fresh.push(p);
+            for (const p of r.newPosts) newPostIds.push(p.id);
           } catch (err) {
             logger.warn(`[采集] r/${source.identifier}/${sort} 失败: ${errMsg(err)}`);
           }
@@ -146,13 +180,13 @@ export class CollectionExecutor {
         added += r.added;
         updated += r.updated;
         sourcesFetched += 1;
-        for (const p of r.newPosts) fresh.push(p);
+        for (const p of r.newPosts) newPostIds.push(p.id);
       } catch (err) {
         logger.warn(`[采集] HN/${channel} 失败: ${errMsg(err)}`);
       }
     }
 
-    // RSS 无评论：upsert 时 comment_pass=2，新帖仍派生 collect（其 fetch_comments 跳过抓取、直接派生分析）
+    // RSS 无评论：upsert 时 comment_pass=2，新帖仍派生 collect（其 fetch_comments 空评论、直接派生分析）
     for (const source of await this.sources.listEnabledByPlatform('rss')) {
       const name = source.label || source.identifier;
       try {
@@ -164,87 +198,136 @@ export class CollectionExecutor {
         added += r.added;
         updated += r.updated;
         sourcesFetched += 1;
-        for (const p of r.newPosts) fresh.push(p);
+        for (const p of r.newPosts) newPostIds.push(p.id);
       } catch (err) {
         logger.warn(`[采集] RSS/${name} 失败: ${errMsg(err)}`);
       }
     }
 
+    logger.info(
+      `[采集] discover fetch_listing：来源 ${sourcesFetched}，新增 ${added}，更新 ${updated}`,
+    );
+    return { newPostIds, added, updated, sourcesFetched };
+  }
+
+  /** dedup：读 fetch_listing 检查点，候选 = 新帖 id（活跃任务去重交 createTaskWithStages 兜底）。 */
+  private discoverDedup(stages: readonly StageLike[]): DiscoverDedupOutput {
+    const listing = stageOutput<DiscoverListingOutput>(stages, 'fetch_listing');
+    return { toSpawn: listing?.newPostIds ?? [] };
+  }
+
+  /** spawn：读 dedup 检查点，为每条新帖派生 collect 子任务（撞活跃唯一索引者跳过）。 */
+  private async discoverSpawn(
+    task: TaskRow,
+    stages: readonly StageLike[],
+  ): Promise<DiscoverSpawnOutput> {
+    const dedup = stageOutput<DiscoverDedupOutput>(stages, 'dedup');
+    const ids = dedup?.toSpawn ?? [];
+    const now = nowSec();
+    const recipe = await this.recipeForRun(task.run_id);
     let collectSpawned = 0;
-    for (const p of fresh) {
+    for (const postId of ids) {
       const res = await this.tasks.createTaskWithStages(
-        { runId, kind: 'collect', parentTaskId: task.id, postId: p.id },
-        COLLECT_STAGES,
+        {
+          runId: task.run_id,
+          processId: task.process_id,
+          kind: 'collect',
+          parentTaskId: task.id,
+          postId,
+        },
+        buildStages('collect', recipe),
         now,
       );
       if (res.ok) collectSpawned += 1;
     }
-    if (collectSpawned > 0) await this.runs.incrementCounters(runId, { total: collectSpawned });
-    logger.info(
-      `[采集] discover：来源 ${sourcesFetched}，新增 ${added}，更新 ${updated}，派生采集 ${collectSpawned}`,
-    );
-    return { sourcesFetched, added, updated, collectSpawned };
+    if (collectSpawned > 0)
+      await this.runs.incrementCounters(task.run_id, { total: collectSpawned });
+    logger.info(`[采集] discover spawn：派生采集 ${collectSpawned}`);
+    return { collectSpawned };
   }
 
-  /** collect 环节：抓单帖评论（rss 跳过）+ replaceComments + 派生 analyze 任务。 */
-  async collectComments(task: TaskRow, post: PostRow): Promise<CollectOutput> {
+  // ─── collect：抓评论 → 落库 + 派生分析 ────────────────────────────────────────
+
+  /** 按环节名分派 collect 任务的执行。 */
+  runCollectStage(
+    name: string,
+    task: TaskRow,
+    post: PostRow,
+    stages: readonly StageLike[],
+  ): Promise<unknown> {
+    switch (name) {
+      case 'fetch_comments':
+        return this.fetchCommentsStage(task, post);
+      case 'persist':
+        return this.collectPersist(task, post, stages);
+      default:
+        return Promise.reject(new Error(`未知 collect 环节: ${name}`));
+    }
+  }
+
+  /** persist：读 fetch_comments 检查点 → replaceComments + 派生 analyze。 */
+  private async collectPersist(
+    task: TaskRow,
+    post: PostRow,
+    stages: readonly StageLike[],
+  ): Promise<CollectPersistOutput> {
     const now = nowSec();
-    let result: CommentFetchResult | null = null;
-    if (post.source === 'hackernews') {
-      result = await this.gate.run(
-        { lane: 'hackernews', purpose: 'comments', url: post.id, ownerTaskId: task.id },
-        () => this.hackernews.fetchComments(post.id),
-      );
-    } else if (post.source === 'reddit') {
-      const reddit = await this.crawlerConfig.getRedditClient();
-      if (reddit) {
-        result = await this.gate.run(
-          { lane: 'reddit', purpose: 'comments', url: post.id, ownerTaskId: task.id },
-          () => reddit.fetchComments(post.subreddit, post.id),
-        );
-      }
-    }
-    let commentCount = 0;
-    let dropped = 0;
-    if (result) {
-      commentCount = result.comments.length;
-      dropped = result.dropped;
-      await this.comments.replaceComments(post.id, result.comments, COMMENT_FETCHED_PASS, now);
-    }
-    const analyzeSpawned = await this.spawnAnalyze(task.run_id, post.id, task.id, now);
-    logger.info(
-      `[采集] collect ${post.id}：评论 ${commentCount}${dropped > 0 ? ` (丢弃≈${dropped})` : ''}，派生分析 ${analyzeSpawned ? '是' : '否'}`,
+    const fetched = stageOutput<FetchCommentsOutput>(stages, 'fetch_comments');
+    const comments = fetched?.comments ?? [];
+    // rss 无评论：comments 空，replaceComments 仅推进 comment_pass
+    await this.comments.replaceComments(post.id, comments, COMMENT_FETCHED_PASS, now);
+    const analyzeSpawned = await this.spawnAnalyze(
+      task.run_id,
+      post.id,
+      task.id,
+      now,
+      task.process_id,
     );
-    return { source: post.source, commentCount, dropped, analyzeSpawned };
+    logger.info(
+      `[采集] collect ${post.id}：评论 ${comments.length}，派生分析 ${analyzeSpawned ? '是' : '否'}`,
+    );
+    return { commentCount: comments.length, dropped: fetched?.dropped ?? 0, analyzeSpawned };
+  }
+
+  // ─── recheck：重抓评论 → 落库（判变 + 退避 + 变则重新分析） ──────────────────────
+
+  /** 按环节名分派 recheck 任务的执行。 */
+  runRecheckStage(
+    name: string,
+    task: TaskRow,
+    post: PostRow,
+    stages: readonly StageLike[],
+  ): Promise<unknown> {
+    switch (name) {
+      case 'recrawl':
+        return this.fetchCommentsStage(task, post);
+      case 'persist':
+        return this.recheckPersist(task, post, stages);
+      default:
+        return Promise.reject(new Error(`未知 recheck 环节: ${name}`));
+    }
   }
 
   /**
-   * recheck 环节：复查单帖——抓评论（经闸）→ replaceComments 内置指纹 diff 判有无变化。
-   * 有变化：comments_changed_at 已更新 + 派生重新分析 + 退避复位（misses=0、下轮即查）。
+   * persist：读 recrawl 检查点 → replaceComments 内置指纹 diff 判有无变化。
+   * 有变化：comments_changed_at 已更新 + 退避复位（misses=0、下轮即查）+ 派生重新分析。
    * 无变化：指数退避（misses++、跳过 min(2^(misses-1), CAP) 个 sweep）。rss 不在复查范围。
    */
-  async recheckPost(task: TaskRow, post: PostRow): Promise<RecheckOutput> {
+  private async recheckPersist(
+    task: TaskRow,
+    post: PostRow,
+    stages: readonly StageLike[],
+  ): Promise<RecheckPersistOutput> {
     const now = nowSec();
     const sweep = readSweep(task.params);
-    let result: CommentFetchResult | null = null;
-    if (post.source === 'hackernews') {
-      result = await this.gate.run(
-        { lane: 'hackernews', purpose: 'recheck', url: post.id, ownerTaskId: task.id },
-        () => this.hackernews.fetchComments(post.id),
-      );
-    } else if (post.source === 'reddit') {
-      const reddit = await this.crawlerConfig.getRedditClient();
-      if (reddit) {
-        result = await this.gate.run(
-          { lane: 'reddit', purpose: 'recheck', url: post.id, ownerTaskId: task.id },
-          () => reddit.fetchComments(post.subreddit, post.id),
-        );
-      }
-    }
-    const changed = result
-      ? (await this.comments.replaceComments(post.id, result.comments, COMMENT_FETCHED_PASS, now))
-          .changed
-      : false;
+    const fetched = stageOutput<FetchCommentsOutput>(stages, 'recrawl');
+    const comments = fetched?.comments ?? [];
+    const { changed } = await this.comments.replaceComments(
+      post.id,
+      comments,
+      COMMENT_FETCHED_PASS,
+      now,
+    );
     let analyzeSpawned = false;
     if (changed) {
       await this.posts.updateRecheckState(post.id, {
@@ -252,7 +335,7 @@ export class CollectionExecutor {
         dueSweep: sweep + 1,
         lastRecheckedAt: now,
       });
-      analyzeSpawned = await this.spawnAnalyze(task.run_id, post.id, task.id, now);
+      analyzeSpawned = await this.spawnAnalyze(task.run_id, post.id, task.id, now, task.process_id);
     } else {
       const misses = post.recheck_misses + 1;
       const skip = Math.min(2 ** (misses - 1), RECHECK_BACKOFF_CAP);
@@ -268,21 +351,67 @@ export class CollectionExecutor {
     return { changed, analyzeSpawned };
   }
 
-  /** 派生一条 analyze 任务（有 active 模型且同帖无活跃 analyze 任务时）。 */
+  // ─── 共用 ────────────────────────────────────────────────────────────────────
+
+  /** 抓单帖评论（reddit/hn 经请求闸；rss / 无 reddit 客户端 → null）。供 collect.fetch_comments / recheck.recrawl 复用。 */
+  private async fetchCommentsStage(task: TaskRow, post: PostRow): Promise<FetchCommentsOutput> {
+    let result: CommentFetchResult | null = null;
+    if (post.source === 'hackernews') {
+      result = await this.gate.run(
+        { lane: 'hackernews', purpose: 'comments', url: post.id, ownerTaskId: task.id },
+        () => this.hackernews.fetchComments(post.id),
+      );
+    } else if (post.source === 'reddit') {
+      const reddit = await this.crawlerConfig.getRedditClient();
+      if (reddit) {
+        result = await this.gate.run(
+          { lane: 'reddit', purpose: 'comments', url: post.id, ownerTaskId: task.id },
+          () => reddit.fetchComments(post.subreddit, post.id),
+        );
+      }
+    }
+    return {
+      source: post.source,
+      commentCount: result?.comments.length ?? 0,
+      dropped: result?.dropped ?? 0,
+      comments: result?.comments ?? [],
+    };
+  }
+
+  /** 派生一条 analyze 任务（有 active 模型且同帖无活跃 analyze 任务时）；环节闸门取该运行的图纸配方。 */
   private async spawnAnalyze(
     runId: number,
     postId: string,
     parentTaskId: number,
     now: number,
+    processId: number | null,
   ): Promise<boolean> {
     const active = await this.analysisConfig.getActiveProvider();
     if (!active) return false;
+    const recipe = await this.recipeForRun(runId);
     const res = await this.tasks.createTaskWithStages(
-      { runId, kind: 'analyze', parentTaskId, postId, providerId: active.id, model: active.model },
-      ANALYZE_STAGES,
+      {
+        runId,
+        processId,
+        kind: 'analyze',
+        parentTaskId,
+        postId,
+        providerId: active.id,
+        model: active.model,
+      },
+      buildStages('analyze', recipe),
       now,
     );
     if (res.ok) await this.runs.incrementCounters(runId, { total: 1 });
     return res.ok;
+  }
+
+  /** 从运行的 params 快照读出建环节配方（gates / enabledStages）——派生任务的闸门据此与图纸一致。 */
+  private async recipeForRun(runId: number): Promise<StageRecipe> {
+    const run = await this.runs.getRun(runId);
+    const p = (run?.params ?? {}) as { gates?: unknown; enabledStages?: unknown };
+    const arr = (v: unknown): string[] =>
+      Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+    return { gates: arr(p.gates), enabledStages: arr(p.enabledStages) };
   }
 }
