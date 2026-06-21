@@ -181,7 +181,7 @@ function InsightRow({
   const SrcIcon = SOURCE_META[insight.source].icon;
   return (
     <TableRow className="cursor-pointer" onClick={onClick}>
-      <TableCell className="hidden font-mono text-xs text-muted-foreground/70 sm:table-cell">
+      <TableCell className="hidden font-mono text-xs text-muted-foreground/70 xl:table-cell">
         <span className="block truncate">{insight.id}</span>
       </TableCell>
       <TableCell>
@@ -196,13 +196,13 @@ function InsightRow({
           {im.label}
         </Badge>
       </TableCell>
-      <TableCell className="hidden text-xs text-muted-foreground md:table-cell">
+      <TableCell className="hidden text-xs text-muted-foreground lg:table-cell">
         <span className="inline-flex items-center gap-1 truncate">
           <SrcIcon className="size-3.5 shrink-0" />
           {insight.channel}
         </span>
       </TableCell>
-      <TableCell className="hidden text-xs text-muted-foreground lg:table-cell">
+      <TableCell className="hidden text-xs text-muted-foreground xl:table-cell">
         <div className="truncate">{insight.procLabel}</div>
       </TableCell>
       <TableCell className="hidden xl:table-cell">
@@ -351,11 +351,11 @@ function Harvest() {
             <Table className="table-fixed">
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
-                  <TableHead className="hidden w-28 sm:table-cell">ID</TableHead>
+                  <TableHead className="hidden w-24 xl:table-cell">ID</TableHead>
                   <TableHead>痛点 · 帖</TableHead>
                   <TableHead className="w-[4.5rem]">强度</TableHead>
-                  <TableHead className="hidden w-40 md:table-cell">来源 · 版块</TableHead>
-                  <TableHead className="hidden w-32 lg:table-cell">产自进程</TableHead>
+                  <TableHead className="hidden w-40 lg:table-cell">来源 · 版块</TableHead>
+                  <TableHead className="hidden w-32 xl:table-cell">产自进程</TableHead>
                   <TableHead className="hidden w-48 xl:table-cell">标签</TableHead>
                   <SortHeader
                     label="痛/机"

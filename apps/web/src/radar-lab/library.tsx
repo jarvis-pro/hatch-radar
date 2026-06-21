@@ -213,12 +213,12 @@ function LibraryView() {
             <Table className="table-fixed">
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
-                  <TableHead className="hidden w-28 sm:table-cell">ID</TableHead>
+                  <TableHead className="hidden w-24 xl:table-cell">ID</TableHead>
                   <TableHead>标题</TableHead>
-                  <TableHead className="hidden w-36 md:table-cell">版块</TableHead>
-                  <TableHead className="w-28">状态</TableHead>
-                  <TableHead className="hidden w-24 lg:table-cell">复查节奏</TableHead>
-                  <TableHead className="hidden w-28 text-right sm:table-cell">热度</TableHead>
+                  <TableHead className="hidden w-32 lg:table-cell">版块</TableHead>
+                  <TableHead className="w-24">状态</TableHead>
+                  <TableHead className="hidden w-24 xl:table-cell">复查节奏</TableHead>
+                  <TableHead className="hidden w-28 text-right md:table-cell">热度</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -230,7 +230,7 @@ function LibraryView() {
                       className="cursor-pointer"
                       onClick={() => navigate(`/radar/posts/${post.id}`)}
                     >
-                      <TableCell className="hidden font-mono text-xs text-muted-foreground/70 sm:table-cell">
+                      <TableCell className="hidden font-mono text-xs text-muted-foreground/70 xl:table-cell">
                         <span className="block truncate">{post.id}</span>
                       </TableCell>
                       <TableCell>
@@ -247,7 +247,7 @@ function LibraryView() {
                           ) : null}
                         </div>
                       </TableCell>
-                      <TableCell className="hidden text-muted-foreground md:table-cell">
+                      <TableCell className="hidden text-muted-foreground lg:table-cell">
                         <div className="truncate">{post.channel}</div>
                       </TableCell>
                       <TableCell className="text-xs">
@@ -256,10 +256,10 @@ function LibraryView() {
                         </span>
                         {dueNow ? <span className="ml-1.5 text-intensity-medium">到期</span> : null}
                       </TableCell>
-                      <TableCell className="hidden text-xs text-muted-foreground lg:table-cell">
+                      <TableCell className="hidden text-xs text-muted-foreground xl:table-cell">
                         {intervalLabel(misses)}
                       </TableCell>
-                      <TableCell className="hidden text-right text-xs tabular-nums text-muted-foreground sm:table-cell">
+                      <TableCell className="hidden text-right text-xs tabular-nums text-muted-foreground md:table-cell">
                         <span className="inline-flex items-center justify-end gap-3">
                           <span className="inline-flex items-center gap-0.5">
                             <ArrowBigUp className="size-3.5" />
