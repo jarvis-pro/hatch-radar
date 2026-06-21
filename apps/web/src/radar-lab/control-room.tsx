@@ -283,7 +283,7 @@ function ControlRoom() {
       <>
         <PageHeader
           title="指挥室"
-          description="这台情报雷达此刻在干什么——实时进程、出站请求、今日收成，一屏掌握。"
+          description="这台情报雷达此刻在干什么——实时进程、出站请求、今日收成，一屏掌握并随手干预（趋势 / 成本 / 健康见数据看板）。"
         />
         <LoadError
           message={q.error instanceof ApiError ? q.error.message : undefined}
@@ -297,7 +297,7 @@ function ControlRoom() {
       <>
         <PageHeader
           title="指挥室"
-          description="这台情报雷达此刻在干什么——实时进程、出站请求、今日收成，一屏掌握。"
+          description="这台情报雷达此刻在干什么——实时进程、出站请求、今日收成，一屏掌握并随手干预（趋势 / 成本 / 健康见数据看板）。"
         />
         <Skeleton className="h-96 w-full" />
       </>
@@ -315,7 +315,7 @@ function ControlRoom() {
     <>
       <PageHeader
         title="指挥室"
-        description="这台情报雷达此刻在干什么——实时进程、出站请求、今日收成，一屏掌握。"
+        description="这台情报雷达此刻在干什么——实时进程、出站请求、今日收成，一屏掌握并随手干预（趋势 / 成本 / 健康见数据看板）。"
       />
 
       <div className="space-y-6">

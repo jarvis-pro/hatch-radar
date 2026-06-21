@@ -1,17 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import {
-  Activity,
-  ArrowDownRight,
-  ArrowUpRight,
-  Clock,
-  Cpu,
-  Flame,
-  ServerOff,
-  Sparkles,
-  TriangleAlert,
-  type LucideIcon,
-} from 'lucide-react';
+import { Cpu, ServerOff, TriangleAlert, type LucideIcon } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 import type { DashboardData, ThroughputPoint, WorkerStatus } from '@hatch-radar/shared';
 import {
@@ -28,7 +17,6 @@ import { api, ApiError } from '@/api/client';
 import { RequirePerm } from '@/auth/require-perm';
 import { LoadError } from '@/components/empty';
 import { PageHeader } from '@/components/page-header';
-import { StatCard } from '@/components/stat-card';
 import { fmtDuration } from '@/lib/format';
 
 /** 成本（美元）→ 紧凑展示 */
@@ -500,21 +488,6 @@ function CostPanel({ cost }: { cost: DashboardData['cost'] }) {
   );
 }
 
-/** 今日 vs 昨日 的同比 hint：中性箭头 + 绝对差（产出涨跌是日常波动，不用红绿强信号；告警归告警条）。 */
-function DeltaHint({ today, prev }: { today: number; prev: number }) {
-  const diff = today - prev;
-  if (diff === 0) return <span className="text-muted-foreground">较昨日持平</span>;
-  const up = diff > 0;
-  const Icon = up ? ArrowUpRight : ArrowDownRight;
-  return (
-    <span className="inline-flex items-center gap-0.5 text-muted-foreground">
-      <Icon className="size-3 shrink-0" />
-      较昨日 {up ? '+' : '−'}
-      {Math.abs(diff).toLocaleString()}
-    </span>
-  );
-}
-
 /**
  * 异常告警条：仅在有「需要动手」的异常时渲染（无 Worker＝停摆 / 今日有失败任务），否则返回 null。
  * 把要处理的事顶到第一屏——取代旧看板「全是中性等重聚合、要人用眼睛 diff」的缺陷。
@@ -595,11 +568,8 @@ function DashboardView() {
   }
   const d = q.data;
   const inflight = d.queue.queued + d.queue.running;
-  // 今日/昨日产出直接取吞吐序列末两天（密集 14 天序列，末位＝今日）；缺昨日则省略同比
-  const today = d.throughput[d.throughput.length - 1];
-  const prev = d.throughput[d.throughput.length - 2];
-  const ins = (p?: ThroughputPoint) => (p ? p.insightsHigh + p.insightsMedium + p.insightsLow : 0);
-  const todayFailed = today?.failed ?? 0;
+  // 今日失败数取吞吐序列末位（14 天密集序列，末位＝今日），喂给基础设施告警条
+  const todayFailed = d.throughput[d.throughput.length - 1]?.failed ?? 0;
   const intensityData = d.insights.byIntensity
     .map((i) => ({
       key: i.name,
@@ -618,7 +588,7 @@ function DashboardView() {
     <div className="space-y-6">
       <PageHeader
         title="数据看板"
-        description="数据工厂运行概览 · 每 5 秒刷新"
+        description="产出趋势、成本与基础设施健康 · 每 5 秒刷新（实时操作台见指挥室）"
         actions={
           <span className="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-normal text-muted-foreground">
             <span className="signal-pulse size-1.5 rounded-full bg-signal" />
@@ -633,47 +603,6 @@ function DashboardView() {
         todayFailed={todayFailed}
         pending={d.overview.pendingAnalysis}
       />
-
-      {/* 今日产出 */}
-      <div>
-        <div className="mb-3 text-sm font-medium text-muted-foreground">今日产出</div>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <StatCard
-            label="新增洞察"
-            icon={Sparkles}
-            value={ins(today).toLocaleString()}
-            hint={prev ? <DeltaHint today={ins(today)} prev={ins(prev)} /> : undefined}
-          />
-          <StatCard
-            label="高强度信号"
-            icon={Flame}
-            value={
-              <span className="text-intensity-high">
-                {(today?.insightsHigh ?? 0).toLocaleString()}
-              </span>
-            }
-            hint={
-              prev ? (
-                <DeltaHint today={today?.insightsHigh ?? 0} prev={prev.insightsHigh} />
-              ) : undefined
-            }
-          />
-          <StatCard
-            label="已完成分析"
-            icon={Activity}
-            value={(today?.succeeded ?? 0).toLocaleString()}
-            hint={
-              prev ? <DeltaHint today={today?.succeeded ?? 0} prev={prev.succeeded} /> : undefined
-            }
-          />
-          <StatCard
-            label="待分析积压"
-            icon={Clock}
-            value={d.overview.pendingAnalysis.toLocaleString()}
-            hint="当前待处理"
-          />
-        </div>
-      </div>
 
       {/* 吞吐趋势 */}
       <Section title="吞吐趋势（近 14 天每日完成 / 失败）">
