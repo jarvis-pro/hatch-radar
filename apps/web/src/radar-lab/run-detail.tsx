@@ -17,9 +17,8 @@ import {
   ArrowBigUp,
   ChevronDown,
   Layers,
-  Lock,
-  LockOpen,
   MessageSquare,
+  Pause,
   Play,
   RefreshCw,
   Search,
@@ -826,19 +825,27 @@ function StageLine({
         ) : null}
         <span className="min-w-0 truncate text-muted-foreground/60">{stage.output ?? ''}</span>
       </button>
-      <button
-        type="button"
-        disabled={!canGate}
-        onClick={() => toggleGate(task.id, stage.seq)}
-        aria-label={stage.gate ? '摘闸门' : '挂闸门'}
-        className={cn('shrink-0', canGate ? 'hover:text-foreground' : 'cursor-default opacity-40')}
-      >
-        {stage.gate ? (
-          <Lock className="size-3.5 text-intensity-medium" />
-        ) : (
-          <LockOpen className="size-3.5 text-muted-foreground/50" />
-        )}
-      </button>
+      {canGate ? (
+        <button
+          type="button"
+          onClick={() => toggleGate(task.id, stage.seq)}
+          aria-label={stage.gate ? '取消暂停点' : '设为暂停点'}
+          title={
+            stage.gate
+              ? '已设暂停点 · 点击取消（运行到这步不再停下）'
+              : '点击设为暂停点：运行到这步会停下、等你手动放行'
+          }
+          className={cn(
+            'inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium transition-colors',
+            stage.gate
+              ? 'bg-intensity-medium/15 text-intensity-medium'
+              : 'border border-dashed border-muted-foreground/30 text-muted-foreground/50 hover:border-intensity-medium/60 hover:text-intensity-medium',
+          )}
+        >
+          <Pause className="size-3" />
+          暂停点
+        </button>
+      ) : null}
       <span className="w-12 shrink-0 text-right text-muted-foreground">
         {STAGE_STATUS_META[stage.status].label}
       </span>
