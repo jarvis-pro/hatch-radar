@@ -1,6 +1,7 @@
 # 单进程归一设计（退役独立 worker）
 
-> 状态：**定稿待实现** · 日期：2026-06-21
+> 状态：**已实现**（分支 `refactor/single-process-consolidation`） · 日期：2026-06-21
+> 落地偏差：设计稿漏列 `RadarService` 对 `GatewayService` 的依赖（`today.workers` 取在线 worker 数）——实现时摘除该依赖、单进程下 `workers` 恒为 `1`（执行器内嵌、进程在则在线）。`PipelineService` 的 `gateway?` 参数顺手更名为 `dispatcher?`（类型仍是 `Dispatcher`，契约不变）。`ws`/`@types/ws` 从 api 依赖中移除（网关是唯一消费者）。测试为手工构造（不引导 Nest），§6.5 的兜底泵污染天然不存在，未加 `workerAutostart` 开关。
 > 反转：[worker-push-gateway-design.md](worker-push-gateway-design.md)（WS push 网关 + 独立 worker 进程）
 > 关联：[blueprint-lifecycle-design.md](blueprint-lifecycle-design.md)（执行内核 = 通用 task/stage 模型，本次不动）、[pipeline-inspector-design.md](pipeline-inspector-design.md)（逐节点检视，本次不动）
 

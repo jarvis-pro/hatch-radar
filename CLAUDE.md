@@ -8,12 +8,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 常用命令
 
-> root 脚本约定：**`dev:*` = 开发（全 `--watch` / HMR：`dev:api`/`dev:worker`/`dev:web`/`dev:mobile`），`start:*` = 生产 / 容器入口（无 watch：`start:api`/`start:worker`，Docker 跑这两个）**；`test`/`typecheck`/`lint` 全仓，`db:*` 代理到 `@hatch-radar/db`。
+> root 脚本约定：**`dev:*` = 开发（全 `--watch` / HMR：`dev:api`/`dev:web`/`dev:mobile`），`start:*` = 生产 / 容器入口（无 watch：`start:api`，Docker 跑它）**；`test`/`typecheck`/`lint` 全仓，`db:*` 代理到 `@hatch-radar/db`。
 
 后端 / 全量：
 
-- `pnpm dev:api` / `pnpm start:api` —— 起 api（控制面；启动前自动 `prisma migrate deploy`）。`dev:api` 带 `node --watch` 自动重启，`start:api` 无 watch（生产 / 容器入口）。
-- `pnpm dev:worker` / `pnpm start:worker` —— 起 worker（数据面，可多开）。`dev:worker` 带 `node --watch`。
+- `pnpm dev:api` / `pnpm start:api` —— 起 api（单进程后端，含内嵌任务执行；启动前自动 `prisma migrate deploy`）。`dev:api` 带 `node --watch` 自动重启，`start:api` 无 watch（生产 / 容器入口）。
 - `pnpm typecheck` —— 全仓 `tsc --noEmit`（= `pnpm -r typecheck`）。改完代码必跑。
 - `pnpm lint` / `pnpm lint:fix` —— `eslint .`。
 - `pnpm test` —— api 测试（`vitest run`，**需先 `docker compose up -d db`**，连 `hatch_radar_test`）。
@@ -31,27 +30,27 @@ Web / Mobile：
 - `pnpm db:migrate` —— `prisma migrate deploy`（应用迁移）。
 - 改 schema 后建迁移：`pnpm --filter @hatch-radar/db db:migrate:dev --name <desc>`（顺带 generate）。
 - `pnpm db:generate` 重新生成 client；`pnpm db:studio`。
-- 本地库：`docker compose up -d db`（PG @ `localhost:47432`，radar/radar，库 `hatch_radar`(+`_test`)）；`docker compose --profile full up -d --build` 起全栈（api+worker×2+web）。
+- 本地库：`docker compose up -d db`（PG @ `localhost:47432`，radar/radar，库 `hatch_radar`(+`_test`)）；`docker compose --profile full up -d --build` 起全栈（api+web）。
 
 ## 架构（big picture）
 
-**恒两进程的后端**（已弃单进程内嵌 worker）：
+**单进程后端**（已退役独立 worker 进程 + WS 网关，见 `docs/single-process-consolidation-design.md`）：
 
-- `apps/api` —— 控制面，**单实例**。NestJS HTTP（`/api`）+ 鉴权权威 + `@Cron` 定时调度 + WS push 网关 + `ServeStaticModule` 同源托管 web SPA + 启动种子。
-- `apps/worker` —— 数据面，NestJS standalone context，**可横向扩 N 实例**。无 HTTP、无调度；靠 PG 队列 `FOR UPDATE SKIP LOCKED` 认领 job（分析 / 翻译 / 逐节点检视）、WS 连 api 网关、跑 AI 写回。
-- 两者经 **PostgreSQL 持久化队列 + WS 网关**解耦；唯一共享是下面的能力包。
+- `apps/api` —— **唯一进程**。NestJS HTTP（`/api`）+ 鉴权权威 + `@Cron` 定时调度 + **内嵌任务执行**（`src/domain/worker/`：`WorkerService` 逐环节执行 + `CollectionExecutor` 采集 + `RequestGate` 出站闸）+ `ServeStaticModule` 同源托管 web SPA + 启动种子。
+- **执行解耦靠 PostgreSQL 持久化队列**（`tasks` / `task_stages`）：`PipelineService` 入队后经 `LocalDispatcher`（`Dispatcher` 接口的进程内实现，替换原 WS 版 `GatewayService`）在**同进程内** `FOR UPDATE SKIP LOCKED` 认领 task（分析 / 采集 / 复查 / 翻译 / 逐节点检视）、直接调 `WorkerService` 跑 AI 写回（无 WS、无序列化）。
+- **崩溃续跑 / 逐环节检查点 / 闸门 + 重认领 / 僵死回收 / 出站请求闸 / 多 Key 故障转移全原样保留**——它们与「几个进程」无关，只与「任务可靠执行」有关。并发上限 `WORKER_CONCURRENCY`（env，默认 20）由 `LocalDispatcher` 进程内闸把关（`inFlight < concurrency` + `pumping` 单飞泵防超发）。
 
-**框架无关能力包**（`packages/*`，api/worker 复用，不依赖任何 Web 框架）：
+**框架无关能力包**（`packages/*`，被 api 复用，不依赖任何 Web 框架）：
 
-- `kernel` —— 基座（零内部依赖）：errors / logger / utils（time、**crypto = AES-256-GCM 密钥加解密**）/ env 校验 / 网关协议（含 `Dispatcher` 接口）。
+- `kernel` —— 基座（零内部依赖）：errors / logger / utils（time、**crypto = AES-256-GCM 密钥加解密**）/ env 校验 / 派发契约（`Dispatcher` 接口）。
 - `db` —— **唯一 PG 读写层**：Prisma schema + 连接工厂 + PG⇄域类型映射（`mappers.ts`）+ 仓储 + runtime-settings。
 - `crawler` —— 采集：Reddit/HN/RSS 抓取 + 令牌桶限速 + 采集连接器。
 - `analysis` —— AI：analyzer 引擎（prompt / 洞察 schema / 各厂商客户端）+ 配置入队 + 洞察落库 + **翻译**（`translator/`）。
 - `shared`（跨端类型 + 权限目录，零运行时）/ `auth`（Node-only：scrypt 口令 / 会话 token / Ed25519 设备验签）/ `config`（共享配置 + tsconfig 预设）/ `ui`（shadcn + Tailwind v4，仅 PC 端）。
 
-**DI 桥接**：api 的 `CoreModule`（worker 的 assembly）调 `createCore` / `createWorkerCore` 一处装配能力包，按「**类当令牌 + `useFactory`**」桥进 Nest DI。
+**DI 桥接**：api 的 `CoreModule` 调 `createCore` 一处装配能力包 + 内嵌执行器（`WorkerService` / `LocalDispatcher` / `CollectionExecutor` / `RequestGate`），按「**类当令牌 + `useFactory`**」桥进 Nest DI；生命周期由 `WorkerStarter`（`src/worker/`）薄封装（起认领泵 / 僵死回收，关停排空在途任务）。
 
-**数据流**：crawler 抓帖+评论入 PG → 选用 active 模型时 cron 入队分析 job → worker 认领跑 AI → 洞察按 `post_id` 幂等落库 → web 只读展示 / 导出批次（`.sqlite` / `.json`）→ mobile 离线研判 → `/api/sync/push` 按 opId 幂等回传。
+**数据流**：crawler 抓帖+评论入 PG → 选用 active 模型时 cron 入队分析 task → `LocalDispatcher` 同进程认领、`WorkerService` 跑 AI → 洞察按 `post_id` 幂等落库 → web 只读展示 / 导出批次（`.sqlite` / `.json`）→ mobile 离线研判 → `/api/sync/push` 按 opId 幂等回传。
 
 **三端鉴权（一套全局账户）**：web 用 httpOnly `radar_session` cookie + 写请求 `X-Radar-Csrf` 头（`SessionAuthGuard` + 能力闸）；mobile 用 Ed25519 设备凭据（`DeviceOrSessionGuard`）；权威校验恒在 api。web 是**纯前端**，零 PG 访问、不持密钥。
 
@@ -61,7 +60,7 @@ Web / Mobile：
 
 - schema 不写 datasource url → `packages/db/prisma.config.ts`（加载根 `.env`）；运行期由 `@prisma/adapter-pg` 直供连接。
 - 生成的 client 在 `packages/db/src/generated/prisma`（自定义 output，**导入带 `.ts` 扩展**）；bigint↔number 经 `mappers.ts` 的 `toXxxRow`（仓储读出后转域类型）。
-- **改 schema 后必须 `db:migrate:dev` + 重启所有长驻进程**：api/worker 把生成的 client 载入内存，不重启会用旧枚举/旧字段（典型报错 `Value 'xxx' not found in enum 'yyy'`）。
+- **改 schema 后必须 `db:migrate:dev` + 重启 api 进程**：api 把生成的 client 载入内存，不重启会用旧枚举/旧字段（典型报错 `Value 'xxx' not found in enum 'yyy'`）。
 - `db push` 有 AI 同意闸；迁移一律走 CLI。
 
 **NestJS DI**：DI 注入的值（服务 / 仓储）**不要用 `import type` 导入**——会在 boot 时炸而 `tsc` 不报。
@@ -72,11 +71,11 @@ Web / Mobile：
 
 **密钥**：模型 / 连接器密钥经 `SETTINGS_SECRET`（AES-256-GCM，`kernel` 的 `crypto.ts`）加密入库，API 只返回脱敏值；未配 `SETTINGS_SECRET` 则禁用相关功能。
 
-**AI provider + 多 Key 故障转移**：4 种 `provider_kind`——`anthropic`/`openai`/`deepseek`（API Key 模式）+ `claude_cli`（订阅模式，经 `@anthropic-ai/claude-agent-sdk` 复用 worker 本机已登录的 Claude Code、无 Key、仅 worker 能跑分析/翻译）。API Key 模式每条挂多把 Key，状态机 `active/cooling/invalid`（429 冷却 5min、401/403 失效需人工复位）；分析与翻译共用 `packages/analysis/src/key-failover.ts`。
+**AI provider + 多 Key 故障转移**：4 种 `provider_kind`——`anthropic`/`openai`/`deepseek`（API Key 模式）+ `claude_cli`（订阅模式，经 `@anthropic-ai/claude-agent-sdk` 复用后端本机已登录的 Claude Code、无 Key；单进程后已无独立 worker，订阅模式仅适合宿主机运行、容器内不可用）。API Key 模式每条挂多把 Key，状态机 `active/cooling/invalid`（429 冷却 5min、401/403 失效需人工复位）；分析与翻译共用 `packages/analysis/src/key-failover.ts`。
 
 **翻译**：`claude_cli`（高质量、零边际）/ `azure`（Azure Translator 机翻、按字符、走 Key 池故障转移；`region` 填区域代码如 `centralus`）。译文按源内容哈希存 `translations` 表；走分析同一队列（`analysis_jobs.job_type=translation`）。`azure` 仅翻译——`setActive` 拒之、分析路径 `providerConfigWithKey` 抛错。
 
-**流水线检视器（单条手动 / 逐节点暂停）**：把一条帖子的分析拆成 6 个显式节点（`resolve → fetch → context → ai_call → normalize → persist`）逐步执行，每节点产物落 `job_steps` 表（`job_status` 加 `paused`、`analysis_jobs` 加 `inspect`/`step_gate`）。核心是**检查点 + 重认领**：worker 跑完一节点即落库，`step_gate` 开则置 `paused` 后正常结束（不阻塞、不占 worker），「继续」把 job 置 `queued` 重新认领、从下一节点续跑——「等待」交给持久层、worker 始终无状态。`ai_call` 是唯一不可重算的节点（花钱 / 不确定 / 起子进程）故必须落检查点，其余节点持久化是为「所见即所跑」（防两次认领间评论改写致上下文漂移）。坑：① 部分唯一索引 `uniq_jobs_active_post` 谓词已扩为 `IN (queued,running,paused)`（paused 仍占该帖活跃名额）；② `resumeInspectJob` 把 `attempts` 归零，免逐节点重认领累加误触僵死回收；③ 三 provider 的 `analyze()` 重构为 `callRaw + normalizeRawOutput`，normal 与检视共用归一化入口；④ worker 现直接依赖 `@hatch-radar/shared`（节点产物契约 `packages/shared/src/inspect.ts`）。编排集中在 `AnalysisConfigService`，HTTP 端点 `/api/analysis/inspect/*` 很薄。设计稿 `docs/pipeline-inspector-design.md`。
+**流水线检视器（单条手动 / 逐节点暂停）**：把一条帖子的分析拆成 6 个显式节点（`resolve → fetch → context → ai_call → normalize → persist`）逐步执行，每节点产物落 `job_steps` 表（`job_status` 加 `paused`、`analysis_jobs` 加 `inspect`/`step_gate`）。核心是**检查点 + 重认领**：执行器跑完一节点即落库，`step_gate` 开则置 `paused` 后正常结束（不阻塞、不占执行器），「继续」把 job 置 `queued` 重新认领、从下一节点续跑——「等待」交给持久层、执行器始终无状态。`ai_call` 是唯一不可重算的节点（花钱 / 不确定 / 起子进程）故必须落检查点，其余节点持久化是为「所见即所跑」（防两次认领间评论改写致上下文漂移）。坑：① 部分唯一索引 `uniq_jobs_active_post` 谓词已扩为 `IN (queued,running,paused)`（paused 仍占该帖活跃名额）；② `resumeInspectJob` 把 `attempts` 归零，免逐节点重认领累加误触僵死回收；③ 三 provider 的 `analyze()` 重构为 `callRaw + normalizeRawOutput`，normal 与检视共用归一化入口；④ 执行器（`apps/api/src/domain/worker/`）依赖 `@hatch-radar/shared`（节点产物契约 `packages/shared/src/inspect.ts`）。编排集中在 `AnalysisConfigService`，HTTP 端点 `/api/analysis/inspect/*` 很薄。设计稿 `docs/pipeline-inspector-design.md`。
 
 **Claude Agent SDK 不可 mock**：`vi.mock` 拦不住 `@anthropic-ai/claude-agent-sdk`（会真起 claude）→ 把消息分发抽成纯函数（`insightFromMessage` / `translationFromMessage`）单测，勿测真实调用。
 

@@ -7,7 +7,7 @@
 
 ## 功能概览
 
-- **工作台后端（apps/api 控制面 + apps/worker 数据面，NestJS）**：api 定时抓取 Reddit / HackerNews / RSS（令牌桶限速）、提供 `/api` + 鉴权 + 调度 + push 网关；帖子+评论组合上下文经 PostgreSQL 持久化队列交 worker 池跑 AI 分析（Web 设置页配置 Anthropic / OpenAI / DeepSeek / Claude 订阅）；AI 密钥加密入库、只在后端进程
+- **工作台后端（apps/api，NestJS 单进程）**：定时抓取 Reddit / HackerNews / RSS（令牌桶限速）、提供 `/api` + 鉴权 + 调度 + 内嵌任务执行；帖子+评论组合上下文经 PostgreSQL 持久化队列认领后跑 AI 分析（Web 设置页配置 Anthropic / OpenAI / DeepSeek / Claude 订阅）；AI 密钥加密入库、只在后端进程
 - **Web 控制台（apps/web）**：只读展示洞察 / 帖子 / 评论与同步回传的人工研判，筛选/搜索/分页，响应式，Docker 部署
 - **导出批次**：按条件筛「有效数据」，经局域网 HTTP 接口或 `.sqlite` / `.json` 文件（AirDrop）交付给移动端
 - **离线伴侣 App（apps/mobile）**：Expo + 本地 SQLite，导入批次后全程离线人工研判（状态/评级/标签/笔记），操作记入本地 outbox
@@ -24,7 +24,7 @@
 | 运行时        | NestJS + TypeScript（pnpm workspace monorepo；swc-node ESM 运行）                                                                                                                      |
 | 调度          | `@nestjs/schedule`（`@Cron`）                                                                                                                                                          |
 | Reddit 数据源 | Reddit REST API（OAuth）                                                                                                                                                               |
-| AI 分析       | 多模型可配：Anthropic（`@anthropic-ai/sdk`）/ OpenAI / DeepSeek / Claude 订阅（`claude_cli`，复用本机 Claude Code 登录态）；PostgreSQL 任务队列（`FOR UPDATE SKIP LOCKED`）+ Worker 池 |
+| AI 分析       | 多模型可配：Anthropic（`@anthropic-ai/sdk`）/ OpenAI / DeepSeek / Claude 订阅（`claude_cli`，复用本机 Claude Code 登录态）；PostgreSQL 任务队列（`FOR UPDATE SKIP LOCKED`）+ 进程内并发认领（`WORKER_CONCURRENCY`） |
 | 内容翻译      | 同队列（`job_type=translation`）：Claude 订阅（`claude_cli`）/ Azure Translator 机翻（`azure`）；译文按内容哈希缓存于 `translations` 表                                                |
 | 存储          | PostgreSQL（Prisma ORM；**server 是唯一读写方**，web 不直连库）；导出 `.sqlite` 与移动端 expo-sqlite 互通                                                                              |
 | Web 控制台    | Vite + React Router 同源 SPA（纯 CSR，经 `/api` 调 server；由 NestJS `ServeStaticModule` 同源托管 build 产物）                                                                         |
@@ -45,7 +45,7 @@ pnpm install
 
 ### 2. 配置环境变量
 
-api / worker 共享的两个必填项放在**工作区根** `.env`，两个进程启动时都会自动加载（`prisma migrate` 也用它）：
+后端的两个必填项放在**工作区根** `.env`，进程启动时自动加载（`prisma migrate` 也用它）：
 
 ```bash
 cp .env.example .env
@@ -62,7 +62,7 @@ SETTINGS_SECRET=                 # openssl rand -hex 32
 ```
 
 > 数据来源 / Reddit 采集凭据 / AI 模型接入一律在 Web 设置页（/settings）配置入库，env 不承载任何凭据。
-> 共享调优项 `LOG_LEVEL` / `HTTP_PORT` / `DATABASE_POOL_MAX` 也在根 `.env`（取消注释即覆盖两端）；各进程专属项（api 的超管种子 / `WEB_DIST_DIR`，worker 的 `GATEWAY_URL` / `WORKER_CONCURRENCY`）按需另建 `apps/api/.env`、`apps/worker/.env`，见各自 `.env.example`；不建也能用默认值启动。
+> 调优项 `LOG_LEVEL` / `HTTP_PORT` / `DATABASE_POOL_MAX` 也在根 `.env`（取消注释即覆盖默认）；api 专属项（超管种子 / `WEB_DIST_DIR` / 内嵌执行器并发 `WORKER_CONCURRENCY`）按需另建 `apps/api/.env`，见其 `.env.example`；不建也能用默认值启动。
 
 ### 3. 起数据库并建表
 
@@ -78,13 +78,9 @@ pnpm db:migrate           # prisma migrate deploy 应用迁移建出全部表
 ### 4. 启动
 
 ```bash
-# 控制面 api（HTTP /api + 爬取 + 调度 + push 网关 + 同源托管 SPA）
+# 后端 api（单进程：HTTP /api + 爬取 + 调度 + 内嵌任务执行 + 同源托管 SPA）
 pnpm dev:api            # 开发模式（swc-node + node --watch 自动重启）
 pnpm start:api          # 无 watch，直接以 TS 源跑（生产 / 容器入口）
-
-# 数据面 worker（独立进程，可多开横向扩；经 PG 队列认领 + WS 连 api 网关跑 AI 分析）
-pnpm dev:worker         # 开发模式（node --watch）
-pnpm start:worker       # 无 watch（生产 / 容器入口）；需配 apps/worker/.env，单机可复用 api 的
 
 # Web 控制台（开发期 Vite dev server，/api 代理到 api）
 pnpm dev:web            # http://localhost:47080
@@ -104,25 +100,24 @@ pnpm dev:web            # http://localhost:47080
 
 Docker 部署有两种用法，由 compose profile 切换：
 
-**① 轻量开发（默认）**：仅起 `db`，api / worker 跑在宿主机享原生热重载与本机 claude 登录态。
+**① 轻量开发（默认）**：仅起 `db`，后端跑在宿主机享原生热重载与本机 claude 登录态。
 
 ```bash
 docker compose up -d db         # 仅起库（PostgreSQL）
-pnpm dev:api                    # 控制面 api（node --watch 热重载）
-pnpm dev:worker                 # 数据面 worker（node --watch；可多开横向扩）
+pnpm dev:api                    # 后端 api（node --watch 热重载，内嵌任务执行）
 pnpm dev:web                    # Web 控制台（Vite HMR，:47080）
 ```
 
-**② 全栈容器化（`--profile full`）**：db + api + worker×2 + web 全进容器，一键起全套；web 由 api 同源托管，访问 `http://localhost:47878`。
+**② 全栈容器化（`--profile full`）**：db + api + web 全进容器，一键起全套；web 由 api 同源托管，访问 `http://localhost:47878`。
 
 ```bash
 docker compose --profile full up -d --build   # 起 / 重建全栈（首次或改代码后加 --build）
 ```
 
-> 全栈下 worker 跑 AI 须用 API Key 模式 provider（设置页配 + 根 `.env` 填 `SETTINGS_SECRET`）；claude_cli 订阅模式依赖宿主机登录态、仅适合轻量开发。api / worker 共用一个镜像（根 `Dockerfile`，跑 TS 源），仅启动命令不同。
+> 全栈下跑 AI 须用 API Key 模式 provider（设置页配 + 根 `.env` 填 `SETTINGS_SECRET`）；claude_cli 订阅模式依赖宿主机登录态、仅适合轻量开发。后端镜像见根 `Dockerfile`（跑 TS 源）。
 
-> api（爬取 + AI + 密钥 + 鉴权权威）按规格跑在工作台宿主机上。并发瓶颈已交给 PG 异步驱动 + 连接池：
-> 定时器写库与局域网多人操作真正并行，不再串行在单条事件循环上；分析执行的水平扩在 worker 这层。
+> api（爬取 + AI + 密钥 + 鉴权权威）按规格跑在工作台宿主机上。并发交给 PG 异步驱动 + 连接池 + 内嵌执行器并发（`WORKER_CONCURRENCY`）：
+> 定时调度、HTTP 处理与任务执行同进程并行在事件循环上；AI 调用是云端 HTTP / 本机 `claude` 子进程，是 I/O 等待而非占主循环 CPU。
 
 ---
 
@@ -168,7 +163,7 @@ pnpm dev:mobile   # 启动 Expo dev server，用 Expo Go 扫码（iOS 真机）
 
 ## AI 分析方式
 
-模型在 **Web 设置页（`/settings`）** 配置：可添加多条 Anthropic / OpenAI / DeepSeek（API Key 模式）或 **Claude 订阅（`claude_cli`，复用 worker 本机已登录的 Claude Code、吃订阅额度、无需 API Key）** 模型；API Key 模式每条可挂**多把 Key 做故障转移**（限流自动冷却、鉴权失败自动切换），密钥经 `SETTINGS_SECRET`（AES-256-GCM）**加密入库**，API 仅返回脱敏视图、绝不下发明文。
+模型在 **Web 设置页（`/settings`）** 配置：可添加多条 Anthropic / OpenAI / DeepSeek（API Key 模式）或 **Claude 订阅（`claude_cli`，复用后端本机已登录的 Claude Code、吃订阅额度、无需 API Key）** 模型；API Key 模式每条可挂**多把 Key 做故障转移**（限流自动冷却、鉴权失败自动切换），密钥经 `SETTINGS_SECRET`（AES-256-GCM）**加密入库**，API 仅返回脱敏视图、绝不下发明文。
 
 | 厂商        | 结构化输出                                                                    |
 | ----------- | ----------------------------------------------------------------------------- |
@@ -183,7 +178,7 @@ pnpm dev:mobile   # 启动 Expo dev server，用 Expo Go 扫码（iOS 真机）
 - **未选用 active** → 不自动分析；在「分析」页多选帖子 + 选一个模型 → 手动运行入队。
 - **一条模型都没配 / 模型无可用 Key** → 先去设置页加一个模型并填至少一把 API Key（无可用 Key 不能设为启用）。
 
-**队列驱动**：定时与手动运行都只是把帖子写入 PostgreSQL 持久化任务队列（`analysis_jobs`），由常驻 Worker 池靠 `FOR UPDATE SKIP LOCKED` 认领消费——并发认领不重不漏、可多进程/独立进程扩展（仅 Worker 这层水平扩；HTTP + 定时调度的主进程为单实例，cron 无分布式锁），单任务超时、失败重试、僵死/孤儿回收，进程重启自动续跑，单个慢调用不会卡住整批。改密钥/模型/选用即热重载，无需重启进程。洞察按 `post_id` 幂等落库（`model` 记真实模型 ID），重分析覆盖且保住研判。
+**队列驱动**：定时与手动运行都只是把帖子写入 PostgreSQL 持久化任务队列，由进程内执行器靠 `FOR UPDATE SKIP LOCKED` 认领消费——并发认领不重不漏（行锁 + 单飞泵把活跃数封顶在 `WORKER_CONCURRENCY`），单任务超时、失败重试、僵死/孤儿回收，进程重启自动续跑，单个慢调用不会卡住整批。队列虽在单进程内消费，但持久化语义（崩溃续跑、检查点、闸门）一概保留——它们与「几个进程」无关，只与「任务可靠执行」有关。改密钥/模型/选用即热重载，无需重启进程。洞察按 `post_id` 幂等落库（`model` 记真实模型 ID），重分析覆盖且保住研判。
 
 > 多 Key 故障转移：单次分析按 Key 的 `priority` 选「可用」的一把；遇限流（429）冷却 5 分钟后自动重试，遇鉴权失败/额度耗尽标记失效（需在设置页复位），失败即切下一把，全部不可用才判任务失败。
 
@@ -204,7 +199,7 @@ pnpm dev:mobile   # 启动 Expo dev server，用 Expo Go 扫码（iOS 真机）
 | 4   | `normalize` | 结构化洞察（痛点 / 机会）+ 丢弃统计            |
 | 5   | `persist`   | 是否落库、洞察 id、痛点 / 机会数               |
 
-**机制 = 检查点 + 重认领**：worker 跑完一个节点就把产物落库，逐节点闸门开启时把任务置 `paused` 后正常结束（不阻塞 worker）；点「继续」让任务回 `queued` 被重新认领、从下一节点续跑。`ai_call` 是唯一不可重算的节点（花钱、起子进程），故必须落检查点；其余节点持久化保证「所见即所跑」（防两次认领之间评论被改写）。也可「运行到底」（关闸连续跑完）、重试失败节点或取消。前端用 react-flow 画横向流程图 + 节点产物面板，轮询刷新（运行中 1.5s / 暂停 2.5s / 终态停）。
+**机制 = 检查点 + 重认领**：执行器跑完一个节点就把产物落库，逐节点闸门开启时把任务置 `paused` 后正常结束（不阻塞执行器）；点「继续」让任务回 `queued` 被重新认领、从下一节点续跑。`ai_call` 是唯一不可重算的节点（花钱、起子进程），故必须落检查点；其余节点持久化保证「所见即所跑」（防两次认领之间评论被改写）。也可「运行到底」（关闸连续跑完）、重试失败节点或取消。前端用 react-flow 画横向流程图 + 节点产物面板，轮询刷新（运行中 1.5s / 暂停 2.5s / 终态停）。
 
 | 端点                                           | 说明                                                                  |
 | ---------------------------------------------- | --------------------------------------------------------------------- |
@@ -248,32 +243,30 @@ Reddit 来源需先在同页「采集连接器」配置 OAuth 凭据（加密入
 
 ## 项目结构
 
-pnpm workspace monorepo。根目录脚本约定：**`dev:*` = 开发（全 `--watch` / HMR：`dev:api` / `dev:worker` / `dev:web` / `dev:mobile`），`start:*` = 生产 / 容器入口（无 watch：`start:api` / `start:worker`，Docker 跑这两个）**；`build:web` 出 SPA 产物，`test` / `typecheck` / `lint` 全仓，`db:*` 代理到 `@hatch-radar/db`。
+pnpm workspace monorepo。根目录脚本约定：**`dev:*` = 开发（全 `--watch` / HMR：`dev:api` / `dev:web` / `dev:mobile`），`start:*` = 生产 / 容器入口（无 watch：`start:api`，Docker 跑它）**；`build:web` 出 SPA 产物，`test` / `typecheck` / `lint` 全仓，`db:*` 代理到 `@hatch-radar/db`。
 
-后端按「**框架无关能力包 + 两个应用进程**」组织：领域逻辑沉到能力包（kernel/db/crawler/analysis），api（控制面，单实例）与 worker（数据面，可横扩）各自薄壳装配复用；经 PG 队列 + WS 网关解耦。
+后端按「**框架无关能力包 + 单个应用进程**」组织：领域逻辑沉到能力包（kernel/db/crawler/analysis），api 单进程薄壳装配复用——HTTP + 鉴权 + 调度 + 任务执行同进程，经 PostgreSQL 持久化队列解耦生产（入队）与消费（认领执行）。
 
 ```
 hatch-radar/
 ├── apps/
-│   ├── api/                    # 控制面（NestJS，单实例）：HTTP /api + 鉴权 + 定时调度 + push 网关 + 同源托管 web SPA
+│   ├── api/                    # 后端（NestJS，单进程）：HTTP /api + 鉴权 + 定时调度 + 内嵌任务执行 + 同源托管 web SPA
 │   │   ├── src/
 │   │   │   ├── main.ts         # HTTP 应用入口（NestFactory）
-│   │   │   ├── app.module.ts   # 根模块（HTTP + 调度 + 网关 + 种子 + 静态托管）
-│   │   │   ├── domain/         # 本 app 领域层：assembly(createCore 装配) + 桶 index + account/admin/auth/data/sync/export/gateway/scheduler/seed 服务
+│   │   │   ├── app.module.ts   # 根模块（HTTP + 调度 + 内嵌执行 + 种子 + 静态托管）
+│   │   │   ├── domain/         # 本 app 领域层：assembly(createCore 装配) + 桶 index + account/admin/auth/data/sync/export/worker(执行器+LocalDispatcher)/pipeline/radar/scheduler/seed 服务
 │   │   │   ├── core/           # CoreModule：调 createCore 一处装配，按「类令牌 + useFactory」桥接进 Nest DI
 │   │   │   ├── config/ database/   # env 校验(@nestjs/config) + Prisma 连接 provider（连通性自检 + 优雅关闭）
 │   │   │   ├── http/           # 控制器：health / settings / analysis(含检视) / export / sync / sources / translations / me
 │   │   │   ├── account/ admin/ auth/ data/  # 控制器 + 守卫（人会话 / 设备签名 / 能力闸 / 只读数据端点）
-│   │   │   ├── scheduler/ gateway/ seed/    # @Cron 调度 / WS push 网关 / 启动种子 的 Nest 生命周期薄封装
+│   │   │   ├── scheduler/ worker/ seed/     # @Cron 调度 / 内嵌执行器生命周期(WorkerStarter) / 启动种子 的 Nest 薄封装
 │   │   │   ├── static/ common/ logger/      # 同源托管 SPA dist / DI 令牌·zod 管道·异常过滤器 / 日志
 │   │   │   └── test/           # 领域 + 控制器集成测试（vitest，连本地 PG）
 │   │   └── .env.example
-│   ├── worker/                 # 数据面（NestJS standalone context，可横向扩 N 实例）：PG 队列认领（分析 / 翻译 / 检视）+ WS 连 api 网关跑 AI 写回
-│   │   └── src/                # main + worker.module + worker.starter + assembly(createWorkerCore) + worker.service + worker-agent
 │   ├── web/                    # Vite + React Router 同源 SPA（经 /api 调 api，由 api 托管 dist）
 │   └── mobile/                 # Expo 离线伴侣 App（expo-sqlite，保持不变）
-├── packages/                   # 框架无关能力包（api / worker 复用，不依赖任何 Web 框架）
-│   ├── kernel/                 # 基座（零内部依赖）：errors / logger / utils(time,crypto) / env 校验 / 网关协议(含 Dispatcher 接口)
+├── packages/                   # 框架无关能力包（api 复用，不依赖任何 Web 框架）
+│   ├── kernel/                 # 基座（零内部依赖）：errors / logger / utils(time,crypto) / env 校验 / 派发契约(Dispatcher 接口)
 │   ├── db/                     # PostgreSQL 持久层：Prisma schema + 连接工厂 + PG⇄域映射 + 17 个仓储 + runtime-settings
 │   ├── crawler/                # 采集层：Reddit / HN / RSS 抓取 + 令牌桶限速 + 采集连接器配置
 │   ├── analysis/               # AI 分析：analyzer 引擎(prompt / 洞察 schema / 各厂商客户端 + callRaw) + 配置入队 / 检视编排 + 洞察落库 + 翻译(translator/)
@@ -282,9 +275,9 @@ hatch-radar/
 │   ├── config/                 # 共享配置切片 + TypeScript 预设（tsconfig base / nest）
 │   └── ui/                     # PC 端共享 UI 库：shadcn/ui + Tailwind v4（组件经 CLI 落入此包，RN 勿引）
 ├── docs/                       # 设计与计划文档
-├── .env.example                # 根级共享配置（DATABASE_URL/SETTINGS_SECRET + LOG_LEVEL/HTTP_PORT/POOL）：api/worker/迁移共用
-├── docker-compose.yml          # 默认仅 db；profile full 起全栈（api+worker×2+web），profile tools 加 adminer
-├── Dockerfile                  # api / worker 共用后端镜像（跑 TS 源 + 构建 web SPA）
+├── .env.example                # 根级共享配置（DATABASE_URL/SETTINGS_SECRET + LOG_LEVEL/HTTP_PORT/POOL）：api/迁移共用
+├── docker-compose.yml          # 默认仅 db；profile full 起全栈（api+web），profile tools 加 adminer
+├── Dockerfile                  # 后端镜像（跑 TS 源 + 构建 web SPA）
 ├── pnpm-workspace.yaml
 └── package.json                # 根脚本统一代理到子包
 ```
@@ -297,7 +290,7 @@ hatch-radar/
 | ------------ | ---------- | ------------------------------------------------------------------ |
 | 热门帖子扫描 | 每 30 分钟 | 抓取各版块 hot/new 入库，并触发新帖即时抓评论                      |
 | 评论补全     | 每 30 分钟 | 新帖即时抓；活跃帖按帖龄有界 refresh，内容变更才记一笔             |
-| AI 分析入队  | 每小时     | 选用 active 模型时把待分析帖子入队、由 Worker 池消费；未选用则跳过 |
+| AI 分析入队  | 每小时     | 选用 active 模型时把待分析帖子入队、由内嵌执行器消费；未选用则跳过 |
 | 历史归档     | 每天凌晨   | 清理 30 天前原始数据，保留洞察结果                                 |
 
 ---
