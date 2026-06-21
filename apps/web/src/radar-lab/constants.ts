@@ -52,17 +52,13 @@ export const STAGE_TEMPLATES: Record<TaskKind, StageDef[]> = {
     { name: 'dedup', costMs: 400 },
     { name: 'spawn', costMs: 300 },
   ],
+  // ⚠️ 必须与后端 packages/shared/src/stages.ts 的 STAGE_TEMPLATES 一致（决定 gate 复合键能否命中真实环节）。
   collect: [
-    { name: 'fetch_detail', costMs: 800, fetch: 'source' },
     { name: 'fetch_comments', costMs: 1500, fetch: 'source' },
-    { name: 'translate', costMs: 2500, fetch: 'ai', optional: true },
     { name: 'persist', costMs: 400 },
   ],
   recheck: [
-    { name: 'probe', costMs: 600, fetch: 'source' },
-    { name: 'detect', costMs: 200 },
     { name: 'recrawl', costMs: 1500, fetch: 'source' },
-    { name: 'translate', costMs: 2500, fetch: 'ai', optional: true },
     { name: 'persist', costMs: 400 },
   ],
   analyze: [

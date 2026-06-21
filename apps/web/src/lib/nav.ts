@@ -10,7 +10,6 @@ import {
   Settings2,
   Sparkles,
   Users,
-  Workflow,
   Zap,
   type LucideIcon,
 } from 'lucide-react';
@@ -75,29 +74,10 @@ export const NAV_GROUPS: readonly NavGroup[] = [
         match: (p) => p.startsWith('/analyze'),
       },
       {
-        to: '/pipeline',
-        label: '检视器',
-        icon: Workflow,
-        perm: 'analyze:run',
-        match: (p) => p.startsWith('/pipeline'),
-      },
-      {
-        to: '/requests',
-        label: '请求闸',
-        icon: Gauge,
-        perm: 'analyze:run',
-        match: (p) => p.startsWith('/requests'),
-      },
-    ],
-  },
-  {
-    label: '运营 · Mock',
-    items: [
-      {
         to: '/radar',
         label: '指挥室',
         icon: Radar,
-        perm: 'analyze:run',
+        perm: 'pipeline:run',
         // 枢纽 + 运行详情 / 运行历史（其余 radar 子页各自高亮）
         match: (p) =>
           p === '/radar' || p.startsWith('/radar/runs') || p.startsWith('/radar/processes'),
@@ -106,29 +86,29 @@ export const NAV_GROUPS: readonly NavGroup[] = [
         to: '/radar/blueprints',
         label: '图纸',
         icon: LayoutTemplate,
-        perm: 'analyze:run',
+        perm: 'pipeline:run',
         match: (p) => p.startsWith('/radar/blueprints'),
-      },
-      {
-        to: '/radar/posts',
-        label: '帖子库',
-        icon: Library,
-        perm: 'analyze:run',
-        match: (p) => p.startsWith('/radar/posts'),
       },
       {
         to: '/radar/insights',
         label: '洞察库',
         icon: Lightbulb,
-        perm: 'analyze:run',
+        perm: 'pipeline:run',
         match: (p) => p.startsWith('/radar/insights'),
+      },
+      {
+        to: '/radar/posts',
+        label: '帖子库',
+        icon: Library,
+        perm: 'pipeline:run',
+        match: (p) => p.startsWith('/radar/posts'),
       },
       // 帖子一生（/radar/posts/:id）是纯详情，从运行详情 / 收成上下文点入，不占独立菜单位
       {
         to: '/radar/requests',
         label: '请求闸',
         icon: Gauge,
-        perm: 'analyze:run',
+        perm: 'requests:control',
         match: (p) => p.startsWith('/radar/requests'),
       },
     ],

@@ -4,6 +4,7 @@
 import { useNavigate, useParams } from 'react-router-dom';
 import { AlertTriangle, CheckCircle2, ListChecks, Timer } from 'lucide-react';
 import { Badge } from '@hatch-radar/ui/components/badge';
+import { Skeleton } from '@hatch-radar/ui/components/skeleton';
 import {
   Table,
   TableBody,
@@ -13,69 +14,66 @@ import {
   TableRow,
 } from '@hatch-radar/ui/components/table';
 import { cn } from '@hatch-radar/ui/lib/utils';
+import type { RunDTO } from '@hatch-radar/shared';
 import { RequirePerm } from '@/auth/require-perm';
-import { EmptyState } from '@/components/empty';
+import { EmptyState, LoadError } from '@/components/empty';
 import { PageHeader } from '@/components/page-header';
 import { StatCard } from '@/components/stat-card';
+import { fmtDuration, timeAgo } from '@/lib/format';
 import { KIND_META, RUN_STATUS_META } from './constants';
-import { useWorld } from './store';
-import type { World } from './types';
-import { fmtDur, relPast, triggerSummary } from './util';
+import { useProcessRuns } from './hooks';
+import { triggerSummary } from './util';
 
-function selectRuns(w: World, processId: string) {
-  const process = w.processes.find((p) => p.id === processId) ?? null;
-  const blueprint = process
-    ? (w.blueprints.find((b) => b.id === process.blueprintId) ?? null)
-    : null;
-  const all = w.runs
-    .filter((r) => r.processId === processId)
-    .sort((a, b) => b.startedAt - a.startedAt)
-    .map((run) => {
-      const ts = w.tasks.filter((t) => t.runId === run.id);
-      const total = ts.length;
-      const done = ts.filter((t) => t.status === 'succeeded' || t.status === 'skipped').length;
-      const failed = ts.filter((t) => t.status === 'failed').length;
-      const pct =
-        total > 0 ? Math.round((done / total) * 100) : run.status === 'completed' ? 100 : 0;
-      return { run, total, done, failed, pct };
-    });
-  const completed = all.filter((r) => r.run.status === 'completed').length;
-  const failedRuns = all.filter((r) => r.run.status === 'failed').length;
-  const settled = completed + failedRuns;
-  const successRate = settled > 0 ? completed / settled : null;
-  const durs = all.filter((r) => r.run.finishedAt).map((r) => r.run.finishedAt! - r.run.startedAt);
-  const avgMs = durs.length > 0 ? durs.reduce((a, b) => a + b, 0) / durs.length : null;
-  const running = all.filter((r) => r.run.status === 'running').length;
-  return {
-    process,
-    blueprint,
-    rows: all,
-    stats: { total: all.length, completed, failed: failedRuns, successRate, avgMs, running },
-    nowMs: w.nowMs,
-  };
+/** 运行状态展示（兜底未登记的状态，如 paused）。 */
+function runStatusMeta(s: string): {
+  label: string;
+  variant: 'default' | 'secondary' | 'outline' | 'destructive';
+} {
+  return RUN_STATUS_META[s as keyof typeof RUN_STATUS_META] ?? { label: s, variant: 'outline' };
+}
+
+/** 单次运行任务进度（done 含略过，与后端 tasksDone 口径一致）。 */
+function runProgress(run: RunDTO): { total: number; done: number; failed: number; pct: number } {
+  const total = run.tasksTotal;
+  const done = run.tasksDone;
+  const failed = run.tasksFailed;
+  const pct = total > 0 ? Math.round((done / total) * 100) : run.status === 'completed' ? 100 : 0;
+  return { total, done, failed, pct };
 }
 
 function RunsView() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
-  const d = useWorld((w) => selectRuns(w, id));
-  const isRecheck = d.blueprint?.kind === 'recheck';
+  const q = useProcessRuns(id);
 
-  if (!d.process) return <EmptyState title="进程不存在" hint="它可能已被删除。返回指挥室看看。" />;
-  const s = d.stats;
+  if (q.isError) return <LoadError onRetry={() => void q.refetch()} />;
+  if (q.isPending) return <Skeleton className="h-96 w-full" />;
+
+  const { process, runs } = q.data;
+  if (!process) return <EmptyState title="进程不存在" hint="它可能已被删除。返回指挥室看看。" />;
+
+  const isRecheck = process.blueprintKind === 'recheck';
+  const sorted = [...runs].sort((a, b) => b.startedAt - a.startedAt);
+
+  // 统计（客户端派生）
+  const completed = sorted.filter((r) => r.status === 'completed').length;
+  const failed = sorted.filter((r) => r.status === 'failed').length;
+  const settled = completed + failed;
+  const successRate = settled > 0 ? completed / settled : null;
+  const durs = sorted.filter((r) => r.finishedAt != null).map((r) => r.finishedAt! - r.startedAt);
+  const avgSec = durs.length > 0 ? durs.reduce((a, b) => a + b, 0) / durs.length : null;
+  const running = sorted.filter((r) => r.status === 'running').length;
 
   return (
     <>
       <PageHeader
-        title={d.process.label}
+        title={process.label}
         description={
           <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <span>运行历史 · {triggerSummary(d.process.trigger)}</span>
-            {d.blueprint ? (
-              <Badge variant="outline" className="font-normal">
-                {KIND_META[d.blueprint.kind].label} · {d.blueprint.label}
-              </Badge>
-            ) : null}
+            <span>运行历史 · {triggerSummary(process.trigger)}</span>
+            <Badge variant="outline" className="font-normal">
+              {KIND_META[process.blueprintKind].label}
+            </Badge>
           </span>
         }
       />
@@ -83,26 +81,26 @@ function RunsView() {
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <StatCard
             label="累计运行"
-            value={s.total}
+            value={sorted.length}
             icon={ListChecks}
-            hint={s.running > 0 ? `进行中 ${s.running}` : '无进行中'}
+            hint={running > 0 ? `进行中 ${running}` : '无进行中'}
           />
           <StatCard
             label="成功率"
-            value={s.successRate == null ? '—' : `${Math.round(s.successRate * 100)}%`}
+            value={successRate == null ? '—' : `${Math.round(successRate * 100)}%`}
             icon={CheckCircle2}
-            hint={`完成 ${s.completed} · 失败 ${s.failed}`}
+            hint={`完成 ${completed} · 失败 ${failed}`}
           />
           <StatCard
             label="平均耗时"
-            value={s.avgMs == null ? '—' : fmtDur(s.avgMs)}
+            value={avgSec == null ? '—' : fmtDuration(avgSec)}
             icon={Timer}
             hint="仅计已结束"
           />
-          <StatCard label="失败" value={s.failed} icon={AlertTriangle} hint="失败运行数" />
+          <StatCard label="失败" value={failed} icon={AlertTriangle} hint="失败运行数" />
         </div>
 
-        {d.rows.length === 0 ? (
+        {sorted.length === 0 ? (
           <EmptyState title="暂无运行记录" hint="进程触发后，每次运行都会记录在这里。" />
         ) : (
           <div className="overflow-x-auto rounded-lg border">
@@ -117,9 +115,10 @@ function RunsView() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {d.rows.map(({ run, total, done, failed, pct }, i) => {
-                  const meta = RUN_STATUS_META[run.status];
-                  const ordinal = d.rows.length - i;
+                {sorted.map((run, i) => {
+                  const meta = runStatusMeta(run.status);
+                  const { total, done, failed: runFailed, pct } = runProgress(run);
+                  const ordinal = sorted.length - i;
                   return (
                     <TableRow
                       key={run.id}
@@ -129,7 +128,7 @@ function RunsView() {
                       <TableCell>
                         <div className="font-mono text-sm font-medium tabular-nums">#{ordinal}</div>
                         <div className="text-xs text-muted-foreground">
-                          {relPast(run.startedAt, d.nowMs)}
+                          {timeAgo(run.startedAt)}
                         </div>
                       </TableCell>
                       <TableCell>
@@ -149,8 +148,8 @@ function RunsView() {
                           </div>
                           <div className="text-xs tabular-nums text-muted-foreground">
                             {total > 0 ? `${done}/${total} 任务` : '—'}
-                            {failed > 0 ? (
-                              <span className="text-destructive"> · 失败 {failed}</span>
+                            {runFailed > 0 ? (
+                              <span className="text-destructive"> · 失败 {runFailed}</span>
                             ) : null}
                           </div>
                           {run.status === 'failed' && run.error ? (
@@ -164,7 +163,9 @@ function RunsView() {
                         </div>
                       </TableCell>
                       <TableCell className="text-sm tabular-nums text-muted-foreground">
-                        {run.finishedAt ? fmtDur(run.finishedAt - run.startedAt) : '进行中'}
+                        {run.finishedAt != null
+                          ? fmtDuration(run.finishedAt - run.startedAt)
+                          : '进行中'}
                       </TableCell>
                     </TableRow>
                   );

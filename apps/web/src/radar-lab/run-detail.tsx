@@ -4,20 +4,20 @@
  * 顶：运行此刻/结果——一句人话总结 + 发现/采集/分析/洞察四数 + 按帖状态分段进度条 + 此刻图例。
  * 中：发现入口行（采集运行）——扫描列表 → 去重 → 派生采集。
  * 主体：一帖一行。横向语义管线（采集：抓取→评论→分析→洞察 / 复查：探测→比对→重抓→分析→洞察），
- *      同一帖的采集 + 分析按 `analyze.parentId` 合并成一行（不再交替重复）；行尾直接给产出（强度 +
- *      痛点）或当前状态（分析中 / 等闸 / 失败 / 无变化已退避）。
- * 点行就地展开：帖子卡 + 逐环节（两 task 的环节拼接，可挂/摘闸 + 看产物）+ 操控条
- *      （放行下一步 = 单步 / 运行到底 / 重试 / 取消），真改 world。
+ *      同一帖的采集 + 分析按 `analyze.parentTaskId` 合并成一行（不再交替重复）；行尾直接给当前状态
+ *      （分析中 / 等闸 / 失败 / 无变化已退避 / 已出洞察）。
+ * 点行就地展开：帖子标题 + 「看这帖一生 →」链接 + 逐环节（两 task 的环节拼接，可挂/摘闸 + 看产物）
+ *      + 操控条（放行下一步 = 单步 / 运行到底 / 重试 / 取消），经 react-query mutation 打 /api。
+ *
+ * 数据：`useRun(runId)`（react-query，活跃时 1.5s 轮询）取 { run, tasks }，重客户端派生（分段 / 按
+ *      parentTaskId 合并 / 状态分桶 / 状态筛选分页）仍在客户端跑（一次运行的任务数有界）。
  */
 import { useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   Activity,
   AlertTriangle,
-  ArrowBigUp,
   ChevronDown,
-  Layers,
-  MessageSquare,
   Pause,
   Play,
   RefreshCw,
@@ -25,17 +25,18 @@ import {
   SkipForward,
   Sparkles,
 } from 'lucide-react';
+import type { RunDTO, StageDTO, TaskDTO } from '@hatch-radar/shared';
 import { Badge } from '@hatch-radar/ui/components/badge';
 import { Button } from '@hatch-radar/ui/components/button';
 import { Card } from '@hatch-radar/ui/components/card';
+import { Skeleton } from '@hatch-radar/ui/components/skeleton';
 import { cn } from '@hatch-radar/ui/lib/utils';
+import { ApiError } from '@/api/client';
 import { RequirePerm } from '@/auth/require-perm';
-import { EmptyState } from '@/components/empty';
+import { LoadError } from '@/components/empty';
 import { PageHeader } from '@/components/page-header';
 import { Pagination } from '@/components/pagination';
-import { commentAvatarDataUri } from '@/lib/avatar';
 import {
-  INTENSITY_META,
   KIND_META,
   LANE_META,
   RUN_STATUS_META,
@@ -43,19 +44,18 @@ import {
   STAGE_STATUS_META,
   stageLabel,
 } from './constants';
+import { useRun } from './hooks';
 import {
-  cancelTask,
-  releaseStage,
-  retryStage,
-  runToEnd,
-  toggleGate,
-  useLang,
-  useWorld,
-} from './store';
-import type { Comment, Insight, Intensity, Post, SourceKind, Stage, Task, World } from './types';
-import { fmtDur, relPast, tText } from './util';
+  useCancelTask,
+  useReleaseStage,
+  useRetryStage,
+  useRunToEnd,
+  useToggleStageGate,
+} from './mutations';
+import type { RunStatus, SourceKind } from './types';
+import { fmtDur, relPast } from './util';
 
-const TERMINAL: Task['status'][] = ['succeeded', 'skipped', 'failed', 'canceled'];
+const TERMINAL: TaskDTO['status'][] = ['succeeded', 'skipped', 'failed', 'canceled'];
 
 const PAGE_SIZES = [10, 20, 50];
 const DEFAULT_SIZE = 20;
@@ -69,11 +69,16 @@ const STATUS_TABS: { key: '' | RowCat; label: string }[] = [
   { key: 'failed', label: '失败' },
 ];
 
-/** 任务的当前环节（first pending|running|waiting，= engine 的推进焦点）。 */
-function currentStage(task: Task): Stage | undefined {
+/** 任务的当前环节（first pending|running|waiting，= 执行内核的推进焦点）。 */
+function currentStage(task: TaskDTO): StageDTO | undefined {
   return task.stages.find(
     (s) => s.status === 'pending' || s.status === 'running' || s.status === 'waiting',
   );
+}
+
+/** 该 analyze 任务是否已落库出洞察（persist 环节 done）。 */
+function hasInsight(analyze: TaskDTO | undefined): boolean {
+  return !!analyze?.stages.some((s) => s.name === 'persist' && s.status === 'done');
 }
 
 // ─── 管线段（概览：一帖流经的语义阶段） ─────────────────────────────────────────
@@ -107,12 +112,12 @@ const SEG_TEXT: Record<SegStatus, string> = {
   todo: 'text-muted-foreground/50',
 };
 
-function pick(task: Task | undefined, names: string[]): Stage[] {
+function pick(task: TaskDTO | undefined, names: string[]): StageDTO[] {
   return task ? task.stages.filter((s) => names.includes(s.name)) : [];
 }
 
 /** 段状态 = 覆盖环节的归并（活跃态优先于完成态）。 */
-function segStatusOf(stages: Stage[], task: Task | undefined): SegStatus {
+function segStatusOf(stages: StageDTO[], task: TaskDTO | undefined): SegStatus {
   if (!task || stages.length === 0) return 'todo';
   if (stages.some((s) => s.status === 'failed')) return 'failed';
   if (stages.some((s) => s.status === 'running')) return 'running';
@@ -126,7 +131,7 @@ function segStatusOf(stages: Stage[], task: Task | undefined): SegStatus {
 
 const ANALYZE_PREP = ['resolve', 'fetch', 'context', 'ai_call', 'normalize'];
 
-function buildSegments(main: Task, analyze: Task | undefined): Seg[] {
+function buildSegments(main: TaskDTO, analyze: TaskDTO | undefined): Seg[] {
   // 开了翻译（main 链里有 translate 环节）才显示翻译段；落库 persist 并入「最后一个采集段」保时序顺。
   const hasTranslate = main.stages.some((s) => s.name === 'translate');
   const translateSeg: Seg = {
@@ -188,33 +193,34 @@ const ROW_TONE: Record<RowTone, string> = {
 
 interface RowModel {
   key: string;
-  kind: Task['kind'];
+  kind: TaskDTO['kind'];
   source: SourceKind | null;
   title: string;
-  titleZh?: string;
-  post: Post | null;
+  /** 源帖 id（展开后「看这帖一生」链接；discover 行为 null）。 */
+  postId: string | null;
+  /** 是否已出洞察（payoff 状态 + 分桶用）。 */
+  insight: boolean;
   segments: Seg[];
   /** 展开后逐环节按 task 分组（发现 / 采集|复查 / 分析）。 */
-  groups: { label: string; task: Task }[];
+  groups: { label: string; task: TaskDTO }[];
   /** 操控对象 = 当前活跃的那个 task（都终态则取链尾）。 */
-  activeTask: Task | null;
-  insight?: Insight;
+  activeTask: TaskDTO | null;
   rowTone: RowTone;
   rowLabel: string;
   /** 状态归类，用于列表筛选。 */
   cat: RowCat;
 }
 
-function activeOf(chain: Task[]): Task | null {
+function activeOf(chain: TaskDTO[]): TaskDTO | null {
   return chain.find((t) => !TERMINAL.includes(t.status)) ?? chain[chain.length - 1] ?? null;
 }
 
 function rowStateOf(
-  active: Task | null,
-  insight: Insight | undefined,
-  main: Task,
+  active: TaskDTO | null,
+  insight: boolean,
+  main: TaskDTO,
 ): { tone: RowTone; label: string } {
-  if (insight) return { tone: 'insight', label: insight.painPoint };
+  if (insight) return { tone: 'insight', label: '已出洞察' };
   if (!active) return { tone: 'muted', label: '—' };
   switch (active.status) {
     case 'paused': {
@@ -235,10 +241,7 @@ function rowStateOf(
     case 'queued':
       return { tone: 'muted', label: '排队' };
     case 'skipped': {
-      if (main.kind === 'recheck') {
-        const m = main.post?.recheckMisses;
-        return { tone: 'muted', label: `无变化 · 已退避${m ? ` ${m} 轮` : ''}` };
-      }
+      if (main.kind === 'recheck') return { tone: 'muted', label: '无变化 · 已退避' };
       return { tone: 'muted', label: '略过' };
     }
     case 'succeeded':
@@ -248,7 +251,7 @@ function rowStateOf(
   }
 }
 
-function discoverStateOf(t: Task): { tone: RowTone; label: string } {
+function discoverStateOf(t: TaskDTO): { tone: RowTone; label: string } {
   switch (t.status) {
     case 'running': {
       const c = currentStage(t);
@@ -267,21 +270,15 @@ function discoverStateOf(t: Task): { tone: RowTone; label: string } {
   }
 }
 
-// ─── 选择器 ─────────────────────────────────────────────────────────────────────
+// ─── 选择器（客户端派生，operating on RunDTO + TaskDTO[]） ────────────────────────
 
 function selectRun(
-  w: World,
-  runId: string,
+  run: RunDTO,
+  tasks: TaskDTO[],
+  blueprintKind: 'collect' | 'recheck',
   filters: { status: string; page: number; size: number },
 ) {
-  const run = w.runs.find((r) => r.id === runId);
-  if (!run) return null;
-  const process = w.processes.find((p) => p.id === run.processId) ?? null;
-  const blueprint = w.blueprints.find((b) => b.id === run.blueprintId) ?? null;
-  const tasks = w.tasks.filter((t) => t.runId === runId);
-
-  const insightByPost = new Map<string, Insight>();
-  for (const i of w.insights) if (i.runId === runId) insightByPost.set(i.postId, i);
+  const isCollect = blueprintKind === 'collect';
 
   // 发现入口（采集运行恰好一个 discover）
   const discoverTask = tasks.find((t) => t.kind === 'discover') ?? null;
@@ -289,11 +286,12 @@ function selectRun(
     ? (() => {
         const st = discoverStateOf(discoverTask);
         return {
-          key: discoverTask.id,
+          key: String(discoverTask.id),
           kind: 'discover' as const,
-          source: blueprint?.sources[0]?.kind ?? null,
+          source: null,
           title: '发现',
-          post: null,
+          postId: null,
+          insight: false,
           segments: [
             {
               key: 'listing',
@@ -321,10 +319,11 @@ function selectRun(
       })()
     : null;
 
-  // 一帖一行：collect/recheck 为主，analyze 按 parentId 合并。
-  // analyze 先按 parentId 建索引，避免逐帖 find 退化成 O(帖 × 任务)。
-  const analyzeByParent = new Map<string, Task>();
-  for (const t of tasks) if (t.kind === 'analyze' && t.parentId) analyzeByParent.set(t.parentId, t);
+  // 一帖一行：collect/recheck 为主，analyze 按 parentTaskId 合并。
+  // analyze 先按 parentTaskId 建索引，避免逐帖 find 退化成 O(帖 × 任务)。
+  const analyzeByParent = new Map<number, TaskDTO>();
+  for (const t of tasks)
+    if (t.kind === 'analyze' && t.parentTaskId != null) analyzeByParent.set(t.parentTaskId, t);
   const mains = tasks
     .filter((t) => t.kind === 'collect' || t.kind === 'recheck')
     .sort((a, b) => a.enqueuedAt - b.enqueuedAt);
@@ -333,7 +332,7 @@ function selectRun(
     const analyze = analyzeByParent.get(main.id);
     const chain = analyze ? [main, analyze] : [main];
     const active = activeOf(chain);
-    const insight = main.postId ? insightByPost.get(main.postId) : undefined;
+    const insight = hasInsight(analyze);
     const st = rowStateOf(active, insight, main);
     const groups = [{ label: main.kind === 'collect' ? '采集' : '复查', task: main }];
     if (analyze) groups.push({ label: '分析', task: analyze });
@@ -345,16 +344,15 @@ function selectRun(
       cat = s === 'succeeded' || s === 'skipped' || s === 'canceled' ? 'done' : 'running';
     }
     return {
-      key: main.id,
+      key: String(main.id),
       kind: main.kind,
-      source: main.post?.source ?? null,
-      title: main.post?.title ?? main.id,
-      titleZh: main.post?.titleZh,
-      post: main.post,
+      source: null,
+      title: main.postTitle ?? main.postId ?? String(main.id),
+      postId: main.postId,
+      insight,
       segments: buildSegments(main, analyze),
       groups,
       activeTask: active,
-      insight,
       rowTone: st.tone,
       rowLabel: st.label,
       cat,
@@ -369,7 +367,7 @@ function selectRun(
   const analyzeTasks = tasks.filter((t) => t.kind === 'analyze');
   const analyzeDone = analyzeTasks.filter((t) => t.status === 'succeeded').length;
   const changed = rows.filter((r) => r.groups.some((g) => g.label === '分析')).length;
-  const insights = insightByPost.size;
+  const insights = rows.filter((r) => r.insight).length;
 
   // 按帖状态分桶（进度条 + 此刻图例）
   const bucket = {
@@ -407,8 +405,11 @@ function selectRun(
     }
   }
 
+  // 时间戳是 Unix 秒；relPast/fmtDur 吃毫秒 → 统一 ×1000 后算。
+  const nowMs = Date.now();
   const elapsed =
-    (run.status === 'running' ? w.nowMs : (run.finishedAt ?? w.nowMs)) - run.startedAt;
+    (run.status === 'running' ? nowMs : (run.finishedAt ?? 0) * 1000 || nowMs) -
+    run.startedAt * 1000;
 
   // 帖子列表：按状态筛选 + 分页（只切当页 → DOM 恒有界，几百上千帖同样跑得动）
   const counts = { all: rows.length, running: 0, done: 0, failed: 0 };
@@ -424,8 +425,7 @@ function selectRun(
 
   return {
     run,
-    process,
-    blueprint,
+    isCollect,
     discoverRow,
     pageRows,
     counts,
@@ -440,11 +440,11 @@ function selectRun(
     insights,
     bucket,
     elapsed,
-    nowMs: w.nowMs,
+    nowMs,
   };
 }
 
-type RunData = NonNullable<ReturnType<typeof selectRun>>;
+type RunData = ReturnType<typeof selectRun>;
 type Bucket = RunData['bucket'];
 
 // ─── 概览 ───────────────────────────────────────────────────────────────────────
@@ -522,14 +522,9 @@ function Legend({ bucket }: { bucket: Bucket }) {
 }
 
 function Summary({ data }: { data: RunData }) {
-  const { run, blueprint, total, changed, insights, bucket } = data;
+  const { run, isCollect, total, changed, insights, bucket } = data;
   const isRunning = run.status === 'running';
-  const src = blueprint
-    ? blueprint.sources
-        .flatMap((s) => s.channels)
-        .slice(0, 2)
-        .join('、')
-    : '来源';
+  const src = run.blueprintLabel ?? '来源';
   const ins = <span className="font-medium tabular-nums text-signal">{insights}</span>;
   const num = (n: number) => <span className="font-medium tabular-nums text-foreground">{n}</span>;
 
@@ -556,7 +551,7 @@ function Summary({ data }: { data: RunData }) {
     ) : null;
 
   let body: ReactNode;
-  if (run.kind === 'collect') {
+  if (isCollect) {
     body = isRunning ? (
       <>
         正在采集 <span className="text-foreground">{src}</span> —— 已发现 {num(total)} 帖、分析出{' '}
@@ -585,10 +580,19 @@ function Summary({ data }: { data: RunData }) {
 }
 
 function RunOverview({ data }: { data: RunData }) {
-  const { run, total, collectDone, analyzeTotal, analyzeDone, changed, insights, bucket, elapsed } =
-    data;
+  const {
+    run,
+    isCollect,
+    total,
+    collectDone,
+    analyzeTotal,
+    analyzeDone,
+    changed,
+    insights,
+    bucket,
+    elapsed,
+  } = data;
   const isRunning = run.status === 'running';
-  const isCollect = run.kind === 'collect';
   const doneRows = bucket.insight + bucket.skipped;
   const pct = total > 0 ? Math.round((doneRows / total) * 100) : 0;
 
@@ -663,89 +667,6 @@ function RunOverview({ data }: { data: RunData }) {
   );
 }
 
-// ─── 帖子卡 + 评论树（展开内复用） ─────────────────────────────────────────────
-
-function CommentNode({ c }: { c: Comment }) {
-  const preferOriginal = useLang();
-  return (
-    <div className="space-y-1">
-      <div className="flex items-center gap-1.5 text-xs">
-        <img
-          src={commentAvatarDataUri(c.author)}
-          alt=""
-          aria-hidden
-          className="size-4 shrink-0 rounded-full bg-muted"
-        />
-        <span className="font-medium text-foreground">u/{c.author}</span>
-        <span className="text-muted-foreground">· ↑{c.score}</span>
-      </div>
-      <p className="text-xs leading-relaxed text-muted-foreground">
-        {tText(c.body, c.bodyZh, preferOriginal)}
-      </p>
-      {c.children && c.children.length > 0 ? (
-        <div className="mt-1.5 space-y-2 border-l pl-2.5">
-          {c.children.map((ch, i) => (
-            <CommentNode key={i} c={ch} />
-          ))}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function PostCard({ post, nowMs }: { post: Post; nowMs: number }) {
-  const Icon = SOURCE_META[post.source].icon;
-  const preferOriginal = useLang();
-  return (
-    <div className="space-y-2 rounded-md border bg-background p-3">
-      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-        <span className="inline-flex items-center gap-1 font-medium text-foreground">
-          <Icon className="size-3.5" />
-          {post.channel}
-        </span>
-        <span className="ml-auto">{relPast(nowMs - post.ageMinutes * 60_000, nowMs)}</span>
-      </div>
-      <p className="text-sm leading-snug font-medium">
-        {tText(post.title, post.titleZh, preferOriginal)}
-      </p>
-      {post.body ? (
-        <p className="max-h-32 overflow-y-auto text-xs leading-relaxed whitespace-pre-line text-muted-foreground">
-          {tText(post.body, post.bodyZh, preferOriginal)}
-        </p>
-      ) : (
-        <p className="text-xs text-muted-foreground/60">链接帖 · 无正文</p>
-      )}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs tabular-nums text-muted-foreground">
-        <span>u/{post.author}</span>
-        <span className="inline-flex items-center gap-0.5">
-          <ArrowBigUp className="size-3.5" />
-          {post.score.toLocaleString()}
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <MessageSquare className="size-3" />
-          {post.numComments}
-        </span>
-        {post.commentDepth > 0 ? (
-          <span className="inline-flex items-center gap-1">
-            <Layers className="size-3" />
-            最深 {post.commentDepth} 层
-          </span>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
-function IntensityBadge({ i }: { i: Intensity }) {
-  const m = INTENSITY_META[i];
-  return (
-    <span className={cn('inline-flex shrink-0 items-center gap-1 text-xs font-medium', m.text)}>
-      <span className={cn('size-1.5 rounded-full', m.bar)} />
-      {m.label}
-    </span>
-  );
-}
-
 // ─── 管线（收起行的语义段） ─────────────────────────────────────────────────────
 
 function Pipeline({ segments }: { segments: Seg[] }) {
@@ -793,11 +714,15 @@ function StageLine({
   stage,
   selected,
   onSelect,
+  onToggleGate,
+  gateBusy,
 }: {
-  task: Task;
-  stage: Stage;
+  task: TaskDTO;
+  stage: StageDTO;
   selected: boolean;
   onSelect: () => void;
+  onToggleGate: (taskId: number, seq: number, gate: boolean) => void;
+  gateBusy: boolean;
 }) {
   const canGate = stage.status === 'pending';
   return (
@@ -828,7 +753,8 @@ function StageLine({
       {canGate ? (
         <button
           type="button"
-          onClick={() => toggleGate(task.id, stage.seq)}
+          disabled={gateBusy}
+          onClick={() => onToggleGate(task.id, stage.seq, !stage.gate)}
           aria-label={stage.gate ? '取消暂停点' : '设为暂停点'}
           title={
             stage.gate
@@ -836,7 +762,7 @@ function StageLine({
               : '点击设为暂停点：运行到这步会停下、等你手动放行'
           }
           className={cn(
-            'inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium transition-colors',
+            'inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium transition-colors disabled:opacity-50',
             stage.gate
               ? 'bg-intensity-medium/15 text-intensity-medium'
               : 'border border-dashed border-muted-foreground/30 text-muted-foreground/50 hover:border-intensity-medium/60 hover:text-intensity-medium',
@@ -853,8 +779,7 @@ function StageLine({
   );
 }
 
-function ProductPanel({ task, stage }: { task: Task; stage: Stage }) {
-  const isComments = stage.name === 'fetch_comments' || stage.name === 'recrawl';
+function ProductPanel({ stage }: { stage: StageDTO }) {
   return (
     <div className="rounded-md border bg-background p-3 text-sm">
       <div className="mb-1.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
@@ -865,12 +790,6 @@ function ProductPanel({ task, stage }: { task: Task; stage: Stage }) {
       </div>
       {stage.error ? (
         <p className="text-destructive">{stage.error}</p>
-      ) : isComments && task.post && task.post.comments.length > 0 ? (
-        <div className="space-y-2 border-l pl-2.5">
-          {task.post.comments.map((c, i) => (
-            <CommentNode key={i} c={c} />
-          ))}
-        </div>
       ) : stage.output ? (
         <p className="text-muted-foreground">{stage.output}</p>
       ) : (
@@ -880,18 +799,32 @@ function ProductPanel({ task, stage }: { task: Task; stage: Stage }) {
   );
 }
 
-function Controls({ task }: { task: Task }) {
+function Controls({
+  task,
+  onRelease,
+  onRunToEnd,
+  onRetry,
+  onCancel,
+  busy,
+}: {
+  task: TaskDTO;
+  onRelease: (taskId: number) => void;
+  onRunToEnd: (taskId: number) => void;
+  onRetry: (taskId: number) => void;
+  onCancel: (taskId: number) => void;
+  busy: boolean;
+}) {
   if (task.status === 'paused')
     return (
       <div className="space-y-1.5">
         <div className="flex flex-wrap gap-2">
-          <Button size="sm" onClick={() => releaseStage(task.id)}>
+          <Button size="sm" disabled={busy} onClick={() => onRelease(task.id)}>
             <SkipForward className="size-3.5" /> 放行下一步
           </Button>
-          <Button size="sm" variant="outline" onClick={() => runToEnd(task.id)}>
+          <Button size="sm" variant="outline" disabled={busy} onClick={() => onRunToEnd(task.id)}>
             <Play className="size-3.5" /> 运行到底
           </Button>
-          <Button size="sm" variant="ghost" onClick={() => cancelTask(task.id)}>
+          <Button size="sm" variant="ghost" disabled={busy} onClick={() => onCancel(task.id)}>
             取消
           </Button>
         </div>
@@ -903,17 +836,17 @@ function Controls({ task }: { task: Task }) {
   if (task.status === 'failed')
     return (
       <div className="flex flex-wrap gap-2">
-        <Button size="sm" onClick={() => retryStage(task.id)}>
+        <Button size="sm" disabled={busy} onClick={() => onRetry(task.id)}>
           <RefreshCw className="size-3.5" /> 重试本环节
         </Button>
-        <Button size="sm" variant="ghost" onClick={() => cancelTask(task.id)}>
+        <Button size="sm" variant="ghost" disabled={busy} onClick={() => onCancel(task.id)}>
           取消
         </Button>
       </div>
     );
   if (task.status === 'running' || task.status === 'queued')
     return (
-      <Button size="sm" variant="ghost" onClick={() => cancelTask(task.id)}>
+      <Button size="sm" variant="ghost" disabled={busy} onClick={() => onCancel(task.id)}>
         取消
       </Button>
     );
@@ -922,28 +855,33 @@ function Controls({ task }: { task: Task }) {
 
 // ─── 一行（收起 + 就地展开） ────────────────────────────────────────────────────
 
+interface RowHandlers {
+  onRelease: (taskId: number) => void;
+  onRunToEnd: (taskId: number) => void;
+  onRetry: (taskId: number) => void;
+  onCancel: (taskId: number) => void;
+  onToggleGate: (taskId: number, seq: number, gate: boolean) => void;
+  busy: boolean;
+}
+
 function ExecRow({
   row,
-  nowMs,
   open,
   onToggle,
+  handlers,
 }: {
   row: RowModel;
-  nowMs: number;
   open: boolean;
   onToggle: () => void;
+  handlers: RowHandlers;
 }) {
-  const preferOriginal = useLang();
-  const [sel, setSel] = useState<{ taskId: string; seq: number } | null>(null);
+  const [sel, setSel] = useState<{ taskId: number; seq: number } | null>(null);
   const isDiscover = row.kind === 'discover';
   const Icon = row.source ? SOURCE_META[row.source].icon : Search;
-  const title = isDiscover
-    ? '发现 · 扫描列表 → 去重 → 派生采集'
-    : tText(row.title, row.titleZh, preferOriginal);
+  const title = isDiscover ? '发现 · 扫描列表 → 去重 → 派生采集' : row.title;
 
   const selGroup = sel != null ? row.groups.find((g) => g.task.id === sel.taskId) : undefined;
   const selStage = selGroup?.task.stages.find((s) => s.seq === sel?.seq);
-  const selTask = selGroup?.task;
 
   return (
     <div>
@@ -958,7 +896,6 @@ function ExecRow({
           <Pipeline segments={row.segments} />
         </div>
         <div className="flex shrink-0 items-center gap-2 pt-0.5">
-          {row.insight ? <IntensityBadge i={row.insight.intensity} /> : null}
           <span
             className={cn('hidden max-w-[15rem] truncate text-xs sm:inline', ROW_TONE[row.rowTone])}
           >
@@ -977,11 +914,11 @@ function ExecRow({
         <div className="space-y-3 border-t bg-muted/20 px-3 pt-3 pb-3.5">
           <div className={cn('text-xs sm:hidden', ROW_TONE[row.rowTone])}>{row.rowLabel}</div>
 
-          {row.post ? (
+          {row.postId ? (
             <div className="space-y-1.5">
-              <PostCard post={row.post} nowMs={nowMs} />
+              <p className="text-sm leading-snug font-medium">{row.title}</p>
               <Link
-                to={`/radar/posts/${row.post.id}`}
+                to={`/radar/posts/${row.postId}`}
                 className="inline-flex items-center gap-0.5 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
               >
                 看这帖一生 →
@@ -1005,6 +942,8 @@ function ExecRow({
                       stage={s}
                       selected={sel?.taskId === g.task.id && sel?.seq === s.seq}
                       onSelect={() => setSel({ taskId: g.task.id, seq: s.seq })}
+                      onToggleGate={handlers.onToggleGate}
+                      gateBusy={handlers.busy}
                     />
                   ))}
                 </div>
@@ -1012,9 +951,18 @@ function ExecRow({
             ))}
           </div>
 
-          {selStage && selTask ? <ProductPanel task={selTask} stage={selStage} /> : null}
+          {selStage ? <ProductPanel stage={selStage} /> : null}
 
-          {row.activeTask ? <Controls task={row.activeTask} /> : null}
+          {row.activeTask ? (
+            <Controls
+              task={row.activeTask}
+              onRelease={handlers.onRelease}
+              onRunToEnd={handlers.onRunToEnd}
+              onRetry={handlers.onRetry}
+              onCancel={handlers.onCancel}
+              busy={handlers.busy}
+            />
+          ) : null}
         </div>
       ) : null}
     </div>
@@ -1029,14 +977,46 @@ function RunDetailView() {
   const [sp] = useSearchParams();
   const [openKey, setOpenKey] = useState<string | null>(null);
 
+  const q = useRun(runId);
+
+  // mutation：放行 / 运行到底 / 重试 / 取消 / 挂摘闸（toast + 失效该运行查询）。
+  const release = useReleaseStage(runId);
+  const runEnd = useRunToEnd(runId);
+  const retry = useRetryStage(runId);
+  const cancel = useCancelTask(runId);
+  const toggleStageGate = useToggleStageGate(runId);
+  const busy =
+    release.isPending ||
+    runEnd.isPending ||
+    retry.isPending ||
+    cancel.isPending ||
+    toggleStageGate.isPending;
+  const handlers: RowHandlers = {
+    onRelease: (taskId) => release.mutate(taskId),
+    onRunToEnd: (taskId) => runEnd.mutate(taskId),
+    onRetry: (taskId) => retry.mutate(taskId),
+    onCancel: (taskId) => cancel.mutate(taskId),
+    onToggleGate: (taskId, seq, gate) => toggleStageGate.mutate({ taskId, seq, gate }),
+    busy,
+  };
+
+  if (q.isPending) return <Skeleton className="h-96 w-full" />;
+  if (q.isError)
+    return (
+      <LoadError
+        message={q.error instanceof ApiError ? q.error.message : undefined}
+        onRetry={() => void q.refetch()}
+      />
+    );
+
+  const { run, tasks } = q.data;
   const status = sp.get('status') ?? '';
   const page = Math.max(1, Number.parseInt(sp.get('page') ?? '1', 10) || 1);
   const size = PAGE_SIZES.includes(Number(sp.get('size'))) ? Number(sp.get('size')) : DEFAULT_SIZE;
-  const data = useWorld((w) => selectRun(w, runId, { status, page, size }));
-
-  if (!data) return <EmptyState title="运行不存在" hint="它可能已被清理。返回指挥室看看。" />;
-  const { run, process, blueprint, discoverRow, pageRows, counts, nowMs } = data;
-  const rm = RUN_STATUS_META[run.status];
+  const blueprintKind: 'collect' | 'recheck' = run.kind === 'recheck' ? 'recheck' : 'collect';
+  const data = selectRun(run, tasks, blueprintKind, { status, page, size });
+  const { discoverRow, pageRows, counts, nowMs } = data;
+  const rm = RUN_STATUS_META[run.status as RunStatus] ?? { label: run.status, variant: 'outline' };
   const toggle = (key: string) => setOpenKey((k) => (k === key ? null : key));
 
   /** 切状态筛选：回第 1 页，保留每页条数偏好。 */
@@ -1044,26 +1024,28 @@ function RunDetailView() {
     const params = new URLSearchParams();
     if (s) params.set('status', s);
     if (size !== DEFAULT_SIZE) params.set('size', String(size));
-    const qs = params.toString();
-    navigate(qs ? `/radar/runs/${runId}?${qs}` : `/radar/runs/${runId}`);
+    const qStr = params.toString();
+    navigate(qStr ? `/radar/runs/${runId}?${qStr}` : `/radar/runs/${runId}`);
   };
 
   return (
     <>
       <PageHeader
-        title={`运行 · ${process?.label ?? run.processId}`}
+        title={`运行 · ${run.processLabel ?? run.blueprintLabel ?? `#${run.id}`}`}
         description={
           <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
             <Badge variant={rm.variant}>{rm.label}</Badge>
-            {blueprint ? (
+            {run.blueprintLabel ? (
               <span className="text-muted-foreground">
-                {KIND_META[blueprint.kind].label} · {blueprint.label}
+                {KIND_META[blueprintKind].label} · {run.blueprintLabel}
               </span>
             ) : null}
             {run.sweepSeq != null ? (
               <span className="text-muted-foreground">sweep #{run.sweepSeq}</span>
             ) : null}
-            <span className="text-muted-foreground">· {relPast(run.startedAt, nowMs)}起</span>
+            <span className="text-muted-foreground">
+              · {relPast(run.startedAt * 1000, nowMs)}起
+            </span>
           </span>
         }
       />
@@ -1082,9 +1064,9 @@ function RunDetailView() {
           <Card className="gap-0 overflow-hidden p-0">
             <ExecRow
               row={discoverRow}
-              nowMs={nowMs}
               open={openKey === discoverRow.key}
               onToggle={() => toggle(discoverRow.key)}
+              handlers={handlers}
             />
           </Card>
         ) : null}
@@ -1125,9 +1107,9 @@ function RunDetailView() {
                 <ExecRow
                   key={r.key}
                   row={r}
-                  nowMs={nowMs}
                   open={openKey === r.key}
                   onToggle={() => toggle(r.key)}
+                  handlers={handlers}
                 />
               ))
             )}

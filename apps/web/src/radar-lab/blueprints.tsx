@@ -4,7 +4,8 @@
  * 左列图纸清单，右侧详情：标题 + 配方概要（源 / 参数）+ **执行流程**（主体）+ 进程。
  * 执行流程是一张**竖向阶段管道图**：按 blueprintFlow 铺开 发现→采集→分析→洞察 的完整链路，
  * 每阶段一条泳道、卡内是该阶段固定环节序列（标注成本 / 是否经请求闸 / 走哪个 lane），
- * 逐环节可挂/摘闸门（写 blueprint.gates 的复合键 kind:name，engine 据此让运行时任务停在该环节）。
+ * 逐环节可挂/摘闸门（PATCH blueprint.gates 的复合键 kind:name，运行时据此让任务停在该环节）。
+ * 数据经 react-query 命中 /api（图纸 / 进程列表）。
  */
 import { Fragment, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -26,6 +27,7 @@ import {
   ToggleRight,
   Trash2,
 } from 'lucide-react';
+import type { BlueprintDTO, ProcessDTO, RadarLaneId } from '@hatch-radar/shared';
 import { Badge } from '@hatch-radar/ui/components/badge';
 import { Button } from '@hatch-radar/ui/components/button';
 import { Card } from '@hatch-radar/ui/components/card';
@@ -36,10 +38,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@hatch-radar/ui/components/dropdown-menu';
-import { toast } from '@hatch-radar/ui/components/sonner';
+import { Skeleton } from '@hatch-radar/ui/components/skeleton';
 import { cn } from '@hatch-radar/ui/lib/utils';
+import { ApiError } from '@/api/client';
 import { RequirePerm } from '@/auth/require-perm';
-import { EmptyState } from '@/components/empty';
+import { EmptyState, LoadError } from '@/components/empty';
 import { PageHeader } from '@/components/page-header';
 import {
   blueprintFlow,
@@ -56,42 +59,25 @@ import {
 } from './constants';
 import { ConfirmDelete } from './confirm-delete';
 import { BlueprintFormDialog, ProcessFormDialog } from './forms';
-import { deleteBlueprint, toggleBlueprintGate, toggleBlueprintStage, useWorld } from './store';
-import type {
-  Blueprint,
-  CollectParams,
-  LaneId,
-  Process,
-  RecheckParams,
-  TaskKind,
-  World,
-} from './types';
+import { useBlueprints, useProcesses } from './hooks';
+import { useDeleteBlueprint, useUpdateBlueprint } from './mutations';
+import type { TaskKind } from './types';
 import { triggerSummary } from './util';
 
-function selectBlueprints(w: World) {
-  return {
-    blueprints: w.blueprints,
-    procByBp: w.blueprints.map((b) => ({
-      id: b.id,
-      processes: w.processes.filter((p) => p.blueprintId === b.id),
-    })),
-  };
-}
-
-function paramChips(b: Blueprint): { label: string; value: number }[] {
+/** 图纸概要参数 chip：从 params（Record）读取，缺省回退 0。 */
+function paramChips(b: BlueprintDTO): { label: string; value: number }[] {
+  const p = b.params as Record<string, number>;
   if (b.kind === 'collect') {
-    const p = b.params as CollectParams;
     return [
-      { label: '翻页上限', value: p.limit },
-      { label: '连续命中即停', value: p.stopAfterKnown },
-      { label: '评论预算', value: p.commentBudget },
+      { label: '翻页上限', value: p.limit ?? 0 },
+      { label: '连续命中即停', value: p.stopAfterKnown ?? 0 },
+      { label: '评论预算', value: p.commentBudget ?? 0 },
     ];
   }
-  const p = b.params as RecheckParams;
   return [
-    { label: '每批帖数', value: p.batchSize },
-    { label: '批间冷却(s)', value: p.batchIntervalSec },
-    { label: '退避封顶', value: p.backoffCap },
+    { label: '每批帖数', value: p.batchSize ?? 0 },
+    { label: '批间冷却(s)', value: p.batchIntervalSec ?? 0 },
+    { label: '退避封顶', value: p.backoffCap ?? 0 },
   ];
 }
 
@@ -106,7 +92,7 @@ const PHASE_NOTE: Record<TaskKind, { fanout: string; spawn?: string }> = {
 };
 
 /** 图纸态下该环节经请求闸时走哪些 lane（source 类按图纸数据源推导，ai 类固定 ai）。 */
-function stageLanes(def: StageDef, blueprint: Blueprint): LaneId[] {
+function stageLanes(def: StageDef, blueprint: BlueprintDTO): RadarLaneId[] {
   if (def.fetch === 'ai') return ['ai'];
   if (def.fetch === 'source')
     return [...new Set(blueprint.sources.map((s) => sourceToLane(s.kind)))];
@@ -119,19 +105,27 @@ function StageNode({
   kind,
   def,
 }: {
-  blueprint: Blueprint;
+  blueprint: BlueprintDTO;
   kind: TaskKind;
   def: StageDef;
 }) {
+  const update = useUpdateBlueprint();
   const key = gateKey(kind, def.name);
 
-  // 可选环节（如翻译）：渲染成「启用 / 跳过」开关，而非暂停点。
+  // 可选环节（如翻译）：渲染成「启用 / 跳过」开关，而非暂停点。写 enabledStages。
   if (def.optional) {
-    const enabled = blueprint.enabledStages?.includes(key) ?? false;
+    const enabled = blueprint.enabledStages.includes(key);
+    const toggleStage = (): void => {
+      const next = enabled
+        ? blueprint.enabledStages.filter((k) => k !== key)
+        : [...blueprint.enabledStages, key];
+      update.mutate({ id: blueprint.id, enabledStages: next });
+    };
     return (
       <button
         type="button"
-        onClick={() => toggleBlueprintStage(blueprint.id, key)}
+        onClick={toggleStage}
+        disabled={update.isPending}
         title={
           enabled
             ? '可选环节 · 已启用，点击跳过（运行时不再生成这一步）'
@@ -175,13 +169,18 @@ function StageNode({
   }
 
   const gated = blueprint.gates.includes(key);
+  const toggleGate = (): void => {
+    const next = gated ? blueprint.gates.filter((g) => g !== key) : [...blueprint.gates, key];
+    update.mutate({ id: blueprint.id, gates: next });
+  };
   const lanes = stageLanes(def, blueprint);
   const isAi = def.fetch === 'ai';
   const isSource = def.fetch === 'source';
   return (
     <button
       type="button"
-      onClick={() => toggleBlueprintGate(blueprint.id, key)}
+      onClick={toggleGate}
+      disabled={update.isPending}
       title={
         gated
           ? '已设暂停点 · 点击取消（运行时不再停在这一步）'
@@ -204,8 +203,13 @@ function StageNode({
       </div>
       {isSource ? (
         <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-          <Globe className={cn('size-3 shrink-0', lanes[0] ? LANE_META[lanes[0]].color : '')} />
-          联网抓取 · {lanes.map((l) => LANE_META[l].label).join(' / ')}
+          <Globe
+            className={cn(
+              'size-3 shrink-0',
+              lanes[0] ? LANE_META[lanes[0] as keyof typeof LANE_META].color : '',
+            )}
+          />
+          联网抓取 · {lanes.map((l) => LANE_META[l as keyof typeof LANE_META].label).join(' / ')}
         </span>
       ) : isAi ? (
         <span className="inline-flex flex-wrap items-center gap-x-1 text-xs text-primary">
@@ -237,7 +241,7 @@ function PhaseLane({
   kind,
   index,
 }: {
-  blueprint: Blueprint;
+  blueprint: BlueprintDTO;
   kind: TaskKind;
   index: number;
 }) {
@@ -278,7 +282,7 @@ function PhaseLane({
 }
 
 /** 执行流程主体：blueprintFlow 阶段链逐条泳道 + 派生连接 + 洞察终点。 */
-function StageFlow({ blueprint }: { blueprint: Blueprint }) {
+function StageFlow({ blueprint }: { blueprint: BlueprintDTO }) {
   const flow = blueprintFlow(blueprint.kind);
   return (
     <div>
@@ -313,10 +317,10 @@ function BlueprintSwitcher({
   onSelect,
   onNew,
 }: {
-  blueprints: Blueprint[];
-  selected: Blueprint;
-  procByBp: { id: string; processes: Process[] }[];
-  onSelect: (id: string) => void;
+  blueprints: BlueprintDTO[];
+  selected: BlueprintDTO;
+  procByBp: Map<number, ProcessDTO[]>;
+  onSelect: (id: number) => void;
   onNew: () => void;
 }) {
   const km = KIND_META[selected.kind];
@@ -338,7 +342,7 @@ function BlueprintSwitcher({
       <DropdownMenuContent align="start" className="w-72">
         {blueprints.map((b) => {
           const m = KIND_META[b.kind];
-          const count = procByBp.find((x) => x.id === b.id)?.processes.length ?? 0;
+          const count = procByBp.get(b.id)?.length ?? 0;
           const active = b.id === selected.id;
           return (
             <DropdownMenuItem key={b.id} onClick={() => onSelect(b.id)} className="gap-2">
@@ -370,13 +374,14 @@ function BlueprintDetail({
   onSelect,
   onNew,
 }: {
-  blueprint: Blueprint;
-  processes: Process[];
-  blueprints: Blueprint[];
-  procByBp: { id: string; processes: Process[] }[];
-  onSelect: (id: string) => void;
+  blueprint: BlueprintDTO;
+  processes: ProcessDTO[];
+  blueprints: BlueprintDTO[];
+  procByBp: Map<number, ProcessDTO[]>;
+  onSelect: (id: number) => void;
   onNew: () => void;
 }) {
+  const del = useDeleteBlueprint();
   const [editOpen, setEditOpen] = useState(false);
   const [delOpen, setDelOpen] = useState(false);
   const [newProcOpen, setNewProcOpen] = useState(false);
@@ -521,10 +526,7 @@ function BlueprintDetail({
         onOpenChange={setDelOpen}
         title="删除图纸"
         description={`将删除图纸「${blueprint.label}」及其全部进程与运行记录。此操作不可撤销。`}
-        onConfirm={() => {
-          deleteBlueprint(blueprint.id);
-          toast.success('图纸已删除');
-        }}
+        onConfirm={() => del.mutate(blueprint.id)}
       />
     </Card>
   );
@@ -533,11 +535,47 @@ function BlueprintDetail({
 // ─── 页面 ──────────────────────────────────────────────────────────────────────
 
 function BlueprintsView() {
-  const { blueprints, procByBp } = useWorld(selectBlueprints);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const bpq = useBlueprints();
+  const procq = useProcesses();
+  const [selectedId, setSelectedId] = useState<number | null>(null);
   const [newOpen, setNewOpen] = useState(false);
+
+  if (bpq.isError) {
+    return (
+      <>
+        <PageHeader
+          title="图纸"
+          description="图纸 = 配方（抓哪些源 · 采集/复查 · 参数 · 挂闸的环节），不含节奏。节奏在进程上设。"
+        />
+        <LoadError
+          message={bpq.error instanceof ApiError ? bpq.error.message : undefined}
+          onRetry={() => void bpq.refetch()}
+        />
+      </>
+    );
+  }
+  if (bpq.isPending) {
+    return (
+      <>
+        <PageHeader
+          title="图纸"
+          description="图纸 = 配方（抓哪些源 · 采集/复查 · 参数 · 挂闸的环节），不含节奏。节奏在进程上设。"
+        />
+        <Skeleton className="h-96 w-full" />
+      </>
+    );
+  }
+
+  const blueprints = bpq.data;
+  const processes = procq.data ?? [];
+  const procByBp = new Map<number, ProcessDTO[]>();
+  for (const p of processes) {
+    const arr = procByBp.get(p.blueprintId);
+    if (arr) arr.push(p);
+    else procByBp.set(p.blueprintId, [p]);
+  }
   const selected = blueprints.find((b) => b.id === selectedId) ?? blueprints[0] ?? null;
-  const procs = selected ? (procByBp.find((x) => x.id === selected.id)?.processes ?? []) : [];
+  const procs = selected ? (procByBp.get(selected.id) ?? []) : [];
 
   return (
     <>

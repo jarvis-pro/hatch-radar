@@ -1,10 +1,17 @@
 /**
- * 图纸 / 进程 表单（radar-lab）—— 闭环的「定义」端，写 world store。
+ * 图纸 / 进程 表单（radar-lab）—— 闭环的「定义」端，经 react-query mutation 写 /api。
  * - BlueprintForm：配方（kind + 源/频道 + 参数），无节奏。
  * - ProcessForm：基于某图纸的节奏（单次/间隔/定时）+ 启停常驻。
  */
 import { useState, type ReactNode } from 'react';
 import { Info, Wand2 } from 'lucide-react';
+import type {
+  BlueprintDTO,
+  BlueprintKind,
+  ProcessDTO,
+  RadarSourceKind,
+  TriggerConfig,
+} from '@hatch-radar/shared';
 import {
   Drawer,
   DrawerContent,
@@ -25,7 +32,6 @@ import {
 } from '@hatch-radar/ui/components/select';
 import { Button } from '@hatch-radar/ui/components/button';
 import { Switch } from '@hatch-radar/ui/components/switch';
-import { toast } from '@hatch-radar/ui/components/sonner';
 import { cn } from '@hatch-radar/ui/lib/utils';
 import { useIsMobile } from '@hatch-radar/ui/hooks/use-mobile';
 import {
@@ -35,18 +41,16 @@ import {
   SOURCE_META,
   TRIGGER_META,
 } from './constants';
-import { createBlueprint, createProcess, updateBlueprint, updateProcess } from './store';
-import type {
-  Blueprint,
-  BlueprintKind,
-  CollectParams,
-  Process,
-  RecheckParams,
-  SourceKind,
-  TriggerConfig,
-  TriggerKind,
-} from './types';
+import {
+  useCreateBlueprint,
+  useCreateProcess,
+  useUpdateBlueprint,
+  useUpdateProcess,
+} from './mutations';
+import type { CollectParams, RecheckParams, TriggerKind } from './types';
 import { triggerSummary } from './util';
+
+type SourceKind = RadarSourceKind;
 
 const SOURCE_KINDS: SourceKind[] = ['reddit', 'hackernews', 'rss'];
 const SOURCE_FORM: Record<
@@ -125,7 +129,7 @@ function NumberField({
 
 type SourceDraft = Record<SourceKind, { enabled: boolean; channels: string }>;
 
-function initSources(editing?: Blueprint): SourceDraft {
+function initSources(editing?: BlueprintDTO): SourceDraft {
   const base: SourceDraft = {
     reddit: { enabled: false, channels: '' },
     hackernews: { enabled: false, channels: '' },
@@ -140,25 +144,46 @@ function initSources(editing?: Blueprint): SourceDraft {
   return base;
 }
 
+const num = (v: unknown, fallback: number): number => (typeof v === 'number' ? v : fallback);
+
+/** 从图纸 params（Record）读出采集 / 复查参数，缺省回退默认。 */
+function readCollect(editing?: BlueprintDTO): CollectParams {
+  if (editing?.kind !== 'collect') return DEFAULT_COLLECT_PARAMS;
+  const p = editing.params;
+  return {
+    limit: num(p.limit, DEFAULT_COLLECT_PARAMS.limit),
+    stopAfterKnown: num(p.stopAfterKnown, DEFAULT_COLLECT_PARAMS.stopAfterKnown),
+    commentBudget: num(p.commentBudget, DEFAULT_COLLECT_PARAMS.commentBudget),
+  };
+}
+function readRecheck(editing?: BlueprintDTO): RecheckParams {
+  if (editing?.kind !== 'recheck') return DEFAULT_RECHECK_PARAMS;
+  const p = editing.params;
+  return {
+    batchSize: num(p.batchSize, DEFAULT_RECHECK_PARAMS.batchSize),
+    batchIntervalSec: num(p.batchIntervalSec, DEFAULT_RECHECK_PARAMS.batchIntervalSec),
+    backoffCap: num(p.backoffCap, DEFAULT_RECHECK_PARAMS.backoffCap),
+  };
+}
+
 function BlueprintBody({
   editing,
   onDone,
 }: {
-  editing?: Blueprint;
-  onDone: (id?: string) => void;
+  editing?: BlueprintDTO;
+  onDone: (id?: number) => void;
 }) {
+  const create = useCreateBlueprint();
+  const update = useUpdateBlueprint();
   const [label, setLabel] = useState(editing?.label ?? '');
   const [note, setNote] = useState(editing?.note ?? '');
   const [kind, setKind] = useState<BlueprintKind>(editing?.kind ?? 'collect');
   const [sources, setSources] = useState<SourceDraft>(() => initSources(editing));
-  const [collect, setCollect] = useState<CollectParams>(
-    editing?.kind === 'collect' ? (editing.params as CollectParams) : DEFAULT_COLLECT_PARAMS,
-  );
-  const [recheck, setRecheck] = useState<RecheckParams>(
-    editing?.kind === 'recheck' ? (editing.params as RecheckParams) : DEFAULT_RECHECK_PARAMS,
-  );
+  const [collect, setCollect] = useState<CollectParams>(() => readCollect(editing));
+  const [recheck, setRecheck] = useState<RecheckParams>(() => readRecheck(editing));
   const [tried, setTried] = useState(false);
   const enabled = SOURCE_KINDS.filter((k) => sources[k].enabled);
+  const busy = create.isPending || update.isPending;
 
   function errs(): { label?: boolean; sources?: boolean; channels?: boolean } {
     return {
@@ -180,27 +205,30 @@ function BlueprintBody({
         .map((c) => c.trim())
         .filter(Boolean),
     }));
-    const params = kind === 'collect' ? collect : recheck;
+    const params = (kind === 'collect' ? collect : recheck) as unknown as Record<string, unknown>;
     if (editing) {
-      updateBlueprint(editing.id, {
-        label: label.trim(),
-        note: note.trim() || undefined,
-        kind,
-        sources: selected,
-        params,
-      });
-      toast.success('图纸已更新');
-      onDone();
+      update.mutate(
+        {
+          id: editing.id,
+          label: label.trim(),
+          note: note.trim() || null,
+          kind,
+          sources: selected,
+          params,
+        },
+        { onSuccess: () => onDone() },
+      );
     } else {
-      const id = createBlueprint({
-        kind,
-        label: label.trim(),
-        note: note.trim() || undefined,
-        sources: selected,
-        params,
-      });
-      toast.success('图纸已创建');
-      onDone(id);
+      create.mutate(
+        {
+          kind,
+          label: label.trim(),
+          note: note.trim() || null,
+          sources: selected,
+          params,
+        },
+        { onSuccess: (b) => onDone((b as BlueprintDTO).id) },
+      );
     }
   }
 
@@ -399,7 +427,9 @@ function BlueprintBody({
         <Button variant="outline" onClick={() => onDone()}>
           取消
         </Button>
-        <Button onClick={submit}>{editing ? '保存' : '创建图纸'}</Button>
+        <Button onClick={submit} disabled={busy}>
+          {editing ? '保存' : '创建图纸'}
+        </Button>
       </DrawerFooter>
     </>
   );
@@ -413,8 +443,8 @@ export function BlueprintFormDialog({
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  editing?: Blueprint;
-  onCreated?: (id: string) => void;
+  editing?: BlueprintDTO;
+  onCreated?: (id: number) => void;
 }): ReactNode {
   const k = useOpenKey(open);
   const isMobile = useIsMobile();
@@ -426,7 +456,7 @@ export function BlueprintFormDialog({
             key={k}
             editing={editing}
             onDone={(id) => {
-              if (id) onCreated?.(id);
+              if (id != null) onCreated?.(id);
               onOpenChange(false);
             }}
           />
@@ -443,12 +473,16 @@ function ProcessBody({
   editing,
   onDone,
 }: {
-  blueprints: Blueprint[];
-  editing?: Process;
+  blueprints: BlueprintDTO[];
+  editing?: ProcessDTO;
   onDone: () => void;
 }) {
-  const [blueprintId, setBlueprintId] = useState(editing?.blueprintId ?? blueprints[0]?.id ?? '');
-  const blueprint = blueprints.find((b) => b.id === blueprintId);
+  const create = useCreateProcess();
+  const update = useUpdateProcess();
+  const [blueprintId, setBlueprintId] = useState<string>(
+    String(editing?.blueprintId ?? blueprints[0]?.id ?? ''),
+  );
+  const blueprint = blueprints.find((b) => String(b.id) === blueprintId);
   const [label, setLabel] = useState(editing?.label ?? '');
   const [tk, setTk] = useState<TriggerKind>(editing?.trigger.kind ?? 'interval');
   const initInterval = splitInterval(
@@ -459,6 +493,7 @@ function ProcessBody({
   const [cronTime, setCronTime] = useState(
     editing?.trigger.kind === 'cron' ? cronTimeOf(editing.trigger.expr) : '09:00',
   );
+  const busy = create.isPending || update.isPending;
 
   function buildTrigger(): TriggerConfig {
     if (tk === 'once') return { kind: 'once' };
@@ -474,13 +509,16 @@ function ProcessBody({
     const trigger = buildTrigger();
     const finalLabel = label.trim() || `${blueprint.label} · ${triggerSummary(trigger)}`;
     if (editing) {
-      updateProcess(editing.id, { label: finalLabel, trigger });
-      toast.success('进程已更新');
+      update.mutate(
+        { id: String(editing.id), label: finalLabel, trigger },
+        { onSuccess: () => onDone() },
+      );
     } else {
-      createProcess({ blueprintId: blueprint.id, label: finalLabel, trigger });
-      toast.success('进程已创建并开始调度');
+      create.mutate(
+        { blueprintId: blueprint.id, label: finalLabel, trigger },
+        { onSuccess: () => onDone() },
+      );
     }
-    onDone();
   }
 
   return (
@@ -503,7 +541,7 @@ function ProcessBody({
             </SelectTrigger>
             <SelectContent>
               {blueprints.map((b) => (
-                <SelectItem key={b.id} value={b.id}>
+                <SelectItem key={b.id} value={String(b.id)}>
                   {KIND_META[b.kind].label} · {b.label}
                 </SelectItem>
               ))}
@@ -613,7 +651,7 @@ function ProcessBody({
         <Button variant="outline" onClick={onDone}>
           取消
         </Button>
-        <Button onClick={submit} disabled={!blueprint}>
+        <Button onClick={submit} disabled={!blueprint || busy}>
           {editing ? '保存' : '创建进程'}
         </Button>
       </DrawerFooter>
@@ -629,8 +667,8 @@ export function ProcessFormDialog({
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  blueprints: Blueprint[];
-  editing?: Process;
+  blueprints: BlueprintDTO[];
+  editing?: ProcessDTO;
 }): ReactNode {
   const k = useOpenKey(open);
   const isMobile = useIsMobile();

@@ -86,7 +86,7 @@ export function AppSidebar({ user }: { user: CurrentUser }) {
                             <span>{it.label}</span>
                           </Link>
                         </SidebarMenuButton>
-                        {it.to === '/pipeline' && inflight > 0 ? (
+                        {it.to === '/radar' && inflight > 0 ? (
                           <SidebarMenuBadge className="text-signal">
                             {inflight > 99 ? '99+' : inflight}
                           </SidebarMenuBadge>

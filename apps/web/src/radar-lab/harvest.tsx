@@ -7,13 +7,14 @@
  * 搜索栏走**延迟提交**（仿帖子库：改下拉 / 输入只动草稿，点「搜索」才写进 URL），与其余页即时 FilterBar 区隔。
  * 排序下放到列头：点「痛机 / 时间」即时切排序，再点切方向（默认时间最新优先）。
  *
- * 抗规模：筛选 / 排序在 selector 内对 world.insights 现算，**永不静默截断**——
- * 翻页只渲染当页，DOM 恒有界，1 条还是 10 万条同样跑得动。
- * 每条可溯源回它的源帖一生（点行 → /radar/posts/:id）。
+ * 抗规模：筛选 / 排序 / 分页全在**服务端**（react-query 命中 /api/radar/insights），
+ * 翻页只取当页、keepPreviousData 平滑切换；DOM 恒有界，1 条还是 10 万条同样跑得动。
+ * 每条可溯源回它的源帖一生（点行 → /radar/posts/:postId）。
  */
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowDown, ArrowUp, ChevronsUpDown, Search } from 'lucide-react';
+import type { RadarInsightDTO, RadarIntensity, RadarSourceKind } from '@hatch-radar/shared';
 import { Badge } from '@hatch-radar/ui/components/badge';
 import { Button } from '@hatch-radar/ui/components/button';
 import { Input } from '@hatch-radar/ui/components/input';
@@ -24,6 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@hatch-radar/ui/components/select';
+import { Skeleton } from '@hatch-radar/ui/components/skeleton';
 import {
   Table,
   TableBody,
@@ -34,18 +36,17 @@ import {
 } from '@hatch-radar/ui/components/table';
 import { cn } from '@hatch-radar/ui/lib/utils';
 import { RequirePerm } from '@/auth/require-perm';
-import { EmptyState } from '@/components/empty';
+import { EmptyState, LoadError } from '@/components/empty';
 import { PageHeader } from '@/components/page-header';
 import { Pagination } from '@/components/pagination';
+import { timeAgo } from '@/lib/format';
 import { INTENSITY_META, SOURCE_META } from './constants';
-import { useLang, useWorld } from './store';
-import type { Insight, Intensity, SourceKind, World } from './types';
-import { relPast, tText } from './util';
+import { useInsights } from './hooks';
 
 const PAGE_SIZES = [10, 25, 50];
 const DEFAULT_SIZE = 25;
-const INTENSITIES: Intensity[] = ['high', 'medium', 'low'];
-const SOURCES: SourceKind[] = ['reddit', 'hackernews', 'rss'];
+const INTENSITIES: RadarIntensity[] = ['high', 'medium', 'low'];
+const SOURCES: RadarSourceKind[] = ['reddit', 'hackernews', 'rss'];
 // Radix Select 不接受空字符串 value，用哨兵代表「全部」（提交时还原为去掉该参数）
 const ALL = '__all__';
 
@@ -61,68 +62,6 @@ function parseSort(v: string | null): { key: SortKey; dir: SortDir } {
   if (SORT_KEYS.includes(k as SortKey) && (d === 'asc' || d === 'desc'))
     return { key: k as SortKey, dir: d };
   return { key: 'time', dir: 'desc' };
-}
-
-interface HarvestFilters {
-  source: string;
-  intensity: string;
-  q: string;
-  sort: string;
-  page: number;
-  size: number;
-}
-
-function selectHarvest(w: World, f: HarvestFilters) {
-  const all = w.insights;
-  const titleZhOf = new Map(w.posts.map((p) => [p.id, p.titleZh]));
-  const procLabel = (pid: string): string => w.processes.find((p) => p.id === pid)?.label ?? pid;
-
-  // 来源 facet：只列当前产出里出现过的来源
-  const present = new Set(all.map((i) => i.source));
-  const sourceOptions = SOURCES.filter((s) => present.has(s)).map((s) => ({
-    value: s,
-    label: SOURCE_META[s].label,
-  }));
-
-  // 筛选（强度 / 来源 + 关键词；关键词扫痛点 / 标题〔中英〕/ 标签）
-  const ql = f.q.toLowerCase();
-  const rows = all.filter(
-    (i) =>
-      (!f.source || i.source === f.source) &&
-      (!f.intensity || i.intensity === f.intensity) &&
-      (!ql ||
-        i.painPoint.toLowerCase().includes(ql) ||
-        i.postTitle.toLowerCase().includes(ql) ||
-        (titleZhOf.get(i.postId) ?? '').toLowerCase().includes(ql) ||
-        i.tags.some((t) => t.toLowerCase().includes(ql))),
-  );
-
-  // 排序（列头驱动；同值按最新兜底，asc 整体取反）
-  const { key, dir } = parseSort(f.sort);
-  rows.sort((a, b) => {
-    const cmp = key === 'pain' ? b.painCount - a.painCount : b.createdAt - a.createdAt;
-    return (cmp || b.createdAt - a.createdAt) * (dir === 'asc' ? -1 : 1);
-  });
-
-  // 分页（钳制页码；只切当页）
-  const total = rows.length;
-  const pageCount = Math.max(1, Math.ceil(total / f.size));
-  const page = Math.min(Math.max(1, f.page), pageCount);
-  const pageRows = rows.slice((page - 1) * f.size, page * f.size).map((i) => ({
-    ...i,
-    procLabel: procLabel(i.processId),
-    titleZh: titleZhOf.get(i.postId),
-  }));
-
-  return {
-    pageRows,
-    total,
-    grandTotal: all.length,
-    page,
-    pageCount,
-    sourceOptions,
-    nowMs: w.nowMs,
-  };
 }
 
 /** 可点击排序的列头：显示当前方向箭头，未激活列以淡色双箭头提示可排序。 */
@@ -166,19 +105,10 @@ function SortHeader({
   );
 }
 
-function InsightRow({
-  insight,
-  nowMs,
-  preferOriginal,
-  onClick,
-}: {
-  insight: Insight & { procLabel: string; titleZh?: string };
-  nowMs: number;
-  preferOriginal: boolean;
-  onClick: () => void;
-}) {
+function InsightRow({ insight, onClick }: { insight: RadarInsightDTO; onClick: () => void }) {
   const im = INTENSITY_META[insight.intensity];
-  const SrcIcon = SOURCE_META[insight.source].icon;
+  const srcMeta = SOURCE_META[insight.source as RadarSourceKind];
+  const SrcIcon = srcMeta?.icon;
   return (
     <TableRow className="cursor-pointer" onClick={onClick}>
       <TableCell className="hidden font-mono text-xs text-muted-foreground/70 xl:table-cell">
@@ -187,7 +117,7 @@ function InsightRow({
       <TableCell>
         <div className="truncate font-medium">{insight.painPoint}</div>
         <div className="truncate text-xs text-muted-foreground">
-          {tText(insight.postTitle, insight.titleZh, preferOriginal)}
+          {insight.titleZh ?? insight.postTitle}
         </div>
       </TableCell>
       <TableCell>
@@ -198,12 +128,9 @@ function InsightRow({
       </TableCell>
       <TableCell className="hidden text-xs text-muted-foreground lg:table-cell">
         <span className="inline-flex items-center gap-1 truncate">
-          <SrcIcon className="size-3.5 shrink-0" />
+          {SrcIcon ? <SrcIcon className="size-3.5 shrink-0" /> : null}
           {insight.channel}
         </span>
-      </TableCell>
-      <TableCell className="hidden text-xs text-muted-foreground xl:table-cell">
-        <div className="truncate">{insight.procLabel}</div>
       </TableCell>
       <TableCell className="hidden xl:table-cell">
         <div className="flex gap-1 overflow-hidden">
@@ -215,12 +142,10 @@ function InsightRow({
         </div>
       </TableCell>
       <TableCell className="text-right text-xs tabular-nums text-muted-foreground">
-        <span className="font-medium text-foreground">{insight.painCount}</span>
-        <span className="px-0.5">/</span>
         <span className="font-medium text-foreground">{insight.oppCount}</span>
       </TableCell>
       <TableCell className="text-right text-xs tabular-nums whitespace-nowrap text-muted-foreground">
-        {relPast(insight.createdAt, nowMs)}
+        {timeAgo(insight.createdAt)}
       </TableCell>
     </TableRow>
   );
@@ -229,11 +154,10 @@ function InsightRow({
 function Harvest() {
   const navigate = useNavigate();
   const [sp] = useSearchParams();
-  const preferOriginal = useLang();
 
   // URL 上「已提交」的筛选 —— 表格按它渲染、翻页 / 排序随它保留
   const source = sp.get('source') ?? '';
-  const intensity = INTENSITIES.includes(sp.get('intensity') as Intensity)
+  const intensity = INTENSITIES.includes(sp.get('intensity') as RadarIntensity)
     ? (sp.get('intensity') as string)
     : '';
   const q = sp.get('q')?.trim() ?? '';
@@ -247,7 +171,19 @@ function Harvest() {
   const [draft, setDraft] = useState({ source, intensity, q });
   useEffect(() => setDraft({ source, intensity, q }), [source, intensity, q]);
 
-  const d = useWorld((w) => selectHarvest(w, { source, intensity, q, sort, page, size }));
+  // 服务端筛选 / 排序 / 分页：把已提交条件喂给 /api/radar/insights（排序只取维度，方向由列头交互附带）
+  const queryResult = useInsights({
+    source: source || undefined,
+    intensity: (intensity || undefined) as RadarIntensity | undefined,
+    q: q || undefined,
+    sort: sortKey,
+    page,
+    size,
+  });
+  const data = queryResult.data;
+  const total = data?.total ?? 0;
+  const pageCount = data?.pageCount ?? 1;
+  const rows = data?.items ?? [];
 
   /** 把一组条件写进 URL（回第 1 页；保留排序与每页条数这两项浏览偏好）。 */
   const apply = (next: { source: string; intensity: string; q: string }): void => {
@@ -257,8 +193,8 @@ function Harvest() {
     if (next.q.trim()) params.set('q', next.q.trim());
     if (sort) params.set('sort', sort);
     if (size !== DEFAULT_SIZE) params.set('size', String(size));
-    const qs = params.toString();
-    navigate(qs ? `/radar/insights?${qs}` : '/radar/insights');
+    const qStr = params.toString();
+    navigate(qStr ? `/radar/insights?${qStr}` : '/radar/insights');
   };
   const reset = (): void => apply({ source: '', intensity: '', q: '' });
 
@@ -272,8 +208,8 @@ function Harvest() {
     if (q) params.set('q', q);
     if (nextSort !== DEFAULT_SORT) params.set('sort', nextSort);
     if (size !== DEFAULT_SIZE) params.set('size', String(size));
-    const qs = params.toString();
-    navigate(qs ? `/radar/insights?${qs}` : '/radar/insights');
+    const qStr = params.toString();
+    navigate(qStr ? `/radar/insights?${qStr}` : '/radar/insights');
   };
 
   return (
@@ -316,9 +252,9 @@ function Harvest() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={ALL}>全部来源</SelectItem>
-            {d.sourceOptions.map((o) => (
-              <SelectItem key={o.value} value={o.value}>
-                {o.label}
+            {SOURCES.map((s) => (
+              <SelectItem key={s} value={s}>
+                {SOURCE_META[s].label}
               </SelectItem>
             ))}
           </SelectContent>
@@ -341,10 +277,15 @@ function Harvest() {
         </Button>
       </form>
 
-      {d.grandTotal === 0 ? (
-        <EmptyState title="还没有洞察" hint="等采集 / 分析跑起来，产出会陆续出现在这里。" />
-      ) : d.total === 0 ? (
-        <EmptyState title="没有符合条件的洞察" hint="换个强度 / 来源，或调整搜索词后重试。" />
+      {queryResult.isError ? (
+        <LoadError onRetry={() => void queryResult.refetch()} />
+      ) : queryResult.isPending ? (
+        <Skeleton className="h-96 w-full" />
+      ) : total === 0 ? (
+        <EmptyState
+          title="没有符合条件的洞察"
+          hint="换个强度 / 来源，或调整搜索词后重试；若全空，等采集 / 分析跑起来产出会陆续出现。"
+        />
       ) : (
         <>
           <div className="overflow-hidden rounded-lg border">
@@ -355,10 +296,9 @@ function Harvest() {
                   <TableHead>痛点 · 帖</TableHead>
                   <TableHead className="w-[4.5rem]">强度</TableHead>
                   <TableHead className="hidden w-40 lg:table-cell">来源 · 版块</TableHead>
-                  <TableHead className="hidden w-32 xl:table-cell">产自进程</TableHead>
                   <TableHead className="hidden w-48 xl:table-cell">标签</TableHead>
                   <SortHeader
-                    label="痛/机"
+                    label="机会"
                     sortKey="pain"
                     activeKey={sortKey}
                     dir={sortDir}
@@ -378,12 +318,10 @@ function Harvest() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {d.pageRows.map((i) => (
+                {rows.map((i) => (
                   <InsightRow
                     key={i.id}
                     insight={i}
-                    nowMs={d.nowMs}
-                    preferOriginal={preferOriginal}
                     onClick={() => navigate(`/radar/posts/${i.postId}`)}
                   />
                 ))}
@@ -392,9 +330,9 @@ function Harvest() {
           </div>
 
           <Pagination
-            page={d.page}
-            pageCount={d.pageCount}
-            total={d.total}
+            page={page}
+            pageCount={pageCount}
+            total={total}
             basePath="/radar/insights"
             query={{ source, intensity, q, sort }}
             pageSize={size}

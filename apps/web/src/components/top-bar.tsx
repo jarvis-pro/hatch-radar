@@ -17,7 +17,6 @@ import { can } from '@/auth/auth-context';
 import { CommandPalette } from '@/components/command-palette';
 import { SystemPulse } from '@/components/system-pulse';
 import { NAV_GROUPS } from '@/lib/nav';
-import { ClockBar } from '@/radar-lab/clock-bar';
 
 interface Crumb {
   label: string;
@@ -107,16 +106,6 @@ export function TopBar({ user }: { user: CurrentUser }) {
         ) : null}
 
         <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
-          {/* 模拟时钟（radar-lab 调试工具）：仅 /radar 段常驻，避免破坏各页 UI */}
-          {pathname.startsWith('/radar') ? (
-            <>
-              <ClockBar />
-              <Separator
-                orientation="vertical"
-                className="mx-0.5 data-[orientation=vertical]:h-4"
-              />
-            </>
-          ) : null}
           <button
             type="button"
             onClick={() => setCmdOpen(true)}

@@ -14,11 +14,8 @@ import { InspectPage } from '@/pages/inspect';
 import { LoginPage } from '@/pages/login';
 import { NotFoundPage } from '@/pages/not-found';
 import { PasswordPage } from '@/pages/password';
-import { PipelinePage } from '@/pages/pipeline';
-import { PipelineDetailPage } from '@/pages/pipeline-detail';
 import { PostDetailPage } from '@/pages/post-detail';
 import { PostsPage } from '@/pages/posts';
-import { RequestsPage } from '@/pages/requests';
 import { SettingsPage } from '@/pages/settings';
 import { BlueprintsPage } from '@/radar-lab/blueprints';
 import { ControlRoomPage } from '@/radar-lab/control-room';
@@ -54,9 +51,6 @@ export const router = createBrowserRouter([
       { path: 'radar/posts/:id', element: <RadarPostsPage /> },
       { path: 'radar/processes/:id/runs', element: <RadarRunsPage /> },
       { path: 'inspect/:jobId', element: <InspectPage /> },
-      { path: 'pipeline', element: <PipelinePage /> },
-      { path: 'pipeline/:id', element: <PipelineDetailPage /> },
-      { path: 'requests', element: <RequestsPage /> },
       { path: 'settings', element: <SettingsPage /> },
       { path: 'account', element: <Navigate to="/account/profile" replace /> },
       { path: 'account/profile', element: <ProfilePage /> },
