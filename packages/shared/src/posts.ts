@@ -45,11 +45,3 @@ export interface PostRow {
   /** 最近一次复查 Unix 时间戳（秒）；从未复查为 null */
   last_rechecked_at: number | null;
 }
-
-/** 工作台「待分析」帖子的状态：pending=未分析；restale=已分析但之后评论又变（建议重判） */
-export type AwaitingKind = 'pending' | 'restale';
-
-/** 待分析帖子行：帖子字段 + 工作台状态（kind） */
-export interface AwaitingPost extends PostRow {
-  kind: AwaitingKind;
-}

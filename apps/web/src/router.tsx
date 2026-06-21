@@ -6,7 +6,6 @@ import { SecurityPage } from '@/pages/account-security';
 import { SessionsPage } from '@/pages/account-sessions';
 import { AccountsPage } from '@/pages/admin-accounts';
 import { AuditPage } from '@/pages/admin-audit';
-import { AnalyzePage } from '@/pages/analyze';
 import { DashboardPage } from '@/pages/dashboard';
 import { InspectPage } from '@/pages/inspect';
 import { LoginPage } from '@/pages/login';
@@ -33,7 +32,6 @@ export const router = createBrowserRouter([
     element: <ProtectedLayout />,
     children: [
       { index: true, element: <DashboardPage /> },
-      { path: 'analyze', element: <AnalyzePage /> },
       // 雷达指挥室（radar-lab，全新 mock 闭环原型）
       { path: 'radar', element: <ControlRoomPage /> },
       { path: 'radar/blueprints', element: <BlueprintsPage /> },

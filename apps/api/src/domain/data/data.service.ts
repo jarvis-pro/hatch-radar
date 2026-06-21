@@ -6,12 +6,9 @@ import {
   toTriage,
   type AppDatabase,
   type InsightPgRow,
-  type PostPg,
 } from '@hatch-radar/db';
 import {
   PAGE_SIZE,
-  type AwaitingKind,
-  type AwaitingPost,
   type CommentRow,
   type FilterOptions,
   type Insight,
@@ -139,41 +136,6 @@ export class DataService {
       take: PAGE_SIZE,
     });
     return { items: rows.map(toPostRow), total, page, pageCount };
-  }
-
-  /**
-   * 工作台「待分析」列表：已抓过评论、且 未产出洞察（pending）或 已分析但评论在分析后又变（restale）。
-   * pending 排在前，再按热度（score + 评论数）降序分页。JOIN + CASE + 算术排序 → $queryRaw。
-   *
-   * 已有活跃任务（queued/running，含 auto 调度入队）的帖子排除在外——它们已在队列中处理，
-   * 不应再出现在待选清单里被重复勾选（与队列看板互补：待选 = 纯待办，进行中看队列）。
-   */
-  async listAwaitingManualResult(page: number): Promise<Paged<AwaitingPost>> {
-    const where = Prisma.sql`p.comments_fetched_at IS NOT NULL
-      AND (i.post_id IS NULL OR p.comments_changed_at > i.created_at)
-      AND NOT EXISTS (
-        SELECT 1 FROM tasks t
-        WHERE t.post_id = p.id AND t.status IN ('queued', 'running', 'paused')
-      )`;
-    const totalRows = await this.db.$queryRaw<[{ n: number }]>`
-      SELECT count(*)::int AS n FROM posts p LEFT JOIN insights i ON i.post_id = p.id WHERE ${where}
-    `;
-    const total = totalRows[0].n;
-    const { page: pageNum, pageCount } = clampPage(total, page);
-    const rows = await this.db.$queryRaw<Array<PostPg & { kind: AwaitingKind }>>`
-      SELECT p.*, CASE WHEN i.post_id IS NULL THEN 'pending' ELSE 'restale' END AS kind
-      FROM posts p
-      LEFT JOIN insights i ON i.post_id = p.id
-      WHERE ${where}
-      ORDER BY (i.post_id IS NULL) DESC, (p.score + p.num_comments) DESC, p.id ASC
-      LIMIT ${PAGE_SIZE} OFFSET ${(pageNum - 1) * PAGE_SIZE}
-    `;
-    return {
-      items: rows.map((r) => ({ ...toPostRow(r), kind: r.kind })),
-      total,
-      page: pageNum,
-      pageCount,
-    };
   }
 
   /** 按 id 取单篇帖子（30 天归档后返回 null，洞察仍可见） */

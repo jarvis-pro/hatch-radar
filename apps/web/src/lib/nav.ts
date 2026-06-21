@@ -8,7 +8,6 @@ import {
   ScrollText,
   Settings2,
   Users,
-  Zap,
   type LucideIcon,
 } from 'lucide-react';
 import type { PermissionKey } from '@hatch-radar/shared';
@@ -65,13 +64,6 @@ export const NAV_GROUPS: readonly NavGroup[] = [
   {
     label: '运营',
     items: [
-      {
-        to: '/analyze',
-        label: '发起分析',
-        icon: Zap,
-        perm: 'analyze:run',
-        match: (p) => p.startsWith('/analyze'),
-      },
       {
         to: '/radar',
         label: '指挥室',
