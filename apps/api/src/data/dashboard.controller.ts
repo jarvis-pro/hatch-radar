@@ -1,17 +1,45 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
-import type { DashboardData } from '@hatch-radar/shared';
+import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import type { BoardData, BoardRange } from '@hatch-radar/shared';
 import { RequirePermission } from '@/account/auth-user.decorator';
 import { SessionAuthGuard } from '@/account/session-auth.guard';
-import { CostRepository, GatewayService, nowSec, StatsRepository, TasksRepository } from '@/domain';
+import { CostRepository, nowSec, StatsRepository } from '@/domain';
 
-/** 成本统计窗口（天） */
-const COST_WINDOW_DAYS = 30;
-/** 吞吐趋势窗口（天） */
-const THROUGHPUT_DAYS = 14;
+const DAY = 86_400;
+const RANGES: readonly BoardRange[] = ['all', 'today', '7d', '30d'];
+
+/** range → 起始 epoch 秒（all = null：不限时间）。 */
+function rangeSince(range: BoardRange, now: number): number | null {
+  switch (range) {
+    case 'today':
+      return now - (now % DAY);
+    case '7d':
+      return now - 7 * DAY;
+    case '30d':
+      return now - 30 * DAY;
+    case 'all':
+    default:
+      return null;
+  }
+}
+
+/** range → 趋势密集序列天数（today 仍画 1 根，all 回看 30 天）。 */
+function rangeTrendDays(range: BoardRange): number {
+  switch (range) {
+    case 'today':
+      return 1;
+    case '7d':
+      return 7;
+    case '30d':
+    case 'all':
+    default:
+      return 30;
+  }
+}
 
 /**
- * GET /api/dashboard —— 看板聚合数据（概览 / 队列 / Worker 状态 / 成本 / 吞吐 / 洞察分布）。
- * 一次往返取齐，前端按需轮询；需 insights:view（最基础的数据查看能力）。
+ * GET /api/dashboard?range= —— 价值看板：价值漏斗（采集 → 分析 → 洞察，验证预留）+ 每日趋势
+ * + 洞察质量（强度 / 标签）+ 来源洞察力 + ROI（每洞察成本）。运营指标（队列 / Worker / 吞吐 /
+ * 成本明细）已切分至指挥室（GET /api/radar/control-room）。需 insights:view。
  */
 @UseGuards(SessionAuthGuard)
 @RequirePermission('insights:view')
@@ -20,45 +48,24 @@ export class DashboardController {
   constructor(
     private readonly stats: StatsRepository,
     private readonly cost: CostRepository,
-    private readonly tasks: TasksRepository,
-    private readonly gateway: GatewayService,
   ) {}
 
   @Get()
-  async get(): Promise<DashboardData> {
+  async get(@Query('range') rangeParam?: string): Promise<BoardData> {
+    const range: BoardRange = RANGES.includes(rangeParam as BoardRange)
+      ? (rangeParam as BoardRange)
+      : 'all';
     const now = nowSec();
-    const [overview, queue, costStats, dailyCost, throughput, insights] = await Promise.all([
-      this.stats.getStats(),
-      this.tasks.taskStats(),
-      this.cost.getCostStats(now - COST_WINDOW_DAYS * 86_400),
-      this.cost.getDailyCost(COST_WINDOW_DAYS),
-      this.cost.getThroughput(THROUGHPUT_DAYS),
-      this.stats.getInsightBreakdown(),
+    const since = rangeSince(range, now);
+    const [board, costStats] = await Promise.all([
+      this.stats.getBoard(since, rangeTrendDays(range)),
+      this.cost.getCostStats(since ?? 0),
     ]);
-    const workers = this.gateway.getWorkerStatuses().map((w) => ({
-      workerId: w.workerId,
-      concurrency: w.concurrency,
-      activeJobs: w.activeJobs,
-      cpu: w.cpu,
-      memory: w.memory,
-      lastHeartbeatAgo: Math.max(0, Math.floor((Date.now() - w.lastHeartbeat) / 1000)),
-    }));
-    return {
-      overview,
-      queue,
-      workers,
-      cost: {
-        windowDays: COST_WINDOW_DAYS,
-        totalCost: costStats.totals.cost,
-        inputTokens: costStats.totals.inputTokens,
-        outputTokens: costStats.totals.outputTokens,
-        cacheWriteTokens: costStats.totals.cacheWriteTokens,
-        cacheReadTokens: costStats.totals.cacheReadTokens,
-        byModel: costStats.byModel,
-        daily: dailyCost,
-      },
-      throughput,
-      insights,
-    };
+    // ROI：窗口成本 / 窗口洞察数；无带单价模型（cost=null）或窗口内无洞察时为 null。
+    const costPerInsight =
+      costStats.totals.cost != null && board.funnel.insights > 0
+        ? costStats.totals.cost / board.funnel.insights
+        : null;
+    return { ...board, roi: { costPerInsight } };
   }
 }

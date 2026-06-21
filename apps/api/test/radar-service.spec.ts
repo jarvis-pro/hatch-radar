@@ -11,7 +11,7 @@ import {
 } from '@hatch-radar/db';
 import { buildStages } from '@hatch-radar/shared';
 import { nowSec } from '@hatch-radar/kernel';
-import { RadarService, type PipelineService } from '@/domain';
+import { RadarService, type GatewayService, type PipelineService } from '@/domain';
 import { setupTestDb, truncateAll } from './helpers';
 
 /**
@@ -42,6 +42,7 @@ describe('RadarService（读 / 聚合 / CRUD）', () => {
       new TaskStagesRepository(db),
       new RequestQueueRepository(db),
       new RequestLanesRepository(db),
+      { getWorkerStatuses: () => [] } as unknown as GatewayService,
     );
   });
   afterAll(async () => {
@@ -123,6 +124,7 @@ describe('RadarService（读 / 聚合 / CRUD）', () => {
     const cr = await svc.controlRoom();
     expect(cr.today.insights).toBeGreaterThanOrEqual(1);
     expect(cr.today.posts).toBeGreaterThanOrEqual(1);
+    expect(typeof cr.today.workers).toBe('number');
     expect(Array.isArray(cr.lanes)).toBe(true);
     expect(Array.isArray(cr.processes)).toBe(true);
     expect(typeof cr.recheck.sweep).toBe('number');

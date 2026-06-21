@@ -118,7 +118,7 @@ export function TopBar({ user }: { user: CurrentUser }) {
               <Command className="size-2" aria-hidden="true" />K
             </kbd>
           </button>
-          {can(user, 'insights:view') && pathname !== '/' ? <SystemPulse /> : null}
+          {can(user, 'insights:view') && pathname !== '/radar' ? <SystemPulse /> : null}
           <ModeToggle />
         </div>
       </div>

@@ -267,7 +267,8 @@ export interface RadarPostDetailDTO {
 
 /** 指挥室聚合（GET /api/radar/control-room）。 */
 export interface ControlRoomDTO {
-  today: { insights: number; posts: number; runs: number; inflight: number };
+  /** workers = 当前在线 Worker 数（顶栏系统脉搏复用）。 */
+  today: { insights: number; posts: number; runs: number; inflight: number; workers: number };
   lanes: LaneDTO[];
   processes: (ProcessDTO & {
     /** 当前进行中的运行（无则 null）。 */

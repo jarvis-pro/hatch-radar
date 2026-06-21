@@ -30,19 +30,6 @@ export interface DbStats {
   insights: number;
 }
 
-/** 看板：单个在线 Worker 的运行状态 */
-export interface WorkerStatus {
-  workerId: string;
-  concurrency: number;
-  activeJobs: number;
-  /** CPU 占用百分比（worker 上报） */
-  cpu: number;
-  /** 内存占用百分比（worker 上报） */
-  memory: number;
-  /** 距最近心跳的秒数 */
-  lastHeartbeatAgo: number;
-}
-
 /** 看板：某模型在统计窗内的 token 用量与成本 */
 export interface CostByModel {
   provider: string;
@@ -86,24 +73,37 @@ export interface NamedCount {
   count: number;
 }
 
-/** 看板聚合数据（GET /api/dashboard） */
-export interface DashboardData {
-  overview: DbStats;
-  queue: { queued: number; running: number; succeeded: number; failed: number; canceled: number };
-  workers: WorkerStatus[];
-  cost: {
-    /** 统计窗口（天） */
-    windowDays: number;
-    /** 窗口内总成本（美元）；全部模型都未配单价时为 null */
-    totalCost: number | null;
-    inputTokens: number;
-    outputTokens: number;
-    cacheWriteTokens: number;
-    cacheReadTokens: number;
-    byModel: CostByModel[];
-    /** 窗口内每日 token 用量与成本（密集序列，前端可按 7/14/30 天切片画走势） */
-    daily: DailyCostPoint[];
-  };
-  throughput: ThroughputPoint[];
-  insights: { byIntensity: NamedCount[]; topSubreddits: NamedCount[] };
+/** 价值看板时间窗口（前端切片 + 后端过滤同口径）。 */
+export type BoardRange = 'all' | 'today' | '7d' | '30d';
+
+/** 价值看板：某日新增洞察数（YYYY-MM-DD，0 填充的密集序列）。 */
+export interface FunnelTrendPoint {
+  date: string;
+  insights: number;
+}
+
+/** 价值看板：来源洞察力（产出计数 + 验证率；研判上线前 verifiedRate 恒为 null）。 */
+export interface BoardSource {
+  name: string;
+  count: number;
+  /** 该来源洞察的人工 / AI 验证率（0–1）；研判功能上线前为 null（预留）。 */
+  verifiedRate: number | null;
+}
+
+/**
+ * 价值看板聚合（GET /api/dashboard?range=）——「雷达发现并验证了多少真实需求」。
+ * 价值漏斗（采集 → 分析 → 洞察，验证预留）+ 每日趋势 + 洞察质量 + 来源洞察力 + ROI。
+ * 运营指标（队列 / Worker / 吞吐 / 成本明细）已切分至指挥室（GET /api/radar/control-room）。
+ */
+export interface BoardData {
+  /** 价值漏斗计数（验证阶段无数据，前端占位）。 */
+  funnel: { collected: number; analyzed: number; insights: number };
+  /** 每日新增洞察趋势（密集序列）。 */
+  funnelTrend: FunnelTrendPoint[];
+  /** 洞察质量：强度分布 + 热门标签。 */
+  quality: { byIntensity: NamedCount[]; topTags: NamedCount[] };
+  /** 来源洞察力。 */
+  sources: BoardSource[];
+  /** 投入产出：每洞察成本（窗口成本 / 洞察数；无带单价模型或窗口内无洞察时为 null）。 */
+  roi: { costPerInsight: number | null };
 }

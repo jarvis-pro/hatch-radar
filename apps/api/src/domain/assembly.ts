@@ -117,6 +117,7 @@ export function createCore(db: AppDatabase, env: AppEnv) {
     taskStages,
     requestQueue,
     requestLanes,
+    gateway,
   );
   const data = new DataService(db);
   const account = new AccountService(users, sessions, loginAttempts, auditLogs, runtimeSettings);
