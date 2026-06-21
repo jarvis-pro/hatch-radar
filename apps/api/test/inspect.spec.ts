@@ -5,6 +5,7 @@ import {
   CommentsRepository,
   InsightsRepository,
   PostsRepository,
+  ProcessesRepository,
   ProvidersRepository,
   RunsRepository,
   RuntimeSettingsService,
@@ -133,7 +134,7 @@ describe('流水线检视器：执行内核（runTask 闸门状态机）', () =>
   /** 建一张 analyze 图纸 + 一个 analyze 进程（任务的归属，满足 run_id 外键）。 */
   async function seedRun(): Promise<number> {
     const bp = await new BlueprintsRepository(db).createBlueprint(
-      { kind: 'analyze', label: '检视', triggerKind: 'manual' },
+      { kind: 'analyze', label: '检视' },
       nowSec(),
     );
     const run = await new RunsRepository(db).createRun(
@@ -341,6 +342,7 @@ describe('流水线检视器：PipelineService 编排（API 层）', () => {
       {} as unknown as AnalysisConfigService,
       {} as unknown as RuntimeSettingsService,
       new ProvidersRepository(db),
+      new ProcessesRepository(db),
       gateway,
     );
   });

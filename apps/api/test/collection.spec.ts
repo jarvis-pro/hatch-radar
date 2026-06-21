@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import type { AppDatabase, DbHandle } from '@hatch-radar/db';
+import type { AppDatabase, DbHandle, PostRow, TaskRow } from '@hatch-radar/db';
 import {
   BlueprintsRepository,
   CommentsRepository,
@@ -9,23 +9,31 @@ import {
   RunsRepository,
   SourcesRepository,
   TasksRepository,
-  type TaskRow,
 } from '@hatch-radar/db';
 import type { AnalysisConfigService } from '@hatch-radar/analysis';
 import type { CrawlerConfigService, HackerNewsClient } from '@hatch-radar/crawler';
-import type { RedditPost } from '@hatch-radar/shared';
+import { buildStages, type TaskKind, type RedditPost } from '@hatch-radar/shared';
 import { nowSec } from '@hatch-radar/kernel';
-import { CollectionExecutor } from '../../worker/src/collection.executor';
+import {
+  CollectionExecutor,
+  type CollectPersistOutput,
+  type DiscoverListingOutput,
+  type DiscoverSpawnOutput,
+  type FetchCommentsOutput,
+  type RecheckPersistOutput,
+} from '../../worker/src/collection.executor';
 import { RequestGate } from '../../worker/src/request-gate';
 import { setupTestDb, truncateAll } from './helpers';
 
 type ActiveProvider = { id: number; model: string; label: string } | null;
 
 /**
- * 采集执行器闭环测试（不依赖前端）：discover 抓列表 upsert 新帖并派生 collect；collect 对 rss 帖跳过
- * 抓评论但派生 analyze（有 active 模型时）。crawler 客户端 / AnalysisConfig 用桩隔离，仓储真连 PG。
+ * 采集执行器闭环测试（不依赖前端）：discover / collect / recheck 现已**拆成多环节**，逐环节落检查点。
+ * 测试按 worker 的环节循环驱动（依次执行各环节、把产物累加进 stages 供下游读检查点），验证：
+ * discover 抓列表 upsert 新帖 + 派生 collect；collect 抓评论 → 落库 + 派生 analyze；recheck 判变 + 退避。
+ * crawler 客户端 / AnalysisConfig 用桩隔离，仓储真连 PG。
  */
-describe('采集执行器（CollectionExecutor：discover → collect → analyze）', () => {
+describe('采集执行器（CollectionExecutor：逐环节 discover → collect → recheck）', () => {
   let handle: DbHandle;
   let db: AppDatabase;
   let sources: SourcesRepository;
@@ -82,12 +90,29 @@ describe('采集执行器（CollectionExecutor：discover → collect → analyz
     );
   }
 
-  /** 建一条 collect 进程，返回 runId。 */
+  /** 模拟 worker 的环节循环：依次跑完一个任务的全部环节，把每环节产物累加进 stages 供下游读检查点。 */
+  async function runStages(
+    exec: CollectionExecutor,
+    kind: TaskKind,
+    task: TaskRow,
+    post: PostRow | null,
+  ): Promise<Record<string, unknown>> {
+    const stages: { name: string; output: unknown }[] = [];
+    for (const s of buildStages(kind)) {
+      const out =
+        kind === 'discover'
+          ? await exec.runDiscoverStage(s.name, task, stages)
+          : kind === 'collect'
+            ? await exec.runCollectStage(s.name, task, post!, stages)
+            : await exec.runRecheckStage(s.name, task, post!, stages);
+      stages.push({ name: s.name, output: out });
+    }
+    return Object.fromEntries(stages.map((x) => [x.name, x.output]));
+  }
+
+  /** 建一条 collect 运行，返回 runId。 */
   async function makeRun(): Promise<number> {
-    const bp = await blueprints.createBlueprint(
-      { kind: 'collect', label: '采集', triggerKind: 'manual' },
-      nowSec(),
-    );
+    const bp = await blueprints.createBlueprint({ kind: 'collect', label: '采集' }, nowSec());
     const run = await runs.createRun(
       { blueprintId: bp.id, kind: 'collect', triggerSource: 'manual' },
       nowSec(),
@@ -95,17 +120,22 @@ describe('采集执行器（CollectionExecutor：discover → collect → analyz
     return run.id;
   }
 
-  async function makeDiscoverTask(runId: number): Promise<TaskRow> {
+  /** 建一个 kind 任务（多环节由 buildStages 展开），返回其 TaskRow。 */
+  async function makeTask(
+    runId: number,
+    kind: TaskKind,
+    extra: { postId?: string; params?: unknown } = {},
+  ): Promise<TaskRow> {
     const res = await tasks.createTaskWithStages(
-      { runId, kind: 'discover' },
-      [{ name: 'discover' }],
+      { runId, kind, postId: extra.postId, params: extra.params },
+      buildStages(kind),
       nowSec(),
     );
     if (!res.ok) throw new Error(res.error);
     return (await tasks.getTask(res.taskId))!;
   }
 
-  it('discover：抓列表 upsert 新帖并为其派生 collect 任务', async () => {
+  it('discover：fetch_listing→dedup→spawn 抓列表 upsert 新帖并派生 collect 任务', async () => {
     await db.sources.create({
       data: {
         platform: 'reddit',
@@ -132,18 +162,18 @@ describe('采集执行器（CollectionExecutor：discover → collect → analyz
     };
     const exec = makeExecutor({ listing: [post] });
     const runId = await makeRun();
-    const discoverTask = await makeDiscoverTask(runId);
+    const discoverTask = await makeTask(runId, 'discover');
 
-    const out = await exec.discover(discoverTask);
-    expect(out.added).toBe(1);
-    expect(out.collectSpawned).toBe(1);
+    const out = await runStages(exec, 'discover', discoverTask, null);
+    expect((out.fetch_listing as DiscoverListingOutput).added).toBe(1);
+    expect((out.spawn as DiscoverSpawnOutput).collectSpawned).toBe(1);
 
     expect(await db.posts.findUnique({ where: { id: 'rd_t1' } })).not.toBeNull();
     const all = await tasks.listByRun(runId);
     expect(all.some((t) => t.kind === 'collect' && t.post_id === 'rd_t1')).toBe(true);
   });
 
-  it('collectComments：rss 帖跳过抓评论但派生 analyze（有 active 模型）', async () => {
+  it('collect：rss 帖 fetch_comments 空评论但 persist 派生 analyze（有 active 模型）', async () => {
     await db.posts.create({
       data: {
         id: 'rss_t1',
@@ -158,23 +188,17 @@ describe('采集执行器（CollectionExecutor：discover → collect → analyz
     });
     const exec = makeExecutor({ active: { id: 1, model: 'model-x', label: 'x' } });
     const runId = await makeRun();
-    const res = await tasks.createTaskWithStages(
-      { runId, kind: 'collect', postId: 'rss_t1' },
-      [{ name: 'fetch_comments' }],
-      nowSec(),
-    );
-    if (!res.ok) throw new Error(res.error);
-    const collectTask = (await tasks.getTask(res.taskId))!;
+    const collectTask = await makeTask(runId, 'collect', { postId: 'rss_t1' });
     const post = (await posts.getPostById('rss_t1'))!;
 
-    const out = await exec.collectComments(collectTask, post);
-    expect(out.commentCount).toBe(0); // rss 无评论
-    expect(out.analyzeSpawned).toBe(true);
+    const out = await runStages(exec, 'collect', collectTask, post);
+    expect((out.fetch_comments as FetchCommentsOutput).commentCount).toBe(0); // rss 无评论
+    expect((out.persist as CollectPersistOutput).analyzeSpawned).toBe(true);
     const all = await tasks.listByRun(runId);
     expect(all.some((t) => t.kind === 'analyze' && t.post_id === 'rss_t1')).toBe(true);
   });
 
-  it('collectComments：无 active 模型时不派生 analyze', async () => {
+  it('collect：无 active 模型时不派生 analyze', async () => {
     await db.posts.create({
       data: {
         id: 'rss_t2',
@@ -189,15 +213,9 @@ describe('采集执行器（CollectionExecutor：discover → collect → analyz
     });
     const exec = makeExecutor({ active: null });
     const runId = await makeRun();
-    const res = await tasks.createTaskWithStages(
-      { runId, kind: 'collect', postId: 'rss_t2' },
-      [{ name: 'fetch_comments' }],
-      nowSec(),
-    );
-    if (!res.ok) throw new Error(res.error);
-    const collectTask = (await tasks.getTask(res.taskId))!;
-    const out = await exec.collectComments(collectTask, (await posts.getPostById('rss_t2'))!);
-    expect(out.analyzeSpawned).toBe(false);
+    const collectTask = await makeTask(runId, 'collect', { postId: 'rss_t2' });
+    const out = await runStages(exec, 'collect', collectTask, (await posts.getPostById('rss_t2'))!);
+    expect((out.persist as CollectPersistOutput).analyzeSpawned).toBe(false);
   });
 
   it('recheck：评论有变化→重抓 + 派生重新分析 + 退避复位', async () => {
@@ -227,20 +245,12 @@ describe('采集执行器（CollectionExecutor：discover → collect → analyz
     });
     const exec = makeExecutor({ active: { id: 1, model: 'model-x', label: 'x' } });
     const runId = await makeRun();
-    const res = await tasks.createTaskWithStages(
-      { runId, kind: 'recheck', postId: 'rd_r1', params: { sweep: 5 } },
-      [{ name: 'recheck' }],
-      nowSec(),
-    );
-    if (!res.ok) throw new Error(res.error);
+    const task = await makeTask(runId, 'recheck', { postId: 'rd_r1', params: { sweep: 5 } });
 
     // 桩 reddit fetchComments 返回空 → 与「原有 1 条」不一致 → 判定有变化
-    const out = await exec.recheckPost(
-      (await tasks.getTask(res.taskId))!,
-      (await posts.getPostById('rd_r1'))!,
-    );
-    expect(out.changed).toBe(true);
-    expect(out.analyzeSpawned).toBe(true);
+    const out = await runStages(exec, 'recheck', task, (await posts.getPostById('rd_r1'))!);
+    expect((out.persist as RecheckPersistOutput).changed).toBe(true);
+    expect((out.persist as RecheckPersistOutput).analyzeSpawned).toBe(true);
     const updated = (await posts.getPostById('rd_r1'))!;
     expect(updated.recheck_misses).toBe(0); // 复位
     expect(updated.recheck_due_sweep).toBe(6); // sweep+1
@@ -264,20 +274,12 @@ describe('采集执行器（CollectionExecutor：discover → collect → analyz
     });
     const exec = makeExecutor({ active: { id: 1, model: 'model-x', label: 'x' } });
     const runId = await makeRun();
-    const res = await tasks.createTaskWithStages(
-      { runId, kind: 'recheck', postId: 'rd_r2', params: { sweep: 5 } },
-      [{ name: 'recheck' }],
-      nowSec(),
-    );
-    if (!res.ok) throw new Error(res.error);
+    const task = await makeTask(runId, 'recheck', { postId: 'rd_r2', params: { sweep: 5 } });
 
     // 无原有评论、桩返回空 → 无变化 → 退避
-    const out = await exec.recheckPost(
-      (await tasks.getTask(res.taskId))!,
-      (await posts.getPostById('rd_r2'))!,
-    );
-    expect(out.changed).toBe(false);
-    expect(out.analyzeSpawned).toBe(false);
+    const out = await runStages(exec, 'recheck', task, (await posts.getPostById('rd_r2'))!);
+    expect((out.persist as RecheckPersistOutput).changed).toBe(false);
+    expect((out.persist as RecheckPersistOutput).analyzeSpawned).toBe(false);
     const updated = (await posts.getPostById('rd_r2'))!;
     expect(updated.recheck_misses).toBe(2); // 1+1
     expect(updated.recheck_due_sweep).toBe(7); // sweep 5 + skip(2^1=2)

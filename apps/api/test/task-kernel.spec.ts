@@ -142,10 +142,7 @@ describe('图纸生命周期：通用任务执行内核（runTask + task_stages 
 
   /** 建一条 analyze 图纸 + 进程 + 任务（6 个 analyze 环节，gate 由参数指定）。 */
   async function createAnalyzeTask(gate: boolean): Promise<{ runId: number; taskId: number }> {
-    const bp = await blueprints.createBlueprint(
-      { kind: 'analyze', label: 'A', triggerKind: 'once' },
-      nowSec(),
-    );
+    const bp = await blueprints.createBlueprint({ kind: 'analyze', label: 'A' }, nowSec());
     const run = await runs.createRun(
       { blueprintId: bp.id, kind: 'analyze', triggerSource: 'manual' },
       nowSec(),
@@ -253,10 +250,7 @@ describe('图纸生命周期：通用任务执行内核（runTask + task_stages 
   it('同帖同 kind 去重：已有活跃任务时 createTaskWithStages 拒绝', async () => {
     await seedPost();
     await createAnalyzeTask(false); // 已有活跃 queued analyze 任务
-    const bp = await blueprints.createBlueprint(
-      { kind: 'analyze', label: 'A2', triggerKind: 'once' },
-      nowSec(),
-    );
+    const bp = await blueprints.createBlueprint({ kind: 'analyze', label: 'A2' }, nowSec());
     const run = await runs.createRun(
       { blueprintId: bp.id, kind: 'analyze', triggerSource: 'manual' },
       nowSec(),
@@ -309,10 +303,7 @@ describe('图纸生命周期：通用任务执行内核（runTask + task_stages 
     } as unknown as TranslationService;
     const worker = makeWorker(() => Promise.resolve(RAW), translation);
 
-    const bp = await blueprints.createBlueprint(
-      { kind: 'translate', label: '翻译', triggerKind: 'manual' },
-      nowSec(),
-    );
+    const bp = await blueprints.createBlueprint({ kind: 'translate', label: '翻译' }, nowSec());
     const run = await runs.createRun(
       { blueprintId: bp.id, kind: 'translate', triggerSource: 'manual' },
       nowSec(),

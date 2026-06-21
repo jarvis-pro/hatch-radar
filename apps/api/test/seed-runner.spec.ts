@@ -4,6 +4,8 @@ import type { RuntimeSettingsSeeder } from '@/domain/seed/runtime-settings.seede
 import type { Seeder, SeedContext, SeedOutcome } from '@/domain/seed/seeder';
 import type { SourcesSeeder } from '@/domain/seed/sources.seeder';
 import type { SuperAdminSeeder } from '@/domain/seed/super-admin.seeder';
+import type { BlueprintsSeeder } from '@/domain/seed/blueprints.seeder';
+import type { ProcessesSeeder } from '@/domain/seed/processes.seeder';
 
 const NOW = 1_700_000_000;
 const skipped = (): SeedOutcome => ({ status: 'skipped', reason: 't' });
@@ -17,10 +19,14 @@ function mk(name: string, order: number, critical: boolean, run: Seeder['run']):
  * （name/order/critical/run）使用之，故测试用 mock 充当三个位置即可——顺序无关，由 order 决定执行序。
  */
 function runner(a: Seeder, b: Seeder, c: Seeder): SeedRunner {
+  // 额外两个位置（blueprints / processes）用 order 极大的 no-op mock 占位：跑在最后、不入断言序列。
+  const pad = (): Seeder => mk('pad', 999, false, async () => skipped());
   return new SeedRunner(
     a as unknown as SourcesSeeder,
     b as unknown as SuperAdminSeeder,
     c as unknown as RuntimeSettingsSeeder,
+    pad() as unknown as BlueprintsSeeder,
+    pad() as unknown as ProcessesSeeder,
   );
 }
 
