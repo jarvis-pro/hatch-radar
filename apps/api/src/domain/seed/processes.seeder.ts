@@ -1,4 +1,4 @@
-import { BlueprintsRepository, ProcessesRepository } from '@hatch-radar/db';
+import { BlueprintsRepository, ProcessesRepository } from '@/lib/db';
 import type { Seeder, SeedContext, SeedOutcome } from './seeder';
 
 /** 默认进程触发间隔（秒）：采集 / 复查均每 30 分钟一轮（对齐旧 cron 0,30 / 10,40 的节奏）。 */

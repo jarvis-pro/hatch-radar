@@ -1,5 +1,5 @@
 import { toSourceConnectorRow, type AppDatabase, type SourceConnectorRow } from '../internal';
-import { decryptSecret, encryptSecret } from '@hatch-radar/kernel';
+import { decryptSecret, encryptSecret } from '@/lib/kernel';
 
 /** 数据来源平台 */
 export type SourcePlatform = SourceConnectorRow['platform'];

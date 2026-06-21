@@ -6,7 +6,7 @@ import {
   toTriage,
   type AppDatabase,
   type InsightPgRow,
-} from '@hatch-radar/db';
+} from '@/lib/db';
 import {
   PAGE_SIZE,
   type CommentRow,

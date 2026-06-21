@@ -5,12 +5,12 @@ import {
   verifyPassword,
 } from '@/lib/auth';
 import type { CurrentUser, SessionInfo } from '@hatch-radar/shared';
-import { RuntimeSettingsService } from '@hatch-radar/db';
-import { AuditLogsRepository } from '@hatch-radar/db';
-import { LoginAttemptsRepository } from '@hatch-radar/db';
-import { SessionsRepository } from '@hatch-radar/db';
-import { UsersRepository, type UserAuthView } from '@hatch-radar/db';
-import { nowSec } from '@hatch-radar/kernel';
+import { RuntimeSettingsService } from '@/lib/db';
+import { AuditLogsRepository } from '@/lib/db';
+import { LoginAttemptsRepository } from '@/lib/db';
+import { SessionsRepository } from '@/lib/db';
+import { UsersRepository, type UserAuthView } from '@/lib/db';
+import { nowSec } from '@/lib/kernel';
 import type { AuthedUser } from './auth-context';
 
 const DAY = 86_400;

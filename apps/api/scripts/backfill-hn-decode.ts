@@ -23,7 +23,7 @@
  *   pnpm backfill:hn-decode --apply   # 实际写库
  */
 import { decodeEntities } from '@/lib/crawler';
-import { createDb, type AppDatabase } from '@hatch-radar/db';
+import { createDb, type AppDatabase } from '@/lib/db';
 
 /** 每批拉取 / 写入的行数（游标分页，避免一次性载入整表） */
 const BATCH = 1000;

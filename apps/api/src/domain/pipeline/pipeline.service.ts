@@ -9,11 +9,11 @@ import {
   TaskStagesRepository,
   type BlueprintRow,
   type ProcessRow,
-} from '@hatch-radar/db';
+} from '@/lib/db';
 import { CronExpressionParser } from 'cron-parser';
 import { AnalysisConfigService } from '@/lib/analysis';
-import type { Dispatcher } from '@hatch-radar/kernel';
-import { logger, nowSec } from '@hatch-radar/kernel';
+import type { Dispatcher } from '@/lib/kernel';
+import { logger, nowSec } from '@/lib/kernel';
 import {
   buildStages,
   INSPECT_STEP_NAMES,

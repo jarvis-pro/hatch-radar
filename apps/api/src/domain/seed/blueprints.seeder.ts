@@ -1,4 +1,4 @@
-import { BlueprintsRepository } from '@hatch-radar/db';
+import { BlueprintsRepository } from '@/lib/db';
 import type { Seeder, SeedContext, SeedOutcome } from './seeder';
 import { HN_SECTIONS, RSS_FEEDS, SUBREDDITS } from './source-lists';
 

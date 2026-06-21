@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import type { AppDatabase, DbHandle, PostRow, TaskRow } from '@hatch-radar/db';
+import type { AppDatabase, DbHandle, PostRow, TaskRow } from '@/lib/db';
 import {
   BlueprintsRepository,
   CommentsRepository,
@@ -9,11 +9,11 @@ import {
   RunsRepository,
   SourcesRepository,
   TasksRepository,
-} from '@hatch-radar/db';
+} from '@/lib/db';
 import type { AnalysisConfigService } from '@/lib/analysis';
 import type { CrawlerConfigService, HackerNewsClient } from '@/lib/crawler';
 import { buildStages, type TaskKind, type RedditPost } from '@hatch-radar/shared';
-import { nowSec } from '@hatch-radar/kernel';
+import { nowSec } from '@/lib/kernel';
 import {
   CollectionExecutor,
   type CollectPersistOutput,

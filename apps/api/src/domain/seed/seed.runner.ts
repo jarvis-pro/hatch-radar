@@ -1,4 +1,4 @@
-import { logger } from '@hatch-radar/kernel';
+import { logger } from '@/lib/kernel';
 import { BlueprintsSeeder } from './blueprints.seeder';
 import { ProcessesSeeder } from './processes.seeder';
 import { RuntimeSettingsSeeder } from './runtime-settings.seeder';

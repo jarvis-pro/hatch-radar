@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { Prisma, type AppDatabase, type DbHandle } from '@hatch-radar/db';
+import { Prisma, type AppDatabase, type DbHandle } from '@/lib/db';
 import { SyncService } from '@/domain/sync/sync.service';
-import { nowSec } from '@hatch-radar/kernel';
+import { nowSec } from '@/lib/kernel';
 import { setupTestDb, truncateAll } from './helpers';
 
 /** 插入一条洞察并返回其 id（作为同步操作的 targetId） */

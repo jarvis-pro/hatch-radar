@@ -1,6 +1,6 @@
 import type { AuditRow } from '@hatch-radar/shared';
 import { Prisma, type AppDatabase } from '../internal';
-import { nowSec } from '@hatch-radar/kernel';
+import { nowSec } from '@/lib/kernel';
 
 /** 一条审计记录的输入。 */
 export interface AuditEntry {

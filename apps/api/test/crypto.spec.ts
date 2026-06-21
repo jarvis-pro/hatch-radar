@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { decryptSecret, encryptSecret, isSecretConfigured } from '@/utils/crypto';
+import { decryptSecret, encryptSecret, isSecretConfigured } from '@/lib/kernel/utils/crypto';
 
 /** 模型密钥 AES-256-GCM 加解密：往返一致、随机 IV、防篡改、格式校验。 */
 describe('crypto（模型密钥加解密）', () => {

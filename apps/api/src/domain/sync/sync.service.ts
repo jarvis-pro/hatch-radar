@@ -5,9 +5,9 @@ import {
   type SyncOperation,
   type SyncPushResponse,
 } from '@hatch-radar/shared';
-import { Prisma, type AppDatabase } from '@hatch-radar/db';
-import { nowSec } from '@hatch-radar/kernel';
-import { logger } from '@hatch-radar/kernel';
+import { Prisma, type AppDatabase } from '@/lib/db';
+import { nowSec } from '@/lib/kernel';
+import { logger } from '@/lib/kernel';
 
 /** Prisma 交互式事务句柄类型 */
 type Tx = Prisma.TransactionClient;

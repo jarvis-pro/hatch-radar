@@ -9,13 +9,13 @@ import {
   type UserRole,
 } from '@hatch-radar/shared';
 import type { AuthedUser } from '../account/auth-context';
-import { DomainError } from '@hatch-radar/kernel';
-import { AuditLogsRepository } from '@hatch-radar/db';
-import { DeviceCredentialsRepository } from '@hatch-radar/db';
-import { DeviceEnrollmentsRepository } from '@hatch-radar/db';
-import { SessionsRepository } from '@hatch-radar/db';
-import { UsersRepository } from '@hatch-radar/db';
-import { nowSec } from '@hatch-radar/kernel';
+import { DomainError } from '@/lib/kernel';
+import { AuditLogsRepository } from '@/lib/db';
+import { DeviceCredentialsRepository } from '@/lib/db';
+import { DeviceEnrollmentsRepository } from '@/lib/db';
+import { SessionsRepository } from '@/lib/db';
+import { UsersRepository } from '@/lib/db';
+import { nowSec } from '@/lib/kernel';
 
 /** 激活码有效期（秒）：短，15 分钟。 */
 const ENROLL_TTL_SEC = 15 * 60;

@@ -3,7 +3,8 @@
   "compilerOptions": {
     "paths": {
       "@/*": ["./src/*"]
-    }
+    },
+    "allowImportingTsExtensions": true
   },
-  "include": ["src", "test"]
+  "include": ["src", "test", "prisma.config.ts"]
 }

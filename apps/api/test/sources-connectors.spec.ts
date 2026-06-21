@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { BadRequestException } from '@nestjs/common';
-import type { AppDatabase, DbHandle } from '@hatch-radar/db';
+import type { AppDatabase, DbHandle } from '@/lib/db';
 import {
   decryptConnectorSecret,
   nowSec,

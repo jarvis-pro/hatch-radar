@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import type { AppDatabase, DbHandle } from '@hatch-radar/db';
-import { ProvidersRepository, toProviderDTO } from '@hatch-radar/db';
-import { nowSec } from '@hatch-radar/kernel';
+import type { AppDatabase, DbHandle } from '@/lib/db';
+import { ProvidersRepository, toProviderDTO } from '@/lib/db';
+import { nowSec } from '@/lib/kernel';
 import { setupTestDb, truncateAll } from './helpers';
 
 // 加解密主密钥（Key 入库时加密用），测试用任意高熵串

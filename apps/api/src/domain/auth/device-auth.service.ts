@@ -1,6 +1,6 @@
 import { sha256Hex, verifyDeviceSignature } from '@/lib/auth';
 import { hasPermission, type PermissionKey, type UserRole } from '@hatch-radar/shared';
-import { Prisma, type AppDatabase } from '@hatch-radar/db';
+import { Prisma, type AppDatabase } from '@/lib/db';
 import type { DeviceUserContext } from './device-context';
 
 /** 设备签名请求的时间窗（秒）：|now - ts| 超过即拒，挡重放。 */

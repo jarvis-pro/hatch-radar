@@ -1,5 +1,5 @@
-import { TasksRepository } from '@hatch-radar/db';
-import { logger, nowSec, type Dispatcher } from '@hatch-radar/kernel';
+import { TasksRepository } from '@/lib/db';
+import { logger, nowSec, type Dispatcher } from '@/lib/kernel';
 import { WorkerService } from './worker.service';
 
 /** 兜底泵周期：捡漏非 pipeline 入队的任务（检视放行 paused→queued、手动重排 failed→queued）。 */

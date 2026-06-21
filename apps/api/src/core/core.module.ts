@@ -1,5 +1,5 @@
 import { Global, Module, type InjectionToken, type Provider, type Type } from '@nestjs/common';
-import type { AppDatabase } from '@hatch-radar/db';
+import type { AppDatabase } from '@/lib/db';
 import {
   AccountService,
   AdminService,

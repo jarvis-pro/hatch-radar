@@ -13,8 +13,8 @@ import {
   type RunRow,
   type TaskRow,
   type TaskStageRow,
-} from '@hatch-radar/db';
-import { nowSec } from '@hatch-radar/kernel';
+} from '@/lib/db';
+import { nowSec } from '@/lib/kernel';
 import {
   PAGE_SIZE,
   STAGE_TEMPLATES,

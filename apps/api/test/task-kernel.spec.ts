@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import type { AppDatabase, DbHandle } from '@hatch-radar/db';
+import type { AppDatabase, DbHandle } from '@/lib/db';
 import {
   BlueprintsRepository,
   CommentsRepository,
@@ -11,12 +11,12 @@ import {
   SettingsRepository,
   TasksRepository,
   TaskStagesRepository,
-} from '@hatch-radar/db';
+} from '@/lib/db';
 import { AnalysisConfigService, AnalysisService } from '@/lib/analysis';
 import type { PostProcessor, RawModelOutput } from '@/lib/analysis';
 import type { TranslationService } from '@/lib/analysis';
 import { INSPECT_STEP_NAMES, type PersistOutput, type ResolveOutput } from '@hatch-radar/shared';
-import { nowSec } from '@hatch-radar/kernel';
+import { nowSec } from '@/lib/kernel';
 // 通用任务内核（WorkerService.runTask）单进程归一后内嵌 api domain；测试直引其源码 + CollectionExecutor 桩。
 import { WorkerService } from '../src/domain/worker/worker.service';
 import type { CollectionExecutor } from '../src/domain/worker/collection.executor';

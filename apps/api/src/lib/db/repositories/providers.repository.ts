@@ -5,7 +5,7 @@ import {
   type ProviderApiKeyRow,
   type ProviderRow,
 } from '../internal';
-import { decryptSecret, encryptSecret } from '@hatch-radar/kernel';
+import { decryptSecret, encryptSecret } from '@/lib/kernel';
 
 /** 支持的模型厂商 */
 export type ProviderKind = ProviderRow['provider'];

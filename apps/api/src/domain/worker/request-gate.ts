@@ -1,5 +1,5 @@
-import { RequestLanesRepository, RequestQueueRepository } from '@hatch-radar/db';
-import { logger, nowSec } from '@hatch-radar/kernel';
+import { RequestLanesRepository, RequestQueueRepository } from '@/lib/db';
+import { logger, nowSec } from '@/lib/kernel';
 
 /** 默认：lane 暂停时每 2s 轮询一次是否恢复 */
 const DEFAULT_PAUSE_POLL_MS = 2_000;

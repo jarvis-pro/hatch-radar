@@ -1,7 +1,7 @@
 import type { CommentRow, InsightResult, PostRow } from '@hatch-radar/shared';
-import { InsightsRepository } from '@hatch-radar/db';
-import { nowSec } from '@hatch-radar/kernel';
-import { logger } from '@hatch-radar/kernel';
+import { InsightsRepository } from '@/lib/db';
+import { nowSec } from '@/lib/kernel';
+import { logger } from '@/lib/kernel';
 import type { PostProcessor, TokenUsage } from './analyzer/analyze';
 
 /**

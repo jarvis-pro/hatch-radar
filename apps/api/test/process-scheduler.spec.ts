@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import type { AppDatabase, DbHandle } from '@hatch-radar/db';
+import type { AppDatabase, DbHandle } from '@/lib/db';
 import {
   BlueprintsRepository,
   PostsRepository,
@@ -9,10 +9,10 @@ import {
   RuntimeSettingsService,
   TasksRepository,
   TaskStagesRepository,
-} from '@hatch-radar/db';
+} from '@/lib/db';
 import type { AnalysisConfigService } from '@/lib/analysis';
-import type { Dispatcher } from '@hatch-radar/kernel';
-import { nowSec } from '@hatch-radar/kernel';
+import type { Dispatcher } from '@/lib/kernel';
+import { nowSec } from '@/lib/kernel';
 import { PipelineService } from '@/domain';
 import { setupTestDb, truncateAll } from './helpers';
 

@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import type { AppDatabase, DbHandle } from '@hatch-radar/db';
-import { SourcesRepository } from '@hatch-radar/db';
+import type { AppDatabase, DbHandle } from '@/lib/db';
+import { SourcesRepository } from '@/lib/db';
 import { HN_SECTIONS, RSS_FEEDS, SUBREDDITS } from '@/domain/seed/source-lists';
 import { SourcesSeeder } from '@/domain/seed/sources.seeder';
 import { setupTestDb, truncateAll } from './helpers';

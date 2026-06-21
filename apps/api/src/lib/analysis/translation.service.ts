@@ -5,8 +5,8 @@ import {
   type TranslationField,
   type TranslationProviderKind,
   type TranslationUpsert,
-} from '@hatch-radar/db';
-import { decryptSecret, logger, nowSec } from '@hatch-radar/kernel';
+} from '@/lib/db';
+import { decryptSecret, logger, nowSec } from '@/lib/kernel';
 import type { TokenUsage } from './analyzer/analyze';
 import { classifyKeyError, errMsg } from './key-failover';
 import {

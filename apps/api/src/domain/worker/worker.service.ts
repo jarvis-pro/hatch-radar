@@ -7,13 +7,13 @@ import {
   parseLooseJson,
   SYSTEM_PROMPT,
 } from '@/lib/analysis';
-import { RuntimeSettingsService } from '@hatch-radar/db';
-import type { PostRow, TaskRow, TaskStageRow } from '@hatch-radar/db';
-import { CommentsRepository } from '@hatch-radar/db';
-import { TasksRepository } from '@hatch-radar/db';
-import { TaskStagesRepository } from '@hatch-radar/db';
-import { RunsRepository } from '@hatch-radar/db';
-import { PostsRepository } from '@hatch-radar/db';
+import { RuntimeSettingsService } from '@/lib/db';
+import type { PostRow, TaskRow, TaskStageRow } from '@/lib/db';
+import { CommentsRepository } from '@/lib/db';
+import { TasksRepository } from '@/lib/db';
+import { TaskStagesRepository } from '@/lib/db';
+import { RunsRepository } from '@/lib/db';
+import { PostsRepository } from '@/lib/db';
 import type {
   AiCallOutput,
   ContextOutput,
@@ -22,8 +22,8 @@ import type {
   NormalizeOutput,
   PersistOutput,
 } from '@hatch-radar/shared';
-import { logger } from '@hatch-radar/kernel';
-import { nowSec } from '@hatch-radar/kernel';
+import { logger } from '@/lib/kernel';
+import { nowSec } from '@/lib/kernel';
 import { CollectionExecutor } from './collection.executor';
 
 /** running 期间的 DB 心跳间隔（毫秒），需远小于运行期设置 workerStaleSeconds（下界 30s） */

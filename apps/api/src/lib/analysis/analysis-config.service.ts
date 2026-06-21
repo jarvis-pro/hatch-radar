@@ -12,12 +12,12 @@ import { testClaudeAgent } from './analyzer/claude-agent';
 import { testOpenAICompatible } from './analyzer/openai-compatible';
 import { testAzureTranslator } from './translator/azure-client';
 import { classifyKeyError, errMsg, COOLDOWN_SECONDS } from './key-failover';
-import { decryptSecret } from '@hatch-radar/kernel';
-import { PostsRepository } from '@hatch-radar/db';
-import { ProvidersRepository, type ProviderApiKeyRow, type ProviderRow } from '@hatch-radar/db';
-import { SettingsRepository } from '@hatch-radar/db';
-import { nowSec } from '@hatch-radar/kernel';
-import { logger } from '@hatch-radar/kernel';
+import { decryptSecret } from '@/lib/kernel';
+import { PostsRepository } from '@/lib/db';
+import { ProvidersRepository, type ProviderApiKeyRow, type ProviderRow } from '@/lib/db';
+import { SettingsRepository } from '@/lib/db';
+import { nowSec } from '@/lib/kernel';
+import { logger } from '@/lib/kernel';
 
 /** 当前选用的 active 模型（供调度与启动日志使用） */
 export interface ActiveProvider {

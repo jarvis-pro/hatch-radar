@@ -6,7 +6,7 @@ import {
   type OnModuleInit,
   Injectable,
 } from '@nestjs/common';
-import { createDb, type AppDatabase, type DbHandle } from '@hatch-radar/db';
+import { createDb, type AppDatabase, type DbHandle } from '@/lib/db';
 import type { AppEnv } from '@/domain';
 import { APP_ENV, PRISMA } from '@/common/tokens';
 import { logger } from '@/logger';

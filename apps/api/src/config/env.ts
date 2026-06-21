@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { baseEnvShape, parseEnv, stripEmptyEnv, type HttpConfig } from '@hatch-radar/kernel';
+import { baseEnvShape, parseEnv, stripEmptyEnv, type HttpConfig } from '@/lib/kernel';
 
 /**
  * HTTP 服务默认监听端口（47xxx 段避撞常见 dev 端口，…878 呼应旧 8787）。原属

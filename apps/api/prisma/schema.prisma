@@ -2,7 +2,7 @@
 // 生成的是 prisma-client（新生成器），导入需带 .ts 扩展名。
 generator client {
   provider            = "prisma-client"
-  output              = "../src/generated/prisma"
+  output              = "../src/lib/db/generated/prisma"
   importFileExtension = "ts"
   moduleFormat        = "esm"
   runtime             = "nodejs"

@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import type { AppDatabase, DbHandle } from '@hatch-radar/db';
-import { PostsRepository } from '@hatch-radar/db';
+import type { AppDatabase, DbHandle } from '@/lib/db';
+import { PostsRepository } from '@/lib/db';
 import { setupTestDb, truncateAll } from './helpers';
 
 /**

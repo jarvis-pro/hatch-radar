@@ -1,7 +1,7 @@
-import { PostsRepository } from '@hatch-radar/db';
-import { TasksRepository } from '@hatch-radar/db';
-import { logger } from '@hatch-radar/kernel';
-import { nowSec } from '@hatch-radar/kernel';
+import { PostsRepository } from '@/lib/db';
+import { TasksRepository } from '@/lib/db';
+import { logger } from '@/lib/kernel';
+import { nowSec } from '@/lib/kernel';
 import { PipelineService } from '@/domain/pipeline/pipeline.service';
 
 const ARCHIVE_DAYS = 30;

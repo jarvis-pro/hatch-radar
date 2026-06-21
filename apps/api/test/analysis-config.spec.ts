@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import type { AppDatabase, DbHandle } from '@hatch-radar/db';
+import type { AppDatabase, DbHandle } from '@/lib/db';
 import { AnalysisConfigService } from '@/lib/analysis';
-import { PostsRepository } from '@hatch-radar/db';
-import { ProvidersRepository } from '@hatch-radar/db';
-import { SettingsRepository } from '@hatch-radar/db';
-import { nowSec } from '@hatch-radar/kernel';
+import { PostsRepository } from '@/lib/db';
+import { ProvidersRepository } from '@/lib/db';
+import { SettingsRepository } from '@/lib/db';
+import { nowSec } from '@/lib/kernel';
 import { setupTestDb, truncateAll } from './helpers';
 
 // 模型密钥加解密需要主密钥；测试用任意高熵串即可（不连模型）

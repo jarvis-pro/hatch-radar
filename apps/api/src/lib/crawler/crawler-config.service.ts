@@ -2,9 +2,9 @@ import {
   SourceConnectorsRepository,
   decryptConnectorSecret,
   type SourceConnectorRow,
-} from '@hatch-radar/db';
-import { nowSec } from '@hatch-radar/kernel';
-import { logger } from '@hatch-radar/kernel';
+} from '@/lib/db';
+import { nowSec } from '@/lib/kernel';
+import { logger } from '@/lib/kernel';
 import { TokenBucketQueue } from './queue';
 import { RedditClient, type RedditConfig } from './reddit';
 

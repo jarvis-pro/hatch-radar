@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import type { AppDatabase, DbHandle } from '@hatch-radar/db';
-import { RuntimeSettingsService } from '@hatch-radar/db';
-import { SettingsRepository } from '@hatch-radar/db';
+import type { AppDatabase, DbHandle } from '@/lib/db';
+import { RuntimeSettingsService } from '@/lib/db';
+import { SettingsRepository } from '@/lib/db';
 import { RuntimeSettingsSeeder } from '@/domain/seed/runtime-settings.seeder';
 import { setupTestDb, truncateAll } from './helpers';
 
