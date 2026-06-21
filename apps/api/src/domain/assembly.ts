@@ -25,14 +25,14 @@ import { CostRepository } from '@hatch-radar/db';
 import { TranslationsRepository } from '@hatch-radar/db';
 import { UsersRepository } from '@hatch-radar/db';
 // infra singletons
-import { TokenBucketQueue } from '@hatch-radar/crawler';
-import { HackerNewsClient } from '@hatch-radar/crawler';
+import { TokenBucketQueue } from '@/lib/crawler';
+import { HackerNewsClient } from '@/lib/crawler';
 // services
 import { RuntimeSettingsService } from '@hatch-radar/db';
-import { CrawlerConfigService } from '@hatch-radar/crawler';
-import { AnalysisConfigService } from '@hatch-radar/analysis';
-import { AnalysisService } from '@hatch-radar/analysis';
-import { TranslationService } from '@hatch-radar/analysis';
+import { CrawlerConfigService } from '@/lib/crawler';
+import { AnalysisConfigService } from '@/lib/analysis';
+import { AnalysisService } from '@/lib/analysis';
+import { TranslationService } from '@/lib/analysis';
 import { CollectionExecutor } from './worker/collection.executor';
 import { LocalDispatcher } from './worker/local-dispatcher';
 import { RequestGate } from './worker/request-gate';

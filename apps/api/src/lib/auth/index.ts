@@ -1,5 +1,5 @@
 /**
- * @hatch-radar/auth —— 认证 crypto（Node-only，web 与 server 共用；mobile 不引）。
+ * @/lib/auth —— 认证 crypto（Node-only，web 与 server 共用；mobile 不引）。
  *
  * 仅依赖 node:crypto，无第三方依赖：
  * - password：scrypt 口令哈希 / 校验

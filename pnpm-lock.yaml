@@ -76,18 +76,15 @@ importers:
 
   apps/api:
     dependencies:
-      '@hatch-radar/analysis':
-        specifier: workspace:*
-        version: link:../../packages/analysis
-      '@hatch-radar/auth':
-        specifier: workspace:*
-        version: link:../../packages/auth
+      '@anthropic-ai/claude-agent-sdk':
+        specifier: ^0.3.177
+        version: 0.3.177(@anthropic-ai/sdk@0.104.1(zod@4.4.3))(@modelcontextprotocol/sdk@1.29.0(zod@4.4.3))(zod@4.4.3)
+      '@anthropic-ai/sdk':
+        specifier: ^0.104.1
+        version: 0.104.1(zod@4.4.3)
       '@hatch-radar/config':
         specifier: workspace:*
         version: link:../../packages/config
-      '@hatch-radar/crawler':
-        specifier: workspace:*
-        version: link:../../packages/crawler
       '@hatch-radar/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -127,6 +124,9 @@ importers:
       reflect-metadata:
         specifier: ^0.2.2
         version: 0.2.2
+      rss-parser:
+        specifier: ^3.13.0
+        version: 3.13.0
       rxjs:
         specifier: ^7.8.2
         version: 7.8.2
@@ -365,81 +365,7 @@ importers:
         specifier: ^7.0.0
         version: 7.3.5(@types/node@25.9.2)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0)
 
-  packages/analysis:
-    dependencies:
-      '@anthropic-ai/claude-agent-sdk':
-        specifier: ^0.3.177
-        version: 0.3.177(@anthropic-ai/sdk@0.104.1(zod@4.4.3))(@modelcontextprotocol/sdk@1.29.0(zod@4.4.3))(zod@4.4.3)
-      '@anthropic-ai/sdk':
-        specifier: ^0.104.1
-        version: 0.104.1(zod@4.4.3)
-      '@hatch-radar/db':
-        specifier: workspace:*
-        version: link:../db
-      '@hatch-radar/kernel':
-        specifier: workspace:*
-        version: link:../kernel
-      '@hatch-radar/shared':
-        specifier: workspace:*
-        version: link:../shared
-      zod:
-        specifier: 'catalog:'
-        version: 4.4.3
-    devDependencies:
-      '@hatch-radar/config':
-        specifier: workspace:*
-        version: link:../config
-      '@types/node':
-        specifier: 'catalog:'
-        version: 25.9.2
-      typescript:
-        specifier: 'catalog:'
-        version: 6.0.3
-      vitest:
-        specifier: ^4.1.8
-        version: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@25.9.2)(vite@8.0.16(@types/node@25.9.2)(esbuild@0.28.0)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
-
-  packages/auth:
-    devDependencies:
-      '@hatch-radar/config':
-        specifier: workspace:*
-        version: link:../config
-      '@types/node':
-        specifier: 'catalog:'
-        version: 25.9.2
-      typescript:
-        specifier: 'catalog:'
-        version: 6.0.3
-
   packages/config: {}
-
-  packages/crawler:
-    dependencies:
-      '@hatch-radar/db':
-        specifier: workspace:*
-        version: link:../db
-      '@hatch-radar/kernel':
-        specifier: workspace:*
-        version: link:../kernel
-      '@hatch-radar/shared':
-        specifier: workspace:*
-        version: link:../shared
-      rss-parser:
-        specifier: ^3.13.0
-        version: 3.13.0
-    devDependencies:
-      '@hatch-radar/config':
-        specifier: workspace:*
-        version: link:../config
-      '@types/node':
-        specifier: 'catalog:'
-        version: 25.9.2
-      typescript:
-        specifier: 'catalog:'
-        version: 6.0.3
-      vitest:
-        specifier: ^4.1.8
-        version: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@25.9.2)(vite@8.0.16(@types/node@25.9.2)(esbuild@0.28.0)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
 
   packages/db:
     dependencies:

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { insightFromMessage } from '@hatch-radar/analysis';
+import { insightFromMessage } from '@/lib/analysis';
 
 /**
  * claude_cli 订阅模式的「result 消息分发」纯逻辑单测。

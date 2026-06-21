@@ -3,7 +3,7 @@ import {
   hashPassword,
   hashSessionToken,
   verifyPassword,
-} from '@hatch-radar/auth';
+} from '@/lib/auth';
 import type { CurrentUser, SessionInfo } from '@hatch-radar/shared';
 import { RuntimeSettingsService } from '@hatch-radar/db';
 import { AuditLogsRepository } from '@hatch-radar/db';
@@ -57,7 +57,7 @@ function stripHash(view: UserAuthView): CurrentUser {
  * 人鉴权权威服务（后端归一：原 web lib/auth 整体迁来，行为不变）。
  *
  * 负责会话生命周期（建/解析/滑动续期/吊销）、登录限流、改密与审计。
- * 密码 scrypt 校验、会话 token 哈希复用 @hatch-radar/auth。
+ * 密码 scrypt 校验、会话 token 哈希复用 @/lib/auth。
  */
 export class AccountService {
   constructor(

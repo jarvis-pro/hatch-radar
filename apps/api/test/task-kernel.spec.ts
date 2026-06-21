@@ -12,9 +12,9 @@ import {
   TasksRepository,
   TaskStagesRepository,
 } from '@hatch-radar/db';
-import { AnalysisConfigService, AnalysisService } from '@hatch-radar/analysis';
-import type { PostProcessor, RawModelOutput } from '@hatch-radar/analysis';
-import type { TranslationService } from '@hatch-radar/analysis';
+import { AnalysisConfigService, AnalysisService } from '@/lib/analysis';
+import type { PostProcessor, RawModelOutput } from '@/lib/analysis';
+import type { TranslationService } from '@/lib/analysis';
 import { INSPECT_STEP_NAMES, type PersistOutput, type ResolveOutput } from '@hatch-radar/shared';
 import { nowSec } from '@hatch-radar/kernel';
 // 通用任务内核（WorkerService.runTask）单进程归一后内嵌 api domain；测试直引其源码 + CollectionExecutor 桩。

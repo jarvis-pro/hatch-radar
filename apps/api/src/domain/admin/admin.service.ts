@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { generateEnrollmentCode, hashPassword, sha256Hex } from '@hatch-radar/auth';
+import { generateEnrollmentCode, hashPassword, sha256Hex } from '@/lib/auth';
 import {
   isPermissionKey,
   type AdminUserRow,

@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { AppDatabase, DbHandle } from '@hatch-radar/db';
-import { AnalysisConfigService } from '@hatch-radar/analysis';
+import { AnalysisConfigService } from '@/lib/analysis';
 import { PostsRepository } from '@hatch-radar/db';
 import { ProvidersRepository } from '@hatch-radar/db';
 import { SettingsRepository } from '@hatch-radar/db';

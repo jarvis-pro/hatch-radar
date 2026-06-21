@@ -10,7 +10,7 @@ import {
   TasksRepository,
   TaskStagesRepository,
 } from '@hatch-radar/db';
-import type { AnalysisConfigService } from '@hatch-radar/analysis';
+import type { AnalysisConfigService } from '@/lib/analysis';
 import type { Dispatcher } from '@hatch-radar/kernel';
 import { nowSec } from '@hatch-radar/kernel';
 import { PipelineService } from '@/domain';

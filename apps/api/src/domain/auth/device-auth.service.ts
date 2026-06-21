@@ -1,4 +1,4 @@
-import { sha256Hex, verifyDeviceSignature } from '@hatch-radar/auth';
+import { sha256Hex, verifyDeviceSignature } from '@/lib/auth';
 import { hasPermission, type PermissionKey, type UserRole } from '@hatch-radar/shared';
 import { Prisma, type AppDatabase } from '@hatch-radar/db';
 import type { DeviceUserContext } from './device-context';

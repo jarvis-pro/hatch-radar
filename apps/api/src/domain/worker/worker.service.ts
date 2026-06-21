@@ -1,12 +1,12 @@
-import { AnalysisConfigService } from '@hatch-radar/analysis';
-import { AnalysisService } from '@hatch-radar/analysis';
-import { TranslationService } from '@hatch-radar/analysis';
+import { AnalysisConfigService } from '@/lib/analysis';
+import { AnalysisService } from '@/lib/analysis';
+import { TranslationService } from '@/lib/analysis';
 import {
   buildContext,
   normalizeInsight,
   parseLooseJson,
   SYSTEM_PROMPT,
-} from '@hatch-radar/analysis';
+} from '@/lib/analysis';
 import { RuntimeSettingsService } from '@hatch-radar/db';
 import type { PostRow, TaskRow, TaskStageRow } from '@hatch-radar/db';
 import { CommentsRepository } from '@hatch-radar/db';

@@ -1,5 +1,5 @@
 /**
- * @hatch-radar/analysis —— AI 分析能力。
+ * @/lib/analysis —— AI 分析能力。
  *
  * analyzer 引擎（prompt / 洞察 schema / Anthropic·OpenAI 兼容客户端 / 处理器装配）
  * + analysis-config（模型解析·热重载·入队，依赖 Dispatcher 派发）+ analysis.service（洞察落库）。

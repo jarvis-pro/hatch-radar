@@ -10,8 +10,8 @@ import {
   SourcesRepository,
   TasksRepository,
 } from '@hatch-radar/db';
-import type { AnalysisConfigService } from '@hatch-radar/analysis';
-import type { CrawlerConfigService, HackerNewsClient } from '@hatch-radar/crawler';
+import type { AnalysisConfigService } from '@/lib/analysis';
+import type { CrawlerConfigService, HackerNewsClient } from '@/lib/crawler';
 import { buildStages, type TaskKind, type RedditPost } from '@hatch-radar/shared';
 import { nowSec } from '@hatch-radar/kernel';
 import {

@@ -1,10 +1,10 @@
-import { AnalysisConfigService } from '@hatch-radar/analysis';
+import { AnalysisConfigService } from '@/lib/analysis';
 import {
   CrawlerConfigService,
   HackerNewsClient,
   fetchFeed,
   type CommentFetchResult,
-} from '@hatch-radar/crawler';
+} from '@/lib/crawler';
 import {
   CommentsRepository,
   PostsRepository,

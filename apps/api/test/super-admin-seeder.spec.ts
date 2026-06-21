@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { verifyPassword } from '@hatch-radar/auth';
+import { verifyPassword } from '@/lib/auth';
 import type { AppDatabase, DbHandle } from '@hatch-radar/db';
 import type { AppEnv } from '@/config/env';
 import { UsersRepository } from '@hatch-radar/db';

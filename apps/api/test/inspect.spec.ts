@@ -13,9 +13,9 @@ import {
   TasksRepository,
   TaskStagesRepository,
 } from '@hatch-radar/db';
-import { AnalysisService } from '@hatch-radar/analysis';
-import type { AnalysisConfigService, PostProcessor, RawModelOutput } from '@hatch-radar/analysis';
-import type { TranslationService } from '@hatch-radar/analysis';
+import { AnalysisService } from '@/lib/analysis';
+import type { AnalysisConfigService, PostProcessor, RawModelOutput } from '@/lib/analysis';
+import type { TranslationService } from '@/lib/analysis';
 import type { Dispatcher } from '@hatch-radar/kernel';
 import { nowSec } from '@hatch-radar/kernel';
 import {

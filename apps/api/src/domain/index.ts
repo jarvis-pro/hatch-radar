@@ -25,11 +25,11 @@ export * from './auth/device-auth.service';
 export * from './data/data.service';
 export * from './data/query-parse';
 
-// 分析（analyzer 引擎 + 配置/落库）已迁至 @hatch-radar/analysis；过渡期由 core 再导出
-export * from '@hatch-radar/analysis';
+// 分析（analyzer 引擎 + 配置/落库）已迁至 @/lib/analysis；过渡期由 core 再导出
+export * from '@/lib/analysis';
 
-// 采集（reddit/hn/rss/queue/连接器配置）已迁至 @hatch-radar/crawler；过渡期由 core 再导出
-export * from '@hatch-radar/crawler';
+// 采集（reddit/hn/rss/queue/连接器配置）已迁至 @/lib/crawler；过渡期由 core 再导出
+export * from '@/lib/crawler';
 
 // 同步 / 导出
 export * from './sync/sync.service';
@@ -52,5 +52,5 @@ export * from './seed/super-admin.seeder';
 export * from './seed/runtime-settings.seeder';
 export * from './seed/seed.runner';
 
-// 鉴权原语（转出 @hatch-radar/auth,供建号 / 工具脚本直接使用；领域服务内部亦用之）
-export { hashPassword, verifyPassword } from '@hatch-radar/auth';
+// 鉴权原语（转出 @/lib/auth,供建号 / 工具脚本直接使用；领域服务内部亦用之）
+export { hashPassword, verifyPassword } from '@/lib/auth';

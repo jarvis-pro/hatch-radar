@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { buildContext } from '@hatch-radar/analysis';
-import { collectHnComments, flattenRedditTree } from '@hatch-radar/crawler';
+import { buildContext } from '@/lib/analysis';
+import { collectHnComments, flattenRedditTree } from '@/lib/crawler';
 import type { CommentRow, PostRow } from '@hatch-radar/shared';
 
 /**

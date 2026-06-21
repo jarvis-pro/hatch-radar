@@ -14,8 +14,6 @@ import { APP_ENV } from '@/common/tokens';
 @Module({
   imports: [
     ConfigModule.forRoot({
-      isGlobal: true,
-      cache: true,
       // 用 zod schema 校验整份 env；返回结构化 AppEnv 作为校验后的配置
       validate: () => loadEnv(),
     }),

@@ -16,7 +16,7 @@ function truncate(text: string, max: number): string {
 
 /**
  * 命名 HTML 实体 → 对应字符。与 crawler 的 `decodeEntities` 保持同一张表，但**刻意不**引入对
- * @hatch-radar/crawler 的依赖——两者是同级能力包，为一个纯函数反向耦合不值当。
+ * @/lib/crawler 的依赖——两者是同级能力包，为一个纯函数反向耦合不值当。
  * 未收录的命名实体一律原样保留，绝不臆测，避免破坏正文。
  */
 const NAMED_ENTITIES: Record<string, string> = {

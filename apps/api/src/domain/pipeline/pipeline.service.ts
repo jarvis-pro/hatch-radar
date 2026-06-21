@@ -11,7 +11,7 @@ import {
   type ProcessRow,
 } from '@hatch-radar/db';
 import { CronExpressionParser } from 'cron-parser';
-import { AnalysisConfigService } from '@hatch-radar/analysis';
+import { AnalysisConfigService } from '@/lib/analysis';
 import type { Dispatcher } from '@hatch-radar/kernel';
 import { logger, nowSec } from '@hatch-radar/kernel';
 import {
