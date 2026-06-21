@@ -23,7 +23,7 @@ function lanAddresses(): string[] {
  * 后端唯一进程入口（`pnpm start:api`）—— 单实例。
  *
  * 以 NestExpressApplication 引导：HTTP 监听（/api）+ @Cron 调度 + 内嵌任务执行
- * （经 PG 持久化队列 + LocalDispatcher 进程内认领）+ 同源托管 web SPA。
+ * （经 PG 持久化队列 + LocalDispatcher 进程内认领）。web SPA 单独部署，不在此进程托管。
  */
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { bufferLogs: true });
@@ -39,7 +39,7 @@ async function bootstrap(): Promise<void> {
 
   const env = app.get<AppEnv>(APP_ENV);
   // 绑 0.0.0.0：监听本机所有网卡，使本进程同时经 localhost 与局域网 IP 可达。
-  // web（同源托管的 SPA + /api）与 mobile 共用这一监听；只是 mobile 必须走局域网 IP
+  // web（独立部署，经 /api 调本服务）与 mobile 共用这一监听；mobile 必须走局域网 IP
   // （手机是 LAN 上的另一台设备），故不能只绑回环——这才是对外开放的原因。
   // 网络位置不参与鉴权：恒开、fail-closed——人=会话 cookie、mobile=设备签名，守卫一处校验。
   await app.listen(env.http.port, '0.0.0.0');

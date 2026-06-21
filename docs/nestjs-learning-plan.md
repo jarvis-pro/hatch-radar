@@ -144,7 +144,7 @@
 
 - [apps/api/src/main.ts](apps/api/src/main.ts) — `NestFactory.create<NestExpressApplication>()`、`useGlobalFilters(new AllExceptionsFilter())`、`setGlobalPrefix('api')`、`enableShutdownHooks()`、`useBodyParser`、nestjs-pino 注入；`listen(port, '0.0.0.0')` 同时供 web（同源）与 mobile（局域网）。
 - [apps/worker/src/main.ts](apps/worker/src/main.ts) — `NestFactory.createApplicationContext()`（**无 HTTP 的独立上下文**）。注意 worker 是**真·独立 pnpm 包** `@hatch-radar/worker`，不是同一 app 内的第二入口；两进程共享同一 PG 队列协调工作。
-- [apps/api/package.json](apps/api/package.json) — 看 `dev`/`start`：`node --env-file-if-exists=../../.env --env-file-if-exists=.env [--watch] --import @swc-node/register/esm-register src/main.ts`。**本仓不走 `nest build` / nest CLI**，而是 swc 直接跑 TS 源；env 分两层（根 `.env` + app 本地 `.env`，app 覆盖根，见 [[env-example-required-uncommented]]）；`dev`/`start` 启动前先 `prisma migrate deploy`。
+- [apps/api/package.json](apps/api/package.json) — 看 `dev`/`start`：`node --env-file-if-exists=.env [--watch] --import @swc-node/register/esm-register src/main.ts`。**本仓不走 `nest build` / nest CLI**，而是 swc 直接跑 TS 源；env 单文件 `apps/api/.env`（见 [[env-example-required-uncommented]]）；`dev`/`start` 启动前先 `prisma migrate deploy`。
 - [apps/api/tsconfig.json](apps/api/tsconfig.json) — 确认 `experimentalDecorators` + `emitDecoratorMetadata`（DI 的命根子）。
 
 **动手**

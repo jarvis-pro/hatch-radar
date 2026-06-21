@@ -22,7 +22,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Web / Mobile：
 
-- `pnpm dev:web`（Vite，:47080，`/api` 代理到 api:47878）/ `pnpm build:web`（出 `dist/`，由 api 同源托管）。
+- `pnpm dev:web`（Vite，:47080，`/api` 代理到 api:47878）/ `pnpm build:web`（出 `dist/`，**单独部署托管**，api 不再同源托管 SPA）。
 - `pnpm dev:mobile`（Expo dev server）。
 
 数据库（Prisma 7）：
@@ -36,7 +36,7 @@ Web / Mobile：
 
 **单进程后端**（已退役独立 worker 进程 + WS 网关，见 `docs/single-process-consolidation-design.md`）：
 
-- `apps/api` —— **唯一进程**。NestJS HTTP（`/api`）+ 鉴权权威 + `@Cron` 定时调度 + **内嵌任务执行**（`src/domain/worker/`：`WorkerService` 逐环节执行 + `CollectionExecutor` 采集 + `RequestGate` 出站闸）+ `ServeStaticModule` 同源托管 web SPA + 启动种子。
+- `apps/api` —— **唯一进程**。NestJS HTTP（`/api`）+ 鉴权权威 + `@Cron` 定时调度 + **内嵌任务执行**（`src/domain/worker/`：`WorkerService` 逐环节执行 + `CollectionExecutor` 采集 + `RequestGate` 出站闸）+ 启动种子。**web SPA 单独部署，api 不托管静态产物**。
 - **执行解耦靠 PostgreSQL 持久化队列**（`tasks` / `task_stages`）：`PipelineService` 入队后经 `LocalDispatcher`（`Dispatcher` 接口的进程内实现，替换原 WS 版 `GatewayService`）在**同进程内** `FOR UPDATE SKIP LOCKED` 认领 task（分析 / 采集 / 复查 / 翻译 / 逐节点检视）、直接调 `WorkerService` 跑 AI 写回（无 WS、无序列化）。
 - **崩溃续跑 / 逐环节检查点 / 闸门 + 重认领 / 僵死回收 / 出站请求闸 / 多 Key 故障转移全原样保留**——它们与「几个进程」无关，只与「任务可靠执行」有关。并发上限 `WORKER_CONCURRENCY`（env，默认 20）由 `LocalDispatcher` 进程内闸把关（`inFlight < concurrency` + `pumping` 单飞泵防超发）。
 
@@ -87,7 +87,7 @@ Web / Mobile：
 
 **Mobile UI**：React Native Reusables（NativeWind v4）；颜色只在 `global.css` 变量、全部样式走 Tailwind `className`、**零 StyleSheet**。Expo CNG——改原生经 config plugin，勿直接改生成的 native 工程。
 
-**env 布局**：两端都读的（`DATABASE_URL` / `SETTINGS_SECRET` + 可选 `LOG_LEVEL` / `HTTP_PORT` / `DATABASE_POOL_MAX`）在根 `.env`；各 app start 脚本叠加 `--env-file` 根 + 本地（app 覆盖根）。空串 `KEY=` 视为未设。
+**env 布局**：单进程后端只读 `apps/api/.env`（`dev`/`start` 脚本带 `--env-file-if-exists=.env`，`prisma.config.ts` 同源加载它跑迁移）——已无工作区根 `.env`。必填 `DATABASE_URL` / `SETTINGS_SECRET`，其余（`SUPER_ADMIN_*` / `LOG_LEVEL` / `HTTP_PORT` / `WORKER_CONCURRENCY` / `DATABASE_POOL_MAX`）均有默认值。空串 `KEY=` 视为未设。容器化（compose `--profile full`）经 `env_file` 读同一文件注入容器。
 
 ## 测试
 

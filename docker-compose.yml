@@ -5,21 +5,21 @@
 #        docker compose --profile tools up -d     # 库 + adminer（DB UI）
 #        # 然后宿主机：pnpm dev:api / pnpm dev:web
 #
-#   ② 全栈容器化（profile full）：db + api + web 全进容器，一键起全套。
-#        docker compose --profile full up -d --build   # web 由 api 同源托管，访问 http://localhost:47878
+#   ② 后端容器化（profile full）：db + api 进容器（仅后端，不含 web）。
+#        docker compose --profile full up -d --build   # 后端 API 在 http://localhost:47878/api；web 单独部署（见 README）
 #
 # ── 服务 ────────────────────────────────────────────────────────────────────
-# - db：PostgreSQL，api / worker 的唯一主存储。数据卷用本地命名卷；生产换托管 PG 只改 DATABASE_URL。
+# - db：PostgreSQL，api 的唯一主存储。数据卷用本地命名卷；生产换托管 PG 只改 DATABASE_URL。
 #   首次初始化（空卷）经 docker/initdb/ 顺带建出集成测试库 hatch_radar_test（vitest 直连）。
 #   无 profile → 任何用法下都会起（全栈也复用它）。
 # - adminer（profile tools）：轻量 Web 版 DB 管理 UI（Prisma 视角浏览另有宿主机 `pnpm db:studio`）。
-# - api（profile full，单进程后端）：HTTP /api + 鉴权 + 调度 + 内嵌任务执行 + 同源托管 web SPA；
-#   启动前自动 prisma migrate deploy（建表）。爬取 + AI 分析 + AI 密钥 + 鉴权权威都在此一个进程。
+# - api（profile full，单进程后端）：HTTP /api + 鉴权 + 调度 + 内嵌任务执行；启动前自动 prisma migrate
+#   deploy（建表）。爬取 + AI 分析 + AI 密钥 + 鉴权权威都在此一个进程。web SPA 不在此托管、单独部署。
 #
-# 注：容器化跑 AI 须用「API Key 模式」provider（Web 设置页配 + 根 .env 填 SETTINGS_SECRET）；
+# 注：容器化跑 AI 须用「API Key 模式」provider（Web 设置页配 + apps/api/.env 填 SETTINGS_SECRET）；
 #     claude_cli 订阅模式依赖宿主机已登录的 claude，仅适合宿主机运行，容器内不可用。
 #
-# 端口（47xxx 段避冲突）：47878（api/web）、47432（PG）、47900（adminer）。
+# 端口（47xxx 段避冲突）：47878（api）、47432（PG）、47900（adminer）。
 #
 # 常用运维：
 #   docker compose --profile full up -d --build   # 起 / 重建全栈（改代码后加 --build）
@@ -51,14 +51,10 @@ x-backend: &backend
   restart: unless-stopped
   logging: *default-logging
 
-# 后端（api）运行期环境变量。
+# 后端（api）容器专属环境变量覆盖项（其余配置从宿主机 apps/api/.env 经 env_file 读入容器）。
 x-backend-env: &backend-env
-  # 容器内连 db 服务（compose 网络内 db:5432）；覆盖宿主机 .env 里的 localhost:47432
+  # 容器内连 db 服务（compose 网络内 db:5432）；覆盖 apps/api/.env 里的 localhost:47432
   DATABASE_URL: postgres://radar:radar@db:5432/hatch_radar
-  # 共享项从宿主机 .env 透传（compose 自动读根 .env 插值）；未设用默认。
-  # SETTINGS_SECRET 留空则禁用 AI 分析（仅爬取），跑 AI 须在根 .env 填它。
-  SETTINGS_SECRET: ${SETTINGS_SECRET:-}
-  LOG_LEVEL: ${LOG_LEVEL:-info}
 
 services:
   db:
@@ -96,21 +92,20 @@ services:
     restart: unless-stopped
     logging: *default-logging
 
-  # 控制面 api（单实例）：HTTP /api + 同源托管 web SPA。启动前自动 migrate deploy → 建表。
+  # 后端 api（单实例）：HTTP /api（web SPA 单独部署，不在此托管）。启动前自动 migrate deploy → 建表。
   api:
     <<: *backend
     command: ['pnpm', 'start:api']
     ports:
       - '47878:47878'
+    # 凭据 / 调优从宿主机 apps/api/.env 读入容器：SETTINGS_SECRET（留空禁用 AI 分析，跑 AI 须填）、
+    # SUPER_ADMIN_*（首个超管种子，不填则无账户可登录）、LOG_LEVEL / WORKER_CONCURRENCY 等。
+    # 文件缺省（required: false）不报错，全走代码默认值；容器专属项在下方 environment 覆盖。
+    env_file:
+      - path: apps/api/.env
+        required: false
     environment:
       <<: *backend-env
-      # web build 产物在镜像内此路径，由 serve-static 同源托管
-      WEB_DIST_DIR: /app/apps/web/dist
-      # 内嵌执行器并发认领数（单进程归一后承接旧 worker 的并发上限）；连接池下限 = max(10, 此值+5)
-      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-20}
-      # 首个超管种子（仅空库首启创建）；不填则无账户可登录，按需在根 .env 设
-      SUPER_ADMIN_EMAIL: ${SUPER_ADMIN_EMAIL:-}
-      SUPER_ADMIN_PASSWORD: ${SUPER_ADMIN_PASSWORD:-}
     depends_on:
       db:
         condition: service_healthy

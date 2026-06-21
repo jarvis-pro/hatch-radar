@@ -2,10 +2,10 @@
 #
 # hatch-radar 后端镜像（单进程后端 api；启动命令由 docker-compose 指定）。
 #
-# 本项目按既定方式「跑 TS 源」（@swc-node/register，不打包），故 @swc/core、typescript、
-# vite 等 devDependencies 是运行/构建期必需——镜像不剥离 devDeps、保留构建工具链。
+# 本项目按既定方式「跑 TS 源」（@swc-node/register，不打包），故 @swc/core、typescript
+# 等 devDependencies 是运行期必需——镜像不剥离 devDeps、保留运行工具链。
 # 单阶段优先「一次跑通」；若要瘦身可拆 builder/runner 多阶段（运行期仍须保留 node_modules）。
-# web 控制台（vite build 产物）一并构建进镜像，由 api 的 serve-static 同源托管（单一部署物）。
+# 本镜像仅后端 api（不含 web）：web SPA 单独构建 / 部署（`pnpm build:web` 出 apps/web/dist，自行托管）。
 
 FROM node:22-bookworm-slim
 
@@ -35,15 +35,13 @@ COPY packages/shared/package.json   packages/shared/
 COPY packages/ui/package.json       packages/ui/
 COPY apps/api/prisma                apps/api/prisma
 COPY apps/api/prisma.config.ts      apps/api/
-RUN pnpm install --frozen-lockfile \
-      --filter "@hatch-radar/api..." \
-      --filter "@hatch-radar/web..."
+RUN pnpm install --frozen-lockfile --filter "@hatch-radar/api..."
 
-# ② 源码层：copy 全部源码，对齐 schema 重新生成 prisma client，构建 web SPA（出 apps/web/dist）
+# ② 源码层：copy 全部源码，对齐 schema 重新生成 prisma client（web 不在本镜像构建）
 COPY . .
-RUN pnpm db:generate && pnpm build:web
+RUN pnpm db:generate
 
 ENV NODE_ENV=production
 
-# api（pnpm start:api）：启动前 prisma migrate deploy → HTTP 监听 0.0.0.0:47878 + 内嵌任务执行 + 同源托管 web。
+# api（pnpm start:api）：启动前 prisma migrate deploy → HTTP 监听 0.0.0.0:47878 + 内嵌任务执行。
 CMD ["pnpm", "start:api"]

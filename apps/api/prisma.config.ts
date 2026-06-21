@@ -12,10 +12,10 @@ import { defineConfig } from 'prisma/config';
 // 依赖拉进 prisma CLI 加载路径）；运行期权威默认在 @/lib/kernel 的 DEFAULT_DATABASE_URL，二者对齐。
 const DEFAULT_DATABASE_URL = 'postgres://radar:radar@localhost:47432/hatch_radar';
 
-// CLI 场景（migrate / db pull / ...）prisma 不自动读 .env：手动加载工作区根 .env，
-// 使迁移用的 DATABASE_URL 与 api / worker 同源（脚本 CWD 为 packages/db，../../.env 即仓库根）。
+// CLI 场景（migrate / db pull / ...）prisma 不自动读 .env：手动加载本 app 的 .env，
+// 使迁移用的 DATABASE_URL 与 api 运行期（--env-file-if-exists=.env）同源（脚本 CWD = apps/api）。
 // 已存在的 OS env 不会被覆盖（process.loadEnvFile 与 --env-file 同口径）。
-if (existsSync('../../.env')) process.loadEnvFile('../../.env');
+if (existsSync('.env')) process.loadEnvFile('.env');
 
 export default defineConfig({
   schema: 'prisma/schema.prisma',
