@@ -2,12 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { AnalysisConfigService } from '@/lib/analysis';
 import { AnalysisService } from '@/lib/analysis';
 import { TranslationService } from '@/lib/analysis';
-import {
-  buildContext,
-  normalizeInsight,
-  parseLooseJson,
-  SYSTEM_PROMPT,
-} from '@/lib/analysis';
+import { buildContext, normalizeInsight, parseLooseJson, SYSTEM_PROMPT } from '@/lib/analysis';
 import { RuntimeSettingsService } from '@/lib/db';
 import type { PostRow, TaskRow, TaskStageRow } from '@/lib/db';
 import { CommentsRepository } from '@/lib/db';
