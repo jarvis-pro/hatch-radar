@@ -28,10 +28,9 @@ import {
   type ResolveOutput,
 } from '@hatch-radar/shared';
 import { PipelineService } from '@/domain';
-// 跨 app 引 worker 数据面执行内核（runTask）：只有 worker 进程承载，而集成测试的 PG 夹具在
-// apps/api/test，故以相对路径直引其源码（vitest 内联编译 @hatch-radar/* 依赖）。
-import { WorkerService } from '../../worker/src/worker.service';
-import type { CollectionExecutor } from '../../worker/src/collection.executor';
+// 任务执行内核（WorkerService.runTask）单进程归一后内嵌 api domain；测试直引其源码 + CollectionExecutor 桩。
+import { WorkerService } from '../src/domain/worker/worker.service';
+import type { CollectionExecutor } from '../src/domain/worker/collection.executor';
 import { setupTestDb, truncateAll } from './helpers';
 
 // 桩 AnalysisConfigService 默认返回的原始响应：含一条非法痛点（空 description）以验证归一化丢弃统计。

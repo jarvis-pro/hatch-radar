@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { AppDatabase, DbHandle } from '@hatch-radar/db';
 import { RequestLanesRepository, RequestQueueRepository } from '@hatch-radar/db';
 import { nowSec } from '@hatch-radar/kernel';
-import { RequestGate } from '../../worker/src/request-gate';
+import { RequestGate } from '../src/domain/worker/request-gate';
 import { setupTestDb, truncateAll } from './helpers';
 
 /**

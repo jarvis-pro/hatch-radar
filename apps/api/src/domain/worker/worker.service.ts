@@ -43,10 +43,11 @@ function withTimeout<T>(promise: Promise<T>, ms: number, onTimeout?: () => void)
 }
 
 /**
- * 任务执行器：接受 Gateway 分发的 task，按 kind 逐环节执行并写回数据库。
+ * 任务执行器：接受派发器认领来的 task，按 kind 逐环节执行并写回数据库。
  *
- * 不含轮询——任务认领由 GatewayService 负责（Push 模式）。僵死回收定时器处理进程崩溃遗留的 running 任务。
- * 生命周期：NestJS onApplicationBootstrap/Shutdown → 这里的 {@link start}/{@link stop}，由配置类按进程拓扑调用。
+ * 不含轮询——任务认领由 {@link LocalDispatcher} 负责（同进程认领后直接调 executeDispatchedTask）。
+ * 僵死回收定时器处理进程崩溃遗留的 running 任务。
+ * 生命周期：NestJS onApplicationBootstrap/Shutdown → 这里的 {@link start}/{@link stop}，由 WorkerStarter 调用。
  */
 export class WorkerService {
   private reclaimTimer: ReturnType<typeof setInterval> | null = null;
@@ -97,7 +98,7 @@ export class WorkerService {
   }
 
   /**
-   * 执行由 Gateway 分发来的任务（task 已被 Gateway 认领为 running；执行模型 blueprints→runs→tasks→task_stages）。
+   * 执行派发器认领来的任务（task 已被 LocalDispatcher 认领为 running；执行模型 blueprints→runs→tasks→task_stages）。
    */
   async executeDispatchedTask(taskId: number, onProgress?: (id: number) => void): Promise<void> {
     const p = this.runTask(taskId, onProgress);

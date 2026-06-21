@@ -21,8 +21,8 @@ import {
   type DiscoverSpawnOutput,
   type FetchCommentsOutput,
   type RecheckPersistOutput,
-} from '../../worker/src/collection.executor';
-import { RequestGate } from '../../worker/src/request-gate';
+} from '../src/domain/worker/collection.executor';
+import { RequestGate } from '../src/domain/worker/request-gate';
 import { setupTestDb, truncateAll } from './helpers';
 
 type ActiveProvider = { id: number; model: string; label: string } | null;

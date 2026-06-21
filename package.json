@@ -11,11 +11,9 @@
   "packageManager": "pnpm@10.27.0",
   "scripts": {
     "dev:api": "pnpm --filter @hatch-radar/api dev",
-    "dev:worker": "pnpm --filter @hatch-radar/worker dev",
     "dev:web": "pnpm --filter @hatch-radar/web dev",
     "dev:mobile": "pnpm --filter @hatch-radar/mobile start",
     "start:api": "pnpm --filter @hatch-radar/api start",
-    "start:worker": "pnpm --filter @hatch-radar/worker start",
     "build:web": "pnpm --filter @hatch-radar/web build",
     "test": "pnpm --filter @hatch-radar/api test",
     "db:generate": "pnpm --filter @hatch-radar/db db:generate",

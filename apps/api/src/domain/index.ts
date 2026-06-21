@@ -1,6 +1,6 @@
 /**
  * apps/api 领域桶（domain）：把能力包（kernel / db / crawler / analysis / auth）与本 app 自有的
- * 领域服务（account / admin / data / sync / export / gateway / scheduler / seed / worker）
+ * 领域服务（account / admin / data / sync / export / worker / pipeline / radar / scheduler / seed）
  * 汇总成单一入口。控制器 / 守卫 / starters / CoreModule 统一从 `@/domain` 导入；
  * {@link createCore} 装配全套实例，经 CoreModule 按类令牌登记进 NestJS IoC 容器。
  */
@@ -36,8 +36,9 @@ export * from './sync/sync.service';
 export * from './export/export.service';
 export * from './export/sqlite-writer';
 
-// 网关 / 调度（worker 执行已迁至 apps/worker，自带 createWorkerCore 装配）
-export * from './gateway/gateway.service';
+// 执行器 / 派发 / 编排 / 调度（单进程归一：执行能力内嵌本进程，无独立 worker / WS 网关）
+export * from './worker/worker.service';
+export * from './worker/local-dispatcher';
 export * from './pipeline/pipeline.service';
 export * from './radar/radar.service';
 export * from './scheduler/scheduler.service';

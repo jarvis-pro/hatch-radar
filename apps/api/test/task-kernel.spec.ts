@@ -17,9 +17,9 @@ import type { PostProcessor, RawModelOutput } from '@hatch-radar/analysis';
 import type { TranslationService } from '@hatch-radar/analysis';
 import { INSPECT_STEP_NAMES, type PersistOutput, type ResolveOutput } from '@hatch-radar/shared';
 import { nowSec } from '@hatch-radar/kernel';
-// 跨 app 引 worker 数据面执行器：通用任务内核（runTask）只有 worker 进程承载，PG 夹具在 apps/api/test。
-import { WorkerService } from '../../worker/src/worker.service';
-import type { CollectionExecutor } from '../../worker/src/collection.executor';
+// 通用任务内核（WorkerService.runTask）单进程归一后内嵌 api domain；测试直引其源码 + CollectionExecutor 桩。
+import { WorkerService } from '../src/domain/worker/worker.service';
+import type { CollectionExecutor } from '../src/domain/worker/collection.executor';
 import { setupTestDb, truncateAll } from './helpers';
 
 // 桩原始响应：含一条非法痛点（空 description）验证归一化丢弃；与 inspect 套件同构。

@@ -2,7 +2,7 @@
   "name": "@hatch-radar/api",
   "version": "0.1.0",
   "private": true,
-  "description": "工作台控制面 API（NestJS + PostgreSQL）：HTTP + 鉴权 + 调度 + push 网关 + 同源托管 web SPA。领域逻辑组装在 src/domain（复用 kernel/db/crawler/analysis 能力包）。密钥只在此进程，绝不下发到 web / mobile。",
+  "description": "工作台后端 API（NestJS + PostgreSQL，单进程）：HTTP + 鉴权 + 调度 + 内嵌任务执行 + 同源托管 web SPA。领域逻辑组装在 src/domain（复用 kernel/db/crawler/analysis 能力包）。密钥只在此进程，绝不下发到 web / mobile。",
   "type": "module",
   "scripts": {
     "dev": "pnpm --filter @hatch-radar/db db:migrate && node --env-file-if-exists=../../.env --env-file-if-exists=.env --watch --import @swc-node/register/esm-register src/main.ts",
@@ -31,7 +31,6 @@
     "nestjs-pino": "^4.6.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
-    "ws": "^8.21.0",
     "zod": "catalog:"
   },
   "devDependencies": {
@@ -41,7 +40,6 @@
     "@types/better-sqlite3": "catalog:",
     "@types/express": "^5.0.6",
     "@types/node": "catalog:",
-    "@types/ws": "^8.18.1",
     "typescript": "catalog:",
     "vitest": "^4.1.8"
   }

@@ -69,7 +69,7 @@ export interface AnalyzeSweepResult {
 }
 
 /**
- * 图纸执行编排（控制面）：把一次图纸触发落成「建 run → 派生 task」，再交 gateway 派发给 worker。
+ * 图纸执行编排：把一次图纸触发落成「建 run → 派生 task」，再交 dispatcher 在同进程认领执行。
  *
  * 取代旧 {@link AnalysisConfigService.enqueueAutoAnalysisRound}（直接入 analysis_jobs）——
  * 自动分析改由 tasks 承载、归属 run/blueprint，可在「图纸 / 进程」视图回看，成本经 UNION 进看板。
@@ -86,7 +86,7 @@ export class PipelineService {
     private readonly runtimeSettings: RuntimeSettingsService,
     private readonly providers: ProvidersRepository,
     private readonly processes: ProcessesRepository,
-    private readonly gateway?: Dispatcher,
+    private readonly dispatcher?: Dispatcher,
   ) {}
 
   /** 找或建一张指定 kind 的默认图纸（首次触发时惰性种子，免单独 seeder）。 */
@@ -137,7 +137,7 @@ export class PipelineService {
     // sweep run = 一次派生批次：派生即收尾（各 task 异步执行、完成时各自累加 run 计数）。
     await this.runs.finishRun(run.id, 'completed', nowSec());
     if (created > 0) {
-      void this.gateway?.tryDispatch();
+      void this.dispatcher?.tryDispatch();
       logger.info(`[pipeline] analyze 进程#${run.id} 派生 ${created} 个分析任务`);
     }
     return { active, runId: run.id, created, pending: posts.length };
@@ -171,7 +171,7 @@ export class PipelineService {
       nowSec(),
     );
     if (res.ok) await this.runs.incrementCounters(run.id, { total: 1 });
-    void this.gateway?.tryDispatch();
+    void this.dispatcher?.tryDispatch();
     logger.info(`[pipeline] collect 运行#${run.id} 已创建 discover 任务`);
     return { runId: run.id };
   }
@@ -225,7 +225,7 @@ export class PipelineService {
     await this.runs.incrementCounters(run.id, { total: created });
     // 空轮（无到期帖）即时完成；非空运行交 finalizeRunningRuns 在任务全终结后收尾（驱动进程重排）。
     if (created === 0) await this.runs.finishRun(run.id, 'completed', nowSec());
-    else void this.gateway?.tryDispatch();
+    else void this.dispatcher?.tryDispatch();
     if (created > 0) {
       logger.info(
         `[pipeline] recheck sweep#${sweep} 运行#${run.id} 派生 ${created} 复查任务（${posts.length} 到期）`,
@@ -326,7 +326,7 @@ export class PipelineService {
     }
     await this.runs.incrementCounters(run.id, { total: enqueued });
     await this.runs.finishRun(run.id, 'completed', nowSec());
-    if (enqueued > 0) void this.gateway?.tryDispatch();
+    if (enqueued > 0) void this.dispatcher?.tryDispatch();
     return { enqueued };
   }
 
@@ -371,7 +371,7 @@ export class PipelineService {
     }
     await this.runs.incrementCounters(run.id, { total: 1 });
     await this.runs.finishRun(run.id, 'completed', nowSec());
-    void this.gateway?.tryDispatch();
+    void this.dispatcher?.tryDispatch();
     return { ok: true, taskId: res.taskId };
   }
 
@@ -417,7 +417,7 @@ export class PipelineService {
   /** 放行下一环节：paused→queued + 派发。返回 false = 当前并非暂停态。 */
   async resumeInspect(taskId: number): Promise<boolean> {
     const ok = await this.tasks.resumeTask(taskId);
-    if (ok) void this.gateway?.tryDispatch();
+    if (ok) void this.dispatcher?.tryDispatch();
     return ok;
   }
 
@@ -425,7 +425,7 @@ export class PipelineService {
   async runInspectToEnd(taskId: number): Promise<void> {
     await this.taskStages.clearGates(taskId);
     await this.tasks.resumeTask(taskId); // 暂停则放行；运行中为 no-op（worker 自会回读清掉的闸门续跑）
-    void this.gateway?.tryDispatch();
+    void this.dispatcher?.tryDispatch();
   }
 
   /** 重试当前失败环节：失败环节复位 pending、任务 failed→queued + 派发。返回 ok=false = 当前不可重试。 */
@@ -435,7 +435,7 @@ export class PipelineService {
     if (task.status !== 'failed') return { ok: false, error: '当前不可重试（任务并非失败态）' };
     await this.taskStages.resetStageToPending(taskId, task.current_seq);
     const ok = await this.tasks.requeueFailedTask(taskId);
-    if (ok) void this.gateway?.tryDispatch();
+    if (ok) void this.dispatcher?.tryDispatch();
     return { ok };
   }
 

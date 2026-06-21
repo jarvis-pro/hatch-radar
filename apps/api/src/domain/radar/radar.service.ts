@@ -43,7 +43,6 @@ import {
   type TaskKind,
   type TriggerConfig,
 } from '@hatch-radar/shared';
-import { GatewayService } from '../gateway/gateway.service';
 import { PipelineService } from '../pipeline/pipeline.service';
 
 const ALERTS_LIMIT = 5;
@@ -210,7 +209,6 @@ export class RadarService {
     private readonly taskStages: TaskStagesRepository,
     private readonly requestQueue: RequestQueueRepository,
     private readonly requestLanes: RequestLanesRepository,
-    private readonly gateway: GatewayService,
   ) {}
 
   // ─── 图纸 CRUD ───────────────────────────────────────────────────────────────
@@ -514,7 +512,8 @@ export class RadarService {
         posts: postsToday,
         runs: runsToday,
         inflight: taskStats.queued + taskStats.running + taskStats.paused,
-        workers: this.gateway.getWorkerStatuses().length,
+        // 单进程归一：执行器内嵌本进程，进程在则恒 1 个「worker」在线（顶栏系统脉搏据此显示在线）。
+        workers: 1,
       },
       lanes,
       processes,

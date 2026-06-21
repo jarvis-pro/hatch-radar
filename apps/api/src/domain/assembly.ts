@@ -31,8 +31,12 @@ import { HackerNewsClient } from '@hatch-radar/crawler';
 import { RuntimeSettingsService } from '@hatch-radar/db';
 import { CrawlerConfigService } from '@hatch-radar/crawler';
 import { AnalysisConfigService } from '@hatch-radar/analysis';
+import { AnalysisService } from '@hatch-radar/analysis';
 import { TranslationService } from '@hatch-radar/analysis';
-import { GatewayService } from './gateway/gateway.service';
+import { CollectionExecutor } from './worker/collection.executor';
+import { LocalDispatcher } from './worker/local-dispatcher';
+import { RequestGate } from './worker/request-gate';
+import { WorkerService } from './worker/worker.service';
 import { PipelineService } from './pipeline/pipeline.service';
 import { RadarService } from './radar/radar.service';
 import { DataService } from './data/data.service';
@@ -51,11 +55,11 @@ import { RuntimeSettingsSeeder } from './seed/runtime-settings.seeder';
 import { SeedRunner } from './seed/seed.runner';
 
 /**
- * api 控制面领域装配工厂：一处把仓储 / 服务 / 调度 / 网关 / 种子按依赖图实例化好。
+ * api 领域装配工厂：一处把仓储 / 服务 / 调度 / 内嵌执行器 / 种子按依赖图实例化好。
  *
  * 用框架的 IoC 把需要的实例登记进容器（NestJS：以 value provider 按令牌登记）。依赖图只在此定义一次。
- * 不含 worker 执行（数据面在 apps/worker，自带 createWorkerCore 装配）；AnalysisConfigService 以
- * GatewayService 作派发器，把认领到的 job 经 WS push 给 worker。
+ * 单进程归一后执行能力（WorkerService + CollectionExecutor + RequestGate）一并在此装配；
+ * PipelineService 以 {@link LocalDispatcher} 作派发器，入队后在同进程内直接认领并执行（无 WS、无序列化）。
  */
 export function createCore(db: AppDatabase, env: AppEnv) {
   // ── 仓储（仅依赖 db）──────────────────────────────────────────────────
@@ -91,10 +95,39 @@ export function createCore(db: AppDatabase, env: AppEnv) {
   // ── 服务 ─────────────────────────────────────────────────────────────
   const runtimeSettings = new RuntimeSettingsService(settings);
   const crawlerConfig = new CrawlerConfigService(sourceConnectors, queue);
-  const gateway = new GatewayService(tasks);
   const analysisConfig = new AnalysisConfigService(providers, settings, posts);
   const translation = new TranslationService(translations, providers);
-  // 图纸执行编排：自动分析改由它派生 analyze 任务（归属 run/blueprint）
+
+  // ── 内嵌执行器（单进程归一：原 apps/worker 的 createWorkerCore 并入此处）──────────────
+  const requestGate = new RequestGate(requestQueue, requestLanes);
+  const analysisExec = new AnalysisService(insights);
+  const collection = new CollectionExecutor(
+    crawlerConfig,
+    hackernews,
+    sources,
+    posts,
+    comments,
+    tasks,
+    runs,
+    analysisConfig,
+    requestGate,
+  );
+  const worker = new WorkerService(
+    tasks,
+    taskStages,
+    runs,
+    posts,
+    comments,
+    analysisExec,
+    analysisConfig,
+    translation,
+    runtimeSettings,
+    collection,
+  );
+  // 进程内派发器：入队后认领任务并直接调 WorkerService 执行（替换 WS 版 GatewayService）。
+  const localDispatcher = new LocalDispatcher(tasks, worker, env.workerConcurrency);
+
+  // 图纸执行编排：自动分析改由它派生 analyze 任务（归属 run/blueprint），经 localDispatcher 派发。
   const pipeline = new PipelineService(
     blueprints,
     runs,
@@ -105,7 +138,7 @@ export function createCore(db: AppDatabase, env: AppEnv) {
     runtimeSettings,
     providers,
     processes,
-    gateway,
+    localDispatcher,
   );
   const radar = new RadarService(
     db,
@@ -117,7 +150,6 @@ export function createCore(db: AppDatabase, env: AppEnv) {
     taskStages,
     requestQueue,
     requestLanes,
-    gateway,
   );
   const data = new DataService(db);
   const account = new AccountService(users, sessions, loginAttempts, auditLogs, runtimeSettings);
@@ -169,9 +201,10 @@ export function createCore(db: AppDatabase, env: AppEnv) {
     hackernews,
     runtimeSettings,
     crawlerConfig,
-    gateway,
     analysisConfig,
     translation,
+    worker,
+    localDispatcher,
     pipeline,
     radar,
     data,

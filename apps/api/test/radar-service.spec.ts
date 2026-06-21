@@ -11,7 +11,7 @@ import {
 } from '@hatch-radar/db';
 import { buildStages } from '@hatch-radar/shared';
 import { nowSec } from '@hatch-radar/kernel';
-import { RadarService, type GatewayService, type PipelineService } from '@/domain';
+import { RadarService, type PipelineService } from '@/domain';
 import { setupTestDb, truncateAll } from './helpers';
 
 /**
@@ -42,7 +42,6 @@ describe('RadarService（读 / 聚合 / CRUD）', () => {
       new TaskStagesRepository(db),
       new RequestQueueRepository(db),
       new RequestLanesRepository(db),
-      { getWorkerStatuses: () => [] } as unknown as GatewayService,
     );
   });
   afterAll(async () => {

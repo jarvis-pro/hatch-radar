@@ -1,39 +1,14 @@
 /**
- * worker ↔ gateway 的 WebSocket 协议（push 派发模型的服务间契约）。
- * gateway（api 侧）与 worker-agent（worker 侧）共用这些类型,确保两端消息一致。
+ * 任务派发契约（框架无关）：把「入队后触发一次派发」抽象成单一接口，
+ * 让生产侧（PipelineService）只认接口、不认实现。
+ *
+ * 单进程归一后实现为 LocalDispatcher（同进程认领 + 直接调 WorkerService 执行）；
+ * 历史上曾以 WS push 网关（GatewayService）跨进程实现，故契约下沉到 kernel 保持解耦。
  */
 
-/** worker → gateway 的上行消息 */
-export type WorkerMessage =
-  | { type: 'register'; workerId: string; concurrency: number }
-  | { type: 'heartbeat'; workerId: string; cpu: number; memory: number; activeJobs: number }
-  | {
-      type: 'job_result';
-      workerId: string;
-      jobId: number;
-      status: 'succeeded' | 'failed';
-      error?: string;
-    }
-  | { type: 'job_progress'; workerId: string; jobId: number }
-  // 图纸生命周期新执行模型：任务（tasks）完成回报（与 job_result 并存于过渡期）
-  | {
-      type: 'task_result';
-      workerId: string;
-      taskId: number;
-      status: 'succeeded' | 'failed';
-      error?: string;
-    };
-
-/** gateway → worker 的下行消息 */
-export type GatewayMessage =
-  | { type: 'registered'; workerId: string }
-  | { type: 'dispatch'; jobId: number; postId: string; providerId: number | null; model: string }
-  // 派发一条任务（worker 按 taskId 回查整行 + 环节后执行）；与 dispatch（旧 job）并存于过渡期
-  | { type: 'dispatch_task'; taskId: number };
-
 /**
- * 派发器接口：入队后触发一次派发。AnalysisConfigService 持有它的可选引用
- * （api 侧注入真正的 GatewayService;worker 侧不入队,留空即可）。
+ * 派发器接口：入队后触发一次派发。PipelineService 持有它的可选引用
+ * （装配时注入 LocalDispatcher；不需派发的场景留空即可）。
  */
 export interface Dispatcher {
   tryDispatch(): Promise<void>;

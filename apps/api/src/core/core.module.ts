@@ -13,7 +13,8 @@ import {
   DeviceCredentialsRepository,
   DeviceEnrollmentsRepository,
   ExportService,
-  GatewayService,
+  LocalDispatcher,
+  WorkerService,
   InsightsRepository,
   BlueprintsRepository,
   ProcessesRepository,
@@ -53,7 +54,7 @@ import { APP_ENV, CORE, PRISMA } from '@/common/tokens';
  * （NestJS 支持「类当 token + useFactory」,故控制器/守卫维持按类型构造注入,无需改注入点）。
  *
  * @Global：与原 RepositoriesModule/AnalysisModule 等价的「处处可注入」效果,各功能模块无需显式 import。
- * 领域实例共享同一个 createCore 图（单例 gateway/scheduler 等）；worker 执行在 apps/worker 进程。
+ * 领域实例共享同一个 createCore 图（单例 worker/localDispatcher/scheduler 等）；单进程归一后任务执行内嵌本进程。
  */
 const fromCore = <K extends keyof Core>(token: InjectionToken, key: K): Provider => ({
   provide: token,
@@ -103,7 +104,8 @@ const PROVIDERS: Provider[] = [
   fromCore(ExportService, 'export'),
   fromCore(DeviceAuthService, 'deviceAuth'),
   // 后台（生命周期由各自的 Nest 薄封装 starter 触发）
-  fromCore(GatewayService, 'gateway'),
+  fromCore(WorkerService, 'worker'),
+  fromCore(LocalDispatcher, 'localDispatcher'),
   fromCore(PipelineService, 'pipeline'),
   fromCore(RadarService, 'radar'),
   fromCore(SchedulerService, 'scheduler'),
