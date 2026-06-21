@@ -17,6 +17,7 @@ import type {
   Insight,
   LaneId,
   Post,
+  Process,
   RecheckParams,
   RequestRow,
   Run,
@@ -144,12 +145,101 @@ const SYNTH: {
     channel: 'front',
     title: 'Show HN: A tiny CLI that diffs two API responses semantically',
     titleZh: 'Show HN：一个语义化对比两个 API 响应的小 CLI',
-    body: '',
-    bodyZh: '',
+    body: 'Built this after diffing JSON by eye one too many times. Ignores key order, flags only semantic changes. Feedback welcome.',
+    bodyZh: '盯着 JSON 用肉眼比对了太多次之后做了这个。忽略键顺序、只标出语义层面的变化。欢迎反馈。',
     score: 421,
     numComments: 130,
     commentDepth: 3,
   },
+  {
+    source: 'reddit',
+    channel: 'r/SaaS',
+    title: 'We raised prices 40% and lost only 3 customers — best decision ever',
+    titleZh: '我们涨价 40%、只流失了 3 个客户——这是做过最对的决定',
+    body: 'Terrified before pulling the trigger. Net revenue up 35%, churn barely moved. Should have done it a year ago.',
+    bodyZh: '动手前怕得要死。结果净收入涨了 35%、流失几乎没动。早该一年前就做了。',
+    score: 268,
+    numComments: 73,
+    commentDepth: 2,
+  },
+  {
+    source: 'reddit',
+    channel: 'r/startups',
+    title: 'Cofounder wants to keep his day job, I went full-time. How do we split equity?',
+    titleZh: '联创想保留正职、我已经全职。股权到底怎么分？',
+    body: 'Same idea, very different risk. 50/50 feels wrong now but we agreed on it early. How did you handle this?',
+    bodyZh: '一样的点子、却是天差地别的风险。现在觉得 50/50 不对劲，可当初是说好的。你们当时怎么处理的？',
+    score: 197,
+    numComments: 88,
+    commentDepth: 2,
+  },
+  {
+    source: 'reddit',
+    channel: 'r/Entrepreneur',
+    title: 'Spent $5k on ads and got 2 signups. What am I doing wrong?',
+    titleZh: '投了 5000 美元广告、只换来 2 个注册。我到底哪儿做错了？',
+    body: 'Targeting looked fine, landing page converts in tests. Burning cash with nothing to show. Where do I even start?',
+    bodyZh: '定向看着没问题、落地页测试也能转化。钱在烧、却毫无产出。我该从哪下手？',
+    score: 142,
+    numComments: 56,
+    commentDepth: 2,
+  },
+  {
+    source: 'reddit',
+    channel: 'r/SaaS',
+    title: 'Our onboarding is 12 steps and almost nobody finishes it',
+    titleZh: '我们的新手引导有 12 步、几乎没人能走完',
+    body: 'Funnel falls off a cliff at step 5. Cutting it to 4 steps next week and praying. Anyone measured the impact?',
+    bodyZh: '漏斗在第 5 步断崖式流失。下周砍到 4 步、然后祈祷。有人量化过这么做的效果吗？',
+    score: 211,
+    numComments: 64,
+    commentDepth: 2,
+  },
+  {
+    source: 'reddit',
+    channel: 'r/startups',
+    title: 'Enterprise deal stuck in legal review for 4 months — is this normal?',
+    titleZh: '一笔企业单子卡在法务审查 4 个月了——这正常吗？',
+    body: 'Verbal yes back in spring. Now drowning in redlines and security questionnaires. Cash flow is getting scary.',
+    bodyZh: '春天就口头答应了。现在淹没在红线批注和安全问卷里。现金流开始吓人了。',
+    score: 158,
+    numComments: 47,
+    commentDepth: 1,
+  },
+  {
+    source: 'reddit',
+    channel: 'r/Entrepreneur',
+    title: 'I fired my biggest client and revenue went up the next quarter',
+    titleZh: '我炒掉了最大的客户、下个季度收入反而涨了',
+    body: 'They were 40% of revenue and 90% of the stress. Freed-up capacity went to three saner accounts. No regrets.',
+    bodyZh: '他们占了 40% 的收入、却占了 90% 的精力。腾出的人手接了三个省心的客户。毫不后悔。',
+    score: 389,
+    numComments: 102,
+    commentDepth: 2,
+  },
+  {
+    source: 'hackernews',
+    channel: 'new',
+    title: 'Show HN: Self-hosted analytics that respects privacy by default',
+    titleZh: 'Show HN：默认尊重隐私的自托管分析工具',
+    body: 'No cookies, no fingerprinting, single binary. Built it because every alternative wanted to monetize my visitors. MIT licensed.',
+    bodyZh: '无 cookie、无指纹追踪、单文件部署。做它是因为每个替代品都盯着我访客的数据变现。MIT 许可。',
+    score: 312,
+    numComments: 95,
+    commentDepth: 2,
+  },
+];
+
+/** 合成帖评论池（en + zh）。帖上只挂英文原文（不预置 bodyZh），译文由翻译环节经 ZH_DICT 恢复——与"默认不翻"一致。 */
+const SYNTH_COMMENTS: { en: string; zh: string }[] = [
+  { en: 'This resonates — we hit the same wall.', zh: '深有同感——我们撞过同一堵墙。' },
+  { en: 'Have you tried talking to the ones who churned?', zh: '你试过去找那些已经流失的用户聊聊吗？' },
+  { en: 'Same here. Annual plans hid the problem for us too.', zh: '我们也一样。年付套餐把问题也给我们盖住了。' },
+  { en: 'Curious what your activation metric looks like.', zh: '挺好奇你们的激活指标长什么样。' },
+  { en: 'We fixed this with a weekly check-in email. Worked surprisingly well.', zh: '我们靠每周一封回访邮件解决了，效果出奇地好。' },
+  { en: 'Pricing is rarely the real issue — positioning usually is.', zh: '定价很少是真问题——通常是定位出了问题。' },
+  { en: 'Did the same last year. Best thing we ever shipped.', zh: '去年也这么干了，是我们做过最对的事。' },
+  { en: 'Counterpoint: this only works if your retention is already solid.', zh: '反方观点：这只有在你的留存本就扎实时才管用。' },
 ];
 
 function synthPost(world: World, prefer: SourceKind[]): Post {
@@ -157,6 +247,33 @@ function synthPost(world: World, prefer: SourceKind[]): Post {
   const list = pool.length ? pool : SYNTH;
   const base = list[world.seq % list.length]!;
   const n = world.seq;
+  // 造 3~5 条评论（其中一条可能带回复）——只挂英文原文，译文由翻译环节恢复。
+  // numComments 仍取源站总数：体现采集按评论预算只采样了其中一部分（详情页"评论 N 条 · 源站共 M"）。
+  const comments: Comment[] = [];
+  const cCount = 3 + (n % 3);
+  for (let i = 0; i < cCount; i++) {
+    const cc = SYNTH_COMMENTS[(n + i) % SYNTH_COMMENTS.length]!;
+    const node: Comment = {
+      author: `user_${((n + i * 7) % 900) + 100}`,
+      score: Math.max(1, 40 - i * 6 + (n % 13)),
+      depth: 0,
+      body: cc.en,
+      ageMinutes: 4 + i * 5 + (n % 6),
+    };
+    if (i === 0 && base.commentDepth > 1) {
+      const reply = SYNTH_COMMENTS[(n + 3) % SYNTH_COMMENTS.length]!;
+      node.children = [
+        {
+          author: `user_${((n + 50) % 900) + 100}`,
+          score: Math.max(1, 12 + (n % 9)),
+          depth: 1,
+          body: reply.en,
+          ageMinutes: (node.ageMinutes ?? 0) + 6,
+        },
+      ];
+    }
+    comments.push(node);
+  }
   // 新帖默认无译文（titleZh/bodyZh 留空）——开了翻译环节才由 doTranslate 经 ZH_DICT 补中文。
   return {
     id: nextId(world, base.source === 'hackernews' ? 'hn' : 't3'),
@@ -169,16 +286,7 @@ function synthPost(world: World, prefer: SourceKind[]): Post {
     numComments: base.numComments + (n % 12),
     commentDepth: base.commentDepth,
     ageMinutes: 1 + (n % 9),
-    comments: base.body
-      ? [
-          {
-            author: 'commenter',
-            score: 10 + (n % 30),
-            depth: 0,
-            body: 'This resonates — we hit the same wall.',
-          },
-        ]
-      : [],
+    comments,
   };
 }
 
@@ -240,6 +348,19 @@ function createTask(
   return task;
 }
 
+/**
+ * 给进程排下一轮触发（interval/cron 续期，once 或已暂停则停）。
+ * 运行正常收尾与「空轮立即完成」两处共用——避免空轮漏排导致进程 nextRunAt 永久为 null、自动调度停摆。
+ */
+function scheduleNext(world: World, process: Process): void {
+  const t = process.trigger;
+  if (process.status !== 'active' || t.kind === 'once') {
+    process.nextRunAt = null;
+    return;
+  }
+  process.nextRunAt = world.nowMs + (t.kind === 'interval' ? t.everySec * 1000 : 3600_000);
+}
+
 /** 开一条运行（手动 / 调度触发共用）。 */
 export function startRun(
   world: World,
@@ -279,8 +400,11 @@ export function startRun(
       .filter((p) => kinds.includes(p.source) && (p.recheckDueSweep ?? 0) <= sweep)
       .slice(0, batchSize);
     if (due.length === 0) {
+      // 无到期帖：本轮空跑即完成。务必补排下一轮——否则 nextRunAt 停在 null，
+      // finalizeRuns 又只管 running 的 run，进程会就此永久停摆。
       run.status = 'completed';
       run.finishedAt = world.nowMs;
+      scheduleNext(world, process);
     } else {
       for (const post of due) createTask(world, run, 'recheck', post, null);
     }
@@ -445,7 +569,10 @@ function emitInsight(world: World, task: Task): void {
     channel: post.channel,
     postTitle: post.title,
     intensity,
-    painPoint: firstSentence(post.body, post.title),
+    // 痛点优先取正文首句；链接帖（无正文）退而取首条评论，避免痛点与标题原样重复。
+    painPoint: post.body
+      ? firstSentence(post.body, post.title)
+      : firstSentence(post.comments[0]?.body ?? '', post.title),
     tags: tagsFor(post),
     painCount: intensity === 'high' ? 3 : intensity === 'medium' ? 2 : 1,
     oppCount: 1 + (hashStr(post.id) % 3),
@@ -462,7 +589,7 @@ for (const s of SYNTH) {
   if (s.title) ZH_DICT.set(s.title, s.titleZh);
   if (s.body) ZH_DICT.set(s.body, s.bodyZh);
 }
-ZH_DICT.set('This resonates — we hit the same wall.', '深有同感——我们撞过同一堵墙。');
+for (const c of SYNTH_COMMENTS) ZH_DICT.set(c.en, c.zh);
 // corpus 帖的原文→译文：「待发现」池被 stripZh 抹了译文，翻译环节据此恢复真中文（而非占位）。
 const collectCommentZh = (cs: Comment[]): void => {
   for (const cc of cs) {
@@ -614,14 +741,9 @@ function finalizeRuns(world: World): void {
     run.status = tasks.some((t) => t.status === 'failed') ? 'failed' : 'completed';
     run.finishedAt = world.nowMs;
     if (run.status === 'failed') run.error = '部分任务失败（见任务树）';
-    // 排下一轮
+    // 排下一轮（与「空轮立即完成」共用 scheduleNext，逻辑单源）
     const process = world.processes.find((p) => p.id === run.processId);
-    if (process && process.status === 'active') {
-      const t = process.trigger;
-      if (t.kind === 'interval') process.nextRunAt = world.nowMs + t.everySec * 1000;
-      else if (t.kind === 'cron') process.nextRunAt = world.nowMs + 3600_000;
-      else process.nextRunAt = null;
-    }
+    if (process) scheduleNext(world, process);
   }
 }
 
