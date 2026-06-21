@@ -243,19 +243,22 @@ Reddit 来源需先在同页「采集连接器」配置 OAuth 凭据（加密入
 
 ## 项目结构
 
-pnpm workspace monorepo。根目录脚本约定：**`dev:*` = 开发（全 `--watch` / HMR：`dev:api` / `dev:web` / `dev:mobile`），`start:*` = 生产 / 容器入口（无 watch：`start:api`，Docker 跑它）**；`build:web` 出 SPA 产物，`test` / `typecheck` / `lint` 全仓，`db:*` 代理到 `@hatch-radar/db`。
+pnpm workspace monorepo。根目录脚本约定：**`dev:*` = 开发（全 `--watch` / HMR：`dev:api` / `dev:web` / `dev:mobile`），`start:*` = 生产 / 容器入口（无 watch：`start:api`，Docker 跑它）**；`build:web` 出 SPA 产物，`test` / `typecheck` / `lint` 全仓，`db:*` 代理到 `@hatch-radar/api`（Prisma 基建在 api）。
 
-后端按「**框架无关能力包 + 单个应用进程**」组织：领域逻辑沉到能力包（kernel/db/crawler/analysis），api 单进程薄壳装配复用——HTTP + 鉴权 + 调度 + 任务执行同进程，经 PostgreSQL 持久化队列解耦生产（入队）与消费（认领执行）。
+后端按「**单进程 + 内联能力代码**」组织：原框架无关能力包（kernel/db/crawler/analysis/auth）已塌缩进 `apps/api/src/lib/`、全部 `@Injectable`，由 Nest 按类型自动注入（决策见 `docs/package-architecture-eval.md`）；仅 shared/config/ui 因 web/mobile 等跨端消费而留作 `packages/*`。HTTP + 鉴权 + 调度 + 任务执行同进程，经 PostgreSQL 持久化队列解耦生产（入队）与消费（认领执行）。
 
 ```
 hatch-radar/
 ├── apps/
 │   ├── api/                    # 后端（NestJS，单进程）：HTTP /api + 鉴权 + 定时调度 + 内嵌任务执行 + 同源托管 web SPA
+│   │   ├── prisma/             # Prisma schema + migrations（CLI 用；db:* 脚本归 api）
+│   │   ├── prisma.config.ts    # Prisma 7 配置（连接串 / schema 路径；加载根 .env）
 │   │   ├── src/
 │   │   │   ├── main.ts         # HTTP 应用入口（NestFactory）
 │   │   │   ├── app.module.ts   # 根模块（HTTP + 调度 + 内嵌执行 + 种子 + 静态托管）
-│   │   │   ├── domain/         # 本 app 领域层：assembly(createCore 装配) + 桶 index + account/admin/auth/data/sync/export/worker(执行器+LocalDispatcher)/pipeline/radar/scheduler/seed 服务
-│   │   │   ├── core/           # CoreModule：调 createCore 一处装配，按「类令牌 + useFactory」桥接进 Nest DI
+│   │   │   ├── lib/            # 内联能力代码（全 @Injectable）：kernel / db(+generated client) / crawler / analysis / auth
+│   │   │   ├── domain/         # 领域层：桶 index + account/admin/auth/data/sync/export/worker(执行器+LocalDispatcher)/pipeline/radar/scheduler/seed 服务
+│   │   │   ├── core/           # CoreModule：把 49 个 @Injectable 类列为 provider，Nest 按类型自动注入（已删 createCore 桥）
 │   │   │   ├── config/ database/   # env 校验(@nestjs/config) + Prisma 连接 provider（连通性自检 + 优雅关闭）
 │   │   │   ├── http/           # 控制器：health / settings / analysis(含检视) / export / sync / sources / translations / me
 │   │   │   ├── account/ admin/ auth/ data/  # 控制器 + 守卫（人会话 / 设备签名 / 能力闸 / 只读数据端点）
@@ -265,14 +268,9 @@ hatch-radar/
 │   │   └── .env.example
 │   ├── web/                    # Vite + React Router 同源 SPA（经 /api 调 api，由 api 托管 dist）
 │   └── mobile/                 # Expo 离线伴侣 App（expo-sqlite，保持不变）
-├── packages/                   # 框架无关能力包（api 复用，不依赖任何 Web 框架）
-│   ├── kernel/                 # 基座（零内部依赖）：errors / logger / utils(time,crypto) / env 校验 / 派发契约(Dispatcher 接口)
-│   ├── db/                     # PostgreSQL 持久层：Prisma schema + 连接工厂 + PG⇄域映射 + 17 个仓储 + runtime-settings
-│   ├── crawler/                # 采集层：Reddit / HN / RSS 抓取 + 令牌桶限速 + 采集连接器配置
-│   ├── analysis/               # AI 分析：analyzer 引擎(prompt / 洞察 schema / 各厂商客户端 + callRaw) + 配置入队 / 检视编排 + 洞察落库 + 翻译(translator/)
+├── packages/                   # 跨端共享包（web/mobile 等非-api 消费方，故未并入 api）
 │   ├── shared/                 # 跨端共享类型（零运行时依赖）：DDL、行类型、ingestion/洞察/研判/导出/同步/检视协议、权限目录
-│   ├── auth/                   # 认证 crypto（Node-only）：scrypt 口令 / 会话 token / Ed25519 设备验签
-│   ├── config/                 # 共享配置切片 + TypeScript 预设（tsconfig base / nest）
+│   ├── config/                 # 共享 TypeScript 预设（tsconfig base / nest）
 │   └── ui/                     # PC 端共享 UI 库：shadcn/ui + Tailwind v4（组件经 CLI 落入此包，RN 勿引）
 ├── docs/                       # 设计与计划文档
 ├── .env.example                # 根级共享配置（DATABASE_URL/SETTINGS_SECRET + LOG_LEVEL/HTTP_PORT/POOL）：api/迁移共用

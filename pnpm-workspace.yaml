@@ -12,8 +12,8 @@ catalog:
   '@types/node': ^25.9.2
   '@types/react': ~19.2.17 # 与下方 overrides 保持一致：整个 workspace 只允许一份
   '@types/react-dom': ^19.2.0
-  # 数据库（server 读写、web 只读）
-  # 主存储 PostgreSQL：server/web/db 共用 pg；ORM 用 Prisma（仅 packages/db 直依赖，未入 catalog）
+  # 数据库（仅 api 读写；web 纯前端不连库）
+  # 主存储 PostgreSQL：api 用 pg；ORM 用 Prisma（塌缩后仅 apps/api 直依赖 @prisma/*，未入 catalog）
   pg: ^8.21.0
   '@types/pg': ^8.20.0
   # 导出 .sqlite 产物仍用 better-sqlite3（server 导出路径 + 历史迁移脚本）

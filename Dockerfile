@@ -21,23 +21,20 @@ RUN corepack enable && corepack prepare pnpm@10.27.0 --activate
 
 WORKDIR /app
 
-# ① 依赖层：只 copy 安装清单（+ prisma schema 供 db 包 postinstall 的 prisma generate）。
+# ① 依赖层：只 copy 安装清单（+ prisma schema/config 供 api postinstall 的 prisma generate）。
 #    源码未变时此层命中缓存、免重装。--frozen-lockfile 要求 workspace 清单与 lockfile 一致，
 #    故所有成员的 package.json（含 mobile）都要 copy；但 --filter 只装 api/web 子树，
-#    跳过 mobile 的 Expo 重依赖。
+#    跳过 mobile 的 Expo 重依赖。方案A 塌缩后 kernel/db/crawler/analysis/auth 已内联进 apps/api，
+#    仅剩 config/shared/ui 三个包。
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml .npmrc ./
 COPY apps/api/package.json          apps/api/
 COPY apps/web/package.json          apps/web/
 COPY apps/mobile/package.json       apps/mobile/
-COPY packages/analysis/package.json packages/analysis/
-COPY packages/auth/package.json     packages/auth/
 COPY packages/config/package.json   packages/config/
-COPY packages/crawler/package.json  packages/crawler/
-COPY packages/db/package.json       packages/db/
-COPY packages/kernel/package.json   packages/kernel/
 COPY packages/shared/package.json   packages/shared/
 COPY packages/ui/package.json       packages/ui/
-COPY packages/db/prisma             packages/db/prisma
+COPY apps/api/prisma                apps/api/prisma
+COPY apps/api/prisma.config.ts      apps/api/
 RUN pnpm install --frozen-lockfile \
       --filter "@hatch-radar/api..." \
       --filter "@hatch-radar/web..."

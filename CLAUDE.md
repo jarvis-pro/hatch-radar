@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 常用命令
 
-> root 脚本约定：**`dev:*` = 开发（全 `--watch` / HMR：`dev:api`/`dev:web`/`dev:mobile`），`start:*` = 生产 / 容器入口（无 watch：`start:api`，Docker 跑它）**；`test`/`typecheck`/`lint` 全仓，`db:*` 代理到 `@hatch-radar/db`。
+> root 脚本约定：**`dev:*` = 开发（全 `--watch` / HMR：`dev:api`/`dev:web`/`dev:mobile`），`start:*` = 生产 / 容器入口（无 watch：`start:api`，Docker 跑它）**；`test`/`typecheck`/`lint` 全仓，`db:*` 代理到 `@hatch-radar/api`（Prisma 基建已并入 api）。
 
 后端 / 全量：
 
@@ -28,7 +28,7 @@ Web / Mobile：
 数据库（Prisma 7）：
 
 - `pnpm db:migrate` —— `prisma migrate deploy`（应用迁移）。
-- 改 schema 后建迁移：`pnpm --filter @hatch-radar/db db:migrate:dev --name <desc>`（顺带 generate）。
+- 改 schema 后建迁移：`pnpm --filter @hatch-radar/api db:migrate:dev --name <desc>`（顺带 generate）。
 - `pnpm db:generate` 重新生成 client；`pnpm db:studio`。
 - 本地库：`docker compose up -d db`（PG @ `localhost:47432`，radar/radar，库 `hatch_radar`(+`_test`)）；`docker compose --profile full up -d --build` 起全栈（api+web）。
 
@@ -40,15 +40,17 @@ Web / Mobile：
 - **执行解耦靠 PostgreSQL 持久化队列**（`tasks` / `task_stages`）：`PipelineService` 入队后经 `LocalDispatcher`（`Dispatcher` 接口的进程内实现，替换原 WS 版 `GatewayService`）在**同进程内** `FOR UPDATE SKIP LOCKED` 认领 task（分析 / 采集 / 复查 / 翻译 / 逐节点检视）、直接调 `WorkerService` 跑 AI 写回（无 WS、无序列化）。
 - **崩溃续跑 / 逐环节检查点 / 闸门 + 重认领 / 僵死回收 / 出站请求闸 / 多 Key 故障转移全原样保留**——它们与「几个进程」无关，只与「任务可靠执行」有关。并发上限 `WORKER_CONCURRENCY`（env，默认 20）由 `LocalDispatcher` 进程内闸把关（`inFlight < concurrency` + `pumping` 单飞泵防超发）。
 
-**框架无关能力包**（`packages/*`，被 api 复用，不依赖任何 Web 框架）：
+**内联能力代码**（`apps/api/src/lib/*`，方案A 塌缩后从原 `packages/*` 并入 api；全部 `@Injectable`，见 `docs/package-architecture-eval.md`）：
 
-- `kernel` —— 基座（零内部依赖）：errors / logger / utils（time、**crypto = AES-256-GCM 密钥加解密**）/ env 校验 / 派发契约（`Dispatcher` 接口）。
-- `db` —— **唯一 PG 读写层**：Prisma schema + 连接工厂 + PG⇄域类型映射（`mappers.ts`）+ 仓储 + runtime-settings。
-- `crawler` —— 采集：Reddit/HN/RSS 抓取 + 令牌桶限速 + 采集连接器。
-- `analysis` —— AI：analyzer 引擎（prompt / 洞察 schema / 各厂商客户端）+ 配置入队 + 洞察落库 + **翻译**（`translator/`）。
-- `shared`（跨端类型 + 权限目录，零运行时）/ `auth`（Node-only：scrypt 口令 / 会话 token / Ed25519 设备验签）/ `config`（共享配置 + tsconfig 预设）/ `ui`（shadcn + Tailwind v4，仅 PC 端）。
+- `lib/kernel` —— 基座（零内部依赖）：errors / logger / utils（time、**crypto = AES-256-GCM 密钥加解密**）/ env 校验 / 派发契约（`Dispatcher` 接口）。
+- `lib/db` —— **唯一 PG 读写层**：连接工厂 + PG⇄域类型映射（`mappers.ts`）+ 仓储 + runtime-settings；Prisma schema/migrations 基建在 `apps/api/prisma/`，生成 client 在 `lib/db/generated/prisma`。
+- `lib/crawler` —— 采集：Reddit/HN/RSS 抓取 + 令牌桶限速 + 采集连接器。
+- `lib/analysis` —— AI：analyzer 引擎（prompt / 洞察 schema / 各厂商客户端）+ 配置入队 + 洞察落库 + **翻译**（`translator/`）。
+- `lib/auth` —— Node-only 纯函数：scrypt 口令 / 会话 token / Ed25519 设备验签。
 
-**DI 桥接**：api 的 `CoreModule` 调 `createCore` 一处装配能力包 + 内嵌执行器（`WorkerService` / `LocalDispatcher` / `CollectionExecutor` / `RequestGate`），按「**类当令牌 + `useFactory`**」桥进 Nest DI；生命周期由 `WorkerStarter`（`src/worker/`）薄封装（起认领泵 / 僵死回收，关停排空在途任务）。
+**剩余跨端包**（`packages/*`，因有 web/mobile 等非-api 消费方而保留）：`shared`（跨端类型 + 权限目录，零运行时）/ `config`（仅 tsconfig base/nest 预设）/ `ui`（shadcn + Tailwind v4，仅 PC 端）。
+
+**DI**：`CoreModule` 把 49 个领域类（仓储 / 内联能力服务 / 领域服务 / 执行器 / 种子，全 `@Injectable`）直接列为 provider，Nest 按构造参数类型**自动注入**（已退役 `createCore` 装配桥）。非类依赖经令牌：仓储/部分服务 `@Inject(PRISMA)`、SuperAdminSeeder `@Inject(APP_ENV)`、LocalDispatcher `@Inject(WORKER_CONCURRENCY)`、PipelineService `@Inject(LocalDispatcher)`（接口参数给运行时令牌）；带默认 options 的 `TokenBucketQueue` / `RequestGate` 走 `useFactory`。生命周期由 `WorkerStarter`（`src/worker/`）薄封装（起认领泵 / 僵死回收，关停排空在途任务）。
 
 **数据流**：crawler 抓帖+评论入 PG → 选用 active 模型时 cron 入队分析 task → `LocalDispatcher` 同进程认领、`WorkerService` 跑 AI → 洞察按 `post_id` 幂等落库 → web 只读展示 / 导出批次（`.sqlite` / `.json`）→ mobile 离线研判 → `/api/sync/push` 按 opId 幂等回传。
 
@@ -58,8 +60,8 @@ Web / Mobile：
 
 **Prisma 7**
 
-- schema 不写 datasource url → `packages/db/prisma.config.ts`（加载根 `.env`）；运行期由 `@prisma/adapter-pg` 直供连接。
-- 生成的 client 在 `packages/db/src/generated/prisma`（自定义 output，**导入带 `.ts` 扩展**）；bigint↔number 经 `mappers.ts` 的 `toXxxRow`（仓储读出后转域类型）。
+- schema 不写 datasource url → `apps/api/prisma.config.ts`（加载根 `.env`）；运行期由 `@prisma/adapter-pg` 直供连接。schema/migrations 在 `apps/api/prisma/`。
+- 生成的 client 在 `apps/api/src/lib/db/generated/prisma`（自定义 output，**导入带 `.ts` 扩展**，api tsconfig 开 `allowImportingTsExtensions`）；bigint↔number 经 `mappers.ts` 的 `toXxxRow`（仓储读出后转域类型）。
 - **改 schema 后必须 `db:migrate:dev` + 重启 api 进程**：api 把生成的 client 载入内存，不重启会用旧枚举/旧字段（典型报错 `Value 'xxx' not found in enum 'yyy'`）。
 - `db push` 有 AI 同意闸；迁移一律走 CLI。
 
@@ -71,7 +73,7 @@ Web / Mobile：
 
 **密钥**：模型 / 连接器密钥经 `SETTINGS_SECRET`（AES-256-GCM，`kernel` 的 `crypto.ts`）加密入库，API 只返回脱敏值；未配 `SETTINGS_SECRET` 则禁用相关功能。
 
-**AI provider + 多 Key 故障转移**：4 种 `provider_kind`——`anthropic`/`openai`/`deepseek`（API Key 模式）+ `claude_cli`（订阅模式，经 `@anthropic-ai/claude-agent-sdk` 复用后端本机已登录的 Claude Code、无 Key；单进程后已无独立 worker，订阅模式仅适合宿主机运行、容器内不可用）。API Key 模式每条挂多把 Key，状态机 `active/cooling/invalid`（429 冷却 5min、401/403 失效需人工复位）；分析与翻译共用 `packages/analysis/src/key-failover.ts`。
+**AI provider + 多 Key 故障转移**：4 种 `provider_kind`——`anthropic`/`openai`/`deepseek`（API Key 模式）+ `claude_cli`（订阅模式，经 `@anthropic-ai/claude-agent-sdk` 复用后端本机已登录的 Claude Code、无 Key；单进程后已无独立 worker，订阅模式仅适合宿主机运行、容器内不可用）。API Key 模式每条挂多把 Key，状态机 `active/cooling/invalid`（429 冷却 5min、401/403 失效需人工复位）；分析与翻译共用 `apps/api/src/lib/analysis/key-failover.ts`。
 
 **翻译**：`claude_cli`（高质量、零边际）/ `azure`（Azure Translator 机翻、按字符、走 Key 池故障转移；`region` 填区域代码如 `centralus`）。译文按源内容哈希存 `translations` 表；走分析同一队列（`analysis_jobs.job_type=translation`）。`azure` 仅翻译——`setActive` 拒之、分析路径 `providerConfigWithKey` 抛错。
 
