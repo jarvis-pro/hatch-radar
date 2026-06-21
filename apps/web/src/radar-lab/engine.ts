@@ -146,7 +146,8 @@ const SYNTH: {
     title: 'Show HN: A tiny CLI that diffs two API responses semantically',
     titleZh: 'Show HN：一个语义化对比两个 API 响应的小 CLI',
     body: 'Built this after diffing JSON by eye one too many times. Ignores key order, flags only semantic changes. Feedback welcome.',
-    bodyZh: '盯着 JSON 用肉眼比对了太多次之后做了这个。忽略键顺序、只标出语义层面的变化。欢迎反馈。',
+    bodyZh:
+      '盯着 JSON 用肉眼比对了太多次之后做了这个。忽略键顺序、只标出语义层面的变化。欢迎反馈。',
     score: 421,
     numComments: 130,
     commentDepth: 3,
@@ -168,7 +169,8 @@ const SYNTH: {
     title: 'Cofounder wants to keep his day job, I went full-time. How do we split equity?',
     titleZh: '联创想保留正职、我已经全职。股权到底怎么分？',
     body: 'Same idea, very different risk. 50/50 feels wrong now but we agreed on it early. How did you handle this?',
-    bodyZh: '一样的点子、却是天差地别的风险。现在觉得 50/50 不对劲，可当初是说好的。你们当时怎么处理的？',
+    bodyZh:
+      '一样的点子、却是天差地别的风险。现在觉得 50/50 不对劲，可当初是说好的。你们当时怎么处理的？',
     score: 197,
     numComments: 88,
     commentDepth: 2,
@@ -223,7 +225,8 @@ const SYNTH: {
     title: 'Show HN: Self-hosted analytics that respects privacy by default',
     titleZh: 'Show HN：默认尊重隐私的自托管分析工具',
     body: 'No cookies, no fingerprinting, single binary. Built it because every alternative wanted to monetize my visitors. MIT licensed.',
-    bodyZh: '无 cookie、无指纹追踪、单文件部署。做它是因为每个替代品都盯着我访客的数据变现。MIT 许可。',
+    bodyZh:
+      '无 cookie、无指纹追踪、单文件部署。做它是因为每个替代品都盯着我访客的数据变现。MIT 许可。',
     score: 312,
     numComments: 95,
     commentDepth: 2,
@@ -233,13 +236,31 @@ const SYNTH: {
 /** 合成帖评论池（en + zh）。帖上只挂英文原文（不预置 bodyZh），译文由翻译环节经 ZH_DICT 恢复——与"默认不翻"一致。 */
 const SYNTH_COMMENTS: { en: string; zh: string }[] = [
   { en: 'This resonates — we hit the same wall.', zh: '深有同感——我们撞过同一堵墙。' },
-  { en: 'Have you tried talking to the ones who churned?', zh: '你试过去找那些已经流失的用户聊聊吗？' },
-  { en: 'Same here. Annual plans hid the problem for us too.', zh: '我们也一样。年付套餐把问题也给我们盖住了。' },
+  {
+    en: 'Have you tried talking to the ones who churned?',
+    zh: '你试过去找那些已经流失的用户聊聊吗？',
+  },
+  {
+    en: 'Same here. Annual plans hid the problem for us too.',
+    zh: '我们也一样。年付套餐把问题也给我们盖住了。',
+  },
   { en: 'Curious what your activation metric looks like.', zh: '挺好奇你们的激活指标长什么样。' },
-  { en: 'We fixed this with a weekly check-in email. Worked surprisingly well.', zh: '我们靠每周一封回访邮件解决了，效果出奇地好。' },
-  { en: 'Pricing is rarely the real issue — positioning usually is.', zh: '定价很少是真问题——通常是定位出了问题。' },
-  { en: 'Did the same last year. Best thing we ever shipped.', zh: '去年也这么干了，是我们做过最对的事。' },
-  { en: 'Counterpoint: this only works if your retention is already solid.', zh: '反方观点：这只有在你的留存本就扎实时才管用。' },
+  {
+    en: 'We fixed this with a weekly check-in email. Worked surprisingly well.',
+    zh: '我们靠每周一封回访邮件解决了，效果出奇地好。',
+  },
+  {
+    en: 'Pricing is rarely the real issue — positioning usually is.',
+    zh: '定价很少是真问题——通常是定位出了问题。',
+  },
+  {
+    en: 'Did the same last year. Best thing we ever shipped.',
+    zh: '去年也这么干了，是我们做过最对的事。',
+  },
+  {
+    en: 'Counterpoint: this only works if your retention is already solid.',
+    zh: '反方观点：这只有在你的留存本就扎实时才管用。',
+  },
 ];
 
 function synthPost(world: World, prefer: SourceKind[]): Post {
