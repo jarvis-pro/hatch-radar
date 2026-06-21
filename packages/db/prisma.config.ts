@@ -7,7 +7,10 @@
  */
 import { existsSync } from 'node:fs';
 import { defineConfig } from 'prisma/config';
-import { DEFAULT_DATABASE_URL } from '@hatch-radar/config';
+
+// 本地 dev 默认连接串：CLI 工具内联（避免为一个字符串把 kernel 的 logger 等运行时
+// 依赖拉进 prisma CLI 加载路径）；运行期权威默认在 @hatch-radar/kernel 的 DEFAULT_DATABASE_URL，二者对齐。
+const DEFAULT_DATABASE_URL = 'postgres://radar:radar@localhost:47432/hatch_radar';
 
 // CLI 场景（migrate / db pull / ...）prisma 不自动读 .env：手动加载工作区根 .env，
 // 使迁移用的 DATABASE_URL 与 api / worker 同源（脚本 CWD 为 packages/db，../../.env 即仓库根）。

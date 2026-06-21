@@ -2,25 +2,14 @@
   "name": "@hatch-radar/config",
   "version": "0.1.0",
   "private": true,
-  "description": "共享配置：运行时配置切片（连接串/端口默认值，零依赖）+ TypeScript 预设（base/nest）",
+  "description": "共享 TypeScript 预设（tsconfig base / nest），供各包与各 app 的 tsconfig extends。",
   "type": "module",
   "exports": {
-    ".": {
-      "types": "./src/index.ts",
-      "default": "./src/index.ts"
-    },
     "./tsconfig.base.json": "./tsconfig.base.json",
     "./tsconfig.nest.json": "./tsconfig.nest.json"
   },
   "files": [
-    "src",
     "tsconfig.base.json",
     "tsconfig.nest.json"
-  ],
-  "scripts": {
-    "typecheck": "tsc --noEmit"
-  },
-  "devDependencies": {
-    "typescript": "catalog:"
-  }
+  ]
 }

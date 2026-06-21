@@ -1,7 +1,13 @@
 import { z } from 'zod';
-import { DEFAULT_DATABASE_URL } from '@hatch-radar/config';
 
-/** HTTP 服务配置（env 推导）：api 用于监听端口，worker 用于推导默认网关地址。 */
+/**
+ * 默认 PostgreSQL 连接串（本地 docker-compose，主机映射端口 47432）：运行期 `DATABASE_URL`
+ * 缺省时的权威回退默认值。原属 `@hatch-radar/config`，单进程 + web 纯前端后只剩库层消费，
+ * 故下沉到 kernel（env 校验的归属地）。docker-compose / .env.example 的同串与此对齐。
+ */
+export const DEFAULT_DATABASE_URL = 'postgres://radar:radar@localhost:47432/hatch_radar';
+
+/** HTTP 服务配置（env 推导）：api 用于监听端口。 */
 export interface HttpConfig {
   /** 监听端口；绑定 0.0.0.0 供局域网内的移动端访问 */
   port: number;

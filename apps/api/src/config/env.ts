@@ -1,6 +1,11 @@
 import { z } from 'zod';
-import { DEFAULT_HTTP_PORT } from '@hatch-radar/config';
 import { baseEnvShape, parseEnv, stripEmptyEnv, type HttpConfig } from '@hatch-radar/kernel';
+
+/**
+ * HTTP 服务默认监听端口（47xxx 段避撞常见 dev 端口，…878 呼应旧 8787）。原属
+ * `@hatch-radar/config`，worker 退役后只剩 api 消费，故就近落在 api。
+ */
+const DEFAULT_HTTP_PORT = 47878;
 
 /**
  * api 进程 PG 连接池上限下界：服务 HTTP 处理 + 调度。单进程归一后还要喂内嵌执行器的
