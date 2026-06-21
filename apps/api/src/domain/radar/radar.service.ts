@@ -26,8 +26,11 @@ import {
   type PostLifecycleEvent,
   type ProcessDTO,
   type RadarCommentDTO,
+  type RadarFilterOptions,
   type RadarInsightDTO,
+  type RadarInsightDetailDTO,
   type RadarInsightFilter,
+  type RadarIntensity,
   type RadarLaneId,
   type RadarPostDTO,
   type RadarPostDetailDTO,
@@ -552,6 +555,7 @@ export class RadarService {
     const size = f.size && f.size > 0 ? f.size : PAGE_SIZE;
     const where: Record<string, unknown> = {};
     if (f.source) where.source = f.source;
+    if (f.subreddit) where.subreddit = f.subreddit;
     if (f.intensity) where.intensity = f.intensity.toUpperCase();
     if (f.q) where.post_title = { contains: f.q, mode: 'insensitive' };
     const total = await this.db.insights.count({ where });
@@ -584,6 +588,82 @@ export class RadarService {
     return { items, total, page, pageCount };
   }
 
+  /** 单条洞察详情（痛点 / 机会 / 人工研判全展开 + 译文标题 + 源帖是否仍在库）。 */
+  async insightDetail(id: number): Promise<RadarInsightDetailDTO | null> {
+    const r = await this.db.insights.findUnique({ where: { id } });
+    if (!r) return null;
+    const [triageRow, post, titleZhByPost] = await Promise.all([
+      this.db.triage.findUnique({ where: { insight_id: id } }),
+      this.db.posts.findUnique({ where: { id: r.post_id }, select: { id: true } }),
+      this.titleZhForPosts([r.post_id]),
+    ]);
+    const toIntensity = (v: unknown): RadarIntensity => {
+      const s = String(v).toLowerCase();
+      return s === 'high' || s === 'medium' ? s : 'low';
+    };
+    const painPoints = (Array.isArray(r.pain_points) ? r.pain_points : []).map((p) => {
+      const o = asRecord(p);
+      return {
+        description: typeof o.description === 'string' ? o.description : '',
+        evidence: typeof o.evidence === 'string' ? o.evidence : '',
+        intensity: toIntensity(o.intensity),
+      };
+    });
+    const opportunities = (Array.isArray(r.opportunities) ? r.opportunities : []).map((p) => {
+      const o = asRecord(p);
+      return {
+        title: typeof o.title === 'string' ? o.title : '',
+        description: typeof o.description === 'string' ? o.description : '',
+        targetUser: typeof o.target_user === 'string' ? o.target_user : '',
+      };
+    });
+    return {
+      id: r.id,
+      postId: r.post_id,
+      source: r.source,
+      channel: r.subreddit,
+      postTitle: r.post_title,
+      titleZh: titleZhByPost.get(r.post_id) ?? null,
+      permalink: r.permalink,
+      model: r.model,
+      intensity: toIntensity(r.intensity),
+      painPoints,
+      opportunities,
+      tags: asStrArr(r.tags),
+      triage: triageRow
+        ? {
+            status: triageRow.status,
+            rating: triageRow.rating,
+            tags: asStrArr(triageRow.tags),
+            note: triageRow.note,
+            updatedAt: Number(triageRow.updated_at),
+          }
+        : null,
+      postExists: post != null,
+      createdAt: Number(r.created_at),
+    };
+  }
+
+  /** 来源 / 版块去重清单（洞察口径，供洞察库筛选下拉 + 导出批次按钮）。 */
+  async filterOptions(): Promise<RadarFilterOptions> {
+    const [srcRows, subRows] = await Promise.all([
+      this.db.insights.findMany({
+        distinct: ['source'],
+        select: { source: true },
+        orderBy: { source: 'asc' },
+      }),
+      this.db.insights.findMany({
+        distinct: ['subreddit'],
+        select: { subreddit: true },
+        orderBy: { subreddit: 'asc' },
+      }),
+    ]);
+    return {
+      sources: srcRows.map((r) => r.source).filter((s): s is string => Boolean(s)),
+      subreddits: subRows.map((r) => r.subreddit).filter((s): s is string => Boolean(s)),
+    };
+  }
+
   // ─── 帖子库（分页） ─────────────────────────────────────────────────────────────
 
   async listPosts(f: RadarPostFilter): Promise<Paged<RadarPostDTO>> {
@@ -595,6 +675,7 @@ export class RadarService {
     const sweep = sweepAgg._max.sweep_seq ?? 0;
     const where: Record<string, unknown> = {};
     if (f.source) where.source = f.source;
+    if (f.subreddit) where.subreddit = f.subreddit;
     if (f.q) where.title = { contains: f.q, mode: 'insensitive' };
     if (f.status === 'new') where.last_rechecked_at = null;
     else if (f.status === 'quiet') where.recheck_misses = { gt: 0 };

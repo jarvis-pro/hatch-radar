@@ -143,6 +143,45 @@ describe('RadarService（读 / 聚合 / CRUD）', () => {
     expect(none.total).toBe(0);
   });
 
+  it('insightDetail：痛点/机会/研判全展开 + intensity 小写 + postExists', async () => {
+    await seedPost();
+    await seedInsight();
+    const id = (await svc.listInsights({ page: 1, size: 1 })).items[0].id;
+    const d = await svc.insightDetail(id);
+    expect(d).not.toBeNull();
+    expect(d!.intensity).toBe('high');
+    expect(d!.painPoints[0]).toMatchObject({ description: '月流失 8%', intensity: 'high' });
+    expect(d!.opportunities).toHaveLength(2);
+    expect(d!.opportunities[0].title).toBe('留存工具');
+    expect(d!.tags).toEqual(['churn', 'retention']);
+    expect(d!.model).toBe('model-x');
+    expect(d!.postExists).toBe(true);
+    expect(d!.triage).toBeNull();
+    // 带研判时映射出 status/rating/tags/note
+    await db.triage.create({
+      data: {
+        insight_id: id,
+        status: 'shortlisted',
+        rating: 4,
+        tags: ['hot'],
+        note: '看好',
+        updated_at: BigInt(nowSec()),
+      },
+    });
+    const d2 = await svc.insightDetail(id);
+    expect(d2!.triage).toMatchObject({ status: 'shortlisted', rating: 4, tags: ['hot'], note: '看好' });
+    // 不存在 → null
+    expect(await svc.insightDetail(999999)).toBeNull();
+  });
+
+  it('filterOptions：洞察去重的来源 / 版块清单', async () => {
+    await seedPost();
+    await seedInsight();
+    const opts = await svc.filterOptions();
+    expect(opts.sources).toContain('reddit');
+    expect(opts.subreddits).toContain('SaaS');
+  });
+
   it('listPosts：分页 + 字段映射', async () => {
     await seedPost();
     const page = await svc.listPosts({ page: 1, size: 10 });

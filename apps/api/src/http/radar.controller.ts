@@ -227,13 +227,25 @@ export class RadarController {
     return res;
   }
 
+  // 浏览端点（洞察 / 帖子库）本质是数据浏览，方法级能力闸覆盖类级 pipeline:run，
+  // 让仅有 insights:view / posts:view 的研判员也能查（写操作仍在各自 controller 收口）。
+
+  /** 来源 / 版块去重清单（洞察库筛选 + 导出批次共用）。须先于 insights/:id 声明。 */
+  @Get('insights/filters')
+  @RequirePermission('insights:view')
+  insightFilters() {
+    return this.radar.filterOptions();
+  }
+
   @Get('insights')
+  @RequirePermission('insights:view')
   insights(@Query() q: Record<string, string>) {
     const intensity = INTENSITIES.includes(q.intensity as RadarIntensity)
       ? (q.intensity as RadarIntensity)
       : undefined;
     return this.radar.listInsights({
       source: q.source || undefined,
+      subreddit: q.subreddit || undefined,
       intensity,
       q: q.q || undefined,
       sort: q.sort === 'pain' ? 'pain' : 'time',
@@ -242,12 +254,22 @@ export class RadarController {
     });
   }
 
+  @Get('insights/:id')
+  @RequirePermission('insights:view')
+  async insightDetail(@Param('id', ParseIntPipe) id: number) {
+    const res = await this.radar.insightDetail(id);
+    if (!res) throw new NotFoundException('洞察不存在');
+    return res;
+  }
+
   @Get('posts')
+  @RequirePermission('posts:view')
   posts(@Query() q: Record<string, string>) {
     const status =
       q.status === 'due' || q.status === 'quiet' || q.status === 'new' ? q.status : undefined;
     return this.radar.listPosts({
       source: q.source || undefined,
+      subreddit: q.subreddit || undefined,
       status,
       q: q.q || undefined,
       page: q.page ? Number(q.page) : undefined,
@@ -256,6 +278,7 @@ export class RadarController {
   }
 
   @Get('posts/:id')
+  @RequirePermission('posts:view')
   async postDetail(@Param('id') id: string) {
     const res = await this.radar.postDetail(id);
     if (!res) throw new NotFoundException('帖子不存在');

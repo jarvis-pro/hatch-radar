@@ -163,6 +163,57 @@ export interface RadarInsightDTO {
   createdAt: number;
 }
 
+/** 洞察详情里的痛点（radar 口径：小写强度）。 */
+export interface RadarPainPoint {
+  description: string;
+  /** 原文引用片段（保留原语言）。 */
+  evidence: string;
+  intensity: RadarIntensity;
+}
+
+/** 洞察详情里的产品机会。 */
+export interface RadarOpportunity {
+  title: string;
+  description: string;
+  targetUser: string;
+}
+
+/** 人工研判（移动端同步落库）。 */
+export interface RadarTriage {
+  status: 'pending' | 'shortlisted' | 'archived';
+  rating: number | null;
+  tags: string[];
+  note: string;
+  updatedAt: number;
+}
+
+/** 单条洞察详情（GET /api/radar/insights/:id）—— 痛点 / 机会 / 研判全展开。 */
+export interface RadarInsightDetailDTO {
+  id: number;
+  postId: string;
+  source: RadarSourceKind | string;
+  channel: string;
+  postTitle: string;
+  titleZh: string | null;
+  permalink: string | null;
+  model: string;
+  intensity: RadarIntensity;
+  painPoints: RadarPainPoint[];
+  opportunities: RadarOpportunity[];
+  tags: string[];
+  /** 人工研判；从未研判则 null。 */
+  triage: RadarTriage | null;
+  /** 源帖是否仍在库（可下钻「帖子一生」）。 */
+  postExists: boolean;
+  createdAt: number;
+}
+
+/** 来源 / 版块去重清单（筛选下拉 + 导出批次共用）。 */
+export interface RadarFilterOptions {
+  sources: string[];
+  subreddits: string[];
+}
+
 /** 帖子库行 / 详情头。 */
 export interface RadarPostDTO {
   id: string;
@@ -231,6 +282,7 @@ export interface ControlRoomDTO {
 /** 收成洞察筛选 / 排序。 */
 export interface RadarInsightFilter {
   source?: string;
+  subreddit?: string;
   intensity?: RadarIntensity;
   processId?: number;
   q?: string;
@@ -242,6 +294,7 @@ export interface RadarInsightFilter {
 /** 帖子库筛选。 */
 export interface RadarPostFilter {
   source?: string;
+  subreddit?: string;
   /** 复查状态：due=到期可查 / quiet=退避中 / new=未复查过。 */
   status?: 'due' | 'quiet' | 'new';
   q?: string;
