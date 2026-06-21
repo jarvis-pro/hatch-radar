@@ -1,4 +1,4 @@
-import type { Intensity, TriageStatus } from '@hatch-radar/shared';
+import type { TriageStatus } from '@hatch-radar/shared';
 
 /** Unix 秒 → 'YYYY-MM-DD HH:mm'（浏览器本地时区） */
 export function fmtDate(unixSec: number): string {
@@ -53,36 +53,12 @@ export function permalinkUrl(permalink: string): string {
   return permalink.startsWith('http') ? permalink : `https://reddit.com${permalink}`;
 }
 
-const SOURCE_LABELS: Record<string, string> = {
-  reddit: 'Reddit',
-  hackernews: 'Hacker News',
-  rss: 'RSS',
-};
-
-/** 来源标识 → 展示名（未知来源原样返回） */
-export function sourceLabel(source: string): string {
-  return SOURCE_LABELS[source] ?? source;
-}
-
-/** 强度等级 → 中文展示名 */
-export const INTENSITY_LABELS: Record<Intensity, string> = {
-  HIGH: '高',
-  MEDIUM: '中',
-  LOW: '低',
-};
-
 /** 研判状态 → 中文展示名 */
 export const TRIAGE_STATUS_LABELS: Record<TriageStatus, string> = {
   pending: '待研判',
   shortlisted: '已入选',
   archived: '已归档',
 };
-
-/** 解析查询串中的强度筛选；非法值视为未筛选 */
-export function parseIntensity(value: string | undefined | null): Intensity | undefined {
-  const upper = value?.toUpperCase();
-  return upper === 'HIGH' || upper === 'MEDIUM' || upper === 'LOW' ? upper : undefined;
-}
 
 /** 解析查询串中的页码；非法值回退第 1 页 */
 export function parsePage(value: string | undefined | null): number {
