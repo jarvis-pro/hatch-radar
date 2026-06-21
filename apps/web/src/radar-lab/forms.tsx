@@ -67,12 +67,20 @@ const SOURCE_FORM: Record<
 };
 
 const pad2 = (n: number): string => String(n).padStart(2, '0');
-const secToHHMM = (s: number): string =>
-  `${pad2(Math.floor(s / 3600))}:${pad2(Math.floor((s % 3600) / 60))}`;
-const hhmmToSec = (v: string): number => {
-  const [h, m] = v.split(':').map((x) => Number(x) || 0);
-  return h * 3600 + m * 60;
-};
+
+type IntervalUnit = 'sec' | 'min' | 'hour';
+const UNIT_SEC: Record<IntervalUnit, number> = { sec: 1, min: 60, hour: 3600 };
+const INTERVAL_UNITS: { value: IntervalUnit; label: string }[] = [
+  { value: 'sec', label: '秒' },
+  { value: 'min', label: '分钟' },
+  { value: 'hour', label: '小时' },
+];
+/** 把 everySec 拆成最自然的「值 + 单位」（能整除优先 时 > 分 > 秒）——避免秒级间隔被时间输入取整丢失。 */
+function splitInterval(everySec: number): { value: number; unit: IntervalUnit } {
+  if (everySec > 0 && everySec % 3600 === 0) return { value: everySec / 3600, unit: 'hour' };
+  if (everySec > 0 && everySec % 60 === 0) return { value: everySec / 60, unit: 'min' };
+  return { value: everySec, unit: 'sec' };
+}
 const cronTimeOf = (expr: string): string => {
   const m = /(\d{1,2}):(\d{2})/.exec(expr);
   return m ? `${pad2(Number(m[1]))}:${m[2]}` : '09:00';
@@ -443,9 +451,11 @@ function ProcessBody({
   const blueprint = blueprints.find((b) => b.id === blueprintId);
   const [label, setLabel] = useState(editing?.label ?? '');
   const [tk, setTk] = useState<TriggerKind>(editing?.trigger.kind ?? 'interval');
-  const [intervalTime, setIntervalTime] = useState(
-    secToHHMM(editing?.trigger.kind === 'interval' ? editing.trigger.everySec : 1800),
+  const initInterval = splitInterval(
+    editing?.trigger.kind === 'interval' ? editing.trigger.everySec : 1800,
   );
+  const [intervalValue, setIntervalValue] = useState(initInterval.value);
+  const [intervalUnit, setIntervalUnit] = useState<IntervalUnit>(initInterval.unit);
   const [cronTime, setCronTime] = useState(
     editing?.trigger.kind === 'cron' ? cronTimeOf(editing.trigger.expr) : '09:00',
   );
@@ -453,7 +463,10 @@ function ProcessBody({
   function buildTrigger(): TriggerConfig {
     if (tk === 'once') return { kind: 'once' };
     if (tk === 'cron') return { kind: 'cron', expr: `每天 ${cronTime || '09:00'}` };
-    return { kind: 'interval', everySec: Math.max(30, hhmmToSec(intervalTime)) };
+    return {
+      kind: 'interval',
+      everySec: Math.max(5, Math.round(intervalValue) * UNIT_SEC[intervalUnit]),
+    };
   }
 
   function submit(): void {
@@ -545,15 +558,33 @@ function ProcessBody({
                   <div className="flex items-center gap-2">
                     <span className="text-muted-foreground">每隔</span>
                     <Input
-                      type="time"
-                      value={intervalTime}
-                      onChange={(ev) => setIntervalTime(ev.target.value)}
-                      className="w-32 dark:[&::-webkit-calendar-picker-indicator]:invert"
+                      type="number"
+                      min={1}
+                      value={intervalValue}
+                      onChange={(ev) =>
+                        setIntervalValue(Math.max(1, Math.round(ev.target.valueAsNumber || 0)))
+                      }
+                      className="w-20"
                     />
+                    <Select
+                      value={intervalUnit}
+                      onValueChange={(v) => setIntervalUnit(v as IntervalUnit)}
+                    >
+                      <SelectTrigger className="w-24">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {INTERVAL_UNITS.map((u) => (
+                          <SelectItem key={u.value} value={u.value}>
+                            {u.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <span className="text-muted-foreground">跑一次</span>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    上一轮跑完冷却后再开下一轮，结构上不堆积。
+                    上一轮跑完冷却后再开下一轮，结构上不堆积；支持秒级（演示用）。
                   </p>
                 </div>
               ) : (
