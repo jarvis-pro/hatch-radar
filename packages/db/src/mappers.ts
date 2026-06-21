@@ -32,6 +32,8 @@ import type {
   TriagePgRow,
   BlueprintPg,
   BlueprintRow,
+  ProcessPg,
+  ProcessRow,
   RunPg,
   RunRow,
   TaskPg,
@@ -73,6 +75,17 @@ export function toCommentRow(m: CommentPg): CommentRow {
 /** Prisma blueprints 行 → 域 BlueprintRow（时间戳 bigint→number） */
 export function toBlueprintRow(m: BlueprintPg): BlueprintRow {
   return { ...m, created_at: n(m.created_at), updated_at: n(m.updated_at) };
+}
+
+/** Prisma processes 行 → 域 ProcessRow（last_run_at / next_run_at / 时间戳 bigint→number） */
+export function toProcessRow(m: ProcessPg): ProcessRow {
+  return {
+    ...m,
+    last_run_at: nOpt(m.last_run_at),
+    next_run_at: nOpt(m.next_run_at),
+    created_at: n(m.created_at),
+    updated_at: n(m.updated_at),
+  };
 }
 
 /** Prisma runs 行 → 域 RunRow（started_at / finished_at bigint→number） */

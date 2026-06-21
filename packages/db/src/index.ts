@@ -15,6 +15,7 @@ export * from './repositories/device-enrollments.repository';
 export * from './repositories/insights.repository';
 // 图纸驱动生命周期仓储（新执行模型）
 export * from './repositories/blueprints.repository';
+export * from './repositories/processes.repository';
 export * from './repositories/runs.repository';
 export * from './repositories/tasks.repository';
 export * from './repositories/task-stages.repository';

@@ -22,32 +22,68 @@ datasource db {
 // 所有引用（run_id / parent_task_id / post_id / task_id / owner_*）均软引用、未建外键（沿用全库约定）。
 // ─────────────────────────────────────────────────────────────────────────
 
-/// 图纸：一类可复用、可调度的流程定义（采集 / 复查 / 归档 / 分析）。代码常量仅作首启种子，运行期以本表为准。
+/// 图纸：一类可复用的流程**纯配方**（采集 / 复查 / 归档 / 分析）——只描述「抓哪些源、走哪些环节、哪些环节挂暂停点」，
+/// **不含触发节奏**（节奏在 processes）。代码常量仅作首启种子，运行期以本表为准。
 model blueprints {
   id             Int     @id @default(autoincrement())
   /// 流程类型：collect=采集 / recheck=复查 / maintenance=归档清理 / analyze=分析补扫（自动分析一般由事件派生，不必建图纸）。
   kind           String
   /// 展示名。
   label          String
-  /// 是否启用（停用则调度器不触发；单次触发不受此限）。
+  /// 备注（可空）。
+  note           String?
+  /// 是否启用（停用作软开关；触发节奏由 processes 控制）。
   enabled        Boolean @default(true)
-  /// 触发方式：once=单次（仅 API 触发）/ cron=定时（墙钟点位）/ interval=间隔（上轮完成后再等一段）。
-  trigger_kind   String
-  /// 触发配置(JSON)：cron 表达式 | interval 的 sweep 行为 / batch_size / batch_interval 等。
-  trigger_config Json?
-  /// 业务参数(JSON)：采集=来源筛选 / sorts / limit / 翻页停止 K / 评论预算；复查=batch_size / batch_interval / backoff_cap 等。
+  /// 来源筛选(JSON)：[{kind:'reddit'|'hackernews'|'rss', channels:string[]}]。配方级筛选，与采集计划表 sources 不同概念，故内联不联表。
+  sources        Json    @default("[]")
+  /// 业务参数(JSON)：采集=limit / 翻页停止 K / 评论预算；复查=batch_size / batch_interval / backoff_cap 等。
   params         Json?
+  /// 暂停点(JSON)：复合键字符串数组 `kind:stage`（如 "collect:fetch_comments"）；运行到该环节即置 paused 等放行。
+  gates          Json    @default("[]")
+  /// 已启用的可选环节(JSON)：复合键字符串数组（如 "collect:translate"）；未列出的 optional 环节不生成。
+  enabled_stages Json    @default("[]")
   created_at     BigInt
   updated_at     BigInt
 
   @@index([kind, enabled], map: "idx_blueprints_kind")
 }
 
-/// 进程：图纸的一次执行实例。承载状态、计数、起止时间、（复查的）sweep 序号。
+/// 进程：图纸 + 触发节奏的长驻绑定。调度器据 status + next_run_at 决定何时开 run（取代旧 4 个硬编码 @Cron）。
+/// 图纸是纯配方（无节奏），进程给它配上 once/interval/cron 触发与启停；同一图纸可挂多个不同节奏的进程。
+model processes {
+  id             Int     @id @default(autoincrement())
+  /// 绑定的图纸（blueprints.id 软引用）。
+  blueprint_id   Int
+  /// 展示名。
+  label          String
+  /// 触发方式：once=单次（仅手动）/ interval=间隔（上轮完成后再等 everySec）/ cron=定时（墙钟点位）。
+  trigger_kind   String
+  /// 触发配置(JSON)：interval={everySec} | cron={expr}；once 为空。
+  trigger_config Json?
+  /// 进程状态：active=随调度自动触发 / paused=暂停（next_run_at 置空、不再自动开 run）。
+  status         String  @default("active")
+  /// 复查 sweep 计数（每开一次 recheck run 自增，驱动退避到期判定）；采集进程恒 0。
+  sweep_seq      Int     @default(0)
+  /// 累计触发的 run 数。
+  runs_total     Int     @default(0)
+  /// 最近一次触发时间（epoch 秒）。
+  last_run_at    BigInt?
+  /// 下次到期触发时刻（epoch 秒）；null=不再自动触发（once 已触发 / paused）。
+  next_run_at    BigInt?
+  created_at     BigInt
+  updated_at     BigInt
+
+  @@index([status, next_run_at], map: "idx_processes_due")
+  @@index([blueprint_id], map: "idx_processes_blueprint")
+}
+
+/// 运行：进程触发的一次执行实例（旧称「进程」；现长驻进程层已独立为 processes 表）。承载状态、计数、起止时间、（复查的）sweep 序号。
 model runs {
   id             Int     @id @default(autoincrement())
   /// 所属图纸（blueprints.id 软引用）。
   blueprint_id   Int
+  /// 触发它的进程（processes.id 软引用）；analyze / translate / inspect 等事件派生 run 为空。
+  process_id     Int?
   /// 冗余 kind，免联表。
   kind           String
   /// 进程状态：running | paused | completed | failed | canceled。
@@ -68,15 +104,18 @@ model runs {
   finished_at    BigInt?
 
   @@index([blueprint_id, started_at], map: "idx_runs_blueprint")
+  @@index([process_id, started_at], map: "idx_runs_process")
   @@index([status], map: "idx_runs_status")
 }
 
-/// 任务：进程派生的工作单元，绝大多数 = 一条帖子，泛化到所有 kind。
+/// 任务：运行派生的工作单元，绝大多数 = 一条帖子，泛化到所有 kind。
 /// 认领用 FOR UPDATE SKIP LOCKED（多 worker 不重不漏）；心跳 + max_attempts + 僵死回收防卡死。
 model tasks {
   id             Int     @id @default(autoincrement())
-  /// 所属进程（runs.id 软引用）。
+  /// 所属运行（runs.id 软引用）。
   run_id         Int
+  /// 所属进程（processes.id 软引用，反范式自 run.process_id 省联表）；事件派生 run 的任务可空。
+  process_id     Int?
   /// 任务类型：discover=发现去重派生 / collect=抓新帖 / recheck=复查 / analyze=AI 分析 / translate=翻译。
   kind           String
   /// 血缘：派生它的父任务（discover→collect→analyze）；根任务为空。供树形展示与级联。

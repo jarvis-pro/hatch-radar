@@ -91,6 +91,15 @@ export class TaskStagesRepository {
     await this.db.task_stages.updateMany({ where: { task_id: taskId }, data: { gate: false } });
   }
 
+  /** 运行前挂 / 摘某环节暂停点：仅 pending 环节可改（已跑过的不可改）；返回是否生效。 */
+  async setStageGate(taskId: number, seq: number, gate: boolean): Promise<boolean> {
+    const res = await this.db.task_stages.updateMany({
+      where: { task_id: taskId, seq, status: 'pending' },
+      data: { gate },
+    });
+    return res.count > 0;
+  }
+
   /**
    * 重试复位：把失败环节退回 pending、清空产物 / 错误 / 时间戳，使重认领后从此环节重跑。
    * 调用方须随后把整条任务由 failed 置回 queued（见 {@link TasksRepository.requeueFailedTask}）。

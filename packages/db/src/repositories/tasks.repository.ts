@@ -19,8 +19,10 @@ export interface TaskUsage {
 
 /** 新建任务入参（环节另由 stageDefs 给出） */
 export interface NewTaskInput {
-  /** 所属进程 */
+  /** 所属运行 */
   runId: number;
+  /** 所属进程（反范式自 run.process_id；事件派生 run 可空） */
+  processId?: number | null;
   /** 任务类型：discover | collect | recheck | analyze | translate */
   kind: string;
   /** 派生它的父任务（血缘）；根任务为空 */
@@ -74,6 +76,7 @@ export class TasksRepository {
       const task = await tx.tasks.create({
         data: {
           run_id: input.runId,
+          process_id: input.processId ?? null,
           kind: input.kind,
           parent_task_id: input.parentTaskId ?? null,
           post_id: input.postId ?? null,
@@ -301,6 +304,28 @@ export class TasksRepository {
   async listByRun(runId: number): Promise<TaskRow[]> {
     const rows = await this.db.tasks.findMany({ where: { run_id: runId }, orderBy: { id: 'asc' } });
     return rows.map((r: TaskPg) => toTaskRow(r));
+  }
+
+  /**
+   * 某运行的任务状态计数：total / active(queued+running+paused) / failed，
+   * 供心跳判断运行是否全部终结（active===0 且 total>0 即可收尾）。
+   */
+  async countByRun(runId: number): Promise<{ total: number; active: number; failed: number }> {
+    const rows = await this.db.tasks.groupBy({
+      by: ['status'],
+      where: { run_id: runId },
+      _count: { _all: true },
+    });
+    let total = 0;
+    let active = 0;
+    let failed = 0;
+    for (const r of rows) {
+      const c = r._count._all;
+      total += c;
+      if (r.status === 'queued' || r.status === 'running' || r.status === 'paused') active += c;
+      if (r.status === 'failed') failed += c;
+    }
+    return { total, active, failed };
   }
 
   /** 同帖同 kind 是否有活跃任务（queued/running/paused）。供翻译等去重 / 状态展示。 */

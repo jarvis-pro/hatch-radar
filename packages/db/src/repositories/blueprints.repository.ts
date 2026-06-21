@@ -8,32 +8,38 @@ import {
 
 export type { BlueprintRow };
 
-/** 新建图纸入参 */
+/** 新建图纸入参（纯配方：来源 / 参数 / 暂停点 / 可选环节；触发节奏在 processes） */
 export interface NewBlueprintInput {
   /** collect | recheck | maintenance | analyze */
   kind: string;
   label: string;
+  /** 备注 */
+  note?: string | null;
   enabled?: boolean;
-  /** once | cron | interval */
-  triggerKind: string;
-  /** cron 表达式 / interval 行为 / batch_* 等（JSON） */
-  triggerConfig?: unknown;
+  /** 来源筛选：[{kind,channels[]}]（JSON） */
+  sources?: unknown;
   /** 业务参数（JSON） */
   params?: unknown;
+  /** 暂停点复合键数组 kind:stage（JSON） */
+  gates?: unknown;
+  /** 已启用的可选环节复合键数组（JSON） */
+  enabledStages?: unknown;
 }
 
 /** 更新图纸入参（均可选，未给的字段不动） */
 export interface UpdateBlueprintInput {
   label?: string;
+  note?: string | null;
   enabled?: boolean;
-  triggerKind?: string;
-  triggerConfig?: unknown;
+  sources?: unknown;
   params?: unknown;
+  gates?: unknown;
+  enabledStages?: unknown;
 }
 
 /**
- * 图纸（blueprints）数据访问。图纸是可复用、可调度的流程定义；代码常量仅作首启种子，运行期以本表为准。
- * 调度器从 {@link listSchedulable} 读 enabled 且 cron/interval 的图纸去触发进程。
+ * 图纸（blueprints）数据访问。图纸是可复用的流程**纯配方**（来源 + 环节 + 暂停点），不含触发节奏；
+ * 节奏由 processes 承载。代码常量仅作首启种子，运行期以本表为准。
  */
 export class BlueprintsRepository {
   constructor(private readonly db: AppDatabase) {}
@@ -43,13 +49,14 @@ export class BlueprintsRepository {
       data: {
         kind: input.kind,
         label: input.label,
+        note: input.note ?? null,
         enabled: input.enabled ?? true,
-        trigger_kind: input.triggerKind,
-        trigger_config:
-          input.triggerConfig == null
-            ? Prisma.JsonNull
-            : (input.triggerConfig as Prisma.InputJsonValue),
+        // sources / gates / enabled_stages 为 NOT NULL JSON（默认 []）：未给时传 undefined 走 DB 默认，勿用 JsonNull
+        sources: input.sources == null ? undefined : (input.sources as Prisma.InputJsonValue),
         params: input.params == null ? Prisma.JsonNull : (input.params as Prisma.InputJsonValue),
+        gates: input.gates == null ? undefined : (input.gates as Prisma.InputJsonValue),
+        enabled_stages:
+          input.enabledStages == null ? undefined : (input.enabledStages as Prisma.InputJsonValue),
         created_at: BigInt(now),
         updated_at: BigInt(now),
       },
@@ -71,29 +78,19 @@ export class BlueprintsRepository {
     return rows.map((r: BlueprintPg) => toBlueprintRow(r));
   }
 
-  /** 列出启用且可调度（cron / interval）的图纸——供 BlueprintScheduler 轮询触发。 */
-  async listSchedulable(): Promise<BlueprintRow[]> {
-    const rows = await this.db.blueprints.findMany({
-      where: { enabled: true, trigger_kind: { in: ['cron', 'interval'] } },
-      orderBy: { id: 'asc' },
-    });
-    return rows.map((r: BlueprintPg) => toBlueprintRow(r));
-  }
-
   async updateBlueprint(id: number, patch: UpdateBlueprintInput, now: number): Promise<void> {
     const data: Prisma.blueprintsUpdateInput = { updated_at: BigInt(now) };
     if (patch.label !== undefined) data.label = patch.label;
+    if (patch.note !== undefined) data.note = patch.note;
     if (patch.enabled !== undefined) data.enabled = patch.enabled;
-    if (patch.triggerKind !== undefined) data.trigger_kind = patch.triggerKind;
-    if (patch.triggerConfig !== undefined) {
-      data.trigger_config =
-        patch.triggerConfig == null
-          ? Prisma.JsonNull
-          : (patch.triggerConfig as Prisma.InputJsonValue);
-    }
+    if (patch.sources !== undefined) data.sources = patch.sources as Prisma.InputJsonValue;
     if (patch.params !== undefined) {
       data.params =
         patch.params == null ? Prisma.JsonNull : (patch.params as Prisma.InputJsonValue);
+    }
+    if (patch.gates !== undefined) data.gates = patch.gates as Prisma.InputJsonValue;
+    if (patch.enabledStages !== undefined) {
+      data.enabled_stages = patch.enabledStages as Prisma.InputJsonValue;
     }
     await this.db.blueprints.update({ where: { id }, data });
   }

@@ -21,6 +21,7 @@ import type {
   translationsModel,
   triageModel,
   blueprintsModel,
+  processesModel,
   runsModel,
   tasksModel,
   task_stagesModel,
@@ -52,6 +53,7 @@ export type SourcePg = sourcesModel;
 export type SourceConnectorPg = source_connectorsModel;
 export type TranslationPg = translationsModel;
 export type BlueprintPg = blueprintsModel;
+export type ProcessPg = processesModel;
 export type RunPg = runsModel;
 export type TaskPg = tasksModel;
 export type TaskStagePg = task_stagesModel;
@@ -73,9 +75,11 @@ export type AppSettingRow = app_settingsModel;
 export type TranslationRow = BigIntToNumber<translationsModel>;
 
 // ─── 图纸驱动生命周期行类型（status/kind 为字符串常量；时间戳 bigint→number；详见 schema） ───
-/** blueprints 行（trigger_config / params 为 JsonValue；时间戳为 number） */
+/** blueprints 行（sources / params / gates / enabled_stages 为 JsonValue；时间戳为 number） */
 export type BlueprintRow = BigIntToNumber<blueprintsModel>;
-/** runs 行（params 为 JsonValue；sweep_seq 可空；时间戳为 number） */
+/** processes 行（trigger_config 为 JsonValue；last_run_at / next_run_at / 时间戳为 number|null） */
+export type ProcessRow = BigIntToNumber<processesModel>;
+/** runs 行（params 为 JsonValue；process_id / sweep_seq 可空；时间戳为 number） */
 export type RunRow = BigIntToNumber<runsModel>;
 /** tasks 行（status / kind 为字符串；params 为 JsonValue；usage / 时间戳为 number|null） */
 export type TaskRow = BigIntToNumber<tasksModel>;

@@ -42,10 +42,12 @@ CREATE TABLE "blueprints" (
     "id" SERIAL NOT NULL,
     "kind" TEXT NOT NULL,
     "label" TEXT NOT NULL,
+    "note" TEXT,
     "enabled" BOOLEAN NOT NULL DEFAULT true,
-    "trigger_kind" TEXT NOT NULL,
-    "trigger_config" JSONB,
+    "sources" JSONB NOT NULL DEFAULT '[]',
     "params" JSONB,
+    "gates" JSONB NOT NULL DEFAULT '[]',
+    "enabled_stages" JSONB NOT NULL DEFAULT '[]',
     "created_at" BIGINT NOT NULL,
     "updated_at" BIGINT NOT NULL,
 
@@ -53,9 +55,28 @@ CREATE TABLE "blueprints" (
 );
 
 -- CreateTable
+CREATE TABLE "processes" (
+    "id" SERIAL NOT NULL,
+    "blueprint_id" INTEGER NOT NULL,
+    "label" TEXT NOT NULL,
+    "trigger_kind" TEXT NOT NULL,
+    "trigger_config" JSONB,
+    "status" TEXT NOT NULL DEFAULT 'active',
+    "sweep_seq" INTEGER NOT NULL DEFAULT 0,
+    "runs_total" INTEGER NOT NULL DEFAULT 0,
+    "last_run_at" BIGINT,
+    "next_run_at" BIGINT,
+    "created_at" BIGINT NOT NULL,
+    "updated_at" BIGINT NOT NULL,
+
+    CONSTRAINT "processes_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "runs" (
     "id" SERIAL NOT NULL,
     "blueprint_id" INTEGER NOT NULL,
+    "process_id" INTEGER,
     "kind" TEXT NOT NULL,
     "status" TEXT NOT NULL DEFAULT 'running',
     "trigger_source" TEXT NOT NULL,
@@ -76,6 +97,7 @@ CREATE TABLE "runs" (
 CREATE TABLE "tasks" (
     "id" SERIAL NOT NULL,
     "run_id" INTEGER NOT NULL,
+    "process_id" INTEGER,
     "kind" TEXT NOT NULL,
     "parent_task_id" INTEGER,
     "post_id" TEXT,
@@ -436,7 +458,16 @@ CREATE TABLE "login_attempts" (
 CREATE INDEX "idx_blueprints_kind" ON "blueprints"("kind", "enabled");
 
 -- CreateIndex
+CREATE INDEX "idx_processes_due" ON "processes"("status", "next_run_at");
+
+-- CreateIndex
+CREATE INDEX "idx_processes_blueprint" ON "processes"("blueprint_id");
+
+-- CreateIndex
 CREATE INDEX "idx_runs_blueprint" ON "runs"("blueprint_id", "started_at");
+
+-- CreateIndex
+CREATE INDEX "idx_runs_process" ON "runs"("process_id", "started_at");
 
 -- CreateIndex
 CREATE INDEX "idx_runs_status" ON "runs"("status");
@@ -551,7 +582,6 @@ ALTER TABLE "device_credentials" ADD CONSTRAINT "device_credentials_user_id_fkey
 
 -- AddForeignKey
 ALTER TABLE "device_enrollments" ADD CONSTRAINT "device_enrollments_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
 
 -- ─── 以下为 Prisma schema 无法表达、历来手工维护的对象（归一化时保留）─────────────────────
 

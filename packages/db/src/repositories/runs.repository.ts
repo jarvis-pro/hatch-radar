@@ -13,6 +13,8 @@ export interface RunCounters {
 /** 开进程入参 */
 export interface NewRunInput {
   blueprintId: number;
+  /** 触发它的进程（processes.id）；事件派生 run（analyze/translate/inspect）为空 */
+  processId?: number | null;
   kind: string;
   /** manual | cron | interval */
   triggerSource: string;
@@ -33,6 +35,7 @@ export class RunsRepository {
     const row = await this.db.runs.create({
       data: {
         blueprint_id: input.blueprintId,
+        process_id: input.processId ?? null,
         kind: input.kind,
         status: 'running',
         trigger_source: input.triggerSource,
@@ -88,6 +91,24 @@ export class RunsRepository {
   /** 列出全部图纸最近的进程（id 倒序），供「进程」总览页。 */
   async listAllRecent(limit: number): Promise<RunRow[]> {
     const rows = await this.db.runs.findMany({ orderBy: { id: 'desc' }, take: limit });
+    return rows.map((r: RunPg) => toRunRow(r));
+  }
+
+  /** 某进程是否有进行中的运行（running）——调度器据此「按进程非重入」。 */
+  async hasRunningRunForProcess(processId: number): Promise<boolean> {
+    const row = await this.db.runs.findFirst({
+      where: { process_id: processId, status: 'running' },
+      select: { id: true },
+    });
+    return row != null;
+  }
+
+  /** 列出所有进行中的运行（status=running），供心跳逐个判断是否终结。 */
+  async listRunningRuns(): Promise<RunRow[]> {
+    const rows = await this.db.runs.findMany({
+      where: { status: 'running' },
+      orderBy: { id: 'asc' },
+    });
     return rows.map((r: RunPg) => toRunRow(r));
   }
 
