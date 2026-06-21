@@ -1,3 +1,4 @@
+import { Injectable } from '@nestjs/common';
 import { logger } from '@/lib/kernel';
 import { BlueprintsSeeder } from './blueprints.seeder';
 import { ProcessesSeeder } from './processes.seeder';
@@ -14,6 +15,7 @@ import { SuperAdminSeeder } from './super-admin.seeder';
  * 由 app 侧启动钩子调用（NestJS：onApplicationBootstrap），并保证早于 scheduler 初始轮。
  * 直接构造注入三个 Seeder（不走 Angular 式 multi-provider 工厂 / SEEDERS 令牌）。
  */
+@Injectable()
 export class SeedRunner {
   constructor(
     private readonly sourcesSeeder: SourcesSeeder,

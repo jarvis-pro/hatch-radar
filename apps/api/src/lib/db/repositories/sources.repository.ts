@@ -1,3 +1,5 @@
+import { Inject, Injectable } from '@nestjs/common';
+import { PRISMA } from '@/common/tokens';
 import { Prisma, toSourceRow, type AppDatabase, type SourceRow } from '../internal';
 
 /** 数据来源平台 */
@@ -18,8 +20,9 @@ export interface SourceInput {
  * 采集来源（「爬虫计划」）数据访问。一行 = 一个要轮询的来源；enabled 即后台勾选。
  * 调度器每轮按平台查 enabled 来源，不再读硬编码常量。
  */
+@Injectable()
 export class SourcesRepository {
-  constructor(private readonly db: AppDatabase) {}
+  constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
 
   /** 列出全部来源（按平台、id 排序） */
   async listSources(): Promise<SourceRow[]> {

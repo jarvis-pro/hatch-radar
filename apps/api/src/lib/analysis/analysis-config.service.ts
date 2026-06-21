@@ -1,3 +1,4 @@
+import { Injectable } from '@nestjs/common';
 import type { CommentRow, PostRow } from '@hatch-radar/shared';
 import type { ResolveOutput } from '@hatch-radar/shared';
 import {
@@ -62,6 +63,7 @@ function providerConfigWithKey(provider: ProviderRow, apiKey: string): AnalysisC
  *
  * 多 Key 故障转移：处理器不绑定具体 Key——每次 analyze 时按 priority 实时挑「可用」Key，逐把尝试。
  */
+@Injectable()
 export class AnalysisConfigService {
   /** 按 provider id 缓存已构建的处理器；本进程 reloadAnalysisConfig 或检测到跨进程版本变更时清空 */
   private readonly processorCache = new Map<number, PostProcessor>();

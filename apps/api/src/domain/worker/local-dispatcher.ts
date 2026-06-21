@@ -1,3 +1,5 @@
+import { Inject, Injectable } from '@nestjs/common';
+import { WORKER_CONCURRENCY } from '@/common/tokens';
 import { TasksRepository } from '@/lib/db';
 import { logger, nowSec, type Dispatcher } from '@/lib/kernel';
 import { WorkerService } from './worker.service';
@@ -14,6 +16,7 @@ const FALLBACK_PUMP_MS = 10_000;
  *   ③ 兜底周期 —— fallbackTimer（= 旧 GatewayService.fallbackTimer）
  * pumping 单飞标志杜绝并发重入导致的超发（认领循环串行化）。
  */
+@Injectable()
 export class LocalDispatcher implements Dispatcher {
   private inFlight = 0;
   private pumping = false;
@@ -22,7 +25,7 @@ export class LocalDispatcher implements Dispatcher {
   constructor(
     private readonly tasks: TasksRepository,
     private readonly worker: WorkerService,
-    private readonly concurrency: number,
+    @Inject(WORKER_CONCURRENCY) private readonly concurrency: number,
   ) {}
 
   /** 入队后 / 任务完成后 / 兜底周期触发：尽量把并发名额填满。 */

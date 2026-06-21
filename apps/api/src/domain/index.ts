@@ -1,18 +1,15 @@
 /**
- * apps/api 领域桶（domain）：把能力包（kernel / db / crawler / analysis / auth）与本 app 自有的
- * 领域服务（account / admin / data / sync / export / worker / pipeline / radar / scheduler / seed）
- * 汇总成单一入口。控制器 / 守卫 / starters / CoreModule 统一从 `@/domain` 导入；
- * {@link createCore} 装配全套实例，经 CoreModule 按类令牌登记进 NestJS IoC 容器。
+ * apps/api 领域桶（domain）：把内联能力代码（`@/lib/*`：kernel / db / crawler / analysis / auth）
+ * 与本 app 自有的领域服务（account / admin / data / sync / export / worker / pipeline / radar /
+ * scheduler / seed）汇总成单一入口。控制器 / 守卫 / starters / CoreModule 统一从 `@/domain` 导入；
+ * 各类均为 `@Injectable`，由 CoreModule 列为 provider、Nest 按类型自动注入（已退役 createCore 装配桥）。
  */
 
-// 能力包：基座 / 持久层
+// 内联能力：基座 / 持久层
 export * from '@/lib/kernel';
 // env：AppEnv / loadEnv 已从 kernel 大一统 schema 拆到本 app 自有 config（kernel 只留共享 base），经此再导出保持 @/domain 入口不变
 export { loadEnv, type AppEnv } from '@/config/env';
 export * from '@/lib/db';
-
-// 装配工厂（原 core/factory，迁入 api 后改名 assembly）
-export { createCore, type Core } from './assembly';
 
 // 账户 / 管理 / 设备
 export * from './account/auth-context';
@@ -38,6 +35,8 @@ export * from './export/sqlite-writer';
 
 // 执行器 / 派发 / 编排 / 调度（单进程归一：执行能力内嵌本进程，无独立 worker / WS 网关）
 export * from './worker/worker.service';
+export * from './worker/collection.executor';
+export * from './worker/request-gate';
 export * from './worker/local-dispatcher';
 export * from './pipeline/pipeline.service';
 export * from './radar/radar.service';

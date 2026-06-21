@@ -1,3 +1,5 @@
+import { Inject, Injectable } from '@nestjs/common';
+import { PRISMA } from '@/common/tokens';
 import { type AppDatabase } from '../internal';
 
 /** 新建会话的入参（TTL 策略由 AccountService 计算后传入）。 */
@@ -12,8 +14,9 @@ export interface CreateSessionInput {
 }
 
 /** 会话表数据访问（不含 TTL 策略，仅存取）。 */
+@Injectable()
 export class SessionsRepository {
-  constructor(private readonly db: AppDatabase) {}
+  constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
 
   /** 新建一条会话（token 已在 service 哈希）。 */
   async create(input: CreateSessionInput): Promise<void> {

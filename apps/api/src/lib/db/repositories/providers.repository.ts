@@ -1,3 +1,5 @@
+import { Inject, Injectable } from '@nestjs/common';
+import { PRISMA } from '@/common/tokens';
 import {
   toProviderApiKeyRow,
   toProviderRow,
@@ -135,8 +137,9 @@ export function toProviderDTO({ provider, keys }: ProviderWithKeys): ProviderDTO
  * 模型清单 + Key 池数据访问（Prisma / PostgreSQL）。
  * api_key 始终以密文存取；脱敏由 {@link toProviderDTO} 在边界完成，明文永不外发。
  */
+@Injectable()
 export class ProvidersRepository {
-  constructor(private readonly db: AppDatabase) {}
+  constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
 
   // ── 模型接入配置（标量） ───────────────────────────────────────────────
 

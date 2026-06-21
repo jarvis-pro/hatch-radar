@@ -1,3 +1,4 @@
+import { Injectable } from '@nestjs/common';
 import {
   generateSessionToken,
   hashPassword,
@@ -59,6 +60,7 @@ function stripHash(view: UserAuthView): CurrentUser {
  * 负责会话生命周期（建/解析/滑动续期/吊销）、登录限流、改密与审计。
  * 密码 scrypt 校验、会话 token 哈希复用 @/lib/auth。
  */
+@Injectable()
 export class AccountService {
   constructor(
     private readonly users: UsersRepository,

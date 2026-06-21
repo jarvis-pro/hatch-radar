@@ -1,3 +1,5 @@
+import { Inject, Injectable } from '@nestjs/common';
+import { PRISMA } from '@/common/tokens';
 import {
   Prisma,
   toProcessRow,
@@ -35,8 +37,9 @@ export interface UpdateProcessInput {
  * 进程（processes）数据访问。进程 = 图纸 + 触发节奏的长驻绑定；调度器据 status + next_run_at 决定何时开 run。
  * 仅操作本表（runs / tasks 的跨表查询在各自仓储）。
  */
+@Injectable()
 export class ProcessesRepository {
-  constructor(private readonly db: AppDatabase) {}
+  constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
 
   async createProcess(input: NewProcessInput, now: number): Promise<ProcessRow> {
     const row = await this.db.processes.create({

@@ -1,3 +1,5 @@
+import { Inject, Injectable } from '@nestjs/common';
+import { PRISMA } from '@/common/tokens';
 import { toSourceConnectorRow, type AppDatabase, type SourceConnectorRow } from '../internal';
 import { decryptSecret, encryptSecret } from '@/lib/kernel';
 
@@ -95,8 +97,9 @@ export function toConnectorDTO(row: SourceConnectorRow): ConnectorDTO {
  * 采集连接器数据访问。需鉴权平台（Reddit）的凭据以加密 JSON 存取；脱敏由 {@link toConnectorDTO}
  * 在边界完成，明文永不外发。门禁判定「可用」= enabled 且 last_check_ok=true。
  */
+@Injectable()
 export class SourceConnectorsRepository {
-  constructor(private readonly db: AppDatabase) {}
+  constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
 
   /** 列出全部连接器（按平台、优先级排序；含密文，仅内部用） */
   async listConnectors(): Promise<SourceConnectorRow[]> {

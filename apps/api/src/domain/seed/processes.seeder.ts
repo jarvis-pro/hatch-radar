@@ -1,3 +1,4 @@
+import { Injectable } from '@nestjs/common';
 import { BlueprintsRepository, ProcessesRepository } from '@/lib/db';
 import type { Seeder, SeedContext, SeedOutcome } from './seeder';
 
@@ -9,6 +10,7 @@ const DEFAULT_INTERVAL_SEC = 1800;
  * status=active、next_run_at=ctx.now（首个调度心跳即触发，取代旧 runInitialRound）。
  * non-critical。order 18（晚于 blueprints，以便绑定其 id）。
  */
+@Injectable()
 export class ProcessesSeeder implements Seeder {
   readonly name = 'processes';
   readonly order = 18;

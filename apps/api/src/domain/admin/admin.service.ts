@@ -1,3 +1,4 @@
+import { Injectable } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
 import { generateEnrollmentCode, hashPassword, sha256Hex } from '@/lib/auth';
 import {
@@ -49,6 +50,7 @@ function tempPassword(): string {
  * 能力闸（accounts:manage）由控制器的 SessionAuthGuard + @RequirePermission 强制；
  * 本服务只做「超管层级 / 最后一个超管 / 不能操作自己」等业务校验与审计，校验失败抛 HttpException。
  */
+@Injectable()
 export class AdminService {
   constructor(
     private readonly users: UsersRepository,

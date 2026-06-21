@@ -1,3 +1,5 @@
+import { Inject, Injectable } from '@nestjs/common';
+import { PRISMA } from '@/common/tokens';
 import {
   Prisma,
   contentHash,
@@ -38,8 +40,9 @@ export const PENDING_ANALYSIS_PREDICATE = Prisma.sql`
 /**
  * 帖子表数据访问（Prisma / PostgreSQL）。
  */
+@Injectable()
 export class PostsRepository {
-  constructor(private readonly db: AppDatabase) {}
+  constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
 
   /**
    * 写入帖子列表，已存在的帖子仅刷新动态字段（分数、评论数、标题、正文、抓取时间）。

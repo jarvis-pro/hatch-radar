@@ -1,3 +1,5 @@
+import { Inject, Injectable } from '@nestjs/common';
+import { LocalDispatcher } from '../worker/local-dispatcher';
 import {
   BlueprintsRepository,
   PostsRepository,
@@ -75,6 +77,7 @@ export interface AnalyzeSweepResult {
  * 自动分析改由 tasks 承载、归属 run/blueprint，可在「图纸 / 进程」视图回看，成本经 UNION 进看板。
  * collect / recheck 图纸在后续里程碑接入本服务。
  */
+@Injectable()
 export class PipelineService {
   constructor(
     private readonly blueprints: BlueprintsRepository,
@@ -86,7 +89,7 @@ export class PipelineService {
     private readonly runtimeSettings: RuntimeSettingsService,
     private readonly providers: ProvidersRepository,
     private readonly processes: ProcessesRepository,
-    private readonly dispatcher?: Dispatcher,
+    @Inject(LocalDispatcher) private readonly dispatcher?: Dispatcher,
   ) {}
 
   /** 找或建一张指定 kind 的默认图纸（首次触发时惰性种子，免单独 seeder）。 */

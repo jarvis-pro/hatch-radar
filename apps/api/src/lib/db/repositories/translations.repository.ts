@@ -1,3 +1,5 @@
+import { Inject, Injectable } from '@nestjs/common';
+import { PRISMA } from '@/common/tokens';
 import { Prisma, type AppDatabase, type TranslationRow } from '../internal';
 
 /** 译文来源字段类型（post_title | post_selftext | comment_body） */
@@ -49,8 +51,9 @@ export interface TranslationUpsert {
  * 译文按 `content_hash` 寻址而非挂列在 posts/comments：评论 replaceComments 整删整插会清列，
  * 而哈希寻址天然 ①扛评论行 churn ②同文去重 ③未命中=待翻译（首次/增量统一判定）。
  */
+@Injectable()
 export class TranslationsRepository {
-  constructor(private readonly db: AppDatabase) {}
+  constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
 
   /**
    * 取某帖待翻译的源文本条目：标题 / 正文 / 各评论中，content_hash 在 translations

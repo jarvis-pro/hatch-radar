@@ -1,3 +1,5 @@
+import { Inject, Injectable } from '@nestjs/common';
+import { PRISMA } from '@/common/tokens';
 import {
   BlueprintsRepository,
   ProcessesRepository,
@@ -198,9 +200,10 @@ function firstPainPoint(painPoints: unknown, fallback: string): string {
  * - 写：图纸 / 进程 CRUD（委托仓储 + 校验）+ 触发进程（委托 {@link PipelineService.fireProcess}）。
  * 译文标题（titleZh）按 posts.title_hash 从 translations(done) 批量 join。
  */
+@Injectable()
 export class RadarService {
   constructor(
-    private readonly db: AppDatabase,
+    @Inject(PRISMA) private readonly db: AppDatabase,
     private readonly blueprints: BlueprintsRepository,
     private readonly processes: ProcessesRepository,
     private readonly pipeline: PipelineService,

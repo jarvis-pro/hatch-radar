@@ -1,3 +1,4 @@
+import { Injectable } from '@nestjs/common';
 import { RuntimeSettingsService } from '@/lib/db';
 import type { Seeder, SeedOutcome } from './seeder';
 
@@ -5,6 +6,7 @@ import type { Seeder, SeedOutcome } from './seeder';
  * 运行期参数默认值（幂等）：app_settings 中缺失的项补播出厂默认，已存在的不动。
  * non-critical：读取侧本就回落同一默认常量。实际写入委托 RuntimeSettingsService.ensureSeeded。
  */
+@Injectable()
 export class RuntimeSettingsSeeder implements Seeder {
   readonly name = 'runtime-settings';
   readonly order = 30;

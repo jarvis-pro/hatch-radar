@@ -1,3 +1,5 @@
+import { Inject, Injectable } from '@nestjs/common';
+import { PRISMA } from '@/common/tokens';
 import type { AuditRow } from '@hatch-radar/shared';
 import { Prisma, type AppDatabase } from '../internal';
 import { nowSec } from '@/lib/kernel';
@@ -17,8 +19,9 @@ export interface AuditEntry {
 const AUDIT_PAGE = 50;
 
 /** 审计日志数据访问：写入（失败不阻断）+ 分页查询（actor_id 解析为邮箱）。 */
+@Injectable()
 export class AuditLogsRepository {
-  constructor(private readonly db: AppDatabase) {}
+  constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
 
   /** 写一条审计；失败只吞掉、绝不阻断主流程。 */
   async write(entry: AuditEntry): Promise<void> {

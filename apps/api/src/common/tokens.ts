@@ -11,5 +11,5 @@ export const APP_ENV = Symbol('APP_ENV');
 /** Prisma 数据库实例（AppDatabase），由 DatabaseModule 提供 */
 export const PRISMA = Symbol('PRISMA');
 
-/** 由 createCore() 装配出的全套领域实例（Core），由 CoreModule 提供 */
-export const CORE = Symbol('CORE');
+/** 内嵌执行器并发上限（env.workerConcurrency），由 CoreModule 从 APP_ENV 派生提供 */
+export const WORKER_CONCURRENCY = Symbol('WORKER_CONCURRENCY');

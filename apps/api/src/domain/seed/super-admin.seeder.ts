@@ -1,3 +1,5 @@
+import { Inject, Injectable } from '@nestjs/common';
+import { APP_ENV } from '@/common/tokens';
 import { hashPassword } from '@/lib/auth';
 import type { AppEnv } from '@/config/env';
 import { UsersRepository } from '@/lib/db';
@@ -7,13 +9,14 @@ import type { Seeder, SeedContext, SeedOutcome } from './seeder';
  * 首个超级管理员（幂等）：仅当 users 表空且设置了 SUPER_ADMIN_* 时创建，首登强制改密。
  * critical：配了超管却建不出来 → 无账户可登录，应 fail fast 中止启动。
  */
+@Injectable()
 export class SuperAdminSeeder implements Seeder {
   readonly name = 'super-admin';
   readonly order = 20;
   readonly critical = true;
 
   constructor(
-    private readonly env: AppEnv,
+    @Inject(APP_ENV) private readonly env: AppEnv,
     private readonly users: UsersRepository,
   ) {}
 

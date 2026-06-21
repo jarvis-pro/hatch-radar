@@ -1,3 +1,5 @@
+import { Inject, Injectable } from '@nestjs/common';
+import { PRISMA } from '@/common/tokens';
 import {
   Prisma,
   toCommentRow,
@@ -25,8 +27,9 @@ import { nowSec } from '@/lib/kernel';
  * 关联帖子已被 30 天归档清理时仅导出洞察本身（post_id 为软引用，移动端按缺失处理）。
  * jsonb 字段经 toInsightRow stringify 回 TEXT，产出的 InsightRow 与裸跑实现字节级一致。
  */
+@Injectable()
 export class ExportService {
-  constructor(private readonly db: AppDatabase) {}
+  constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
 
   /**
    * 构造「有效洞察」筛选条件（针对 insights 表）：实质信号基线 + 可选 since/强度/版块。

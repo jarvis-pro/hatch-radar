@@ -1,3 +1,5 @@
+import { Inject, Injectable } from '@nestjs/common';
+import { PRISMA } from '@/common/tokens';
 import type { BoardData, FunnelTrendPoint, NamedCount } from '@hatch-radar/shared';
 import type { AppDatabase } from '../internal';
 import { PENDING_ANALYSIS_PREDICATE } from './posts.repository';
@@ -13,8 +15,9 @@ export interface DbStats {
 /**
  * 计数概览数据访问，用于启动日志、健康检查与监控。
  */
+@Injectable()
 export class StatsRepository {
-  constructor(private readonly db: AppDatabase) {}
+  constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
 
   /**
    * 返回数据库各表的当前行数汇总。

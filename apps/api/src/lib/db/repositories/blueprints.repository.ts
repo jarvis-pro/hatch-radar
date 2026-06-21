@@ -1,3 +1,5 @@
+import { Inject, Injectable } from '@nestjs/common';
+import { PRISMA } from '@/common/tokens';
 import {
   Prisma,
   toBlueprintRow,
@@ -41,8 +43,9 @@ export interface UpdateBlueprintInput {
  * 图纸（blueprints）数据访问。图纸是可复用的流程**纯配方**（来源 + 环节 + 暂停点），不含触发节奏；
  * 节奏由 processes 承载。代码常量仅作首启种子，运行期以本表为准。
  */
+@Injectable()
 export class BlueprintsRepository {
-  constructor(private readonly db: AppDatabase) {}
+  constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
 
   async createBlueprint(input: NewBlueprintInput, now: number): Promise<BlueprintRow> {
     const row = await this.db.blueprints.create({

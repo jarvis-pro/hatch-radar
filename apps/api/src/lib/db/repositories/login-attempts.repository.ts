@@ -1,8 +1,11 @@
+import { Inject, Injectable } from '@nestjs/common';
+import { PRISMA } from '@/common/tokens';
 import { type AppDatabase } from '../internal';
 
 /** 登录限流计数表数据访问（滑动窗 / 锁定策略由 AccountService 决定，本类只存取）。 */
+@Injectable()
 export class LoginAttemptsRepository {
-  constructor(private readonly db: AppDatabase) {}
+  constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
 
   /** 取某邮箱的失败计数行（含 bigint 时间戳）。 */
   findByEmail(email: string) {

@@ -1,3 +1,4 @@
+import { Injectable } from '@nestjs/common';
 import { PostsRepository } from '@/lib/db';
 import { TasksRepository } from '@/lib/db';
 import { logger } from '@/lib/kernel';
@@ -15,6 +16,7 @@ const ARCHIVE_DAYS = 30;
  * - 初始触发由种子进程的 next_run_at=now 驱动（首个心跳即触发），不再有 runInitialRound。
  * - 单实例语义不变（内存非重入、无分布式锁）→ api 控制面须单实例部署。
  */
+@Injectable()
 export class SchedulerService {
   /** 正在执行的触发名集合（同名不并发） */
   private readonly running = new Set<string>();

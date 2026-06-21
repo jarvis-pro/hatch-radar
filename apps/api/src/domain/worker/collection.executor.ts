@@ -1,3 +1,4 @@
+import { Injectable } from '@nestjs/common';
 import { AnalysisConfigService } from '@/lib/analysis';
 import {
   CrawlerConfigService,
@@ -108,6 +109,7 @@ export interface RecheckPersistOutput {
  * 「抓取/落库分环节」让任意环节可挂暂停点（task_stages.gate），且重认领从下一环节续跑（检查点不丢、所见即所跑）。
  * 派生用 {@link TasksRepository.createTaskWithStages}，同帖同 kind 已有活跃任务即去重跳过。抓取经请求闸（lane 限速 / 可暂停）。
  */
+@Injectable()
 export class CollectionExecutor {
   constructor(
     private readonly crawlerConfig: CrawlerConfigService,

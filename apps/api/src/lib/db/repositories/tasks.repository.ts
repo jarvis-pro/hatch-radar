@@ -1,3 +1,5 @@
+import { Inject, Injectable } from '@nestjs/common';
+import { PRISMA } from '@/common/tokens';
 import { Prisma, toTaskRow, type AppDatabase, type TaskPg, type TaskRow } from '../internal';
 
 export type { TaskRow };
@@ -51,8 +53,9 @@ export interface StageDef {
  * 认领用 `FOR UPDATE SKIP LOCKED`（多 worker / 多进程并发认领不重不漏）；心跳 / 僵死回收 /
  * max_attempts 沿用旧机制。环节闸门把暂停下放到逐 task_stage（{@link TaskStagesRepository}）。
  */
+@Injectable()
 export class TasksRepository {
-  constructor(private readonly db: AppDatabase) {}
+  constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
 
   /**
    * 原子建任务 + N 个 pending 环节（同事务，避免「有任务无环节」半成品）。

@@ -1,3 +1,5 @@
+import { Inject, Injectable } from '@nestjs/common';
+import { PRISMA } from '@/common/tokens';
 import {
   Prisma,
   toTaskStageRow,
@@ -18,8 +20,9 @@ const MAX_ERROR_CHARS = 500;
  * （task + N 个 pending 环节一次性原子插入）在 {@link TasksRepository.createTaskWithStages} 内完成。
  * output 既是展示内容，又是下游环节重认领时的检查点输入；error 仅 status=failed 时有值。
  */
+@Injectable()
 export class TaskStagesRepository {
-  constructor(private readonly db: AppDatabase) {}
+  constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
 
   /** 取某任务全部环节（按 seq 升序，决定执行与展示顺序）。 */
   async listStages(taskId: number): Promise<TaskStageRow[]> {

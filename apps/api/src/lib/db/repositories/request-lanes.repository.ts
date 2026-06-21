@@ -1,3 +1,5 @@
+import { Inject, Injectable } from '@nestjs/common';
+import { PRISMA } from '@/common/tokens';
 import {
   toRequestLaneRow,
   type AppDatabase,
@@ -11,8 +13,9 @@ export type { RequestLaneRow };
  * 出站请求 lane 配置（request_lanes）数据访问。lane 首次出现时惰性建行（默认值），
  * 暂停开关供请求闸读取以决定是否放行该 lane（详见设计稿 §四）。
  */
+@Injectable()
 export class RequestLanesRepository {
-  constructor(private readonly db: AppDatabase) {}
+  constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
 
   /** 取一条 lane 配置；不存在返回 null。 */
   async getLane(lane: string): Promise<RequestLaneRow | null> {

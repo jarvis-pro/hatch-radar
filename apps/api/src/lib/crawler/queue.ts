@@ -1,3 +1,4 @@
+import { Injectable } from '@nestjs/common';
 /** TokenBucketQueue 构造参数 */
 export interface TokenBucketOptions {
   /** 每分钟允许通过的请求数；默认 90，留出与 Reddit 100/min 上限的安全余量 */
@@ -18,6 +19,7 @@ interface PendingTask {
  * - 收到 429 时可调用 pause() 全局暂停，退避结束后自动恢复
  * - 默认配置适配 Reddit API 100 次/分钟配额
  */
+@Injectable()
 export class TokenBucketQueue {
   private readonly refillPerMs: number;
   private readonly capacity: number;

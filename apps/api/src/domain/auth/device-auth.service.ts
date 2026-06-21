@@ -1,3 +1,5 @@
+import { Inject, Injectable } from '@nestjs/common';
+import { PRISMA } from '@/common/tokens';
 import { sha256Hex, verifyDeviceSignature } from '@/lib/auth';
 import { hasPermission, type PermissionKey, type UserRole } from '@hatch-radar/shared';
 import { Prisma, type AppDatabase } from '@/lib/db';
@@ -17,8 +19,9 @@ function header(headers: Record<string, string | string[] | undefined>, name: st
 }
 
 /** 设备认证：激活码换凭据、签名请求验签、设备操作审计。 */
+@Injectable()
 export class DeviceAuthService {
-  constructor(private readonly db: AppDatabase) {}
+  constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
 
   /**
    * 用激活码 + 设备公钥换取一条 device_credentials（绑定到激活码所属账户）。

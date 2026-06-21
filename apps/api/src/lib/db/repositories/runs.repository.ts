@@ -1,3 +1,5 @@
+import { Inject, Injectable } from '@nestjs/common';
+import { PRISMA } from '@/common/tokens';
 import { Prisma, toRunRow, type AppDatabase, type RunPg, type RunRow } from '../internal';
 
 export type { RunRow };
@@ -27,8 +29,9 @@ export interface NewRunInput {
 /**
  * 进程（runs）数据访问。一条 run = 一张图纸的一次执行；承载状态、计数、起止时间、（复查的）sweep 序号。
  */
+@Injectable()
 export class RunsRepository {
-  constructor(private readonly db: AppDatabase) {}
+  constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
 
   /** 开一条进程（status=running）。 */
   async createRun(input: NewRunInput, now: number): Promise<RunRow> {

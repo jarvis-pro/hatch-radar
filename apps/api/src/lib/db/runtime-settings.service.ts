@@ -1,3 +1,4 @@
+import { Injectable } from '@nestjs/common';
 import { SettingsRepository } from './repositories/settings.repository';
 import { logger } from '@/lib/kernel';
 
@@ -72,6 +73,7 @@ function parseOverride(raw: string | undefined, min: number): number | null {
  * DB 行缺失（如独立 worker 在主进程播种前先起、或库被清空尚未重启）或被手改成非法值时，
  * 回落 {@link DEFAULT_RUNTIME_SETTINGS} 常量——即播种用的同一默认，杜绝 NaN/崩溃。
  */
+@Injectable()
 export class RuntimeSettingsService {
   constructor(private readonly settings: SettingsRepository) {}
 

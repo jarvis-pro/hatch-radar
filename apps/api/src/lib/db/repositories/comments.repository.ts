@@ -1,3 +1,5 @@
+import { Inject, Injectable } from '@nestjs/common';
+import { PRISMA } from '@/common/tokens';
 import { Prisma, contentHash, toCommentRow, type AppDatabase, type CommentRow } from '../internal';
 import type { RedditComment } from '@hatch-radar/shared';
 
@@ -15,8 +17,9 @@ function commentsFingerprint(rows: { id: string; score: number; body: string }[]
 /**
  * 评论表数据访问（Prisma / PostgreSQL）。
  */
+@Injectable()
 export class CommentsRepository {
-  constructor(private readonly db: AppDatabase) {}
+  constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
 
   /**
    * 整体替换帖子的评论快照并推进回捞阶段计数。

@@ -1,3 +1,4 @@
+import { Injectable } from '@nestjs/common';
 import {
   ProvidersRepository,
   TranslationsRepository,
@@ -36,6 +37,7 @@ export interface TranslateOutcome {
  * 支持两档 provider：azure（Azure Translator 机翻、免费档走量、日常默认）与 claude_cli（订阅额度、
  * 零边际成本、高质量、个别重要内容用）。Azure 仅单把 Key（不做多 Key 池故障转移）。其余类型抛错。
  */
+@Injectable()
 export class TranslationService {
   constructor(
     private readonly translations: TranslationsRepository,

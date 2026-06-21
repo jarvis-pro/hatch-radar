@@ -1,3 +1,4 @@
+import { Injectable } from '@nestjs/common';
 import { BlueprintsRepository } from '@/lib/db';
 import type { Seeder, SeedContext, SeedOutcome } from './seeder';
 import { HN_SECTIONS, RSS_FEEDS, SUBREDDITS } from './source-lists';
@@ -11,6 +12,7 @@ const RECHECK_PARAMS = { batchSize: 50, batchIntervalSec: 90, backoffCap: 16 };
  * 首启图纸（幂等）：blueprints 表空时建一张采集图纸 + 一张复查图纸（**纯配方、无触发节奏**）。
  * 触发节奏由 {@link ProcessesSeeder} 建的进程承载。non-critical：图纸可事后在定义端增改。order 15（晚于 sources、早于 processes）。
  */
+@Injectable()
 export class BlueprintsSeeder implements Seeder {
   readonly name = 'blueprints';
   readonly order = 15;

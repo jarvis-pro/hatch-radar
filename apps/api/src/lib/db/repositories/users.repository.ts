@@ -1,3 +1,5 @@
+import { Inject, Injectable } from '@nestjs/common';
+import { PRISMA } from '@/common/tokens';
 import {
   isPermissionKey,
   type AdminUserRow,
@@ -60,8 +62,9 @@ export interface CreateUserInput {
  * 用户聚合数据访问（users + user_permissions 视为同一聚合，一并增删改）。
  * 业务策略（限流 / 层级校验 / 审计）留在 AccountService / AdminService，本类只做数据存取。
  */
+@Injectable()
 export class UsersRepository {
-  constructor(private readonly db: AppDatabase) {}
+  constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
 
   /** 按邮箱取原始行（登录用，需要 password_hash / status）。 */
   findByEmail(email: string) {

@@ -1,3 +1,5 @@
+import { Inject, Injectable } from '@nestjs/common';
+import { PRISMA } from '@/common/tokens';
 import type { AppDatabase } from '../internal';
 
 /** app_settings 中「当前使用的模型配置 ID」键 */
@@ -10,8 +12,9 @@ const CONFIG_VERSION_KEY = 'analysis_config_version';
 /**
  * 全局键值配置数据访问（Prisma / PostgreSQL）。
  */
+@Injectable()
 export class SettingsRepository {
-  constructor(private readonly db: AppDatabase) {}
+  constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
 
   /** 读取一个全局配置项 */
   async getSetting(key: string): Promise<string | undefined> {

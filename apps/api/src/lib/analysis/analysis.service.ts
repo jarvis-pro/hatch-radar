@@ -1,3 +1,4 @@
+import { Injectable } from '@nestjs/common';
 import type { CommentRow, InsightResult, PostRow } from '@hatch-radar/shared';
 import { InsightsRepository } from '@/lib/db';
 import { nowSec } from '@/lib/kernel';
@@ -10,6 +11,7 @@ import type { PostProcessor, TokenUsage } from './analyzer/analyze';
  * 处理器只产出结构化结果；此处负责「无信号则不落库」的判定、saveInsight 与日志，
  * 把唯一的写入路径收敛在一处。
  */
+@Injectable()
 export class AnalysisService {
   constructor(private readonly insights: InsightsRepository) {}
 

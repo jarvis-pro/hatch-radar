@@ -1,3 +1,4 @@
+import { Injectable } from '@nestjs/common';
 import {
   SourceConnectorsRepository,
   decryptConnectorSecret,
@@ -19,6 +20,7 @@ function errMsg(err: unknown): string {
  * 指纹(id+updated_at)缓存：连接器一改（updated_at 变）下次取用即重建——保存即生效，无需重启。
  * 凭据一律来自 DB（已彻底移出 env）。来源列表的首启播种已收拢到 SeedModule（SourcesSeeder）。
  */
+@Injectable()
 export class CrawlerConfigService {
   /** 缓存的 Reddit 客户端及其来源连接器指纹；指纹变化即重建 */
   private cached: { fingerprint: string; client: RedditClient } | null = null;

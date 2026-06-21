@@ -1,3 +1,5 @@
+import { Inject, Injectable } from '@nestjs/common';
+import { PRISMA } from '@/common/tokens';
 import {
   toRequestQueueRow,
   type AppDatabase,
@@ -26,8 +28,9 @@ export interface NewRequest {
  * 出站请求队列（request_queue）数据访问：每条外站请求记一行（running→done/failed），
  * 供请求闸控制台展示「执行计划 / 历史」与排查。详见设计稿 §四。
  */
+@Injectable()
 export class RequestQueueRepository {
-  constructor(private readonly db: AppDatabase) {}
+  constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
 
   /** 开始一条请求（status=running），返回 id。请求闸在真正发请求前调用。 */
   async startRequest(input: NewRequest, now: number): Promise<number> {

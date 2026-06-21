@@ -1,3 +1,5 @@
+import { Inject, Injectable } from '@nestjs/common';
+import { PRISMA } from '@/common/tokens';
 import { type CostByModel, type DailyCostPoint, type ThroughputPoint } from '@hatch-radar/shared';
 import type { AppDatabase } from '../internal';
 
@@ -50,8 +52,9 @@ function computeCost(
  * 任务承载，看板成本与吞吐均自 tasks 派生（取代旧 analysis_jobs 路径）。与 model_providers 单价
  * 折算成本，与 insights 关联吞吐。纯只读聚合，不参与队列流转。
  */
+@Injectable()
 export class CostRepository {
-  constructor(private readonly db: AppDatabase) {}
+  constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
 
   /**
    * 成本统计（finished_at ≥ sinceSec 的成功分析任务）：按 (provider, model) 汇总四类 token，

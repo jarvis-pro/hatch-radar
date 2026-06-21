@@ -1,3 +1,4 @@
+import { Injectable } from '@nestjs/common';
 import { AnalysisConfigService } from '@/lib/analysis';
 import { AnalysisService } from '@/lib/analysis';
 import { TranslationService } from '@/lib/analysis';
@@ -49,6 +50,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, onTimeout?: () => void)
  * 僵死回收定时器处理进程崩溃遗留的 running 任务。
  * 生命周期：NestJS onApplicationBootstrap/Shutdown → 这里的 {@link start}/{@link stop}，由 WorkerStarter 调用。
  */
+@Injectable()
 export class WorkerService {
   private reclaimTimer: ReturnType<typeof setInterval> | null = null;
   private activeJobPromises: Promise<void>[] = [];

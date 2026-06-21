@@ -1,3 +1,4 @@
+import { Injectable } from '@nestjs/common';
 import type { CommentFetchResult, RedditComment, RedditPost } from './reddit';
 
 const API_BASE = 'https://hacker-news.firebaseio.com/v0';
@@ -195,6 +196,7 @@ export async function collectHnComments(
  * - 评论分数恒为 0（HN API 不暴露评论评分）
  * - HTML 实体与标签自动解码为纯文本
  */
+@Injectable()
 export class HackerNewsClient {
   private async fetchIds(endpoint: string): Promise<number[]> {
     const res = await fetch(`${API_BASE}/${endpoint}.json`);

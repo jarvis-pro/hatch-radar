@@ -1,9 +1,12 @@
+import { Inject, Injectable } from '@nestjs/common';
+import { PRISMA } from '@/common/tokens';
 import type { EnrollmentRow } from '@hatch-radar/shared';
 import { type AppDatabase } from '../internal';
 
 /** 设备激活码管理面数据访问（admin 赋予设备 / 取消）。激活消费仍在 DeviceAuthService。 */
+@Injectable()
 export class DeviceEnrollmentsRepository {
-  constructor(private readonly db: AppDatabase) {}
+  constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
 
   /** 全部待激活、未过期的激活码（新到旧）。 */
   async listPending(now: number): Promise<EnrollmentRow[]> {

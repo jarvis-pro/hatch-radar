@@ -1,9 +1,12 @@
+import { Inject, Injectable } from '@nestjs/common';
+import { PRISMA } from '@/common/tokens';
 import type { DeviceRow, UserRole } from '@hatch-radar/shared';
 import { type AppDatabase } from '../internal';
 
 /** 设备凭据管理面数据访问（admin 列表 / 强踢）。设备验签 / 滑动续期仍在 DeviceAuthService。 */
+@Injectable()
 export class DeviceCredentialsRepository {
-  constructor(private readonly db: AppDatabase) {}
+  constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
 
   /** 全部设备凭据（新到旧）。 */
   async listAll(): Promise<DeviceRow[]> {

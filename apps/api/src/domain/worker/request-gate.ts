@@ -1,3 +1,4 @@
+import { Injectable } from '@nestjs/common';
 import { RequestLanesRepository, RequestQueueRepository } from '@/lib/db';
 import { logger, nowSec } from '@/lib/kernel';
 
@@ -37,6 +38,7 @@ export interface RequestGateOptions {
  * 并在 lane 被暂停时阻塞放行（轮询至恢复或超时放弃）。实际限速仍由 crawler 内置令牌桶承担——
  * 闸提供「可视化 + 暂停」（设计稿 §四）；全局跨 worker 限速为后续增强。
  */
+@Injectable()
 export class RequestGate {
   private readonly ensured = new Set<string>();
   private readonly pausePollMs: number;

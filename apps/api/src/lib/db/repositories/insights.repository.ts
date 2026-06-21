@@ -1,3 +1,5 @@
+import { Inject, Injectable } from '@nestjs/common';
+import { PRISMA } from '@/common/tokens';
 import { Prisma, toInsight, type AppDatabase, type InsightPgRow } from '../internal';
 import type {
   Insight,
@@ -13,8 +15,9 @@ import type {
  * pain_points / opportunities / tags 在 PG 侧为 jsonb：写入直接传对象（Prisma 序列化），
  * 读出已是解析后的对象，经 mappers.toInsight 转 camelCase 视图。
  */
+@Injectable()
 export class InsightsRepository {
-  constructor(private readonly db: AppDatabase) {}
+  constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
 
   /**
    * 将 AI 分析结果落库为洞察记录。

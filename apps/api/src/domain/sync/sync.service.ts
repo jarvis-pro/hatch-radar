@@ -1,3 +1,5 @@
+import { Inject, Injectable } from '@nestjs/common';
+import { PRISMA } from '@/common/tokens';
 import { z } from 'zod';
 import {
   TRIAGE_STATUSES,
@@ -66,8 +68,9 @@ function extractOpId(raw: unknown, index: number): string {
  * 而不重复应用（对 App 同样视为成功）。整批在单个事务内处理，逐条得出结论，
  * rejected 不影响其余操作。
  */
+@Injectable()
 export class SyncService {
-  constructor(private readonly db: AppDatabase) {}
+  constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
 
   /** 按操作类型把变更落到服务端 triage 表（updated_at 取操作在设备上的发生时间） */
   private async applyTriageOp(tx: Tx, op: SyncOperation): Promise<void> {

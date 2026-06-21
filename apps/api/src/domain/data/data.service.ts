@@ -1,3 +1,5 @@
+import { Inject, Injectable } from '@nestjs/common';
+import { PRISMA } from '@/common/tokens';
 import {
   Prisma,
   toCommentRow,
@@ -53,8 +55,9 @@ function sortCI(values: string[]): string[] {
  * 只读数据服务（后端归一：原 web lib/queries.ts 整体迁来，行为不变）。
  * 浏览洞察 / 帖子 / 评论 / 研判 / 筛选项；写操作不在此（爬取与分析在各自模块）。
  */
+@Injectable()
 export class DataService {
-  constructor(private readonly db: AppDatabase) {}
+  constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
 
   /** 按条件分页检索洞察，按生成时间倒序（含 jsonb 全文 ILIKE → $queryRaw） */
   async listInsights(filter: InsightListFilter): Promise<Paged<Insight>> {
