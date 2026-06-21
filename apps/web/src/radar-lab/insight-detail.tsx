@@ -97,10 +97,7 @@ function InsightDetailView() {
                     >
                       <span aria-hidden className={cn('absolute inset-y-0 left-0 w-1', pim.bar)} />
                       <div className="flex items-start gap-2">
-                        <Badge
-                          variant="outline"
-                          className={cn('mt-0.5 shrink-0 px-1.5', pim.text)}
-                        >
+                        <Badge variant="outline" className={cn('mt-0.5 shrink-0 px-1.5', pim.text)}>
                           {pim.label}
                         </Badge>
                         <p className="font-medium">{pp.description}</p>

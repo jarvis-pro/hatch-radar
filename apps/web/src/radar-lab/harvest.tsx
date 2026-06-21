@@ -175,10 +175,7 @@ function Harvest() {
   // 搜索草稿（延迟提交，仿帖子库）：改下拉 / 输入只动本地，点「搜索」才写进 URL；
   // URL 上条件变化（提交本身 / 外部带参导航 / 列头排序）时回灌——翻页 / 排序只改其他参数不动这四者
   const [draft, setDraft] = useState({ source, subreddit, intensity, q });
-  useEffect(
-    () => setDraft({ source, subreddit, intensity, q }),
-    [source, subreddit, intensity, q],
-  );
+  useEffect(() => setDraft({ source, subreddit, intensity, q }), [source, subreddit, intensity, q]);
 
   // 服务端筛选 / 排序 / 分页：把已提交条件喂给 /api/radar/insights（排序只取维度，方向由列头交互附带）
   const queryResult = useInsights({
@@ -196,7 +193,12 @@ function Harvest() {
   const rows = data?.items ?? [];
 
   /** 把一组条件写进 URL（回第 1 页；保留排序与每页条数这两项浏览偏好）。 */
-  const apply = (next: { source: string; subreddit: string; intensity: string; q: string }): void => {
+  const apply = (next: {
+    source: string;
+    subreddit: string;
+    intensity: string;
+    q: string;
+  }): void => {
     const params = new URLSearchParams();
     if (next.source) params.set('source', next.source);
     if (next.subreddit) params.set('subreddit', next.subreddit);

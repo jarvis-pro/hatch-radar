@@ -146,9 +146,7 @@ function PostDetailView() {
         }
         actions={
           <>
-            {can(user, 'analyze:run') ? (
-              <InspectLaunchButton postId={post.id} />
-            ) : null}
+            {can(user, 'analyze:run') ? <InspectLaunchButton postId={post.id} /> : null}
             <TranslationButton t={tr} />
           </>
         }

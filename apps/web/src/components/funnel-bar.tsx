@@ -46,7 +46,9 @@ export function FunnelBar({ stages }: { stages: FunnelStage[] }) {
                 <span className="ml-2 text-xs font-normal text-muted-foreground">{s.note}</span>
               ) : null}
             </span>
-            {s.tag ? <span className="font-mono text-xs text-muted-foreground">{s.tag}</span> : null}
+            {s.tag ? (
+              <span className="font-mono text-xs text-muted-foreground">{s.tag}</span>
+            ) : null}
           </div>
           {/* 条 + 数值 */}
           <div className="flex items-center gap-3">

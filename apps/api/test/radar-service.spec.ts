@@ -170,7 +170,12 @@ describe('RadarService（读 / 聚合 / CRUD）', () => {
       },
     });
     const d2 = await svc.insightDetail(id);
-    expect(d2!.triage).toMatchObject({ status: 'shortlisted', rating: 4, tags: ['hot'], note: '看好' });
+    expect(d2!.triage).toMatchObject({
+      status: 'shortlisted',
+      rating: 4,
+      tags: ['hot'],
+      note: '看好',
+    });
     // 不存在 → null
     expect(await svc.insightDetail(999999)).toBeNull();
   });
