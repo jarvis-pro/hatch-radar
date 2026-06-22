@@ -1,7 +1,7 @@
 import type { CommentRow, PostRow } from '@hatch-radar/shared';
 import { describe, expect, it } from 'vitest';
 
-import { buildContext, decodeHtmlEntities } from '@/lib/analysis/analyzer/context';
+import { buildContext, decodeHtmlEntities } from '@/analysis/analyzer/context';
 
 /**
  * context 的 HTML 实体解码：送 AI 前对**已落库文本**的一层防御性再解码。

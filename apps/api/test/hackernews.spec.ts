@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decodeEntities, decodeHtml } from '@/lib/crawler/hackernews';
+import { decodeEntities, decodeHtml } from '@/crawler/hackernews';
 
 /**
  * HN 富文本 → 纯文本解码：HTML 实体（命名 / 十进制 / 十六进制）+ 标签结构化处理。

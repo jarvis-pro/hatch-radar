@@ -2,7 +2,7 @@ import { Global, Module, type Provider } from '@nestjs/common';
 import { type AppEnv } from '@/config/env';
 import { APP_ENV, WORKER_CONCURRENCY } from '@/common/tokens';
 import { RequestLanesRepository, RequestQueueRepository } from '@/database';
-import { CrawlerConfigService, HackerNewsClient, TokenBucketQueue } from '@/lib/crawler';
+import { CrawlerConfigService, HackerNewsClient, TokenBucketQueue } from '@/crawler';
 import { RequestGate, RuntimeSettingsService } from '@/domain';
 
 /**

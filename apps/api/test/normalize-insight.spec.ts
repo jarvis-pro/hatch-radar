@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeInsight } from '@/lib/analysis';
+import { normalizeInsight } from '@/analysis';
 
 /** 模型输出归一化兜底：丢弃缺字段条目、强度回退、过滤空标签、容忍非法输入。 */
 describe('normalizeInsight（模型输出归一化）', () => {

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { CrawlerConfigService } from '@/lib/crawler';
+import { CrawlerConfigService } from '@/crawler';
 import {
   SourceConnectorsRepository,
   SourcesRepository,

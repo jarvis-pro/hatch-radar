@@ -8,8 +8,8 @@
  *
  * 框架无关的能力代码请直接按来源导入，不再经本 barrel 代理转出：
  * - 持久层 / 仓储 / 行类型 / 运行期设置 → `@/database`
- * - AI 分析引擎 / 翻译引擎 / 配置 → `@/lib/analysis`
- * - 采集（reddit/hn/rss/限速/连接器配置）→ `@/lib/crawler`
+ * - AI 分析引擎 / 翻译引擎 / 配置 → `@/analysis`
+ * - 采集（reddit/hn/rss/限速/连接器配置）→ `@/crawler`
  * - 鉴权原语（口令 / 会话 / 设备验签）→ `@/auth`
  * - 通用工具 → `@/utils/time`（时间）/ `@/utils/crypto`（密钥加解密）；logger → `@/logger`
  * - 应用配置（AppEnv / loadEnv / env 工具）→ `@/config/env`

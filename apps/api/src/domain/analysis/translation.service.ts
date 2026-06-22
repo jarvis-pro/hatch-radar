@@ -10,15 +10,15 @@ import {
 import { decryptSecret } from '@/utils/crypto';
 import { logger } from '@/logger';
 import { nowSec } from '@/utils/time';
-import type { TokenUsage } from '@/lib/analysis/analyzer/analyze';
-import { classifyKeyError, errMsg } from '@/lib/analysis/key-failover';
+import type { TokenUsage } from '@/analysis/analyzer/analyze';
+import { classifyKeyError, errMsg } from '@/analysis/key-failover';
 import {
   looksChinese,
   translateItems,
   type TranslateConfig,
   type TranslateItem,
   type TranslatedItem,
-} from '@/lib/analysis/translator/translate';
+} from '@/analysis/translator/translate';
 
 /** 单次翻译落库的结果概要（worker 日志与计费用） */
 export interface TranslateOutcome {

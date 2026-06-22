@@ -7,7 +7,7 @@ import {
   SourcesRepository,
   toConnectorDTO,
 } from '@/database';
-import { type CrawlerConfigService } from '@/lib/crawler';
+import { type CrawlerConfigService } from '@/crawler';
 import { SourcesService } from '@/domain';
 import { setupTestDb, truncateAll } from './helpers';
 

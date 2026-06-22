@@ -7,12 +7,12 @@ import {
   type AnalysisOutcome,
   type PostProcessor,
   type RawModelOutput,
-} from '@/lib/analysis/analyzer/analyze';
-import { testAnthropic } from '@/lib/analysis/analyzer/anthropic';
-import { testClaudeAgent } from '@/lib/analysis/analyzer/claude-agent';
-import { testOpenAICompatible } from '@/lib/analysis/analyzer/openai-compatible';
-import { testAzureTranslator } from '@/lib/analysis/translator/azure-client';
-import { classifyKeyError, errMsg, COOLDOWN_SECONDS } from '@/lib/analysis/key-failover';
+} from '@/analysis/analyzer/analyze';
+import { testAnthropic } from '@/analysis/analyzer/anthropic';
+import { testClaudeAgent } from '@/analysis/analyzer/claude-agent';
+import { testOpenAICompatible } from '@/analysis/analyzer/openai-compatible';
+import { testAzureTranslator } from '@/analysis/translator/azure-client';
+import { classifyKeyError, errMsg, COOLDOWN_SECONDS } from '@/analysis/key-failover';
 import { decryptSecret } from '@/utils/crypto';
 import { PostsRepository } from '@/database';
 import { ProvidersRepository, type ProviderApiKeyRow, type ProviderRow } from '@/database';

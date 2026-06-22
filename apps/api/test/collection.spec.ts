@@ -11,7 +11,7 @@ import {
   TasksRepository,
 } from '@/database';
 import type { AnalysisConfigService } from '@/domain/analysis/analysis-config.service';
-import type { CrawlerConfigService, HackerNewsClient } from '@/lib/crawler';
+import type { CrawlerConfigService, HackerNewsClient } from '@/crawler';
 import { buildStages, type TaskKind, type RedditPost } from '@hatch-radar/shared';
 import { nowSec } from '@/utils/time';
 import {

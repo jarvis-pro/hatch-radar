@@ -5,7 +5,7 @@ import {
   HackerNewsClient,
   fetchFeed,
   type CommentFetchResult,
-} from '@/lib/crawler';
+} from '@/crawler';
 import {
   CommentsRepository,
   PostsRepository,

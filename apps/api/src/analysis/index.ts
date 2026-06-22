@@ -1,5 +1,5 @@
 /**
- * @/lib/analysis —— AI 分析能力（无状态引擎 / 适配）。
+ * @/analysis —— AI 分析能力（无状态引擎 / 适配）。
  *
  * analyzer 引擎（prompt / 洞察 schema / Anthropic·OpenAI 兼容客户端 / 处理器装配）+ 翻译引擎
  * （translator）+ 多 Key 故障转移分类（key-failover）。依赖 kernel(crypto / 日志) + shared(域类型)。

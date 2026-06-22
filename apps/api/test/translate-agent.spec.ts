@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { looksChinese, translationFromMessage } from '@/lib/analysis';
+import { looksChinese, translationFromMessage } from '@/analysis';
 
 /**
  * claude_cli 翻译的「result 消息分发」纯逻辑单测。

@@ -12,7 +12,7 @@ import {
   TaskStagesRepository,
 } from '@/database';
 import { RuntimeSettingsService } from '@/domain/settings/runtime-settings.service';
-import type { PostProcessor, RawModelOutput } from '@/lib/analysis';
+import type { PostProcessor, RawModelOutput } from '@/analysis';
 import { AnalysisConfigService } from '@/domain/analysis/analysis-config.service';
 import { AnalysisService } from '@/domain/analysis/analysis.service';
 import type { TranslationService } from '@/domain/analysis/translation.service';

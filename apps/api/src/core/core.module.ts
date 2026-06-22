@@ -33,9 +33,9 @@ import {
 /**
  * 领域核心模块（**非全局**）。
  *
- * 方案 A 塌缩后，原框架无关能力包（kernel/db/crawler/analysis/auth）已内联到 `@/lib/*` 并全部加
- * `@Injectable()`，领域服务亦然。本模块把**领域服务 / 执行器 / 种子**直接列为 provider，由 NestJS
- * 按构造参数类型自动注入。
+ * 框架无关能力代码 + 领域服务全部加 `@Injectable()`（方案 A 塌缩把能力包并入 api、后续 `lib/` 解散，
+ * 能力散入 `@/database` / `@/crawler` / `@/analysis` / `@/auth` / `@/utils` 等 src 根目录）。本模块把
+ * **领域服务 / 执行器 / 种子**直接列为 provider，由 NestJS 按构造参数类型自动注入。
  *
  * **DI 装配拆分**：原单一 @Global CoreModule 列全部 52 provider，现按职责拆三层、收敛 @Global 到两个
  * 基础设施叶子：
