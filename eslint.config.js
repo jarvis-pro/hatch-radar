@@ -74,8 +74,13 @@ export default tseslint.config(
   },
   {
     // Expo config plugins & 构建链配置（babel/metro/tailwind）是 CommonJS
-    // （apps/mobile 无 "type": "module"），由 Expo CLI / Metro 以 require() 加载。
-    files: ['apps/mobile/plugins/**/*.js', 'apps/mobile/*.config.js'],
+    // （apps/mobile、apps/lumen 无 "type": "module"），由 Expo CLI / Metro 以 require() 加载。
+    files: [
+      'apps/mobile/plugins/**/*.js',
+      'apps/mobile/*.config.js',
+      'apps/lumen/plugins/**/*.js',
+      'apps/lumen/*.config.js',
+    ],
     languageOptions: {
       sourceType: 'commonjs',
       globals: {
@@ -153,6 +158,8 @@ export default tseslint.config(
       '**/next-env.d.ts',
       'apps/mobile/ios/',
       'apps/mobile/android/',
+      'apps/lumen/ios/',
+      'apps/lumen/android/',
     ],
   },
 );
