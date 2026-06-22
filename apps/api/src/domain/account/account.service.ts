@@ -7,8 +7,14 @@ import { LoginAttemptsRepository } from '@/database';
 import { SessionsRepository } from '@/database';
 import { UsersRepository, type UserAuthView } from '@/database';
 import { DomainError } from '@/domain/errors';
+import { logger } from '@/logger';
 import { nowSec } from '@/utils/time';
 import type { AuthedUser } from './auth-context';
+
+/** 把被兜底成 503 的意外错误（DB 抖动 / 约束冲突等）的根因落日志——否则「服务暂时不可用」在日志里无迹可循。 */
+function logUnexpected(scope: string, e: unknown): void {
+  logger.error(`[account] ${scope} 异常：${e instanceof Error ? (e.stack ?? e.message) : String(e)}`);
+}
 
 const DAY = 86_400;
 /** 滑动续期写库的最小间隔（秒）：last_seen 在此区间内不重复 update，省写。 */
@@ -131,8 +137,9 @@ export class AccountService {
       await this.audit.write({ actorId: view.id, action: 'auth.login', ip: meta.ip ?? null });
       return { token, user: stripHash(view), absoluteDays };
     } catch (e) {
-      // 业务失败（限流 / 凭据错）原样冒泡；意外错误（DB 抖动等）才转 503
+      // 业务失败（限流 / 凭据错）原样冒泡；意外错误（DB 抖动等）记根因后才转 503
       if (e instanceof DomainError) throw e;
+      logUnexpected('login', e);
       throw new DomainError('登录失败：服务暂时不可用，请稍后再试', 503);
     }
   }
@@ -162,6 +169,7 @@ export class AccountService {
       await this.audit.write({ actorId: user.id, action: 'account.password.change' });
     } catch (e) {
       if (e instanceof DomainError) throw e;
+      logUnexpected('changePassword', e);
       throw new DomainError('修改失败：服务暂时不可用，请稍后再试', 503);
     }
   }
@@ -174,6 +182,7 @@ export class AccountService {
       await this.users.updateName(user.id, trimmed, nowSec());
     } catch (e) {
       if (e instanceof DomainError) throw e;
+      logUnexpected('updateOwnName', e);
       throw new DomainError('保存失败：服务暂时不可用', 503);
     }
   }
@@ -195,6 +204,7 @@ export class AccountService {
       await this.users.updateAvatar(userId, avatar, nowSec());
     } catch (e) {
       if (e instanceof DomainError) throw e;
+      logUnexpected('updateAvatarById', e);
       throw new DomainError('保存失败：服务暂时不可用', 503);
     }
   }
