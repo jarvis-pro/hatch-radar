@@ -62,6 +62,38 @@ export function databaseUrl(): string {
 }
 
 /**
+ * 下列访问器与 {@link databaseUrl} 是本模块之外**唯一**该直接触碰 `process.env` 的出口：
+ * bootstrap 期（logger，DI 容器尚不存在）与框架无关工具（crypto / cookies）需在 AppEnv 注入前取值，
+ * 故不经 AppEnv 而经此处集中读取——维持「只有 config/env.ts 读 process.env」这条单一可信源不变量。
+ * 这些变量同时由上面的 schema 校验（启动即早失败）、文档化。
+ */
+
+/** SETTINGS_SECRET 原始值（密钥 AES 加解密用）；未配置返回 undefined。 */
+export function settingsSecret(): string | undefined {
+  return process.env.SETTINGS_SECRET?.trim() || undefined;
+}
+
+/** 日志级别（pino）；默认 info。 */
+export function logLevel(): string {
+  return process.env.LOG_LEVEL?.trim() || 'info';
+}
+
+/** 是否生产环境。 */
+export function isProd(): boolean {
+  return process.env.NODE_ENV === 'production';
+}
+
+/**
+ * 是否签发 Secure cookie：COOKIE_SECURE 显式覆盖（'true'/'false'）优先，否则回落生产环境。
+ * 独立开关杜绝「生产容器忘设 NODE_ENV → 会话 cookie 无 Secure、明文 HTTP 下被嗅探」。
+ */
+export function cookieSecure(): boolean {
+  const override = process.env.COOKIE_SECURE?.trim();
+  if (override) return override === 'true';
+  return isProd();
+}
+
+/**
  * HTTP 服务默认监听端口（47xxx 段避撞常见 dev 端口，…878 呼应旧 8787）。
  */
 const DEFAULT_HTTP_PORT = 47878;
@@ -104,6 +136,13 @@ const apiEnvSchema = z.preprocess(
        * 审计 IP 不再被伪造的 x-forwarded-for 污染。留空＝不信任任何代理（取 socket IP，安全默认）。
        */
       TRUST_PROXY: z.string().trim().optional(),
+
+      /** 运行环境标识；'production' 启用 Secure cookie 默认、关闭 pretty 日志。bootstrap 期经 {@link isProd} 读取。 */
+      NODE_ENV: z.string().trim().optional(),
+      /** 日志级别（pino）；默认 info。bootstrap 期经 {@link logLevel} 读取。 */
+      LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal', 'silent']).optional(),
+      /** 是否签发 Secure 会话 cookie（'true'/'false'）；省略则回落 NODE_ENV==='production'。经 {@link cookieSecure} 读取。 */
+      COOKIE_SECURE: z.enum(['true', 'false']).optional(),
     })
     .transform((env) => ({
       databaseUrl: env.DATABASE_URL,

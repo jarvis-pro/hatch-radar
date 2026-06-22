@@ -1,4 +1,5 @@
 import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from 'node:crypto';
+import { settingsSecret } from '@/config/env';
 
 /**
  * 模型 API Key 的对称加解密（AES-256-GCM）。
@@ -17,7 +18,7 @@ const SALT = 'hatch-radar/settings/v1';
 let cachedKey: { secret: string; key: Buffer } | null = null;
 
 function deriveKey(): Buffer {
-  const secret = process.env.SETTINGS_SECRET?.trim();
+  const secret = settingsSecret();
   if (!secret) {
     throw new Error(
       '未配置 SETTINGS_SECRET：模型密钥加密入库需要它，请在 .env 设一个高强度随机串（如 openssl rand -hex 32）',
@@ -31,7 +32,7 @@ function deriveKey(): Buffer {
 
 /** 是否已配置 SETTINGS_SECRET（未配置则无法加密/解密模型密钥） */
 export function isSecretConfigured(): boolean {
-  return !!process.env.SETTINGS_SECRET?.trim();
+  return !!settingsSecret();
 }
 
 /**

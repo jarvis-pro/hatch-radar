@@ -1,4 +1,5 @@
 import type { Request, Response } from 'express';
+import { cookieSecure } from '@/config/env';
 
 /** 会话 cookie 名（与原 web 实现一致，mobile 不涉及）。 */
 export const SESSION_COOKIE = 'radar_session';
@@ -12,16 +13,6 @@ export const CSRF_HEADER = 'x-radar-csrf';
 const DAY = 86_400;
 /** 启用 Secure 时的 cookie 名：__Host- 前缀强制 Secure + path=/ + 无 domain，防子域 cookie 注入 / 固定。 */
 const HOST_COOKIE = `__Host-${SESSION_COOKIE}`;
-
-/**
- * 是否签发 Secure cookie：COOKIE_SECURE 显式覆盖（'true'/'false'）优先，否则回落 NODE_ENV==='production'。
- * 独立开关杜绝「生产容器忘设 NODE_ENV → 会话 cookie 无 Secure、明文 HTTP 下被嗅探」。
- */
-function cookieSecure(): boolean {
-  const override = process.env.COOKIE_SECURE?.trim();
-  if (override) return override === 'true';
-  return process.env.NODE_ENV === 'production';
-}
 
 /** 当前应签发的 cookie 名：Secure 用 __Host- 前缀；非 Secure（本地 http dev）浏览器拒绝该前缀，用裸名。 */
 function activeCookieName(): string {
