@@ -50,7 +50,9 @@ Web / Mobile：
 
 **剩余跨端包**（`packages/*`，因有 web/mobile 等非-api 消费方而保留）：`shared`（跨端类型 + 权限目录，零运行时）/ `config`（仅 tsconfig base/nest 预设）/ `ui`（shadcn + Tailwind v4，仅 PC 端）。
 
-**DI**：`CoreModule` 把 49 个领域类（仓储 / 内联能力服务 / 领域服务 / 执行器 / 种子，全 `@Injectable`）直接列为 provider，Nest 按构造参数类型**自动注入**（已退役 `createCore` 装配桥）。非类依赖经令牌：仓储/部分服务 `@Inject(PRISMA)`、SuperAdminSeeder `@Inject(APP_ENV)`、LocalDispatcher `@Inject(WORKER_CONCURRENCY)`、PipelineService `@Inject(LocalDispatcher)`（接口参数给运行时令牌）；带默认 options 的 `TokenBucketQueue` / `RequestGate` 走 `useFactory`。生命周期由 `WorkerStarter`（`src/worker/`）薄封装（起认领泵 / 僵死回收，关停排空在途任务）。
+**DI**：`CoreModule` 把 52 个领域类（仓储 / 内联能力服务 / 领域服务 / 执行器 / 种子，全 `@Injectable`）直接列为 provider，Nest 按构造参数类型**自动注入**（已退役 `createCore` 装配桥）。非类依赖经令牌：仓储/部分服务 `@Inject(PRISMA)`、SuperAdminSeeder `@Inject(APP_ENV)`、LocalDispatcher `@Inject(WORKER_CONCURRENCY)`、PipelineService `@Inject(LocalDispatcher)`（接口参数给运行时令牌）；带默认 options 的 `TokenBucketQueue` / `RequestGate` 走 `useFactory`。生命周期由 `WorkerStarter`（`src/modules/worker/`）薄封装（起认领泵 / 僵死回收，关停排空在途任务）。
+
+**目录分层（三层）**：HTTP / wiring 层（控制器 / 守卫 / Nest 模块 / 生命周期薄封装）统一在 `src/modules/*`（account / admin / auth / http / scheduler / seed / worker；基础设施模块 config / core / database / common / logger 仍在 `src/` 顶层）；领域服务在 `src/domain/*`；框架无关能力在 `src/lib/*`。`@/domain` barrel **只导出领域服务**——能力代码 / 配置 / logger 分别直接从 `@/lib/*`（db / kernel / analysis / crawler / auth）、`@/config/env`、`@/logger` 导入，勿再经 `@/domain` 取（避免 domain 入口混入基础设施）。控制器保持薄：依赖领域服务、把业务规则失败的结果对象（`{ ok:false, status, message }`）翻译成 HTTP 异常，不直接编排多个仓储。
 
 **数据流**：crawler 抓帖+评论入 PG → 选用 active 模型时 cron 入队分析 task → `LocalDispatcher` 同进程认领、`WorkerService` 跑 AI → 洞察按 `post_id` 幂等落库 → web 只读展示 / 导出批次（`.sqlite` / `.json`）→ mobile 离线研判 → `/api/sync/push` 按 opId 幂等回传。
 

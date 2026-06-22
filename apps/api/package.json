@@ -2,7 +2,7 @@
   "name": "@hatch-radar/api",
   "version": "0.1.0",
   "private": true,
-  "description": "工作台后端 API（NestJS + PostgreSQL，单进程）：HTTP + 鉴权 + 调度 + 内嵌任务执行 + 同源托管 web SPA。领域逻辑在 src/domain，框架无关能力代码内联在 src/lib（kernel/db/crawler/analysis/auth）+ Prisma 基建在本 app。密钥只在此进程，绝不下发到 web / mobile。",
+  "description": "工作台后端（NestJS + PostgreSQL，单进程）：HTTP API(/api) + 鉴权权威 + @Cron 调度 + 内嵌任务执行。web SPA 单独部署，本进程不托管静态产物。领域逻辑在 src/domain，框架无关能力代码内联在 src/lib（kernel/db/crawler/analysis/auth）+ Prisma 基建在本 app。密钥只在此进程，绝不下发到 web / mobile。",
   "type": "module",
   "scripts": {
     "dev": "prisma migrate deploy && node --env-file-if-exists=.env --watch --import @swc-node/register/esm-register src/main.ts",
