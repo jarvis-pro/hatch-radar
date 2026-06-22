@@ -30,9 +30,11 @@ export interface GateRequest {
   ownerTaskId?: number | null;
 }
 
-/** 可注入的节流参数（测试用短值） */
+/** 可注入的节流参数（测试用短值；缺省回落到模块级默认常量） */
 export interface RequestGateOptions {
+  /** lane 暂停时的轮询间隔基值（ms，实际带 ±20% 抖动）。缺省 {@link DEFAULT_PAUSE_POLL_MS} */
   pausePollMs?: number;
+  /** 单次抓取最长可被暂停的累计等待（ms），超时放弃。缺省 {@link DEFAULT_MAX_PAUSE_WAIT_MS} */
   maxPauseWaitMs?: number;
 }
 
@@ -43,13 +45,19 @@ export interface RequestGateOptions {
  */
 @Injectable()
 export class RequestGate {
-  private readonly ensured = new Map<string, number>(); // lane → 上次 ensure 时刻（秒），带 TTL
+  /** lane → 上次 ensureLane 成功时刻（秒）；带 {@link ENSURE_LANE_TTL_SEC} TTL，命中即跳过打 DB */
+  private readonly ensured = new Map<string, number>();
+  /** lane 暂停时的轮询间隔基值（ms）；实际带 ±20% 抖动。默认 {@link DEFAULT_PAUSE_POLL_MS} */
   private readonly pausePollMs: number;
+  /** 单次抓取最长可被暂停的累计等待（ms），超时放弃。默认 {@link DEFAULT_MAX_PAUSE_WAIT_MS} */
   private readonly maxPauseWaitMs: number;
 
   constructor(
+    /** 请求流水仓储：写 running / done / failed 行供控制台可见 */
     private readonly queue: RequestQueueRepository,
+    /** lane 状态仓储：ensureLane 存在性 + isPaused 暂停查询 */
     private readonly lanes: RequestLanesRepository,
+    /** 可注入的节流参数（测试传短值）；缺省回落到模块级默认常量 */
     options: RequestGateOptions = {},
   ) {
     this.pausePollMs = options.pausePollMs ?? DEFAULT_PAUSE_POLL_MS;
@@ -61,22 +69,28 @@ export class RequestGate {
    * @throws lane 持续暂停超时，或 fn 抛错（记 failed 后冒泡）
    */
   async run<T>(req: GateRequest, fn: () => Promise<T>): Promise<T> {
-    await this.ensureLane(req.lane);
-    await this.waitIfPaused(req.lane);
+    await this.ensureLane(req.lane); // lane 行存在（带 TTL 缓存，免每次打 DB）
+    await this.waitIfPaused(req.lane); // lane 暂停则阻塞至恢复 / 超时
+    // 落 running 行：放行那一刻即可见于控制台，拿到 id 用于收尾回写
     const id = await this.queue.startRequest(
       { lane: req.lane, purpose: req.purpose, url: req.url, ownerTaskId: req.ownerTaskId },
       nowSec(),
     );
     try {
       const result = await fn();
-      await this.queue.finishRequest(id, 'done', null, nowSec());
+      await this.queue.finishRequest(id, 'done', null, nowSec()); // 成功收尾
       return result;
     } catch (err) {
+      // 失败也必须收尾（存错因），再把异常冒泡给调用方处理重试 / 退避
       await this.queue.finishRequest(id, 'failed', errMsg(err), nowSec());
       throw err;
     }
   }
 
+  /**
+   * 确保 lane 行存在（upsert 语义）。进程内 TTL 缓存：同一 lane 在 {@link ENSURE_LANE_TTL_SEC}
+   * 秒内只打一次 DB；过期重做，免缓存与被外部删 / 重置的 lane 行长期失配。
+   */
   private async ensureLane(lane: string): Promise<void> {
     const now = nowSec();
     const at = this.ensured.get(lane);
@@ -85,6 +99,10 @@ export class RequestGate {
     this.ensured.set(lane, now);
   }
 
+  /**
+   * lane 暂停时阻塞轮询至恢复；累计等待超 {@link maxPauseWaitMs} 抛错放弃本次抓取。
+   * @throws 持续暂停超时
+   */
   private async waitIfPaused(lane: string): Promise<void> {
     let waited = 0;
     while (await this.lanes.isPaused(lane)) {
