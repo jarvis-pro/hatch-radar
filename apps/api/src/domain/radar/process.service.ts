@@ -1,13 +1,6 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { PRISMA } from '@/common/tokens';
-import {
-  BlueprintsRepository,
-  ProcessesRepository,
-  RunsRepository,
-  toRunRow,
-  type AppDatabase,
-} from '@/lib/db';
-import { nowSec } from '@/lib/kernel';
+import { Injectable } from '@nestjs/common';
+import { BlueprintsRepository, ProcessesRepository, RunsRepository } from '@/lib/db';
+import { DomainError, nowSec } from '@/lib/kernel';
 import type { BlueprintKind, ProcessDTO, RunDTO, TriggerConfig } from '@hatch-radar/shared';
 import { PipelineService } from '../pipeline/pipeline.service';
 import { toProcessDTO, toRunDTO, triggerToRepo } from './radar.mappers';
@@ -23,7 +16,6 @@ const PROCESS_RUNS_LIMIT = 50;
 @Injectable()
 export class ProcessService {
   constructor(
-    @Inject(PRISMA) private readonly db: AppDatabase,
     private readonly processes: ProcessesRepository,
     private readonly blueprints: BlueprintsRepository,
     private readonly runs: RunsRepository,
@@ -50,9 +42,9 @@ export class ProcessService {
     blueprintId: number;
     label: string;
     trigger: TriggerConfig;
-  }): Promise<ProcessDTO | { error: string }> {
+  }): Promise<ProcessDTO> {
     const bp = await this.blueprints.getBlueprint(input.blueprintId);
-    if (!bp) return { error: '绑定的图纸不存在' };
+    if (!bp) throw new DomainError('绑定的图纸不存在', 400);
     const { triggerKind, triggerConfig } = triggerToRepo(input.trigger);
     // once 不自动触发；interval/cron 稍后即到期（首个心跳触发）
     const nextRunAt = input.trigger.kind === 'once' ? null : nowSec();
@@ -98,14 +90,13 @@ export class ProcessService {
   }
 
   /** 手动触发一次：已有进行中运行则拒绝；否则 fireProcess(manual)。 */
-  async triggerProcess(id: number): Promise<{ ok: boolean; reason?: string }> {
+  async triggerProcess(id: number): Promise<void> {
     const p = await this.processes.getProcess(id);
-    if (!p) return { ok: false, reason: '进程不存在' };
+    if (!p) throw new DomainError('进程不存在', 400);
     if (await this.runs.hasRunningRunForProcess(id)) {
-      return { ok: false, reason: '该进程已有进行中的运行' };
+      throw new DomainError('该进程已有进行中的运行', 400);
     }
     await this.pipeline.fireProcess(p, 'manual');
-    return { ok: true };
   }
 
   async deleteProcess(id: number): Promise<void> {
@@ -115,15 +106,11 @@ export class ProcessService {
   /** 单进程的运行历史。 */
   async processRuns(processId: number): Promise<{ process: ProcessDTO | null; runs: RunDTO[] }> {
     const process = await this.getProcess(processId);
-    const rows = await this.db.runs.findMany({
-      where: { process_id: processId },
-      orderBy: { id: 'desc' },
-      take: PROCESS_RUNS_LIMIT,
-    });
+    const rows = await this.runs.listByProcess(processId, PROCESS_RUNS_LIMIT);
     const bp = process ? await this.blueprints.getBlueprint(process.blueprintId) : null;
     return {
       process,
-      runs: rows.map((r) => toRunDTO(toRunRow(r), bp?.label ?? null, process?.label ?? null)),
+      runs: rows.map((r) => toRunDTO(r, bp?.label ?? null, process?.label ?? null)),
     };
   }
 }

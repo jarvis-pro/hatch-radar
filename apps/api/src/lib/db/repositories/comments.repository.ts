@@ -1,6 +1,13 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { PRISMA } from '@/common/tokens';
-import { Prisma, contentHash, toCommentRow, type AppDatabase, type CommentRow } from '../internal';
+import {
+  Prisma,
+  contentHash,
+  toCommentRow,
+  type AppDatabase,
+  type CommentPg,
+  type CommentRow,
+} from '../internal';
 import type { RedditComment } from '@hatch-radar/shared';
 
 /**
@@ -89,5 +96,17 @@ export class CommentsRepository {
       orderBy: [{ depth: 'asc' }, { score: 'desc' }],
     });
     return rows.map(toCommentRow);
+  }
+
+  /**
+   * 取某帖全部评论原始 Prisma 行（深度升序、分数降序），供帖子一生详情合成楼层树
+   * （时间戳仍为 bigint，由调用方的评论树构建器折算）。
+   * @param postId 目标帖子 ID
+   */
+  async listRawForPost(postId: string): Promise<CommentPg[]> {
+    return this.db.comments.findMany({
+      where: { post_id: postId },
+      orderBy: [{ depth: 'asc' }, { score: 'desc' }],
+    });
   }
 }

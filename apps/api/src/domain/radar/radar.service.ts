@@ -1,14 +1,15 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { PRISMA } from '@/common/tokens';
+import { Injectable } from '@nestjs/common';
 import {
   BlueprintsRepository,
+  CommentsRepository,
+  InsightsRepository,
+  PostsRepository,
   RequestLanesRepository,
   RequestQueueRepository,
   RunsRepository,
   TaskStagesRepository,
   TasksRepository,
-  toRunRow,
-  type AppDatabase,
+  TranslationsRepository,
   type RunRow,
   type TaskRow,
   type TaskStageRow,
@@ -57,7 +58,6 @@ const RECENT_PER_LANE = 8;
 @Injectable()
 export class RadarService {
   constructor(
-    @Inject(PRISMA) private readonly db: AppDatabase,
     private readonly blueprints: BlueprintsRepository,
     private readonly processSvc: ProcessService,
     private readonly runs: RunsRepository,
@@ -65,6 +65,10 @@ export class RadarService {
     private readonly taskStages: TaskStagesRepository,
     private readonly requestQueue: RequestQueueRepository,
     private readonly requestLanes: RequestLanesRepository,
+    private readonly posts: PostsRepository,
+    private readonly insights: InsightsRepository,
+    private readonly comments: CommentsRepository,
+    private readonly translations: TranslationsRepository,
   ) {}
 
   // ─── 运行详情 ──────────────────────────────────────────────────────────────────
@@ -79,20 +83,13 @@ export class RadarService {
       this.tasks.listByRun(id),
     ]);
     const postIds = [...new Set(tasks.map((t) => t.post_id).filter((x): x is string => x != null))];
-    const posts = postIds.length
-      ? await this.db.posts.findMany({
-          where: { id: { in: postIds } },
-          select: { id: true, source: true, title: true },
-        })
-      : [];
+    const posts = await this.posts.listSummaryByIds(postIds);
     const postById = new Map(posts.map((p) => [p.id, p]));
-    const taskViews: TaskDTO[] = await Promise.all(
-      tasks.map(async (t) => {
-        const stages = await this.taskStages.listStages(t.id);
-        const post = t.post_id != null ? postById.get(t.post_id) : undefined;
-        return this.toTaskDTO(t, stages, post?.source ?? null, post?.title ?? null);
-      }),
-    );
+    const stagesByTask = await this.taskStages.listStagesByTasks(tasks.map((t) => t.id));
+    const taskViews: TaskDTO[] = tasks.map((t) => {
+      const post = t.post_id != null ? postById.get(t.post_id) : undefined;
+      return this.toTaskDTO(t, stagesByTask.get(t.id) ?? [], post?.source ?? null, post?.title ?? null);
+    });
     return {
       run: toRunDTO(run, bp?.label ?? null, proc?.label ?? null),
       tasks: taskViews,
@@ -176,9 +173,9 @@ export class RadarService {
     const dayStart = now - (now % 86400);
     const [insightsToday, postsToday, runsToday, taskStats, lanes, procDtos, runningRuns, recheck] =
       await Promise.all([
-        this.db.insights.count({ where: { created_at: { gte: BigInt(dayStart) } } }),
-        this.db.posts.count({ where: { fetched_at: { gte: BigInt(dayStart) } } }),
-        this.db.runs.count({ where: { started_at: { gte: BigInt(dayStart) } } }),
+        this.insights.countSince(dayStart),
+        this.posts.countFetchedSince(dayStart),
+        this.runs.countSince(dayStart),
         this.tasks.taskStats(),
         this.lanes(),
         this.processSvc.listProcesses(),
@@ -206,11 +203,7 @@ export class RadarService {
       };
     });
 
-    const failedRuns = await this.db.runs.findMany({
-      where: { status: 'failed' },
-      orderBy: { id: 'desc' },
-      take: ALERTS_LIMIT,
-    });
+    const failedRuns = await this.runs.listFailedRuns(ALERTS_LIMIT);
     const bps = await this.blueprints.listBlueprints();
     const bpLabel = new Map(bps.map((b) => [b.id, b.label]));
 
@@ -225,37 +218,18 @@ export class RadarService {
       },
       lanes,
       processes,
-      alerts: failedRuns.map((r) =>
-        toRunDTO(toRunRow(r), bpLabel.get(r.blueprint_id) ?? null, null),
-      ),
+      alerts: failedRuns.map((r) => toRunDTO(r, bpLabel.get(r.blueprint_id) ?? null, null)),
       recheck,
     };
   }
 
   private async recheckHealth(now: number): Promise<ControlRoomDTO['recheck']> {
     void now;
-    const sweepAgg = await this.db.runs.aggregate({
-      where: { kind: 'recheck' },
-      _max: { sweep_seq: true },
-    });
-    const sweep = sweepAgg._max.sweep_seq ?? 0;
-    const [dueNow, distRows] = await Promise.all([
-      this.db.posts.count({
-        where: {
-          source: { not: 'rss' },
-          comment_pass: { gte: 1 },
-          recheck_due_sweep: { lte: sweep },
-        },
-      }),
-      this.db.posts.groupBy({
-        by: ['recheck_misses'],
-        where: { source: { not: 'rss' }, comment_pass: { gte: 1 } },
-        _count: { _all: true },
-      }),
+    const sweep = await this.runs.maxRecheckSweep();
+    const [dueNow, dist] = await Promise.all([
+      this.posts.countRecheckDue(sweep),
+      this.posts.recheckMissesDistribution(),
     ]);
-    const dist = distRows
-      .map((r) => ({ misses: r.recheck_misses, count: r._count._all }))
-      .sort((a, b) => a.misses - b.misses);
     return { sweep, dueNow, dist };
   }
 
@@ -263,24 +237,10 @@ export class RadarService {
 
   async listInsights(f: RadarInsightFilter): Promise<Paged<RadarInsightDTO>> {
     const size = f.size && f.size > 0 ? f.size : PAGE_SIZE;
-    const where: Record<string, unknown> = {};
-    if (f.source) where.source = f.source;
-    if (f.subreddit) where.subreddit = f.subreddit;
-    if (f.intensity) where.intensity = f.intensity.toUpperCase();
-    if (f.q) where.post_title = { contains: f.q, mode: 'insensitive' };
-    const total = await this.db.insights.count({ where });
+    const total = await this.insights.countForRadar(f);
     const pageCount = Math.max(1, Math.ceil(total / size));
     const page = Math.min(Math.max(1, f.page ?? 1), pageCount);
-    const orderBy =
-      f.sort === 'pain'
-        ? [{ intensity: 'asc' as const }, { created_at: 'desc' as const }]
-        : [{ created_at: 'desc' as const }];
-    const rows = await this.db.insights.findMany({
-      where,
-      orderBy,
-      skip: (page - 1) * size,
-      take: size,
-    });
+    const rows = await this.insights.listForRadar(f, (page - 1) * size, size);
     const titleZhByPost = await this.titleZhForPosts(rows.map((r) => r.post_id));
     const items: RadarInsightDTO[] = rows.map((r) => ({
       id: r.id,
@@ -300,11 +260,11 @@ export class RadarService {
 
   /** 单条洞察详情（痛点 / 机会 / 人工研判全展开 + 译文标题 + 源帖是否仍在库）。 */
   async insightDetail(id: number): Promise<RadarInsightDetailDTO | null> {
-    const r = await this.db.insights.findUnique({ where: { id } });
+    const r = await this.insights.getRawById(id);
     if (!r) return null;
-    const [triageRow, post, titleZhByPost] = await Promise.all([
-      this.db.triage.findUnique({ where: { insight_id: id } }),
-      this.db.posts.findUnique({ where: { id: r.post_id }, select: { id: true } }),
+    const [triageRow, postExists, titleZhByPost] = await Promise.all([
+      this.insights.getTriageByInsightId(id),
+      this.posts.exists(r.post_id),
       this.titleZhForPosts([r.post_id]),
     ]);
     const toIntensity = (v: unknown): RadarIntensity => {
@@ -349,61 +309,29 @@ export class RadarService {
             updatedAt: Number(triageRow.updated_at),
           }
         : null,
-      postExists: post != null,
+      postExists,
       createdAt: Number(r.created_at),
     };
   }
 
   /** 来源 / 版块去重清单（洞察口径，供洞察库筛选下拉 + 导出批次按钮）。 */
   async filterOptions(): Promise<RadarFilterOptions> {
-    const [srcRows, subRows] = await Promise.all([
-      this.db.insights.findMany({
-        distinct: ['source'],
-        select: { source: true },
-        orderBy: { source: 'asc' },
-      }),
-      this.db.insights.findMany({
-        distinct: ['subreddit'],
-        select: { subreddit: true },
-        orderBy: { subreddit: 'asc' },
-      }),
+    const [sources, subreddits] = await Promise.all([
+      this.insights.distinctSources(),
+      this.insights.distinctSubreddits(),
     ]);
-    return {
-      sources: srcRows.map((r) => r.source).filter((s): s is string => Boolean(s)),
-      subreddits: subRows.map((r) => r.subreddit).filter((s): s is string => Boolean(s)),
-    };
+    return { sources, subreddits };
   }
 
   // ─── 帖子库（分页） ─────────────────────────────────────────────────────────────
 
   async listPosts(f: RadarPostFilter): Promise<Paged<RadarPostDTO>> {
     const size = f.size && f.size > 0 ? f.size : PAGE_SIZE;
-    const sweepAgg = await this.db.runs.aggregate({
-      where: { kind: 'recheck' },
-      _max: { sweep_seq: true },
-    });
-    const sweep = sweepAgg._max.sweep_seq ?? 0;
-    const where: Record<string, unknown> = {};
-    if (f.source) where.source = f.source;
-    if (f.subreddit) where.subreddit = f.subreddit;
-    if (f.q) where.title = { contains: f.q, mode: 'insensitive' };
-    if (f.status === 'new') where.last_rechecked_at = null;
-    else if (f.status === 'quiet') where.recheck_misses = { gt: 0 };
-    else if (f.status === 'due')
-      Object.assign(where, {
-        source: { not: 'rss' },
-        comment_pass: { gte: 1 },
-        recheck_due_sweep: { lte: sweep },
-      });
-    const total = await this.db.posts.count({ where });
+    const sweep = await this.runs.maxRecheckSweep();
+    const total = await this.posts.countForRadar(f, sweep);
     const pageCount = Math.max(1, Math.ceil(total / size));
     const page = Math.min(Math.max(1, f.page ?? 1), pageCount);
-    const rows = await this.db.posts.findMany({
-      where,
-      orderBy: { created_utc: 'desc' },
-      skip: (page - 1) * size,
-      take: size,
-    });
+    const rows = await this.posts.listForRadar(f, sweep, (page - 1) * size, size);
     const zhByHash = await this.translationsByHash(
       rows.flatMap((r) => [r.title_hash, r.selftext_hash].filter((x): x is string => x != null)),
     );
@@ -432,28 +360,19 @@ export class RadarService {
   // ─── 帖子一生（详情） ──────────────────────────────────────────────────────────
 
   async postDetail(id: string): Promise<RadarPostDetailDTO | null> {
-    const p = await this.db.posts.findUnique({ where: { id } });
+    const p = await this.posts.getRawById(id);
     if (!p) return null;
     const [commentRows, taskRows, insightRow, zhByHash] = await Promise.all([
-      this.db.comments.findMany({
-        where: { post_id: id },
-        orderBy: [{ depth: 'asc' }, { score: 'desc' }],
-      }),
-      this.db.tasks.findMany({ where: { post_id: id }, orderBy: { id: 'asc' } }),
-      this.db.insights.findUnique({ where: { post_id: id } }),
+      this.comments.listRawForPost(id),
+      this.tasks.listByPost(id),
+      this.insights.getRawByPostId(id),
       this.translationsByHash(
         [p.title_hash, p.selftext_hash].filter((x): x is string => x != null),
       ),
     ]);
     // 跨运行一生时间线
     const runIds = [...new Set(taskRows.map((t) => t.run_id))];
-    const runRows = runIds.length
-      ? await this.db.runs.findMany({
-          where: { id: { in: runIds } },
-          select: { id: true, sweep_seq: true },
-        })
-      : [];
-    const sweepByRun = new Map(runRows.map((r) => [r.id, r.sweep_seq]));
+    const sweepByRun = await this.runs.sweepSeqByRunIds(runIds);
     const events: PostLifecycleEvent[] = taskRows.map((t) => ({
       taskId: t.id,
       runId: t.run_id,
@@ -509,26 +428,14 @@ export class RadarService {
 
   /** content_hash → 中文译文（status=done）。 */
   private async translationsByHash(hashes: string[]): Promise<Map<string, string>> {
-    const uniq = [...new Set(hashes)];
-    if (uniq.length === 0) return new Map();
-    const rows = await this.db.translations.findMany({
-      where: { content_hash: { in: uniq }, status: 'done', text: { not: null } },
-      select: { content_hash: true, text: true },
-    });
-    return new Map(rows.map((r) => [r.content_hash, r.text as string]));
+    return this.translations.doneTextByHashes(hashes);
   }
 
   /** 帖子 id → 标题译文（经 posts.title_hash join translations）。 */
   private async titleZhForPosts(postIds: string[]): Promise<Map<string, string>> {
-    const uniq = [...new Set(postIds)];
-    if (uniq.length === 0) return new Map();
-    const posts = await this.db.posts.findMany({
-      where: { id: { in: uniq } },
-      select: { id: true, title_hash: true },
-    });
-    const hashByPost = new Map(posts.map((p) => [p.id, p.title_hash]));
+    const hashByPost = await this.posts.titleHashByIds(postIds);
     const zhByHash = await this.translationsByHash(
-      posts.map((p) => p.title_hash).filter((x): x is string => x != null),
+      [...hashByPost.values()].filter((x): x is string => x != null),
     );
     const out = new Map<string, string>();
     for (const [postId, hash] of hashByPost) {

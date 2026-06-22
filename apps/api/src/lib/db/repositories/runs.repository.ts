@@ -123,4 +123,48 @@ export class RunsRepository {
     });
     return agg._max.sweep_seq ?? 0;
   }
+
+  /** 起始时间 ≥ sinceSec 的运行数（指挥室「今日运行」）。 */
+  async countSince(sinceSec: number): Promise<number> {
+    return this.db.runs.count({ where: { started_at: { gte: BigInt(sinceSec) } } });
+  }
+
+  /** 最近失败的运行（id 倒序），供指挥室告警条。 */
+  async listFailedRuns(limit: number): Promise<RunRow[]> {
+    const rows = await this.db.runs.findMany({
+      where: { status: 'failed' },
+      orderBy: { id: 'desc' },
+      take: limit,
+    });
+    return rows.map((r: RunPg) => toRunRow(r));
+  }
+
+  /** 全部复查运行的最大 sweep 序号（无则 0），供指挥室 / 帖子库判定「到期复查」。 */
+  async maxRecheckSweep(): Promise<number> {
+    const agg = await this.db.runs.aggregate({
+      where: { kind: 'recheck' },
+      _max: { sweep_seq: true },
+    });
+    return agg._max.sweep_seq ?? 0;
+  }
+
+  /** 一批运行的 sweep 序号（id → sweep_seq），供帖子一生时间线标注复查轮次。 */
+  async sweepSeqByRunIds(runIds: number[]): Promise<Map<number, number | null>> {
+    if (runIds.length === 0) return new Map();
+    const rows = await this.db.runs.findMany({
+      where: { id: { in: runIds } },
+      select: { id: true, sweep_seq: true },
+    });
+    return new Map(rows.map((r) => [r.id, r.sweep_seq]));
+  }
+
+  /** 单进程的运行历史（id 倒序）。 */
+  async listByProcess(processId: number, limit: number): Promise<RunRow[]> {
+    const rows = await this.db.runs.findMany({
+      where: { process_id: processId },
+      orderBy: { id: 'desc' },
+      take: limit,
+    });
+    return rows.map((r: RunPg) => toRunRow(r));
+  }
 }

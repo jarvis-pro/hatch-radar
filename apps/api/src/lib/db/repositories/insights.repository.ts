@@ -1,12 +1,19 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { PRISMA } from '@/common/tokens';
-import { Prisma, toInsight, type AppDatabase, type InsightPgRow } from '../internal';
+import {
+  Prisma,
+  toInsight,
+  type AppDatabase,
+  type InsightPgRow,
+  type TriagePgRow,
+} from '../internal';
 import type {
   Insight,
   InsightFilter,
   InsightResult,
   Intensity,
   PostRow,
+  RadarInsightFilter,
 } from '@hatch-radar/shared';
 
 /**
@@ -87,5 +94,77 @@ export class InsightsRepository {
       LIMIT ${filter.limit ?? 20}
     `;
     return rows.map(toInsight);
+  }
+
+  // ─── 雷达只读视图（指挥室 / 收成洞察库 / 详情）─────────────────────────────────────
+
+  /** 创建时间 ≥ sinceSec 的洞察数（指挥室「今日洞察」）。 */
+  async countSince(sinceSec: number): Promise<number> {
+    return this.db.insights.count({ where: { created_at: { gte: BigInt(sinceSec) } } });
+  }
+
+  /**
+   * 收成洞察库筛选→Prisma where（与 {@link countForRadar} / {@link listForRadar} 同源）。
+   * intensity 入库为大写枚举、q 对标题大小写不敏感子串。
+   */
+  private radarWhere(f: RadarInsightFilter): Prisma.insightsWhereInput {
+    const where: Record<string, unknown> = {};
+    if (f.source) where.source = f.source;
+    if (f.subreddit) where.subreddit = f.subreddit;
+    if (f.intensity) where.intensity = f.intensity.toUpperCase();
+    if (f.q) where.post_title = { contains: f.q, mode: 'insensitive' };
+    return where;
+  }
+
+  /** 收成洞察库筛选后的总数（分页 total）。 */
+  async countForRadar(f: RadarInsightFilter): Promise<number> {
+    return this.db.insights.count({ where: this.radarWhere(f) });
+  }
+
+  /**
+   * 收成洞察库一页（原始 Prisma 行供服务合成 DTO）。
+   * sort=pain 按强度升序 + 时间倒序，否则纯时间倒序。
+   */
+  async listForRadar(f: RadarInsightFilter, skip: number, take: number): Promise<InsightPgRow[]> {
+    const orderBy =
+      f.sort === 'pain'
+        ? [{ intensity: 'asc' as const }, { created_at: 'desc' as const }]
+        : [{ created_at: 'desc' as const }];
+    return this.db.insights.findMany({ where: this.radarWhere(f), orderBy, skip, take });
+  }
+
+  /** 按 id 取单条洞察原始 Prisma 行；不存在返回 null。 */
+  async getRawById(id: number): Promise<InsightPgRow | null> {
+    return this.db.insights.findUnique({ where: { id } });
+  }
+
+  /** 按 post_id 取单条洞察原始 Prisma 行（一帖至多一条）；不存在返回 null。 */
+  async getRawByPostId(postId: string): Promise<InsightPgRow | null> {
+    return this.db.insights.findUnique({ where: { post_id: postId } });
+  }
+
+  /** 取某洞察的人工研判（triage）原始行；无则 null。 */
+  async getTriageByInsightId(insightId: number): Promise<TriagePgRow | null> {
+    return this.db.triage.findUnique({ where: { insight_id: insightId } });
+  }
+
+  /** 洞察去重的来源清单（升序，非空），供洞察库筛选下拉。 */
+  async distinctSources(): Promise<string[]> {
+    const rows = await this.db.insights.findMany({
+      distinct: ['source'],
+      select: { source: true },
+      orderBy: { source: 'asc' },
+    });
+    return rows.map((r) => r.source).filter((s): s is string => Boolean(s));
+  }
+
+  /** 洞察去重的版块清单（升序，非空），供洞察库筛选下拉。 */
+  async distinctSubreddits(): Promise<string[]> {
+    const rows = await this.db.insights.findMany({
+      distinct: ['subreddit'],
+      select: { subreddit: true },
+      orderBy: { subreddit: 'asc' },
+    });
+    return rows.map((r) => r.subreddit).filter((s): s is string => Boolean(s));
   }
 }

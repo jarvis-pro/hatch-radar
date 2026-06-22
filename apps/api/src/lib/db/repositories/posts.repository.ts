@@ -8,7 +8,7 @@ import {
   type PostPg,
   type PostRow,
 } from '../internal';
-import type { RedditPost } from '@hatch-radar/shared';
+import type { RadarPostFilter, RedditPost } from '@hatch-radar/shared';
 
 /** 评论 refresh 节奏与冻结策略（秒） */
 const REFRESH = {
@@ -223,6 +223,112 @@ export class PostsRepository {
         where: { created_utc: { lt: BigInt(cutoff) } },
       });
       return { posts: deletedPosts.count, comments: deletedComments.count };
+    });
+  }
+
+  // ─── 雷达只读视图（指挥室 / 帖子库 / 详情）─────────────────────────────────────────
+
+  /** 抓取时间 ≥ sinceSec 的帖子数（指挥室「今日采集」）。 */
+  async countFetchedSince(sinceSec: number): Promise<number> {
+    return this.db.posts.count({ where: { fetched_at: { gte: BigInt(sinceSec) } } });
+  }
+
+  /** 到期可复查的旧帖数（非 rss、已抓评论、recheck_due_sweep ≤ sweep），供指挥室复查健康。 */
+  async countRecheckDue(sweep: number): Promise<number> {
+    return this.db.posts.count({
+      where: {
+        source: { not: 'rss' },
+        comment_pass: { gte: 1 },
+        recheck_due_sweep: { lte: sweep },
+      },
+    });
+  }
+
+  /**
+   * 复查未变次数（recheck_misses）分布：非 rss、已抓评论的帖子按 misses 计数，升序。
+   * 供指挥室「退避分布」直方图。
+   */
+  async recheckMissesDistribution(): Promise<{ misses: number; count: number }[]> {
+    const rows = await this.db.posts.groupBy({
+      by: ['recheck_misses'],
+      where: { source: { not: 'rss' }, comment_pass: { gte: 1 } },
+      _count: { _all: true },
+    });
+    return rows
+      .map((r) => ({ misses: r.recheck_misses, count: r._count._all }))
+      .sort((a, b) => a.misses - b.misses);
+  }
+
+  /**
+   * 帖子库筛选→Prisma where（与 {@link listForRadar} / {@link countForRadar} 同源，避免谓词散落）。
+   * status：new=未复查过 / quiet=退避中（misses>0）/ due=到期可查（非 rss、已抓评论、due_sweep ≤ sweep）。
+   */
+  private radarWhere(f: RadarPostFilter, sweep: number): Prisma.postsWhereInput {
+    const where: Record<string, unknown> = {};
+    if (f.source) where.source = f.source;
+    if (f.subreddit) where.subreddit = f.subreddit;
+    if (f.q) where.title = { contains: f.q, mode: 'insensitive' };
+    if (f.status === 'new') where.last_rechecked_at = null;
+    else if (f.status === 'quiet') where.recheck_misses = { gt: 0 };
+    else if (f.status === 'due')
+      Object.assign(where, {
+        source: { not: 'rss' },
+        comment_pass: { gte: 1 },
+        recheck_due_sweep: { lte: sweep },
+      });
+    return where;
+  }
+
+  /** 帖子库筛选后的总数（分页 total）。 */
+  async countForRadar(f: RadarPostFilter, sweep: number): Promise<number> {
+    return this.db.posts.count({ where: this.radarWhere(f, sweep) });
+  }
+
+  /** 帖子库一页（created_utc 倒序，原始 Prisma 行供服务合成 DTO）。 */
+  async listForRadar(
+    f: RadarPostFilter,
+    sweep: number,
+    skip: number,
+    take: number,
+  ): Promise<PostPg[]> {
+    return this.db.posts.findMany({
+      where: this.radarWhere(f, sweep),
+      orderBy: { created_utc: 'desc' },
+      skip,
+      take,
+    });
+  }
+
+  /** 按 id 取单帖原始 Prisma 行（供帖子一生详情合成）；不存在返回 null。 */
+  async getRawById(id: string): Promise<PostPg | null> {
+    return this.db.posts.findUnique({ where: { id } });
+  }
+
+  /** 帖子是否在库（含 30 天归档后已删除则不在）。供洞察详情标注源帖是否仍存在。 */
+  async exists(id: string): Promise<boolean> {
+    const row = await this.db.posts.findUnique({ where: { id }, select: { id: true } });
+    return row != null;
+  }
+
+  /** 一批帖子 id → title_hash（供按内容哈希 join 译文标题）。 */
+  async titleHashByIds(ids: string[]): Promise<Map<string, string | null>> {
+    const uniq = [...new Set(ids)];
+    if (uniq.length === 0) return new Map();
+    const rows = await this.db.posts.findMany({
+      where: { id: { in: uniq } },
+      select: { id: true, title_hash: true },
+    });
+    return new Map(rows.map((p) => [p.id, p.title_hash]));
+  }
+
+  /** 一批帖子 id → {id, source, title}（供运行详情任务树标注来源 / 标题）。 */
+  async listSummaryByIds(
+    ids: string[],
+  ): Promise<{ id: string; source: string; title: string }[]> {
+    if (ids.length === 0) return [];
+    return this.db.posts.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, source: true, title: true },
     });
   }
 }
