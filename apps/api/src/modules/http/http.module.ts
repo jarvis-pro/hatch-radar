@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { CoreModule } from '@/core/core.module';
 import { AccountModule } from '@/modules/account/account.module';
 import { AuthModule } from '@/modules/auth/auth.module';
 import { AnalysisController } from './analysis.controller';
@@ -17,10 +18,11 @@ import { TranslationsController } from './translations.controller';
 /**
  * HTTP 层：会话守卫下的业务控制器统一收口（看板 / 设置 / 分析 / 导出 / 同步 / 设备激活 等）。
  * 鉴权：看板 / 设置 / 分析 / 来源走 SessionAuthGuard（import AccountModule）；导出 / 同步走双通道守卫
- * （import AuthModule）；设备激活公开；健康检查公开。各领域服务由 CoreModule 全局提供。
+ * （import AuthModule）；设备激活公开；健康检查公开。各领域服务由 CoreModule 提供
+ * （须显式 import——CoreModule 已去 @Global）。
  */
 @Module({
-  imports: [AccountModule, AuthModule],
+  imports: [CoreModule, AccountModule, AuthModule],
   controllers: [
     HealthController,
     DashboardController,

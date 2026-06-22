@@ -1,56 +1,10 @@
-import { Global, Module, type Provider } from '@nestjs/common';
-import { type AppEnv } from '@/config/env';
-import { AuditLogsRepository, CommentsRepository, DeviceCredentialsRepository, DeviceEnrollmentsRepository, InsightsRepository, BlueprintsRepository, ProcessesRepository, RunsRepository, TasksRepository, TaskStagesRepository, RequestQueueRepository, RequestLanesRepository, LoginAttemptsRepository, PostsRepository, ProvidersRepository, SessionsRepository, SettingsRepository, SourceConnectorsRepository, SourcesRepository, StatsRepository, CostRepository, TranslationsRepository, UsersRepository, RuntimeSettingsService } from '@/lib/db';
-import { AnalysisConfigService, TranslationService, AnalysisService } from '@/lib/analysis';
-import { TokenBucketQueue, HackerNewsClient, CrawlerConfigService } from '@/lib/crawler';
-import { AccountService, AdminService, DeviceAuthService, SyncService, ExportService, SourcesService, SettingsService, TranslationOrchestrator, SchedulerService, PipelineService, PipelineQueryService, RadarService, BlueprintService, ProcessService, WorkerService, CollectionExecutor, RequestGate, LocalDispatcher, SourcesSeeder, BlueprintsSeeder, ProcessesSeeder, SuperAdminSeeder, RuntimeSettingsSeeder, SeedRunner } from '@/domain';
-import { APP_ENV, WORKER_CONCURRENCY } from '@/common/tokens';
-
-/**
- * 领域核心模块（全局）。
- *
- * 方案 A 塌缩后：原框架无关能力包（kernel/db/crawler/analysis/auth）已内联到 `@/lib/*` 并全部加
- * `@Injectable()`，领域服务亦然。本模块把这些类**直接列为 provider**，由 NestJS 按构造参数类型
- * 自动注入——退役了 `createCore` 装配工厂 +「类当令牌 useFactory」桥（assembly.ts 已删）。
- *
- * 非类依赖经令牌：仓储 / 部分服务 `@Inject(PRISMA)`（DatabaseModule 全局提供）、SuperAdminSeeder
- * `@Inject(APP_ENV)`（AppConfigModule 全局提供）、LocalDispatcher `@Inject(WORKER_CONCURRENCY)`（下方派生）。
- *
- * @Global：处处可注入，各功能模块无需显式 import。生命周期（认领泵 / 调度 / 种子）由各自的 starter 触发。
- */
-const CLASSES = [
-  // 仓储
-  AuditLogsRepository,
-  CommentsRepository,
-  DeviceCredentialsRepository,
-  DeviceEnrollmentsRepository,
-  InsightsRepository,
-  BlueprintsRepository,
-  ProcessesRepository,
-  RunsRepository,
-  TasksRepository,
-  TaskStagesRepository,
-  RequestQueueRepository,
-  RequestLanesRepository,
-  LoginAttemptsRepository,
-  PostsRepository,
-  ProvidersRepository,
-  SessionsRepository,
-  SettingsRepository,
-  SourceConnectorsRepository,
-  SourcesRepository,
-  StatsRepository,
-  CostRepository,
-  TranslationsRepository,
-  UsersRepository,
-  // 内联能力服务
-  HackerNewsClient,
-  CrawlerConfigService,
+import { Module } from '@nestjs/common';
+import { CapabilityModule } from './capability.module';
+import { RepositoryModule } from './repository.module';
+import {
   AnalysisConfigService,
   TranslationService,
   AnalysisService,
-  RuntimeSettingsService,
-  // 领域服务
   AccountService,
   AdminService,
   DeviceAuthService,
@@ -62,12 +16,67 @@ const CLASSES = [
   SchedulerService,
   PipelineService,
   PipelineQueryService,
+  TaskControlService,
+  RadarService,
+  BlueprintService,
+  ProcessService,
+  WorkerService,
+  CollectionExecutor,
+  AnalyzeExecutor,
+  LocalDispatcher,
+  SourcesSeeder,
+  BlueprintsSeeder,
+  ProcessesSeeder,
+  SuperAdminSeeder,
+  RuntimeSettingsSeeder,
+  SeedRunner,
+} from '@/domain';
+
+/**
+ * 领域核心模块（**非全局**）。
+ *
+ * 方案 A 塌缩后，原框架无关能力包（kernel/db/crawler/analysis/auth）已内联到 `@/lib/*` 并全部加
+ * `@Injectable()`，领域服务亦然。本模块把**领域服务 / 执行器 / 种子**直接列为 provider，由 NestJS
+ * 按构造参数类型自动注入。
+ *
+ * **DI 装配拆分**：原单一 @Global CoreModule 列全部 52 provider，现收敛 @Global 到两个基础设施叶子，
+ * 让领域服务依赖在 module 层显式：
+ * - 仓储（22 个，无状态数据访问叶子）→ {@link RepositoryModule}（@Global）。
+ * - 无状态能力 / 运行期配置读取叶子（HackerNewsClient / CrawlerConfigService / RuntimeSettingsService）
+ *   + 工厂 provider（WORKER_CONCURRENCY / TokenBucketQueue / RequestGate）→ {@link CapabilityModule}（@Global）。
+ * - 本模块只留领域服务（18）+ 执行器（4）+ 种子（6），**去掉 @Global**——故凡注入领域服务的 wiring
+ *   模块须显式 `imports: [CoreModule]`（见各 modules/*.module.ts）。
+ *
+ * 依赖方向：wiring 模块 → CoreModule → RepositoryModule / CapabilityModule（后两者只依赖 @Global 的
+ * PRISMA/APP_ENV，彼此不依赖、不依赖 CoreModule），是确定无循环的 DAG。
+ *
+ * 非类依赖经令牌：仓储 / 部分服务 `@Inject(PRISMA)`（DatabaseModule 全局）、SuperAdminSeeder
+ * `@Inject(APP_ENV)`（AppConfigModule 全局）、LocalDispatcher `@Inject(WORKER_CONCURRENCY)`（CapabilityModule）。
+ */
+const DOMAIN_CLASSES = [
+  // 领域服务
+  AnalysisConfigService,
+  TranslationService,
+  AnalysisService,
+  AccountService,
+  AdminService,
+  DeviceAuthService,
+  SyncService,
+  ExportService,
+  SourcesService,
+  SettingsService,
+  TranslationOrchestrator,
+  SchedulerService,
+  PipelineService,
+  PipelineQueryService,
+  TaskControlService,
   RadarService,
   BlueprintService,
   ProcessService,
   // 内嵌执行器
   WorkerService,
   CollectionExecutor,
+  AnalyzeExecutor,
   LocalDispatcher,
   // 种子
   SourcesSeeder,
@@ -78,27 +87,9 @@ const CLASSES = [
   SeedRunner,
 ];
 
-const PROVIDERS: Provider[] = [
-  // 内嵌执行器并发上限：从 APP_ENV 派生供 LocalDispatcher 注入
-  {
-    provide: WORKER_CONCURRENCY,
-    useFactory: (env: AppEnv): number => env.workerConcurrency,
-    inject: [APP_ENV],
-  },
-  // 末位构造参数是带默认值的 options（非 DI 依赖），故经工厂构造而非自动注入
-  { provide: TokenBucketQueue, useFactory: (): TokenBucketQueue => new TokenBucketQueue() },
-  {
-    provide: RequestGate,
-    useFactory: (queue: RequestQueueRepository, lanes: RequestLanesRepository): RequestGate =>
-      new RequestGate(queue, lanes),
-    inject: [RequestQueueRepository, RequestLanesRepository],
-  },
-  ...CLASSES,
-];
-
-@Global()
 @Module({
-  providers: PROVIDERS,
-  exports: [WORKER_CONCURRENCY, TokenBucketQueue, RequestGate, ...CLASSES],
+  imports: [RepositoryModule, CapabilityModule],
+  providers: DOMAIN_CLASSES,
+  exports: DOMAIN_CLASSES,
 })
 export class CoreModule {}
