@@ -77,15 +77,15 @@ Web / Mobile：
 
 **AI provider + 多 Key 故障转移**：4 种 `provider_kind`——`anthropic`/`openai`/`deepseek`（API Key 模式）+ `claude_cli`（订阅模式，经 `@anthropic-ai/claude-agent-sdk` 复用后端本机已登录的 Claude Code、无 Key；单进程后已无独立 worker，订阅模式仅适合宿主机运行、容器内不可用）。API Key 模式每条挂多把 Key，状态机 `active/cooling/invalid`（429 冷却 5min、401/403 失效需人工复位）；分析与翻译共用 `apps/api/src/lib/analysis/key-failover.ts`。
 
-**翻译**：`claude_cli`（高质量、零边际）/ `azure`（Azure Translator 机翻、按字符、走 Key 池故障转移；`region` 填区域代码如 `centralus`）。译文按源内容哈希存 `translations` 表；走分析同一队列（`analysis_jobs.job_type=translation`）。`azure` 仅翻译——`setActive` 拒之、分析路径 `providerConfigWithKey` 抛错。
+**翻译**：`claude_cli`（高质量、零边际）/ `azure`（机翻、按字符、走 Key 池；`azure` **仅翻译**）。译文按源内容哈希存 `translations` 表、走分析同队列（`job_type=translation`）。**改这块前先看 `/translation` skill（provider 矩阵 + 坑）+ 设计稿 `docs/translation-pipeline-design.md`。**
 
-**流水线检视器（单条手动 / 逐节点暂停）**：把一条帖子的分析拆成 6 个显式节点（`resolve → fetch → context → ai_call → normalize → persist`）逐步执行，每节点产物落 `job_steps` 表（`job_status` 加 `paused`、`analysis_jobs` 加 `inspect`/`step_gate`）。核心是**检查点 + 重认领**：执行器跑完一节点即落库，`step_gate` 开则置 `paused` 后正常结束（不阻塞、不占执行器），「继续」把 job 置 `queued` 重新认领、从下一节点续跑——「等待」交给持久层、执行器始终无状态。`ai_call` 是唯一不可重算的节点（花钱 / 不确定 / 起子进程）故必须落检查点，其余节点持久化是为「所见即所跑」（防两次认领间评论改写致上下文漂移）。坑：① 部分唯一索引 `uniq_jobs_active_post` 谓词已扩为 `IN (queued,running,paused)`（paused 仍占该帖活跃名额）；② `resumeInspectJob` 把 `attempts` 归零，免逐节点重认领累加误触僵死回收；③ 三 provider 的 `analyze()` 重构为 `callRaw + normalizeRawOutput`，normal 与检视共用归一化入口；④ 执行器（`apps/api/src/domain/worker/`）依赖 `@hatch-radar/shared`（节点产物契约 `packages/shared/src/inspect.ts`）。编排集中在 `AnalysisConfigService`，HTTP 端点 `/api/analysis/inspect/*` 很薄。设计稿 `docs/pipeline-inspector-design.md`。
+**流水线检视器（逐节点可暂停的分析内核）**：单帖分析拆 6 节点（`resolve→fetch→context→ai_call→normalize→persist`）逐步执行，核心是**检查点 + 重认领**（每节点落 `job_steps`、`step_gate` 开则置 `paused` 正常结束，续跑靠重新认领、执行器始终无状态）。`ai_call` 唯一不可重算、必落检查点。**改这块前先看 `/pipeline-inspector` skill（含 4 个坑：唯一索引谓词 / attempts 归零 / analyze 归一化 / 节点契约）+ 设计稿 `docs/pipeline-inspector-design.md`。**
 
 **Claude Agent SDK 不可 mock**：`vi.mock` 拦不住 `@anthropic-ai/claude-agent-sdk`（会真起 claude）→ 把消息分发抽成纯函数（`insightFromMessage` / `translationFromMessage`）单测，勿测真实调用。
 
 **依赖版本**：跨包共享版本集中在 `pnpm-workspace.yaml` 的 catalog，各 `package.json` 用 `"catalog:"` 引用；`react` / `react-dom` / `tailwindcss` 与 Expo 钉版的依赖故意留 inline。
 
-**Web UI**：基于 `@hatch-radar/ui`（shadcn）+ 主题令牌，**不写自定义 CSS**、移动端响应式。加组件在 `apps/web` 下 `pnpm dlx shadcn@latest add <c>`（CLI 自动落入 `packages/ui`，PC 端共用；RN 勿引）。
+**Web UI**：基于 `@hatch-radar/ui`（shadcn，new-york / lucide）+ 主题令牌，**不写自定义 CSS**、移动端响应式。**加组件用 `/add-ui` skill**——shadcn 配置在 `packages/ui/components.json`（**不在 apps/web**），从 `packages/ui` 下跑 CLI，组件落 `packages/ui/src/components/`（PC 端共用；RN 勿引）。
 
 **Mobile UI**：React Native Reusables（NativeWind v4）；颜色只在 `global.css` 变量、全部样式走 Tailwind `className`、**零 StyleSheet**。Expo CNG——改原生经 config plugin，勿直接改生成的 native 工程。
 
