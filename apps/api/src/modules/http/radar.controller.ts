@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -107,8 +106,7 @@ export class BlueprintsController {
   @Delete(':id')
   @RequirePermission('pipeline:control')
   async remove(@Param('id', ParseIntPipe) id: number) {
-    const res = await this.blueprints.deleteBlueprint(id);
-    if (!res.ok) throw new BadRequestException(res.reason ?? '无法删除');
+    await this.blueprints.deleteBlueprint(id);
     logger.info(`[图纸] 删除 #${id}`);
     return { ok: true };
   }
@@ -147,7 +145,6 @@ export class ProcessesController {
     @Body(new ZodValidationPipe(createProcessSchema)) dto: z.infer<typeof createProcessSchema>,
   ) {
     const res = await this.processes.createProcess(dto);
-    if ('error' in res) throw new BadRequestException(res.error);
     logger.info(`[进程] 新建 #${res.id}：${res.label}`);
     return res;
   }
@@ -182,8 +179,7 @@ export class ProcessesController {
   @Post(':id/trigger')
   @HttpCode(200)
   async trigger(@Param('id', ParseIntPipe) id: number) {
-    const res = await this.processes.triggerProcess(id);
-    if (!res.ok) throw new BadRequestException(res.reason ?? '无法触发');
+    await this.processes.triggerProcess(id);
     logger.info(`[进程] 手动触发 #${id}`);
     return { ok: true };
   }

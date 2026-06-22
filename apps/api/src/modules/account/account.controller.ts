@@ -4,7 +4,6 @@ import {
   Delete,
   Get,
   HttpCode,
-  HttpException,
   Param,
   Patch,
   Post,
@@ -36,11 +35,11 @@ const profileSchema = z.object({ name: z.string().trim().min(1) });
 
 const avatarSchema = z.object({ avatar: z.string().trim().min(1).max(128).nullable() });
 
-/** 取客户端 IP（反代场景取 x-forwarded-for 首段，否则 express req.ip）。 */
+/**
+ * 取客户端 IP：直接用 express req.ip——它按 `trust proxy` 设置解析（信任代理时取 XFF 链，否则取
+ * socket IP）。不再手动读 x-forwarded-for：未经 trust proxy 校验的 XFF 可被任意伪造、污染审计取证。
+ */
 function clientIp(req: Request): string | undefined {
-  const xff = req.headers['x-forwarded-for'];
-  const raw = Array.isArray(xff) ? xff[0] : xff;
-  if (raw) return raw.split(',')[0]?.trim() || undefined;
   return req.ip;
 }
 
@@ -77,7 +76,6 @@ export class AccountController {
       userAgent: req.headers['user-agent'],
       ip: clientIp(req),
     });
-    if (!result.ok) throw new HttpException(result.message, result.status);
     setSessionCookie(res, result.token, result.absoluteDays);
     return { user: result.user };
   }
@@ -112,8 +110,7 @@ export class AccountController {
     @AuthUser() user: AuthedUser,
     @Body(new ZodValidationPipe(changePasswordSchema)) dto: z.infer<typeof changePasswordSchema>,
   ): Promise<{ ok: true }> {
-    const result = await this.account.changePassword(user, dto.current, dto.password, dto.confirm);
-    if (!result.ok) throw new HttpException(result.message, result.status);
+    await this.account.changePassword(user, dto.current, dto.password, dto.confirm);
     return { ok: true };
   }
 
@@ -124,8 +121,7 @@ export class AccountController {
     @AuthUser() user: AuthedUser,
     @Body(new ZodValidationPipe(profileSchema)) dto: z.infer<typeof profileSchema>,
   ): Promise<{ ok: true }> {
-    const result = await this.account.updateOwnName(user, dto.name);
-    if (!result.ok) throw new HttpException(result.message, result.status);
+    await this.account.updateOwnName(user, dto.name);
     return { ok: true };
   }
 
@@ -136,8 +132,7 @@ export class AccountController {
     @AuthUser() user: AuthedUser,
     @Body(new ZodValidationPipe(avatarSchema)) dto: z.infer<typeof avatarSchema>,
   ): Promise<{ ok: true }> {
-    const result = await this.account.updateOwnAvatar(user, dto.avatar);
-    if (!result.ok) throw new HttpException(result.message, result.status);
+    await this.account.updateOwnAvatar(user, dto.avatar);
     return { ok: true };
   }
 

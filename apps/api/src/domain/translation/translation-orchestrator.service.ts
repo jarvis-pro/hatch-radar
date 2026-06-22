@@ -6,6 +6,7 @@ import {
   TasksRepository,
   TranslationsRepository,
 } from '@/lib/db';
+import { DomainError } from '@/lib/kernel';
 import type { ExportFilter } from '@hatch-radar/shared';
 import { ExportService } from '../export/export.service';
 import { PipelineService } from '../pipeline/pipeline.service';
@@ -15,9 +16,6 @@ const AZURE_FREE_CHARS_PER_MONTH = 2_000_000;
 
 /** 翻译进度三态（驱动 web 按钮文案）：none 无可译 / first 首次 / incremental 增量 / translating 进行中 / done 已全译 */
 type TranslationState = 'none' | 'first' | 'incremental' | 'translating' | 'done';
-
-/** 业务规则失败（控制器据 status/message 抛对应 HTTP 异常）。 */
-type Fail = { ok: false; status: number; message: string };
 
 /** 当月起点（UTC）的 Unix 秒——Azure 免费档按自然月重置，用量统计据此取窗。 */
 function startOfMonthSec(): number {
@@ -30,7 +28,8 @@ function startOfMonthSec(): number {
  *
  * 从 TranslationsController 抽出的多仓储 / 多服务编排：翻译进度三态、可选翻译模型解析、
  * 单帖 / 批量入队（含审计落档）、导出筛选覆盖率、Azure 当月用量。译文按 content_hash 寻址，
- * 故「增量」= 评论刷新后新增的未翻条目，由进度查询自然得出。失败以结果对象返回，控制器翻译为 HTTP 异常。
+ * 故「增量」= 评论刷新后新增的未翻条目，由进度查询自然得出。业务失败一律抛 DomainError，
+ * 由全局异常过滤器按 status 映射成 HTTP。
  */
 @Injectable()
 export class TranslationOrchestrator {
@@ -109,11 +108,13 @@ export class TranslationOrchestrator {
     actorId: string,
     postId: string,
     chosenId?: number,
-  ): Promise<{ ok: true; enqueued: boolean } | Fail> {
-    const resolved = await this.resolveTranslationProvider(chosenId);
-    if (!resolved.ok) return resolved;
-    const { provider } = resolved;
-    const { enqueued } = await this.pipeline.enqueueTranslation([postId], provider.id, provider.model);
+  ): Promise<{ enqueued: boolean }> {
+    const provider = await this.resolveTranslationProvider(chosenId);
+    const { enqueued } = await this.pipeline.enqueueTranslation(
+      [postId],
+      provider.id,
+      provider.model,
+    );
     await this.audit.write({
       actorId,
       action: 'translation.enqueue',
@@ -121,7 +122,7 @@ export class TranslationOrchestrator {
       targetId: postId,
       metadata: { providerId: provider.id, model: provider.model },
     });
-    return { ok: true, enqueued: enqueued > 0 };
+    return { enqueued: enqueued > 0 };
   }
 
   /**
@@ -148,13 +149,15 @@ export class TranslationOrchestrator {
     actorId: string,
     filter: ExportFilter,
     chosenId?: number,
-  ): Promise<{ ok: true; enqueued: number; posts: number } | Fail> {
-    const resolved = await this.resolveTranslationProvider(chosenId);
-    if (!resolved.ok) return resolved;
-    const { provider } = resolved;
+  ): Promise<{ enqueued: number; posts: number }> {
+    const provider = await this.resolveTranslationProvider(chosenId);
     const ids = await this.exportSvc.selectPostIds(filter);
     const needing = await this.translations.getPostIdsNeedingTranslation(ids);
-    const { enqueued } = await this.pipeline.enqueueTranslation(needing, provider.id, provider.model);
+    const { enqueued } = await this.pipeline.enqueueTranslation(
+      needing,
+      provider.id,
+      provider.model,
+    );
     await this.audit.write({
       actorId,
       action: 'translation.batchEnqueue',
@@ -162,7 +165,7 @@ export class TranslationOrchestrator {
       targetId: null,
       metadata: { providerId: provider.id, model: provider.model, posts: needing.length, enqueued },
     });
-    return { ok: true, enqueued, posts: needing.length };
+    return { enqueued, posts: needing.length };
   }
 
   /**
@@ -179,7 +182,7 @@ export class TranslationOrchestrator {
 
   /**
    * 解析本次翻译用 provider：优先 chosenId（前端弹窗选定），否则 translation_provider_id ?? active。
-   * 校验存在 / 启用 / 类型（claude_cli | azure），不满足即结果对象 400。
+   * 校验存在 / 启用 / 类型（claude_cli | azure），不满足即抛 DomainError(400)。
    */
   private async resolveTranslationProvider(chosenId?: number) {
     const providerId =
@@ -187,23 +190,18 @@ export class TranslationOrchestrator {
       (await this.settings.getTranslationProviderId()) ??
       (await this.settings.getActiveProviderId());
     if (providerId == null) {
-      return {
-        ok: false as const,
-        status: 400,
-        message: '未配置翻译模型，请在弹窗中选择，或在设置页设定翻译/active 模型',
-      };
+      throw new DomainError('未配置翻译模型，请在弹窗中选择，或在设置页设定翻译/active 模型', 400);
     }
     const provider = await this.providers.getProvider(providerId);
     if (!provider || !provider.enabled) {
-      return { ok: false as const, status: 400, message: '翻译模型不存在或已停用' };
+      throw new DomainError('翻译模型不存在或已停用', 400);
     }
     if (provider.provider !== 'claude_cli' && provider.provider !== 'azure') {
-      return {
-        ok: false as const,
-        status: 400,
-        message: `翻译暂仅支持 claude_cli（订阅）/ azure（机翻），当前为 ${provider.provider}`,
-      };
+      throw new DomainError(
+        `翻译暂仅支持 claude_cli（订阅）/ azure（机翻），当前为 ${provider.provider}`,
+        400,
+      );
     }
-    return { ok: true as const, provider };
+    return provider;
   }
 }

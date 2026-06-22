@@ -43,11 +43,7 @@ export class MeController {
     @DeviceUser() device?: DeviceUserContext,
     @AuthUser() session?: AuthedUser,
   ): Promise<{ ok: true }> {
-    const result = await this.account.updateAvatarById(
-      this.resolveUserId(device, session),
-      dto.avatar,
-    );
-    if (!result.ok) throw new HttpException(result.message, result.status);
+    await this.account.updateAvatarById(this.resolveUserId(device, session), dto.avatar);
     return { ok: true };
   }
 }

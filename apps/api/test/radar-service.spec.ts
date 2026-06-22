@@ -2,12 +2,16 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { AppDatabase, DbHandle } from '@/lib/db';
 import {
   BlueprintsRepository,
+  CommentsRepository,
+  InsightsRepository,
+  PostsRepository,
   ProcessesRepository,
   RequestLanesRepository,
   RequestQueueRepository,
   RunsRepository,
   TaskStagesRepository,
   TasksRepository,
+  TranslationsRepository,
 } from '@/lib/db';
 import { buildStages } from '@hatch-radar/shared';
 import { nowSec } from '@/lib/kernel';
@@ -37,9 +41,8 @@ describe('RadarService（读 / 聚合 / CRUD）', () => {
     tasks = new TasksRepository(db);
     const processes = new ProcessesRepository(db);
     bpSvc = new BlueprintService(blueprints, processes);
-    procSvc = new ProcessService(db, processes, blueprints, runs, {} as unknown as PipelineService);
+    procSvc = new ProcessService(processes, blueprints, runs, {} as unknown as PipelineService);
     svc = new RadarService(
-      db,
       blueprints,
       procSvc,
       runs,
@@ -47,6 +50,10 @@ describe('RadarService（读 / 聚合 / CRUD）', () => {
       new TaskStagesRepository(db),
       new RequestQueueRepository(db),
       new RequestLanesRepository(db),
+      new PostsRepository(db),
+      new InsightsRepository(db),
+      new CommentsRepository(db),
+      new TranslationsRepository(db),
     );
   });
   afterAll(async () => {
@@ -118,8 +125,8 @@ describe('RadarService（读 / 聚合 / CRUD）', () => {
     expect(procs).toHaveLength(1);
     expect(procs[0].trigger).toEqual({ kind: 'interval', everySec: 900 });
     expect(procs[0].blueprintKind).toBe('collect');
-    const del = await bpSvc.deleteBlueprint(bp.id);
-    expect(del.ok).toBe(false); // 仍被进程引用
+    // 仍被进程引用 → 删除被拒（抛 DomainError 400）
+    await expect(bpSvc.deleteBlueprint(bp.id)).rejects.toMatchObject({ status: 400 });
   });
 
   it('controlRoom：聚合 today / lanes / processes / recheck 不报错且形状正确', async () => {

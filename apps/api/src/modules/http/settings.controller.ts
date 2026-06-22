@@ -3,7 +3,6 @@ import {
   Controller,
   Delete,
   Get,
-  HttpException,
   Param,
   ParseIntPipe,
   Post,
@@ -14,8 +13,9 @@ import { z } from 'zod';
 import { RequirePermission } from '@/modules/account/auth-user.decorator';
 import { SessionAuthGuard } from '@/modules/account/session-auth.guard';
 import { ZodValidationPipe } from '@/common/zod-validation.pipe';
-import { type KeyInput, type KeyUpdate, type RuntimeSettingsPatch } from '@/lib/db';
+import { type KeyInput, type KeyUpdate } from '@/lib/db';
 import { SettingsService } from '@/domain';
+import { type RuntimeSettingsPatch } from '@/domain/settings/runtime-settings.service';
 
 const providerKind = z.enum(['anthropic', 'openai', 'deepseek', 'claude_cli', 'azure']);
 
@@ -82,7 +82,7 @@ const runtimeSettingsSchema = z
 /**
  * /api/settings/* —— 模型清单 CRUD + Key 池管理 + 选用 active（密钥加密入库，仅脱敏外发）。
  * 编排与业务规则（含「改 baseUrl 须重填 Key」安全闸、写后热重载）在 {@link SettingsService}；
- * 本控制器仅做入参校验与结果对象 → HTTP 翻译。
+ * 本控制器仅做入参校验，业务失败由服务抛 DomainError、全局过滤器映射成 HTTP。
  */
 @UseGuards(SessionAuthGuard)
 @RequirePermission('settings:manage')
@@ -121,9 +121,7 @@ export class SettingsController {
   /** POST /api/settings/providers —— 新建模型（含第一把 Key，密钥加密入库），201 { id } */
   @Post('providers')
   async create(@Body(new ZodValidationPipe(createSchema)) dto: z.infer<typeof createSchema>) {
-    const res = await this.settings.createProvider(dto);
-    if (!res.ok) throw new HttpException(res.message, res.status);
-    return { id: res.id };
+    return this.settings.createProvider(dto);
   }
 
   /** PUT /api/settings/providers/:id —— 更新模型标量字段（密钥走 Key 池端点）。 */
@@ -132,16 +130,14 @@ export class SettingsController {
     @Param('id', ParseIntPipe) id: number,
     @Body(new ZodValidationPipe(updateSchema)) dto: z.infer<typeof updateSchema>,
   ) {
-    const res = await this.settings.updateProvider(id, dto);
-    if (!res.ok) throw new HttpException(res.message, res.status);
+    await this.settings.updateProvider(id, dto);
     return { ok: true };
   }
 
   /** DELETE /api/settings/providers/:id —— 删除模型（Key 池级联删除；若为 active 则清空 active） */
   @Delete('providers/:id')
   async remove(@Param('id', ParseIntPipe) id: number) {
-    const res = await this.settings.deleteProvider(id);
-    if (!res.ok) throw new HttpException(res.message, res.status);
+    await this.settings.deleteProvider(id);
     return { ok: true };
   }
 
@@ -159,9 +155,7 @@ export class SettingsController {
     @Param('id', ParseIntPipe) providerId: number,
     @Body(new ZodValidationPipe(createKeySchema)) dto: z.infer<typeof createKeySchema>,
   ) {
-    const res = await this.settings.addKey(providerId, dto satisfies KeyInput);
-    if (!res.ok) throw new HttpException(res.message, res.status);
-    return { id: res.id };
+    return this.settings.addKey(providerId, dto satisfies KeyInput);
   }
 
   /** PUT /api/settings/providers/:id/keys/:keyId —— 改备注/优先级/启停；reset 复位 invalid/cooling */
@@ -171,8 +165,7 @@ export class SettingsController {
     @Param('keyId', ParseIntPipe) keyId: number,
     @Body(new ZodValidationPipe(updateKeySchema)) dto: z.infer<typeof updateKeySchema>,
   ) {
-    const res = await this.settings.updateKey(providerId, keyId, dto satisfies KeyUpdate);
-    if (!res.ok) throw new HttpException(res.message, res.status);
+    await this.settings.updateKey(providerId, keyId, dto satisfies KeyUpdate);
     return { ok: true };
   }
 
@@ -182,8 +175,7 @@ export class SettingsController {
     @Param('id', ParseIntPipe) providerId: number,
     @Param('keyId', ParseIntPipe) keyId: number,
   ) {
-    const res = await this.settings.deleteKey(providerId, keyId);
-    if (!res.ok) throw new HttpException(res.message, res.status);
+    await this.settings.deleteKey(providerId, keyId);
     return { ok: true };
   }
 
@@ -193,17 +185,13 @@ export class SettingsController {
     @Param('id', ParseIntPipe) providerId: number,
     @Param('keyId', ParseIntPipe) keyId: number,
   ) {
-    const res = await this.settings.testKey(providerId, keyId);
-    if (!res.ok) throw new HttpException(res.message, res.status);
-    return res.result;
+    return this.settings.testKey(providerId, keyId);
   }
 
   /** PUT /api/settings/active —— 选用模型 { providerId: number|null }，即时热重载并触发一轮入队 */
   @Put('active')
   async setActive(@Body(new ZodValidationPipe(activeSchema)) dto: z.infer<typeof activeSchema>) {
-    const res = await this.settings.setActive(dto.providerId);
-    if (!res.ok) throw new HttpException(res.message, res.status);
-    return { activeProviderId: res.activeProviderId, enqueued: res.enqueued };
+    return this.settings.setActive(dto.providerId);
   }
 
   /** PUT /api/settings/translation-provider —— 选用翻译模型 { providerId: number|null }。 */
@@ -211,8 +199,6 @@ export class SettingsController {
   async setTranslationProvider(
     @Body(new ZodValidationPipe(activeSchema)) dto: z.infer<typeof activeSchema>,
   ) {
-    const res = await this.settings.setTranslationProvider(dto.providerId);
-    if (!res.ok) throw new HttpException(res.message, res.status);
-    return { translationProviderId: res.translationProviderId };
+    return this.settings.setTranslationProvider(dto.providerId);
   }
 }

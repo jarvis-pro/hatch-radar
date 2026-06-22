@@ -1,7 +1,11 @@
-import { Body, Controller, Get, HttpCode, HttpException, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 import type { ExportFilter } from '@hatch-radar/shared';
-import { AuthUser, RequirePermission, type AuthedUser } from '@/modules/account/auth-user.decorator';
+import {
+  AuthUser,
+  RequirePermission,
+  type AuthedUser,
+} from '@/modules/account/auth-user.decorator';
 import { SessionAuthGuard } from '@/modules/account/session-auth.guard';
 import { ZodValidationPipe } from '@/common/zod-validation.pipe';
 import { parseExportFilter, TranslationOrchestrator } from '@/domain';
@@ -21,7 +25,7 @@ const batchSchema = z.object({
 /**
  * /api/translations/* —— 帖子内容翻译：查询某帖翻译进度（按钮三态）+ 入队翻译（首次/增量）。
  *
- * 编排在 {@link TranslationOrchestrator}；本控制器仅做入参校验、导出筛选解析与结果对象 → HTTP 翻译。
+ * 编排在 {@link TranslationOrchestrator}；本控制器仅做入参校验、导出筛选解析，业务失败由服务抛 DomainError。
  * 翻译走 claude_cli（订阅额度、零边际成本）或 azure（机翻、按字符计费）；未单独配置时回落 active provider。
  */
 @UseGuards(SessionAuthGuard)
@@ -59,9 +63,7 @@ export class TranslationsController {
     @Param('id') postId: string,
     @Body(new ZodValidationPipe(enqueueSchema)) dto: z.infer<typeof enqueueSchema>,
   ): Promise<{ enqueued: boolean }> {
-    const res = await this.translations.enqueue(actor.id, postId, dto.providerId);
-    if (!res.ok) throw new HttpException(res.message, res.status);
-    return { enqueued: res.enqueued };
+    return this.translations.enqueue(actor.id, postId, dto.providerId);
   }
 
   /** GET /api/translations/coverage —— 一个导出筛选命中帖子的译文覆盖率（供导出面板决策）。 */
@@ -85,9 +87,7 @@ export class TranslationsController {
       subreddit: dto.subreddit,
       limit: dto.limit,
     };
-    const res = await this.translations.enqueueBatch(actor.id, filter, dto.providerId);
-    if (!res.ok) throw new HttpException(res.message, res.status);
-    return { enqueued: res.enqueued, posts: res.posts };
+    return this.translations.enqueueBatch(actor.id, filter, dto.providerId);
   }
 
   /** GET /api/translations/usage —— Azure 机翻当月已消耗字符数 + 免费档参照线。 */

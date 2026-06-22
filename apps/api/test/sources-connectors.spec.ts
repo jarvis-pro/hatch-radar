@@ -1,7 +1,12 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { AppDatabase, DbHandle } from '@/lib/db';
 import { nowSec } from '@/lib/kernel';
-import { decryptConnectorSecret, SourceConnectorsRepository, SourcesRepository, toConnectorDTO } from '@/lib/db';
+import {
+  decryptConnectorSecret,
+  SourceConnectorsRepository,
+  SourcesRepository,
+  toConnectorDTO,
+} from '@/lib/db';
 import { type CrawlerConfigService } from '@/lib/crawler';
 import { SourcesService } from '@/domain';
 import { setupTestDb, truncateAll } from './helpers';
@@ -100,11 +105,8 @@ describe('数据来源 / 采集连接器（仓储 + Reddit 门禁）', () => {
       { platform: 'reddit', identifier: 'startups', enabled: false },
       nowSec(),
     );
-    // 无连接器 → 启用被拒（业务规则失败以结果对象返回 ok:false / 400）
-    expect(await svc.updateSource(srcId, { enabled: true })).toMatchObject({
-      ok: false,
-      status: 400,
-    });
+    // 无连接器 → 启用被拒（业务规则失败抛 DomainError 400）
+    await expect(svc.updateSource(srcId, { enabled: true })).rejects.toMatchObject({ status: 400 });
     expect((await sources.getSource(srcId))!.enabled).toBe(false);
 
     // 配 reddit 连接器并测试通过 → 放行
@@ -113,7 +115,7 @@ describe('数据来源 / 采集连接器（仓储 + Reddit 门禁）', () => {
       nowSec(),
     );
     await connectors.recordCheck(connId, true, null, nowSec());
-    expect(await svc.updateSource(srcId, { enabled: true })).toEqual({ ok: true });
+    await svc.updateSource(srcId, { enabled: true });
     expect((await sources.getSource(srcId))!.enabled).toBe(true);
   });
 });

@@ -1,21 +1,17 @@
 import { Injectable } from '@nestjs/common';
-import { AnalysisConfigService } from '@/lib/analysis';
+import { AnalysisConfigService } from '../analysis/analysis-config.service';
 import {
   ProvidersRepository,
-  RuntimeSettingsService,
   SettingsRepository,
   toProviderDTO,
   type KeyInput,
   type KeyUpdate,
   type ProviderInput,
-  type RuntimeSettingsPatch,
 } from '@/lib/db';
-import { isSecretConfigured, nowSec } from '@/lib/kernel';
+import { RuntimeSettingsService, type RuntimeSettingsPatch } from './runtime-settings.service';
+import { DomainError, isSecretConfigured, nowSec } from '@/lib/kernel';
 import { logger } from '@/logger';
 import { PipelineService } from '../pipeline/pipeline.service';
-
-/** 业务规则失败（控制器据 status/message 抛对应 HTTP 异常）。 */
-type Fail = { ok: false; status: number; message: string };
 
 type ProviderKind = 'anthropic' | 'openai' | 'deepseek' | 'claude_cli' | 'azure';
 
@@ -55,8 +51,8 @@ function normalizeBaseUrl(v: string | undefined): string | undefined {
  * 模型清单 CRUD + Key 池管理 + active / 翻译 provider 选用 + 运行期可调项的领域服务。
  *
  * 从 SettingsController 抽出的多仓储 / 多服务编排与业务规则：密钥加密前置校验、claude_cli 订阅模式与
- * azure 机翻的字段差异、**改 baseUrl 必须重填 API Key 的安全闸**、写后热重载。失败以结果对象返回，
- * 控制器翻译为 HTTP 异常——领域服务不依赖 HTTP 层。
+ * azure 机翻的字段差异、**改 baseUrl 必须重填 API Key 的安全闸**、写后热重载。业务失败一律抛 DomainError，
+ * 由全局异常过滤器按 status 映射成 HTTP——领域服务不依赖 HTTP 层。
  */
 @Injectable()
 export class SettingsService {
@@ -98,37 +94,37 @@ export class SettingsService {
   }
 
   /** 新建模型（含第一把 Key，密钥加密入库）。 */
-  async createProvider(dto: ProviderCreateInput): Promise<{ ok: true; id: number } | Fail> {
+  async createProvider(dto: ProviderCreateInput): Promise<{ id: number }> {
     const isCli = dto.provider === 'claude_cli';
     if (!isCli) {
-      if (!dto.apiKey) return { ok: false, status: 400, message: '该模型必须提供 API Key' };
+      if (!dto.apiKey) throw new DomainError('该模型必须提供 API Key', 400);
       if (!isSecretConfigured()) {
-        return {
-          ok: false,
-          status: 400,
-          message: '未配置 SETTINGS_SECRET，无法加密入库，请先在 .env 设置',
-        };
+        throw new DomainError('未配置 SETTINGS_SECRET，无法加密入库，请先在 .env 设置', 400);
       }
     }
     const { apiKey, baseUrl, ...rest } = dto;
     // claude_cli 订阅模式：无 base_url、无 Key（复用本机已登录的 claude）
     const input: ProviderInput = { ...rest, baseUrl: isCli ? null : normalizeBaseUrl(baseUrl) };
-    const id = await this.providers.createProvider(input, isCli ? null : (apiKey ?? null), nowSec());
+    const id = await this.providers.createProvider(
+      input,
+      isCli ? null : (apiKey ?? null),
+      nowSec(),
+    );
     await this.analysisConfig.reloadAnalysisConfig();
     logger.info(`[设置] 新增模型 #${id}：${dto.provider} (${dto.model})`);
-    return { ok: true, id };
+    return { id };
   }
 
   /**
    * 更新模型标量字段（密钥走 Key 池端点）。
    * 安全闸：改 baseUrl 必须同时重填 API Key——否则旧密钥会被发往新地址。重填时整个 Key 池被替换成这一把新 Key。
    */
-  async updateProvider(id: number, dto: ProviderUpdateInput): Promise<{ ok: true } | Fail> {
+  async updateProvider(id: number, dto: ProviderUpdateInput): Promise<void> {
     if (dto.apiKey && !isSecretConfigured()) {
-      return { ok: false, status: 400, message: '未配置 SETTINGS_SECRET，无法加密新密钥' };
+      throw new DomainError('未配置 SETTINGS_SECRET，无法加密新密钥', 400);
     }
     const existing = await this.providers.getProvider(id);
-    if (!existing) return { ok: false, status: 404, message: '模型配置不存在' };
+    if (!existing) throw new DomainError('模型配置不存在', 404);
 
     // claude_cli 订阅模式：无 base_url / 无 Key，仅更新标量字段，跳过「改 baseUrl 须重填 Key」安全闸
     if ((dto.provider ?? existing.provider) === 'claude_cli') {
@@ -142,7 +138,7 @@ export class SettingsService {
       await this.providers.updateProvider(id, fields, nowSec());
       await this.analysisConfig.reloadAnalysisConfig();
       logger.info(`[设置] 更新模型 #${id}（订阅模式）`);
-      return { ok: true };
+      return;
     }
 
     // azure（机翻）：单把 Key、不走多 Key 池——提供 apiKey 即整体替换那把 Key，否则仅改标量字段
@@ -151,7 +147,7 @@ export class SettingsService {
       const fields: Partial<ProviderInput> = { ...azureScalar };
       if (azureKey) {
         if (!isSecretConfigured()) {
-          return { ok: false, status: 400, message: '未配置 SETTINGS_SECRET，无法加密新密钥' };
+          throw new DomainError('未配置 SETTINGS_SECRET，无法加密新密钥', 400);
         }
         await this.providers.updateProviderAndResetKeys(id, fields, azureKey, nowSec());
       } else if (Object.keys(fields).length > 0) {
@@ -159,7 +155,7 @@ export class SettingsService {
       }
       await this.analysisConfig.reloadAnalysisConfig();
       logger.info(`[设置] 更新 Azure 翻译模型 #${id}${azureKey ? '（已更换 Key）' : ''}`);
-      return { ok: true };
+      return;
     }
 
     const { apiKey, ...scalarDto } = dto;
@@ -172,11 +168,10 @@ export class SettingsService {
 
     if (baseUrlChanged) {
       if (!apiKey) {
-        return {
-          ok: false,
-          status: 400,
-          message: '修改 baseUrl 时必须同时重新填写 API Key（旧 Key 将被清空，避免被发往新地址）',
-        };
+        throw new DomainError(
+          '修改 baseUrl 时必须同时重新填写 API Key（旧 Key 将被清空，避免被发往新地址）',
+          400,
+        );
       }
       await this.providers.updateProviderAndResetKeys(id, fields, apiKey, nowSec());
     } else if (Object.keys(fields).length > 0) {
@@ -184,19 +179,17 @@ export class SettingsService {
     }
     await this.analysisConfig.reloadAnalysisConfig();
     logger.info(`[设置] 更新模型 #${id}${baseUrlChanged ? '（baseUrl 变更，Key 池已重置）' : ''}`);
-    return { ok: true };
   }
 
   /** 删除模型（Key 池级联删除；若为 active 则清空 active）。 */
-  async deleteProvider(id: number): Promise<{ ok: true } | Fail> {
+  async deleteProvider(id: number): Promise<void> {
     const removed = await this.providers.deleteProvider(id);
-    if (!removed) return { ok: false, status: 404, message: '模型配置不存在' };
+    if (!removed) throw new DomainError('模型配置不存在', 404);
     if ((await this.settings.getActiveProviderId()) === id) {
       await this.settings.setActiveProviderId(null);
     }
     await this.analysisConfig.reloadAnalysisConfig();
     logger.info(`[设置] 删除模型 #${id}`);
-    return { ok: true };
   }
 
   /** 用最优可用 Key 探测连通性，始终返回 { ok, error? }。 */
@@ -207,70 +200,49 @@ export class SettingsService {
   // ── API Key 池 ────────────────────────────────────────────────────────────────
 
   /** 新增一把备用 Key（密钥加密入库）。 */
-  async addKey(providerId: number, input: KeyInput): Promise<{ ok: true; id: number } | Fail> {
+  async addKey(providerId: number, input: KeyInput): Promise<{ id: number }> {
     if (!isSecretConfigured()) {
-      return {
-        ok: false,
-        status: 400,
-        message: '未配置 SETTINGS_SECRET，无法加密入库，请先在 .env 设置',
-      };
+      throw new DomainError('未配置 SETTINGS_SECRET，无法加密入库，请先在 .env 设置', 400);
     }
     const provider = await this.providers.getProvider(providerId);
-    if (!provider) return { ok: false, status: 404, message: '模型配置不存在' };
+    if (!provider) throw new DomainError('模型配置不存在', 404);
     if (provider.provider === 'claude_cli') {
-      return {
-        ok: false,
-        status: 400,
-        message: '订阅模式（Claude CLI）复用本机登录态，无需也不支持 API Key',
-      };
+      throw new DomainError('订阅模式（Claude CLI）复用本机登录态，无需也不支持 API Key', 400);
     }
     if (provider.provider === 'azure') {
-      return {
-        ok: false,
-        status: 400,
-        message: 'Azure 翻译仅用单把 Key，请用「编辑模型」更换，不走多 Key 池',
-      };
+      throw new DomainError('Azure 翻译仅用单把 Key，请用「编辑模型」更换，不走多 Key 池', 400);
     }
     const id = await this.providers.createKey(providerId, input, nowSec());
     logger.info(`[设置] 模型 #${providerId} 新增 Key #${id}`);
-    return { ok: true, id };
+    return { id };
   }
 
   /** 改备注/优先级/启停；reset 复位 invalid/cooling。 */
-  async updateKey(
-    providerId: number,
-    keyId: number,
-    patch: KeyUpdate,
-  ): Promise<{ ok: true } | Fail> {
+  async updateKey(providerId: number, keyId: number, patch: KeyUpdate): Promise<void> {
     const key = await this.providers.getKey(keyId);
     if (!key || key.provider_id !== providerId) {
-      return { ok: false, status: 404, message: 'API Key 不存在' };
+      throw new DomainError('API Key 不存在', 404);
     }
     if (Object.keys(patch).length > 0) await this.providers.updateKey(keyId, patch, nowSec());
-    return { ok: true };
   }
 
   /** 删除一把 Key。 */
-  async deleteKey(providerId: number, keyId: number): Promise<{ ok: true } | Fail> {
+  async deleteKey(providerId: number, keyId: number): Promise<void> {
     const key = await this.providers.getKey(keyId);
     if (!key || key.provider_id !== providerId) {
-      return { ok: false, status: 404, message: 'API Key 不存在' };
+      throw new DomainError('API Key 不存在', 404);
     }
     await this.providers.deleteKey(keyId);
     logger.info(`[设置] 模型 #${providerId} 删除 Key #${keyId}`);
-    return { ok: true };
   }
 
-  /** 测试指定 Key，成功返回 { result: { ok, error? } }。 */
-  async testKey(
-    providerId: number,
-    keyId: number,
-  ): Promise<{ ok: true; result: { ok: boolean; error?: string } } | Fail> {
+  /** 测试指定 Key，返回 { ok, error? }。 */
+  async testKey(providerId: number, keyId: number): Promise<{ ok: boolean; error?: string }> {
     const key = await this.providers.getKey(keyId);
     if (!key || key.provider_id !== providerId) {
-      return { ok: false, status: 404, message: 'API Key 不存在' };
+      throw new DomainError('API Key 不存在', 404);
     }
-    return { ok: true, result: await this.analysisConfig.testProviderKey(keyId) };
+    return this.analysisConfig.testProviderKey(keyId);
   }
 
   // ── 选用 active / 翻译 provider ─────────────────────────────────────────────────
@@ -278,24 +250,20 @@ export class SettingsService {
   /** 选用分析 active 模型；即时热重载并触发一轮入队。 */
   async setActive(
     providerId: number | null,
-  ): Promise<{ ok: true; activeProviderId: number | null; enqueued: number } | Fail> {
+  ): Promise<{ activeProviderId: number | null; enqueued: number }> {
     if (providerId !== null) {
       const row = await this.providers.getProvider(providerId);
-      if (!row) return { ok: false, status: 404, message: '模型配置不存在' };
-      if (!row.enabled) return { ok: false, status: 400, message: '该模型已停用，无法设为 active' };
+      if (!row) throw new DomainError('模型配置不存在', 404);
+      if (!row.enabled) throw new DomainError('该模型已停用，无法设为 active', 400);
       if (row.provider === 'azure') {
-        return { ok: false, status: 400, message: 'azure（机翻）仅用于翻译，不能设为分析 active 模型' };
+        throw new DomainError('azure（机翻）仅用于翻译，不能设为分析 active 模型', 400);
       }
       // 订阅模式（claude_cli）无 Key；其余 provider 须有可用 Key 才能设为 active
       if (
         row.provider !== 'claude_cli' &&
         (await this.providers.countUsableKeys(providerId, nowSec())) === 0
       ) {
-        return {
-          ok: false,
-          status: 400,
-          message: '该模型无可用 API Key，请先添加或复位后再设为启用',
-        };
+        throw new DomainError('该模型无可用 API Key，请先添加或复位后再设为启用', 400);
       }
     }
     await this.settings.setActiveProviderId(providerId);
@@ -303,33 +271,29 @@ export class SettingsService {
     // 即时生效：选用后立刻派生一轮 analyze 任务（归属 run/blueprint），无需等下一次定时调度。
     const round = await this.pipeline.runAnalyzeSweep('manual');
     logger.info(`[设置] active 模型 → ${providerId ?? '（清空）'}；即时入队 ${round.created} 篇`);
-    return { ok: true, activeProviderId: providerId, enqueued: round.created };
+    return { activeProviderId: providerId, enqueued: round.created };
   }
 
   /** 选用翻译模型（与分析 active 解耦）；清空则翻译回落 active provider。支持 claude_cli / azure。 */
   async setTranslationProvider(
     providerId: number | null,
-  ): Promise<{ ok: true; translationProviderId: number | null } | Fail> {
+  ): Promise<{ translationProviderId: number | null }> {
     if (providerId !== null) {
       const row = await this.providers.getProvider(providerId);
-      if (!row) return { ok: false, status: 404, message: '模型配置不存在' };
-      if (!row.enabled) return { ok: false, status: 400, message: '该模型已停用，无法用于翻译' };
+      if (!row) throw new DomainError('模型配置不存在', 404);
+      if (!row.enabled) throw new DomainError('该模型已停用，无法用于翻译', 400);
       if (row.provider !== 'claude_cli' && row.provider !== 'azure') {
-        return { ok: false, status: 400, message: '翻译暂仅支持 claude_cli（订阅）/ azure（机翻）' };
+        throw new DomainError('翻译暂仅支持 claude_cli（订阅）/ azure（机翻）', 400);
       }
       if (
         row.provider === 'azure' &&
         (await this.providers.countUsableKeys(providerId, nowSec())) === 0
       ) {
-        return {
-          ok: false,
-          status: 400,
-          message: '该 Azure 翻译模型无可用 API Key，请先添加或复位',
-        };
+        throw new DomainError('该 Azure 翻译模型无可用 API Key，请先添加或复位', 400);
       }
     }
     await this.settings.setTranslationProviderId(providerId);
     logger.info(`[设置] 翻译 provider → ${providerId ?? '（清空，回落 active）'}`);
-    return { ok: true, translationProviderId: providerId };
+    return { translationProviderId: providerId };
   }
 }

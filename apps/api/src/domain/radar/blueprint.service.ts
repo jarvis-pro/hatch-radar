@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { BlueprintsRepository, ProcessesRepository } from '@/lib/db';
-import { nowSec } from '@/lib/kernel';
+import { DomainError, nowSec } from '@/lib/kernel';
 import type { BlueprintDTO } from '@hatch-radar/shared';
 import { toBlueprintDTO } from './radar.mappers';
 
@@ -53,11 +53,10 @@ export class BlueprintService {
     await this.blueprints.updateBlueprint(id, patch, nowSec());
   }
 
-  /** 删图纸：被进程引用则拒绝（返回 false），否则删除。 */
-  async deleteBlueprint(id: number): Promise<{ ok: boolean; reason?: string }> {
+  /** 删图纸：被进程引用则拒绝（抛 400），否则删除。 */
+  async deleteBlueprint(id: number): Promise<void> {
     const used = (await this.processes.listProcesses(id)).length > 0;
-    if (used) return { ok: false, reason: '该图纸仍被进程引用，请先删除其进程' };
+    if (used) throw new DomainError('该图纸仍被进程引用，请先删除其进程', 400);
     await this.blueprints.deleteBlueprint(id);
-    return { ok: true };
   }
 }

@@ -3,7 +3,6 @@ import {
   Controller,
   Delete,
   Get,
-  HttpException,
   Param,
   ParseIntPipe,
   Post,
@@ -64,7 +63,7 @@ const updateConnectorSchema = z.object({
 
 /**
  * /api/sources/* —— 采集来源（爬虫计划）CRUD + 概览。
- * 编排与 Reddit 服务端闸在 {@link SourcesService}；本控制器仅做入参校验与结果对象 → HTTP 翻译。
+ * 编排与 Reddit 服务端闸在 {@link SourcesService}；本控制器仅做入参校验，业务失败由服务抛 DomainError。
  */
 @UseGuards(SessionAuthGuard)
 @RequirePermission('settings:manage')
@@ -83,9 +82,7 @@ export class SourcesController {
   async create(
     @Body(new ZodValidationPipe(createSourceSchema)) dto: z.infer<typeof createSourceSchema>,
   ) {
-    const res = await this.sources.createSource(dto);
-    if (!res.ok) throw new HttpException(res.message, res.status);
-    return { id: res.id };
+    return this.sources.createSource(dto);
   }
 
   /** PUT /api/sources/:id —— 更新来源（含勾选 enabled，走 Reddit 门禁） */
@@ -94,16 +91,14 @@ export class SourcesController {
     @Param('id', ParseIntPipe) id: number,
     @Body(new ZodValidationPipe(updateSourceSchema)) dto: z.infer<typeof updateSourceSchema>,
   ) {
-    const res = await this.sources.updateSource(id, dto);
-    if (!res.ok) throw new HttpException(res.message, res.status);
+    await this.sources.updateSource(id, dto);
     return { ok: true };
   }
 
   /** DELETE /api/sources/:id */
   @Delete(':id')
   async remove(@Param('id', ParseIntPipe) id: number) {
-    const res = await this.sources.deleteSource(id);
-    if (!res.ok) throw new HttpException(res.message, res.status);
+    await this.sources.deleteSource(id);
     return { ok: true };
   }
 }
@@ -131,9 +126,7 @@ export class SourceConnectorsController {
       priority: dto.priority,
       enabled: dto.enabled,
     };
-    const res = await this.sources.createConnector(input);
-    if (!res.ok) throw new HttpException(res.message, res.status);
-    return { id: res.id };
+    return this.sources.createConnector(input);
   }
 
   /** PUT /api/source-connectors/:id —— 更新（改 secret 会清空测试结果，须重测） */
@@ -142,16 +135,14 @@ export class SourceConnectorsController {
     @Param('id', ParseIntPipe) id: number,
     @Body(new ZodValidationPipe(updateConnectorSchema)) dto: z.infer<typeof updateConnectorSchema>,
   ) {
-    const res = await this.sources.updateConnector(id, dto);
-    if (!res.ok) throw new HttpException(res.message, res.status);
+    await this.sources.updateConnector(id, dto);
     return { ok: true };
   }
 
   /** DELETE /api/source-connectors/:id */
   @Delete(':id')
   async remove(@Param('id', ParseIntPipe) id: number) {
-    const res = await this.sources.deleteConnector(id);
-    if (!res.ok) throw new HttpException(res.message, res.status);
+    await this.sources.deleteConnector(id);
     return { ok: true };
   }
 

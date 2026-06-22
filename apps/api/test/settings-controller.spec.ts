@@ -1,8 +1,9 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { AppDatabase, DbHandle } from '@/lib/db';
 import { nowSec } from '@/lib/kernel';
-import { ProvidersRepository, type RuntimeSettingsService, SettingsRepository } from '@/lib/db';
-import { type AnalysisConfigService } from '@/lib/analysis';
+import { ProvidersRepository, SettingsRepository } from '@/lib/db';
+import { type RuntimeSettingsService } from '@/domain/settings/runtime-settings.service';
+import { type AnalysisConfigService } from '@/domain/analysis/analysis-config.service';
 import { type PipelineService, SettingsService } from '@/domain';
 import { setupTestDb, truncateAll } from './helpers';
 
@@ -60,29 +61,26 @@ describe('SettingsService.updateProvider（改 baseUrl 必须重填 API Key）',
 
   it('改 baseUrl 但不带 apiKey → 拒绝，且库中 baseUrl 不变', async () => {
     const id = await seedOpenAI();
-    expect(await svc.updateProvider(id, { baseUrl: 'http://evil.example/v1' })).toMatchObject({
-      ok: false,
-      status: 400,
-    });
+    await expect(
+      svc.updateProvider(id, { baseUrl: 'http://evil.example/v1' }),
+    ).rejects.toMatchObject({ status: 400 });
     const row = await providers.getProvider(id);
     expect(row!.base_url).toBe('https://api.openai.com/v1'); // 未被改动
   });
 
   it('改 baseUrl 且同时重填 apiKey → 允许', async () => {
     const id = await seedOpenAI();
-    const res = await svc.updateProvider(id, {
+    await svc.updateProvider(id, {
       baseUrl: 'https://api.openai.com/v2',
       apiKey: 'sk-new-ccccdddd',
     });
-    expect(res).toEqual({ ok: true });
     const row = await providers.getProvider(id);
     expect(row!.base_url).toBe('https://api.openai.com/v2');
   });
 
   it('不动 baseUrl（仅改 label）→ 允许，无需重填 key', async () => {
     const id = await seedOpenAI();
-    const res = await svc.updateProvider(id, { label: 'renamed' });
-    expect(res).toEqual({ ok: true });
+    await expect(svc.updateProvider(id, { label: 'renamed' })).resolves.toBeUndefined();
   });
 });
 
@@ -122,8 +120,6 @@ describe('SettingsService（claude_cli 订阅模式：免 Key）', () => {
       label: 'sub',
       model: 'claude-opus-4-8',
     });
-    expect(res.ok).toBe(true);
-    if (!res.ok) return;
     const withKeys = await providers.getProviderWithKeys(res.id);
     expect(withKeys?.provider.provider).toBe('claude_cli');
     expect(withKeys?.provider.base_url).toBeNull();
@@ -132,10 +128,7 @@ describe('SettingsService（claude_cli 订阅模式：免 Key）', () => {
 
   it('addKey 对 claude_cli → 拒绝（订阅模式不支持 Key）', async () => {
     const created = await svc.createProvider({ provider: 'claude_cli', label: 'sub', model: 'm' });
-    expect(created.ok).toBe(true);
-    if (!created.ok) return;
-    expect(await svc.addKey(created.id, { apiKey: 'sk-x-aaaabbbb' })).toMatchObject({
-      ok: false,
+    await expect(svc.addKey(created.id, { apiKey: 'sk-x-aaaabbbb' })).rejects.toMatchObject({
       status: 400,
     });
   });

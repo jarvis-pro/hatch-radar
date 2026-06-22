@@ -1,12 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { generateSessionToken, hashPassword, hashSessionToken, verifyPassword } from '@/lib/auth';
 import type { CurrentUser, SessionInfo } from '@hatch-radar/shared';
-import { RuntimeSettingsService } from '@/lib/db';
+import { RuntimeSettingsService } from '../settings/runtime-settings.service';
 import { AuditLogsRepository } from '@/lib/db';
 import { LoginAttemptsRepository } from '@/lib/db';
 import { SessionsRepository } from '@/lib/db';
 import { UsersRepository, type UserAuthView } from '@/lib/db';
-import { nowSec } from '@/lib/kernel';
+import { DomainError, nowSec } from '@/lib/kernel';
 import type { AuthedUser } from './auth-context';
 
 const DAY = 86_400;
@@ -26,15 +26,10 @@ export interface LoginMeta {
 }
 
 /**
- * 登录结果：成功带 token（控制器据此 Set-Cookie）+ 用户态 + cookie 绝对生命周期（天）；
- * 失败带 HTTP 状态与文案。absoluteDays 随运行期设置可变，故由服务回传而非控制器自取。
+ * 登录成功结果：token（控制器据此 Set-Cookie）+ 用户态 + cookie 绝对生命周期（天）。
+ * 失败一律抛 DomainError。absoluteDays 随运行期设置可变，故由服务回传而非控制器自取。
  */
-export type LoginResult =
-  | { ok: true; token: string; user: CurrentUser; absoluteDays: number }
-  | { ok: false; status: number; message: string };
-
-/** 改密 / 自助操作的通用结果。 */
-export type ServiceResult = { ok: true } | { ok: false; status: number; message: string };
+export type LoginResult = { token: string; user: CurrentUser; absoluteDays: number };
 
 function stripHash(view: UserAuthView): CurrentUser {
   return {
@@ -95,7 +90,7 @@ export class AccountService {
 
   /** 登录：限流 → 校验邮箱+密码 → 建会话 + 回 token；错误文案统一不泄露存在性。 */
   async login(email: string, password: string, meta: LoginMeta): Promise<LoginResult> {
-    if (!email || !password) return { ok: false, status: 400, message: '请输入邮箱和密码' };
+    if (!email || !password) throw new DomainError('请输入邮箱和密码', 400);
     try {
       const now = nowSec();
       const lock = await this.lockRemaining(email, now);
@@ -105,11 +100,7 @@ export class AccountService {
           metadata: { email },
           ip: meta.ip ?? null,
         });
-        return {
-          ok: false,
-          status: 429,
-          message: `尝试过于频繁，请约 ${Math.ceil(lock / 60)} 分钟后再试`,
-        };
+        throw new DomainError(`尝试过于频繁，请约 ${Math.ceil(lock / 60)} 分钟后再试`, 429);
       }
       const view = await this.users.findAuthViewByEmail(email);
       const ok =
@@ -121,7 +112,7 @@ export class AccountService {
           metadata: { email },
           ip: meta.ip ?? null,
         });
-        return { ok: false, status: 401, message: '邮箱或密码不正确' };
+        throw new DomainError('邮箱或密码不正确', 401);
       }
       await this.attempts.clear(email);
       const { idleDays, absoluteDays } = await this.runtimeSettings.getSessionConfig();
@@ -137,9 +128,11 @@ export class AccountService {
       });
       await this.users.updateLastLogin(view.id, now);
       await this.audit.write({ actorId: view.id, action: 'auth.login', ip: meta.ip ?? null });
-      return { ok: true, token, user: stripHash(view), absoluteDays };
-    } catch {
-      return { ok: false, status: 503, message: '登录失败：服务暂时不可用，请稍后再试' };
+      return { token, user: stripHash(view), absoluteDays };
+    } catch (e) {
+      // 业务失败（限流 / 凭据错）原样冒泡；意外错误（DB 抖动等）才转 503
+      if (e instanceof DomainError) throw e;
+      throw new DomainError('登录失败：服务暂时不可用，请稍后再试', 503);
     }
   }
 
@@ -155,32 +148,32 @@ export class AccountService {
     current: string,
     next: string,
     confirm: string,
-  ): Promise<ServiceResult> {
-    if (next.length < 8) return { ok: false, status: 400, message: '新密码至少 8 位' };
-    if (next !== confirm) return { ok: false, status: 400, message: '两次输入的新密码不一致' };
+  ): Promise<void> {
+    if (next.length < 8) throw new DomainError('新密码至少 8 位', 400);
+    if (next !== confirm) throw new DomainError('两次输入的新密码不一致', 400);
     try {
       const row = await this.users.findById(user.id);
       if (!row || !(await verifyPassword(current, row.password_hash))) {
-        return { ok: false, status: 400, message: '当前密码不正确' };
+        throw new DomainError('当前密码不正确', 400);
       }
       await this.users.updatePassword(user.id, await hashPassword(next), false, nowSec());
       await this.sessions.deleteOthers(user.id, user.sessionId);
       await this.audit.write({ actorId: user.id, action: 'account.password.change' });
-      return { ok: true };
-    } catch {
-      return { ok: false, status: 503, message: '修改失败：服务暂时不可用，请稍后再试' };
+    } catch (e) {
+      if (e instanceof DomainError) throw e;
+      throw new DomainError('修改失败：服务暂时不可用，请稍后再试', 503);
     }
   }
 
   /** 改本人姓名。 */
-  async updateOwnName(user: AuthedUser, name: string): Promise<ServiceResult> {
+  async updateOwnName(user: AuthedUser, name: string): Promise<void> {
     const trimmed = name.trim();
-    if (!trimmed) return { ok: false, status: 400, message: '姓名不能为空' };
+    if (!trimmed) throw new DomainError('姓名不能为空', 400);
     try {
       await this.users.updateName(user.id, trimmed, nowSec());
-      return { ok: true };
-    } catch {
-      return { ok: false, status: 503, message: '保存失败：服务暂时不可用' };
+    } catch (e) {
+      if (e instanceof DomainError) throw e;
+      throw new DomainError('保存失败：服务暂时不可用', 503);
     }
   }
 
@@ -191,17 +184,17 @@ export class AccountService {
   }
 
   /** 改本人头像（avatar=DiceBear seed；null 恢复姓名首字母）。 */
-  async updateOwnAvatar(user: AuthedUser, avatar: string | null): Promise<ServiceResult> {
-    return this.updateAvatarById(user.id, avatar);
+  async updateOwnAvatar(user: AuthedUser, avatar: string | null): Promise<void> {
+    await this.updateAvatarById(user.id, avatar);
   }
 
   /** 按 id 改头像（设备通道 /api/me/avatar 复用，无 AuthedUser 时用）。 */
-  async updateAvatarById(userId: string, avatar: string | null): Promise<ServiceResult> {
+  async updateAvatarById(userId: string, avatar: string | null): Promise<void> {
     try {
       await this.users.updateAvatar(userId, avatar, nowSec());
-      return { ok: true };
-    } catch {
-      return { ok: false, status: 503, message: '保存失败：服务暂时不可用' };
+    } catch (e) {
+      if (e instanceof DomainError) throw e;
+      throw new DomainError('保存失败：服务暂时不可用', 503);
     }
   }
 
