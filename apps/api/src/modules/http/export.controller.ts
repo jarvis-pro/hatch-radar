@@ -5,7 +5,9 @@ import { Controller, Get, Header, Query, StreamableFile, UseGuards } from '@nest
 import type { ExportBatch } from '@hatch-radar/shared';
 import { RequireDevicePermission } from '@/modules/auth/device-permission.decorator';
 import { DeviceOrSessionGuard } from '@/modules/auth/device-or-session.guard';
-import { ExportService, defaultExportName, parseExportFilter, writeBatchSqlite } from '@/domain';
+import { parseExportFilter } from '@/modules/export/export-query';
+import { ExportService } from '@/modules/export/export.service';
+import { defaultExportName, writeBatchSqlite } from '@/modules/export/sqlite-writer';
 import { logger } from '@/logger';
 
 /**

@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { AdminService } from '@/domain';
+import { AdminService } from './admin.service';
 import { AccountModule } from '@/modules/account/account.module';
 import { AdminController } from './admin.controller';
 import { AuditController } from './audit.controller';

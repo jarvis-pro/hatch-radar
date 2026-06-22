@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { SettingsService } from '@/domain';
+import { SettingsService } from './settings.service';
 import { AnalysisModule } from '@/modules/analysis/analysis.module';
 import { PipelineModule } from '@/modules/pipeline/pipeline.module';
 

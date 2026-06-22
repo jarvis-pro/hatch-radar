@@ -13,7 +13,7 @@ import {
   ServiceUnavailableError,
   UnauthorizedError,
   ValidationError,
-} from '@/domain/errors';
+} from '@/common/errors';
 import { logger } from '@/logger';
 import { nowSec } from '@/utils/time';
 import type { AuthedUser } from './auth-context';

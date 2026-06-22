@@ -10,7 +10,7 @@ import {
   type UserRole,
 } from '@hatch-radar/shared';
 import type { AuthedUser } from '../account/auth-context';
-import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '@/domain/errors';
+import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '@/common/errors';
 import { AuditLogsRepository } from '@/database';
 import { DeviceCredentialsRepository } from '@/database';
 import { DeviceEnrollmentsRepository } from '@/database';

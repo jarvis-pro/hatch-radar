@@ -2,7 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { WORKER_CONCURRENCY } from '@/common/tokens';
 import { TasksRepository } from '@/database';
 import { logger } from '@/logger';
-import type { Dispatcher } from '@/domain/protocol';
+import type { Dispatcher } from './protocol';
 import { nowSec } from '@/utils/time';
 import { WorkerService } from './worker.service';
 

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
-import { SchedulerService } from '@/domain';
+import { SchedulerService } from './scheduler.service';
 
 /**
  * Nest 侧定时任务薄封装：把 @nestjs/schedule 的 @Cron 挂在方法上，委托 core 的 SchedulerService。

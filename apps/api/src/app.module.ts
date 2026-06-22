@@ -17,7 +17,8 @@ import { WorkerModule } from './modules/worker/worker.module';
 /**
  * 后端根模块（单进程归一：唯一进程）：聚合 HTTP 接口 + 定时调度 + 内嵌任务执行（web SPA 单独部署，api 不再同源托管）。
  *
- * 领域逻辑全在 @/domain；DI 按**限界上下文拆 feature module**（取代原全局平铺的 CoreModule）：横切基座
+ * 领域服务各归 feature module（与其 `*.module.ts` 同目录 collocate 在 `src/modules/<上下文>/`）；DI 按
+ * **限界上下文拆 feature module**（取代原全局平铺的 CoreModule）：横切基座
  * RepositoryModule（@Global，22 仓储）+ CapabilityModule（@Global，无状态能力 / 运行期配置读取 + 工厂
  * provider）+ DatabaseModule（@Global，PRISMA 事务感知代理 + TxContext）此处注册即处处可注入；各 feature
  * module（Analysis / Worker / Pipeline / Radar / Settings / Sources / Sync / Export / Translation / Account /

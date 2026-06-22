@@ -5,7 +5,7 @@ import {
   RunsRepository,
   type UpdateProcessInput,
 } from '@/database';
-import { ValidationError } from '@/domain/errors';
+import { ValidationError } from '@/common/errors';
 import { nowSec } from '@/utils/time';
 import type { BlueprintKind, ProcessDTO, RunDTO, TriggerConfig } from '@hatch-radar/shared';
 import { PipelineService } from '../pipeline/pipeline.service';

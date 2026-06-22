@@ -14,8 +14,8 @@ import { RequirePermission } from '@/modules/account/auth-user.decorator';
 import { SessionAuthGuard } from '@/modules/account/session-auth.guard';
 import { ZodValidationPipe } from '@/common/zod-validation.pipe';
 import { type KeyInput, type KeyUpdate } from '@/database';
-import { SettingsService } from '@/domain';
-import { type RuntimeSettingsPatch } from '@/domain/settings/runtime-settings.service';
+import { SettingsService } from '@/modules/settings/settings.service';
+import { type RuntimeSettingsPatch } from '@/modules/settings/runtime-settings.service';
 
 const providerKind = z.enum(['anthropic', 'openai', 'deepseek', 'claude_cli', 'azure']);
 

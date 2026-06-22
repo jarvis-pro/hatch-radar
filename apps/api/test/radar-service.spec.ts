@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { AppDatabase, DbHandle } from '@/database';
-import { ValidationError } from '@/domain/errors';
+import { ValidationError } from '@/common/errors';
 import {
   BlueprintsRepository,
   CommentsRepository,
@@ -16,7 +16,10 @@ import {
 } from '@/database';
 import { buildStages } from '@hatch-radar/shared';
 import { nowSec } from '@/utils/time';
-import { BlueprintService, ProcessService, RadarService, type PipelineService } from '@/domain';
+import type { PipelineService } from '@/modules/pipeline/pipeline.service';
+import { BlueprintService } from '@/modules/radar/blueprint.service';
+import { ProcessService } from '@/modules/radar/process.service';
+import { RadarService } from '@/modules/radar/radar.service';
 import { setupTestDb, truncateAll } from './helpers';
 
 /**

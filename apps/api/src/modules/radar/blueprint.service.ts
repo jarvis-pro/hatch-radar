@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { BlueprintsRepository, ProcessesRepository } from '@/database';
-import { ValidationError } from '@/domain/errors';
+import { ValidationError } from '@/common/errors';
 import { nowSec } from '@/utils/time';
 import type { BlueprintDTO, BlueprintKind } from '@hatch-radar/shared';
 import { toBlueprintDTO } from './radar.mappers';

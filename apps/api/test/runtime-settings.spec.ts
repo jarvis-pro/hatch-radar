@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { AppDatabase, DbHandle } from '@/database';
-import { RuntimeSettingsService } from '@/domain/settings/runtime-settings.service';
+import { RuntimeSettingsService } from '@/modules/settings/runtime-settings.service';
 import { SettingsRepository } from '@/database';
 import { setupTestDb, truncateAll } from './helpers';
 

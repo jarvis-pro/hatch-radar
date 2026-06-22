@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
-import { SchedulerService } from '@/domain';
+import { SchedulerService } from './scheduler.service';
 import { PipelineModule } from '@/modules/pipeline/pipeline.module';
 import { SchedulerCron } from './scheduler.cron';
 

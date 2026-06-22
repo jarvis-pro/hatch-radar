@@ -6,7 +6,7 @@ import {
   TasksRepository,
   TranslationsRepository,
 } from '@/database';
-import { ValidationError } from '@/domain/errors';
+import { ValidationError } from '@/common/errors';
 import type { ExportFilter } from '@hatch-radar/shared';
 import { ExportService } from '../export/export.service';
 import { PipelineService } from '../pipeline/pipeline.service';

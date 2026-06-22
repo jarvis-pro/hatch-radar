@@ -4,7 +4,8 @@ import {
   type OnApplicationBootstrap,
   type OnApplicationShutdown,
 } from '@nestjs/common';
-import { LocalDispatcher, WorkerService } from '@/domain';
+import { LocalDispatcher } from './local-dispatcher';
+import { WorkerService } from './worker.service';
 
 /**
  * Nest 侧内嵌执行器薄封装：把 core 的 WorkerService（逐环节执行 + 僵死回收）与 LocalDispatcher

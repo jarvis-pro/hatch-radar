@@ -1,7 +1,7 @@
 import { ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import type { Request } from 'express';
 import { hasPermission, type PermissionKey } from '@hatch-radar/shared';
-import { AccountService } from '@/domain';
+import { AccountService } from './account.service';
 import type { AuthedUser } from './auth-user.decorator';
 import { CSRF_HEADER, readSessionCookie } from './cookies';
 

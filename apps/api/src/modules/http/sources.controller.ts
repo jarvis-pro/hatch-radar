@@ -14,7 +14,7 @@ import { RequirePermission } from '@/modules/account/auth-user.decorator';
 import { SessionAuthGuard } from '@/modules/account/session-auth.guard';
 import { ZodValidationPipe } from '@/common/zod-validation.pipe';
 import { type ConnectorInput } from '@/database';
-import { SourcesService } from '@/domain';
+import { SourcesService } from '@/modules/sources/sources.service';
 
 const platformEnum = z.enum(['reddit', 'hackernews', 'rss']);
 

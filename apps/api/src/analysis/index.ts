@@ -3,8 +3,8 @@
  *
  * analyzer 引擎（prompt / 洞察 schema / Anthropic·OpenAI 兼容客户端 / 处理器装配）+ 翻译引擎
  * （translator）+ 多 Key 故障转移分类（key-failover）。依赖 kernel(crypto / 日志) + shared(域类型)。
- * 含业务编排的 service（AnalysisConfigService / AnalysisService / TranslationService）已迁至
- * `@/domain/analysis`（lib 层只留无状态能力，业务规则与跨仓储编排归 domain）。
+ * 含业务编排的 service（AnalysisConfigService / AnalysisService / TranslationService）在
+ * `@/modules/analysis`（本层只留无状态能力，业务规则与跨仓储编排归各 feature module）。
  */
 export * from './analyzer/analyze';
 export * from './analyzer/prompt';

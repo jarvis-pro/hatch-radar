@@ -14,7 +14,7 @@ import { RequirePermission } from '@/modules/account/auth-user.decorator';
 import { SessionAuthGuard } from '@/modules/account/session-auth.guard';
 import { ZodValidationPipe } from '@/common/zod-validation.pipe';
 import { ProvidersRepository, SettingsRepository } from '@/database';
-import { TaskControlService } from '@/domain';
+import { TaskControlService } from '@/modules/pipeline/task-control.service';
 import { logger } from '@/logger';
 
 const inspectSchema = z.object({

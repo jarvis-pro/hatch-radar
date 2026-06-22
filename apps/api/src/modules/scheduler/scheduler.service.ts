@@ -3,7 +3,7 @@ import { PostsRepository } from '@/database';
 import { TasksRepository } from '@/database';
 import { logger } from '@/logger';
 import { nowSec } from '@/utils/time';
-import { PipelineService } from '@/domain/pipeline/pipeline.service';
+import { PipelineService } from '@/modules/pipeline/pipeline.service';
 
 const ARCHIVE_DAYS = 30;
 

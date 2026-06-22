@@ -10,7 +10,7 @@ import {
 } from '@/database';
 import { RuntimeSettingsService, type RuntimeSettingsPatch } from './runtime-settings.service';
 import { isSecretConfigured } from '@/utils/crypto';
-import { NotFoundError, ValidationError } from '@/domain/errors';
+import { NotFoundError, ValidationError } from '@/common/errors';
 import { nowSec } from '@/utils/time';
 import { logger } from '@/logger';
 import { PipelineService } from '../pipeline/pipeline.service';

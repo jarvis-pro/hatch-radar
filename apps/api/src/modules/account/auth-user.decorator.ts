@@ -1,8 +1,8 @@
 import { type ExecutionContext, SetMetadata, createParamDecorator } from '@nestjs/common';
 import type { PermissionKey } from '@hatch-radar/shared';
-import type { AuthedUser } from '@/domain';
+import type { AuthedUser } from './auth-context';
 
-/** 登录用户上下文类型（领域类型,定义在 @/domain；此处转出供控制器/守卫沿用原导入路径）。 */
+/** 登录用户上下文类型（定义在同目录 ./auth-context；此处转出供控制器/守卫沿用原导入路径）。 */
 export type { AuthedUser };
 
 /** 路由所需能力 key 的元数据键。 */

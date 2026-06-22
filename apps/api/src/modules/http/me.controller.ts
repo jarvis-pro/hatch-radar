@@ -5,7 +5,7 @@ import { AuthUser, type AuthedUser } from '@/modules/account/auth-user.decorator
 import { DeviceOrSessionGuard } from '@/modules/auth/device-or-session.guard';
 import { DeviceUser, type DeviceUserContext } from '@/modules/auth/device-permission.decorator';
 import { ZodValidationPipe } from '@/common/zod-validation.pipe';
-import { AccountService } from '@/domain';
+import { AccountService } from '@/modules/account/account.service';
 
 const avatarSchema = z.object({ avatar: z.string().trim().min(1).max(128).nullable() });
 

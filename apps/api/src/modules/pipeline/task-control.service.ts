@@ -9,8 +9,8 @@ import {
   TaskStagesRepository,
   type BlueprintRow,
 } from '@/database';
-import { ValidationError } from '@/domain/errors';
-import type { Dispatcher } from '@/domain/protocol';
+import { ValidationError } from '@/common/errors';
+import type { Dispatcher } from '@/modules/worker/protocol';
 import { nowSec } from '@/utils/time';
 import {
   INSPECT_STEP_NAMES,

@@ -13,7 +13,7 @@ import {
 import { CronExpressionParser } from 'cron-parser';
 import { RuntimeSettingsService } from '../settings/runtime-settings.service';
 import { AnalysisConfigService } from '../analysis/analysis-config.service';
-import type { Dispatcher } from '@/domain/protocol';
+import type { Dispatcher } from '@/modules/worker/protocol';
 import { logger } from '@/logger';
 import { nowSec } from '@/utils/time';
 import { buildStages, type StageRecipe, type TaskKind } from '@hatch-radar/shared';

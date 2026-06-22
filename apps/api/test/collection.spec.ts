@@ -10,7 +10,7 @@ import {
   SourcesRepository,
   TasksRepository,
 } from '@/database';
-import type { AnalysisConfigService } from '@/domain/analysis/analysis-config.service';
+import type { AnalysisConfigService } from '@/modules/analysis/analysis-config.service';
 import type { CrawlerConfigService, HackerNewsClient } from '@/crawler';
 import { buildStages, type TaskKind, type RedditPost } from '@hatch-radar/shared';
 import { nowSec } from '@/utils/time';
@@ -21,8 +21,8 @@ import {
   type DiscoverSpawnOutput,
   type FetchCommentsOutput,
   type RecheckPersistOutput,
-} from '../src/domain/worker/collection.executor';
-import { RequestGate } from '../src/domain/worker/request-gate';
+} from '@/modules/worker/collection.executor';
+import { RequestGate } from '@/modules/worker/request-gate';
 import { setupTestDb, truncateAll } from './helpers';
 
 type ActiveProvider = { id: number; model: string; label: string } | null;

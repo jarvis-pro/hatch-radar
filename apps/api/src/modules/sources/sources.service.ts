@@ -10,7 +10,7 @@ import {
   type SourcePlatform,
 } from '@/database';
 import { isSecretConfigured } from '@/utils/crypto';
-import { NotFoundError, ValidationError } from '@/domain/errors';
+import { NotFoundError, ValidationError } from '@/common/errors';
 import { nowSec } from '@/utils/time';
 import { logger } from '@/logger';
 

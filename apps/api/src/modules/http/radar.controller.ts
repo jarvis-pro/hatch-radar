@@ -16,7 +16,9 @@ import { z } from 'zod';
 import { RequirePermission } from '@/modules/account/auth-user.decorator';
 import { SessionAuthGuard } from '@/modules/account/session-auth.guard';
 import { ZodValidationPipe } from '@/common/zod-validation.pipe';
-import { BlueprintService, ProcessService, RadarService } from '@/domain';
+import { BlueprintService } from '@/modules/radar/blueprint.service';
+import { ProcessService } from '@/modules/radar/process.service';
+import { RadarService } from '@/modules/radar/radar.service';
 import { logger } from '@/logger';
 import type { RadarIntensity } from '@hatch-radar/shared';
 

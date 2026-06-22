@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { TranslationOrchestrator } from '@/domain';
+import { TranslationOrchestrator } from './translation-orchestrator.service';
 import { ExportModule } from '@/modules/export/export.module';
 import { PipelineModule } from '@/modules/pipeline/pipeline.module';
 

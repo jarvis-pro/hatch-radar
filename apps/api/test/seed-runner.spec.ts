@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { SeedRunner } from '@/domain/seed/seed.runner';
-import type { RuntimeSettingsSeeder } from '@/domain/seed/runtime-settings.seeder';
-import type { Seeder, SeedContext, SeedOutcome } from '@/domain/seed/seeder';
-import type { SourcesSeeder } from '@/domain/seed/sources.seeder';
-import type { SuperAdminSeeder } from '@/domain/seed/super-admin.seeder';
-import type { BlueprintsSeeder } from '@/domain/seed/blueprints.seeder';
-import type { ProcessesSeeder } from '@/domain/seed/processes.seeder';
+import { SeedRunner } from '@/modules/seed/seed.runner';
+import type { RuntimeSettingsSeeder } from '@/modules/seed/runtime-settings.seeder';
+import type { Seeder, SeedContext, SeedOutcome } from '@/modules/seed/seeder';
+import type { SourcesSeeder } from '@/modules/seed/sources.seeder';
+import type { SuperAdminSeeder } from '@/modules/seed/super-admin.seeder';
+import type { BlueprintsSeeder } from '@/modules/seed/blueprints.seeder';
+import type { ProcessesSeeder } from '@/modules/seed/processes.seeder';
 
 const NOW = 1_700_000_000;
 const skipped = (): SeedOutcome => ({ status: 'skipped', reason: 't' });

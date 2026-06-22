@@ -7,11 +7,11 @@ import {
   RunsRepository,
   TasksRepository,
 } from '@/database';
-import { RuntimeSettingsService } from '@/domain/settings/runtime-settings.service';
-import type { AnalysisConfigService } from '@/domain/analysis/analysis-config.service';
-import type { Dispatcher } from '@/domain/protocol';
+import { RuntimeSettingsService } from '@/modules/settings/runtime-settings.service';
+import type { AnalysisConfigService } from '@/modules/analysis/analysis-config.service';
+import type { Dispatcher } from '@/modules/worker/protocol';
 import { nowSec } from '@/utils/time';
-import { PipelineService } from '@/domain';
+import { PipelineService } from '@/modules/pipeline/pipeline.service';
 import { setupTestDb, truncateAll } from './helpers';
 
 /**

@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
-import { BlueprintService, ProcessService, RadarService } from '@/domain';
+import { BlueprintService } from './blueprint.service';
+import { ProcessService } from './process.service';
+import { RadarService } from './radar.service';
 import { PipelineModule } from '@/modules/pipeline/pipeline.module';
 
 /**

@@ -36,7 +36,7 @@ Web / Mobile：
 
 **单进程后端**（已退役独立 worker 进程 + WS 网关，见 `docs/single-process-consolidation-design.md`）：
 
-- `apps/api` —— **唯一进程**。NestJS HTTP（`/api`）+ 鉴权权威 + `@Cron` 定时调度 + **内嵌任务执行**（`src/domain/worker/`：`WorkerService` 逐环节执行 + `CollectionExecutor` 采集 + `RequestGate` 出站闸）+ 启动种子。**web SPA 单独部署，api 不托管静态产物**。
+- `apps/api` —— **唯一进程**。NestJS HTTP（`/api`）+ 鉴权权威 + `@Cron` 定时调度 + **内嵌任务执行**（`src/modules/worker/`：`WorkerService` 逐环节执行 + `CollectionExecutor` 采集 + `RequestGate` 出站闸）+ 启动种子。**web SPA 单独部署，api 不托管静态产物**。
 - **执行解耦靠 PostgreSQL 持久化队列**（`tasks` / `task_stages`）：`PipelineService` 入队后经 `LocalDispatcher`（`Dispatcher` 接口的进程内实现，替换原 WS 版 `GatewayService`）在**同进程内** `FOR UPDATE SKIP LOCKED` 认领 task（分析 / 采集 / 复查 / 翻译 / 逐节点检视）、直接调 `WorkerService` 跑 AI 写回（无 WS、无序列化）。
 - **崩溃续跑 / 逐环节检查点 / 闸门 + 重认领 / 僵死回收 / 出站请求闸 / 多 Key 故障转移全原样保留**——它们与「几个进程」无关，只与「任务可靠执行」有关。并发上限 `WORKER_CONCURRENCY`（env，默认 20）由 `LocalDispatcher` 进程内闸把关（`inFlight < concurrency` + `pumping` 单飞泵防超发）。
 
@@ -52,7 +52,7 @@ Web / Mobile：
 
 **DI**：领域服务按**限界上下文拆 feature module**（`src/modules/*`：Analysis / Worker / Pipeline / Radar / Settings / Sources / Sync / Export / Translation / Account / Auth / Admin / Scheduler / Seed），各自 `providers` 自己的服务、只 `exports` 公共面、按需 `imports` 依赖模块——依赖图为无环 DAG（Analysis←Worker←Pipeline←{Radar / Settings / Translation / Scheduler}），别引入环（必要时才 `forwardRef`，是耦合过密的信号）。横切基座 `@Global`：`RepositoryModule`（22 仓储）/ `CapabilityModule`（无状态能力 + 运行期配置读取 + 工厂 provider）/ `DatabaseModule`（PRISMA 事务感知代理 + `TxContext`）注册一次处处可注入。Nest 按构造参数类型自动注入；非类依赖经令牌：`@Inject(PRISMA)` / `APP_ENV` / `WORKER_CONCURRENCY` / `LocalDispatcher`（接口参数给运行时令牌）；带默认 options 的 `TokenBucketQueue` / `RequestGate` 走 `useFactory`。新增领域服务＝放进（或新建）对应 feature module 的 `providers`，**勿**回到「一个全局模块列全部 provider」。生命周期薄封装 `WorkerStarter`（`src/modules/worker/`，起认领泵 / 僵死回收 / 关停排空）。
 
-**目录分层（三层）**：HTTP / wiring 层（控制器 / 守卫 / Nest 模块 / 生命周期薄封装）统一在 `src/modules/*`（account / admin / auth / http / scheduler / seed / worker；基础设施模块 config / core / database / common / logger 仍在 `src/` 顶层）；领域服务在 `src/domain/*`；框架无关能力在 `src/lib/*`。`@/domain` barrel **只导出领域服务**——能力代码 / 配置 / logger 分别直接从 `@/lib/*`（db / kernel / analysis / crawler / auth）、`@/config/env`、`@/logger` 导入，勿再经 `@/domain` 取（避免 domain 入口混入基础设施）。控制器保持薄：依赖领域服务、把业务规则失败的结果对象（`{ ok:false, status, message }`）翻译成 HTTP 异常，不直接编排多个仓储。
+**目录分层**：按限界上下文 **collocate**——每个上下文的 feature module 与其领域服务 / 守卫 / 控制器同目录在 `src/modules/<上下文>/`（account / admin / auth / analysis / export / pipeline / radar / scheduler / seed / settings / sources / sync / translation / worker；`http` 仅汇总会话守卫下的业务控制器）。框架无关能力按来源分目录：持久层 `@/database`、采集 `@/crawler`、AI / 翻译引擎 `@/analysis`、鉴权原语 `@/auth`、工具 `@/utils`；基础设施模块 `core`（Repository / Capability `@Global` 基座）/ `common`（异常过滤器 / 领域错误 / 校验管道 / 令牌）/ `config` / `logger` 在 `src/` 顶层。**已无 `src/domain/*` 与 `@/domain` barrel**——服务已 collocate 进各 module，同上下文互引走相对 `./`、跨上下文走 `@/modules/*`。控制器保持薄：注入领域服务、领域错误（`@/common/errors` 的语义子类）交全局异常过滤器映射成 HTTP，不直接编排多个仓储。
 
 **数据流**：crawler 抓帖+评论入 PG → 选用 active 模型时 cron 入队分析 task → `LocalDispatcher` 同进程认领、`WorkerService` 跑 AI → 洞察按 `post_id` 幂等落库 → web 只读展示 / 导出批次（`.sqlite` / `.json`）→ mobile 离线研判 → `/api/sync/push` 按 opId 幂等回传。
 
@@ -71,7 +71,7 @@ Web / Mobile：
 
 **导入别名**：跨目录用 `@/`（= 各 app 的 `src`），同目录用 `./`；由 `eslint.config.js` 内联规则强制（现成插件在 ESLint 10 崩故自写）。`@/` 在 tsc / vitest / swc(oxc-resolver) 三处各自解析。
 
-**运行期配置**：可种子化配置一律「**代码常量仅作首启种子 → DB → 设置页扩展**」，勿在代码里维护运行期配置。种子在 `apps/api/src/domain/seed`（Seeder + SeedRunner）。数据来源 / Reddit 凭据 / AI 模型 / 翻译 provider 全在 `/settings` 配置入库，**env 不承载任何凭据**。
+**运行期配置**：可种子化配置一律「**代码常量仅作首启种子 → DB → 设置页扩展**」，勿在代码里维护运行期配置。种子在 `apps/api/src/modules/seed`（Seeder + SeedRunner）。数据来源 / Reddit 凭据 / AI 模型 / 翻译 provider 全在 `/settings` 配置入库，**env 不承载任何凭据**。
 
 **密钥**：模型 / 连接器密钥经 `SETTINGS_SECRET`（AES-256-GCM，`kernel` 的 `crypto.ts`）加密入库，API 只返回脱敏值；未配 `SETTINGS_SECRET` 则禁用相关功能。
 

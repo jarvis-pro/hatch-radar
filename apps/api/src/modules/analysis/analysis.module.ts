@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
-import { AnalysisConfigService, AnalysisService, TranslationService } from '@/domain';
+import { AnalysisConfigService } from './analysis-config.service';
+import { AnalysisService } from './analysis.service';
+import { TranslationService } from './translation.service';
 
 /**
  * 分析能力上下文（AI 分析配置 / 引擎落库 + 译文落库）。

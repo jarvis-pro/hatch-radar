@@ -8,7 +8,8 @@ import {
 } from '@/modules/account/auth-user.decorator';
 import { SessionAuthGuard } from '@/modules/account/session-auth.guard';
 import { ZodValidationPipe } from '@/common/zod-validation.pipe';
-import { parseExportFilter, TranslationOrchestrator } from '@/domain';
+import { parseExportFilter } from '@/modules/export/export-query';
+import { TranslationOrchestrator } from '@/modules/translation/translation-orchestrator.service';
 
 /** 入队翻译入参：可选 providerId——无默认翻译模型时由前端弹窗选定，一次性指定本次用模型。 */
 const enqueueSchema = z.object({ providerId: z.number().int().positive().optional() });

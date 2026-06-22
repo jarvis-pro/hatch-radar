@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { Prisma, type AppDatabase, type DbHandle } from '@/database';
-import { SyncService } from '@/domain/sync/sync.service';
+import { SyncService } from '@/modules/sync/sync.service';
 import { nowSec } from '@/utils/time';
 import { setupTestDb, truncateAll } from './helpers';
 

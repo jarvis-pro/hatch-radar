@@ -7,7 +7,8 @@ import {
 } from '@/modules/auth/device-permission.decorator';
 import { DeviceOrSessionGuard } from '@/modules/auth/device-or-session.guard';
 import { ZodValidationPipe } from '@/common/zod-validation.pipe';
-import { DeviceAuthService, pushEnvelopeSchema, SyncService } from '@/domain';
+import { DeviceAuthService } from '@/modules/auth/device-auth.service';
+import { pushEnvelopeSchema, SyncService } from '@/modules/sync/sync.service';
 
 /**
  * POST /api/sync/push —— 接收移动端 outbox 操作并按 op_id 幂等应用（规格 §D）。

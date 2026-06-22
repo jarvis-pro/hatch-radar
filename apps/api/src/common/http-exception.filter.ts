@@ -9,7 +9,7 @@ import {
   ServiceUnavailableError,
   UnauthorizedError,
   ValidationError,
-} from '@/domain/errors';
+} from './errors';
 import { logger } from '@/logger';
 
 /**

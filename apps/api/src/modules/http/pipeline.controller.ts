@@ -11,7 +11,9 @@ import {
 } from '@nestjs/common';
 import { RequirePermission } from '@/modules/account/auth-user.decorator';
 import { SessionAuthGuard } from '@/modules/account/session-auth.guard';
-import { PipelineQueryService, PipelineService, TaskControlService } from '@/domain';
+import { PipelineQueryService } from '@/modules/pipeline/pipeline-query.service';
+import { PipelineService } from '@/modules/pipeline/pipeline.service';
+import { TaskControlService } from '@/modules/pipeline/task-control.service';
 import { logger } from '@/logger';
 
 function parseId(raw: string): number {

@@ -1,10 +1,10 @@
 import { Injectable, type OnApplicationBootstrap } from '@nestjs/common';
 import { nowSec } from '@/utils/time';
-import { SeedRunner } from '@/domain';
+import { SeedRunner } from './seed.runner';
 
 /**
- * Nest 侧种子薄封装：启动时（onApplicationBootstrap，早于 scheduler 初始轮）跑 core 的 SeedRunner。
- * 编排与各 Seeder 逻辑都在 @/domain。
+ * Nest 侧种子薄封装：启动时（onApplicationBootstrap，早于 scheduler 初始轮）跑 SeedRunner。
+ * 编排器 SeedRunner 与各 Seeder 同在 modules/seed。
  */
 @Injectable()
 export class SeedHook implements OnApplicationBootstrap {

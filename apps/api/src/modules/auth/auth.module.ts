@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { DeviceAuthService } from '@/domain';
+import { DeviceAuthService } from './device-auth.service';
 import { AccountModule } from '@/modules/account/account.module';
 import { AuthController } from './auth.controller';
 import { DeviceOrSessionGuard } from './device-or-session.guard';

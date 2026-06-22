@@ -1,12 +1,10 @@
 import { Module } from '@nestjs/common';
-import {
-  BlueprintsSeeder,
-  ProcessesSeeder,
-  RuntimeSettingsSeeder,
-  SeedRunner,
-  SourcesSeeder,
-  SuperAdminSeeder,
-} from '@/domain';
+import { BlueprintsSeeder } from './blueprints.seeder';
+import { ProcessesSeeder } from './processes.seeder';
+import { RuntimeSettingsSeeder } from './runtime-settings.seeder';
+import { SeedRunner } from './seed.runner';
+import { SourcesSeeder } from './sources.seeder';
+import { SuperAdminSeeder } from './super-admin.seeder';
 import { SeedHook } from './seed.hook';
 
 /**

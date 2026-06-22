@@ -17,7 +17,7 @@ import {
 } from '@/modules/account/auth-user.decorator';
 import { SessionAuthGuard } from '@/modules/account/session-auth.guard';
 import { ZodValidationPipe } from '@/common/zod-validation.pipe';
-import { AdminService } from '@/domain';
+import { AdminService } from './admin.service';
 
 const roleEnum = z.enum(['admin', 'super_admin']);
 

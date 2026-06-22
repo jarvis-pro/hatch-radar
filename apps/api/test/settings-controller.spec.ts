@@ -2,10 +2,11 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { AppDatabase, DbHandle } from '@/database';
 import { nowSec } from '@/utils/time';
 import { ProvidersRepository, SettingsRepository } from '@/database';
-import { type RuntimeSettingsService } from '@/domain/settings/runtime-settings.service';
-import { type AnalysisConfigService } from '@/domain/analysis/analysis-config.service';
-import { type PipelineService, SettingsService } from '@/domain';
-import { ValidationError } from '@/domain/errors';
+import { type RuntimeSettingsService } from '@/modules/settings/runtime-settings.service';
+import { type AnalysisConfigService } from '@/modules/analysis/analysis-config.service';
+import type { PipelineService } from '@/modules/pipeline/pipeline.service';
+import { SettingsService } from '@/modules/settings/settings.service';
+import { ValidationError } from '@/common/errors';
 import { setupTestDb, truncateAll } from './helpers';
 
 // 加解密主密钥（createProvider 入库时加密用），测试用任意高熵串

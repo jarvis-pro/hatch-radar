@@ -8,8 +8,8 @@ import {
   toConnectorDTO,
 } from '@/database';
 import { type CrawlerConfigService } from '@/crawler';
-import { SourcesService } from '@/domain';
-import { ValidationError } from '@/domain/errors';
+import { SourcesService } from '@/modules/sources/sources.service';
+import { ValidationError } from '@/common/errors';
 import { setupTestDb, truncateAll } from './helpers';
 
 // 连接器凭据加解密需要主密钥；测试用任意高熵串

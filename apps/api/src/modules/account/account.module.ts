@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { AccountService } from '@/domain';
+import { AccountService } from './account.service';
 import { AccountController } from './account.controller';
 import { SessionAuthGuard } from './session-auth.guard';
 import { SessionAuthenticator } from './session-authenticator';
