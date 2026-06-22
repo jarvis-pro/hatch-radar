@@ -1,5 +1,7 @@
 import { Module, RequestMethod } from '@nestjs/common';
+import { APP_FILTER } from '@nestjs/core';
 import { LoggerModule } from 'nestjs-pino';
+import { AllExceptionsFilter } from './common/http-exception.filter';
 import { AccountModule } from './modules/account/account.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { AppConfigModule } from './config/app-config.module';
@@ -54,5 +56,7 @@ import { WorkerModule } from './modules/worker/worker.module';
     HttpModule,
     SchedulerModule,
   ],
+  // 全局异常过滤器经 DI 装配（取代 main.ts 的 new AllExceptionsFilter()）：可注入、可在测试中替换。
+  providers: [{ provide: APP_FILTER, useClass: AllExceptionsFilter }],
 })
 export class AppModule {}

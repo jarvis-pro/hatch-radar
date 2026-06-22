@@ -6,7 +6,6 @@ import { Logger } from 'nestjs-pino';
 import { type AppEnv } from '@/config/env';
 import { logger } from '@/logger';
 import { AppModule } from './app.module';
-import { AllExceptionsFilter } from './common/http-exception.filter';
 import { APP_ENV } from './common/tokens';
 
 /** 枚举本机非回环 IPv4 地址，方便在手机上直接填写 */
@@ -43,7 +42,7 @@ async function bootstrap(): Promise<void> {
   app.flushLogs();
   // 同步推送上限：outbox 操作很小，5MB 足够容纳上万条（对应裸跑实现）
   app.useBodyParser('json', { limit: '5mb' });
-  app.useGlobalFilters(new AllExceptionsFilter());
+  // 全局异常过滤器经 APP_FILTER 在 AppModule 注册（DI 装配），此处不再手动 useGlobalFilters。
   // 统一 API 前缀：控制器只声明各自子路径，外部路径仍为 /api/*（mobile / web 契约不变）
   app.setGlobalPrefix('api');
   // 优雅退出：触发各 service 的 OnApplicationShutdown（worker 排空、连接池关闭）
