@@ -2,7 +2,7 @@
  * apps/api 领域桶（domain）：**仅**汇总本 app 自有的领域服务（account / admin / auth / sync / export /
  * sources / settings / translation / worker / pipeline / radar / scheduler / seed）成单一入口。
  *
- * **本 barrel 仅供 wiring 层装配用**（CoreModule 列 provider、控制器 / 守卫 / starter 注入）；领域服务
+ * **本 barrel 仅供 wiring 层装配用**（各 feature module 列 provider、控制器 / 守卫 / starter 注入）；领域服务
  * **之间**互引一律走相对路径（如 `../analysis/analysis.service`），**勿**经本 barrel——否则任一服务
  * 改动都让所有 `from '@/domain'` 引用点参与重编译，且滋生 everything-imports-everything 的耦合。
  *
@@ -17,7 +17,7 @@
  * 本 domain 自有的基础原语（非服务，不进本 barrel，直引具体文件）：领域错误基类 →
  * `@/domain/errors`（DomainError）、任务派发契约 → `@/domain/protocol`（Dispatcher）。
  *
- * 各领域类均为 `@Injectable`，由 CoreModule 列为 provider、Nest 按类型自动注入（已退役 createCore 装配桥）。
+ * 各领域类均为 `@Injectable`，由所属 feature module 列为 provider、Nest 按类型自动注入。
  */
 
 // 账户 / 管理 / 设备

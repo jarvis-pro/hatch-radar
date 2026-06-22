@@ -6,7 +6,6 @@ import { AccountModule } from './modules/account/account.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { AppConfigModule } from './config/app-config.module';
 import { CapabilityModule } from './core/capability.module';
-import { CoreModule } from './core/core.module';
 import { RepositoryModule } from './core/repository.module';
 import { DatabaseModule } from './database/database.module';
 import { HttpModule } from './modules/http/http.module';
@@ -18,10 +17,13 @@ import { WorkerModule } from './modules/worker/worker.module';
 /**
  * 后端根模块（单进程归一：唯一进程）：聚合 HTTP 接口 + 定时调度 + 内嵌任务执行（web SPA 单独部署，api 不再同源托管）。
  *
- * 领域逻辑全在 @/domain：DI 装配已拆为三层——RepositoryModule（@Global，22 仓储叶子）+ CapabilityModule
- * （@Global，无状态能力 / 运行期配置叶子 + 工厂 provider）+ CoreModule（**非全局**，领域服务 / 执行器 /
- * 种子）。CoreModule 去 @Global 后，凡注入领域服务的 wiring 模块均显式 imports CoreModule；两个 @Global
- * 基础设施模块在此注册即可处处注入。各功能模块只留控制器/守卫与生命周期薄封装。
+ * 领域逻辑全在 @/domain；DI 按**限界上下文拆 feature module**（取代原全局平铺的 CoreModule）：横切基座
+ * RepositoryModule（@Global，22 仓储）+ CapabilityModule（@Global，无状态能力 / 运行期配置读取 + 工厂
+ * provider）+ DatabaseModule（@Global，PRISMA 事务感知代理 + TxContext）此处注册即处处可注入；各 feature
+ * module（Analysis / Worker / Pipeline / Radar / Settings / Sources / Sync / Export / Translation / Account /
+ * Auth / Admin / Scheduler / Seed）各自 providers 领域服务、只 exports 公共面、按需 imports 依赖模块——依赖
+ * 图为无环 DAG（Analysis←Worker←Pipeline←{Radar / Settings / Translation / Scheduler}），HttpModule 按其
+ * 控制器所需 import 对应 feature module。
  * imports 各模块职责：
  * - AccountModule  会话鉴权权威（SessionAuthGuard + cookie），web/mobile 共用。
  * - AdminModule    后台管理 + 审计日志（admin / audit）。
@@ -48,7 +50,6 @@ import { WorkerModule } from './modules/worker/worker.module';
     DatabaseModule,
     RepositoryModule,
     CapabilityModule,
-    CoreModule,
     AccountModule,
     SeedModule,
     AdminModule,

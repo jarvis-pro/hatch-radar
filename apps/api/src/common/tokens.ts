@@ -14,5 +14,5 @@ export const PRISMA = Symbol('PRISMA');
 /** 数据库句柄（DbHandle：根客户端 + 关闭函数），由 DatabaseModule 提供给 TxContext / 生命周期 */
 export const DB_HANDLE = Symbol('DB_HANDLE');
 
-/** 内嵌执行器并发上限（env.workerConcurrency），由 CoreModule 从 APP_ENV 派生提供 */
+/** 内嵌执行器并发上限（env.workerConcurrency），由 CapabilityModule 从 APP_ENV 派生提供 */
 export const WORKER_CONCURRENCY = Symbol('WORKER_CONCURRENCY');

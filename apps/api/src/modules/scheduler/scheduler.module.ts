@@ -1,14 +1,15 @@
 import { Module } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
-import { CoreModule } from '@/core/core.module';
+import { SchedulerService } from '@/domain';
+import { PipelineModule } from '@/modules/pipeline/pipeline.module';
 import { SchedulerCron } from './scheduler.cron';
 
 /**
- * 调度模块：注册 @nestjs/schedule + SchedulerCron（@Cron 薄封装,委托 core.SchedulerService）。
- * 领域逻辑在 @/domain（CoreModule 提供 SchedulerService，须显式 import——CoreModule 已去 @Global）。
+ * 调度上下文：@nestjs/schedule + SchedulerCron（@Cron 薄封装）+ SchedulerService（心跳触发到期进程 +
+ * 收尾完成的运行）。依赖 PipelineModule（fireDueProcesses / finalizeRunningRuns 委托 PipelineService）。
  */
 @Module({
-  imports: [ScheduleModule.forRoot(), CoreModule],
-  providers: [SchedulerCron],
+  imports: [ScheduleModule.forRoot(), PipelineModule],
+  providers: [SchedulerService, SchedulerCron],
 })
 export class SchedulerModule {}

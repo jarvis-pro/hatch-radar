@@ -1,7 +1,13 @@
 import { Module } from '@nestjs/common';
-import { CoreModule } from '@/core/core.module';
 import { AccountModule } from '@/modules/account/account.module';
 import { AuthModule } from '@/modules/auth/auth.module';
+import { ExportModule } from '@/modules/export/export.module';
+import { PipelineModule } from '@/modules/pipeline/pipeline.module';
+import { RadarModule } from '@/modules/radar/radar.module';
+import { SettingsModule } from '@/modules/settings/settings.module';
+import { SourcesModule } from '@/modules/sources/sources.module';
+import { SyncModule } from '@/modules/sync/sync.module';
+import { TranslationModule } from '@/modules/translation/translation.module';
 import { AnalysisController } from './analysis.controller';
 import { DashboardController } from './dashboard.controller';
 import { PipelineController } from './pipeline.controller';
@@ -17,12 +23,26 @@ import { TranslationsController } from './translations.controller';
 
 /**
  * HTTP 层：会话守卫下的业务控制器统一收口（看板 / 设置 / 分析 / 导出 / 同步 / 设备激活 等）。
- * 鉴权：看板 / 设置 / 分析 / 来源走 SessionAuthGuard（import AccountModule）；导出 / 同步走双通道守卫
- * （import AuthModule）；设备激活公开；健康检查公开。各领域服务由 CoreModule 提供
- * （须显式 import——CoreModule 已去 @Global）。
+ * 按需 import 各 feature module 取其导出的领域服务（替代原先的全局 CoreModule）——控制器能注入什么，
+ * 由本模块 imports 显式声明：
+ * - AccountModule  /api/me（AccountService）+ 会话守卫；
+ * - AuthModule     双通道守卫 + sync 控制器的 DeviceAuthService；
+ * - PipelineModule analysis（TaskControlService）/ pipeline 控制器；
+ * - RadarModule / SettingsModule / SourcesModule / SyncModule / ExportModule / TranslationModule  各自领域控制器。
+ * dashboard / health / requests 仅用全局仓储，无需额外 import。
  */
 @Module({
-  imports: [CoreModule, AccountModule, AuthModule],
+  imports: [
+    AccountModule,
+    AuthModule,
+    PipelineModule,
+    RadarModule,
+    SettingsModule,
+    SourcesModule,
+    SyncModule,
+    ExportModule,
+    TranslationModule,
+  ],
   controllers: [
     HealthController,
     DashboardController,

@@ -1,14 +1,28 @@
 import { Module } from '@nestjs/common';
-import { CoreModule } from '@/core/core.module';
+import {
+  BlueprintsSeeder,
+  ProcessesSeeder,
+  RuntimeSettingsSeeder,
+  SeedRunner,
+  SourcesSeeder,
+  SuperAdminSeeder,
+} from '@/domain';
 import { SeedHook } from './seed.hook';
 
 /**
- * 种子模块：启动时由 SeedHook 调 core 的 SeedRunner 统一编排全部幂等引导种子。
- * 编排器与各 Seeder（sources / super-admin / runtime-settings）都在 @/domain
- * （CoreModule 提供 SeedRunner，须显式 import——CoreModule 已去 @Global）。
+ * 种子上下文：启动时 SeedHook 调 SeedRunner 统一编排全部幂等引导种子
+ * （sources / super-admin / runtime-settings / blueprints / processes），须排在 SchedulerModule 之前。
+ * 叶子模块：各 Seeder 仅依赖全局仓储 / RuntimeSettings / APP_ENV。
  */
 @Module({
-  imports: [CoreModule],
-  providers: [SeedHook],
+  providers: [
+    SourcesSeeder,
+    SuperAdminSeeder,
+    RuntimeSettingsSeeder,
+    BlueprintsSeeder,
+    ProcessesSeeder,
+    SeedRunner,
+    SeedHook,
+  ],
 })
 export class SeedModule {}

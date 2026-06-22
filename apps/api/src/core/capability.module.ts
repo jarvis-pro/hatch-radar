@@ -16,12 +16,12 @@ import { RequestGate, RuntimeSettingsService } from '@/domain';
  *   故工厂构造）、`RequestGate`（注入两个出站请求闸仓储，末位 options 带默认值）。
  *
  * 依赖只指向 @Global 叶子：仓储来自 RepositoryModule（@Global）、APP_ENV 来自 AppConfigModule（@Global）、
- * PRISMA 来自 DatabaseModule（@Global）。不依赖 CoreModule，彼此与 RepositoryModule 不互依赖——是 DAG。
+ * PRISMA 来自 DatabaseModule（@Global）。不依赖任何 feature module，彼此与 RepositoryModule 不互依赖——是 DAG。
  */
 const CAPABILITY_CLASSES = [HackerNewsClient, CrawlerConfigService, RuntimeSettingsService];
 
 const FACTORY_PROVIDERS: Provider[] = [
-  // 内嵌执行器并发上限：从 APP_ENV 派生供 LocalDispatcher（CoreModule）注入
+  // 内嵌执行器并发上限：从 APP_ENV 派生供 LocalDispatcher（WorkerModule）注入
   {
     provide: WORKER_CONCURRENCY,
     useFactory: (env: AppEnv): number => env.workerConcurrency,
