@@ -8,15 +8,15 @@ import {
   type TranslationUpsert,
 } from '@/lib/db';
 import { decryptSecret, logger, nowSec } from '@/lib/kernel';
-import type { TokenUsage } from './analyzer/analyze';
-import { classifyKeyError, errMsg } from './key-failover';
+import type { TokenUsage } from '@/lib/analysis/analyzer/analyze';
+import { classifyKeyError, errMsg } from '@/lib/analysis/key-failover';
 import {
   looksChinese,
   translateItems,
   type TranslateConfig,
   type TranslateItem,
   type TranslatedItem,
-} from './translator/translate';
+} from '@/lib/analysis/translator/translate';
 
 /** 单次翻译落库的结果概要（worker 日志与计费用） */
 export interface TranslateOutcome {

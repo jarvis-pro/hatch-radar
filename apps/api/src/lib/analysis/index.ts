@@ -1,20 +1,17 @@
 /**
- * @/lib/analysis —— AI 分析能力。
+ * @/lib/analysis —— AI 分析能力（无状态引擎 / 适配）。
  *
- * analyzer 引擎（prompt / 洞察 schema / Anthropic·OpenAI 兼容客户端 / 处理器装配）
- * + analysis-config（模型解析·热重载·入队，依赖 Dispatcher 派发）+ analysis.service（洞察落库）。
- * 依赖 db(仓储) + kernel(Dispatcher / crypto / 日志) + shared(域类型)。
- * api 侧只用配置片入队，worker 侧用引擎执行。
+ * analyzer 引擎（prompt / 洞察 schema / Anthropic·OpenAI 兼容客户端 / 处理器装配）+ 翻译引擎
+ * （translator）+ 多 Key 故障转移分类（key-failover）。依赖 kernel(crypto / 日志) + shared(域类型)。
+ * 含业务编排的 service（AnalysisConfigService / AnalysisService / TranslationService）已迁至
+ * `@/domain/analysis`（lib 层只留无状态能力，业务规则与跨仓储编排归 domain）。
  */
-export * from './analysis.service';
-export * from './analysis-config.service';
 export * from './analyzer/analyze';
 export * from './analyzer/prompt';
 export { insightFromMessage } from './analyzer/claude-agent';
 export { buildContext } from './analyzer/context';
 
-// 翻译能力（translator 引擎 + 落库编排）
-export * from './translation.service';
+// 翻译能力（translator 引擎）
 export {
   looksChinese,
   translateItems,

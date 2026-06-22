@@ -33,8 +33,5 @@ export * from './repositories/cost.repository';
 export * from './repositories/translations.repository';
 export * from './repositories/users.repository';
 
-// 运行期设置服务（settings 仓储之上的读写）
-export * from './runtime-settings.service';
-
 // 消歧：SourcePlatform 在 sources / source-connectors 两仓储同名导出，显式以 sources 为准
 export type { SourcePlatform } from './repositories/sources.repository';

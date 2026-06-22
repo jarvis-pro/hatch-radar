@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { RuntimeSettingsService } from '@/lib/db';
+import { RuntimeSettingsService } from '../settings/runtime-settings.service';
 import type { Seeder, SeedOutcome } from './seeder';
 
 /**

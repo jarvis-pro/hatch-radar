@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { AppDatabase, DbHandle } from '@/lib/db';
-import { AnalysisConfigService } from '@/lib/analysis';
+import { AnalysisConfigService } from '@/domain/analysis/analysis-config.service';
 import { PostsRepository } from '@/lib/db';
 import { ProvidersRepository } from '@/lib/db';
 import { SettingsRepository } from '@/lib/db';

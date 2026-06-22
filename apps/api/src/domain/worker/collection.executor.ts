@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { AnalysisConfigService } from '@/lib/analysis';
+import { AnalysisConfigService } from '../analysis/analysis-config.service';
 import {
   CrawlerConfigService,
   HackerNewsClient,

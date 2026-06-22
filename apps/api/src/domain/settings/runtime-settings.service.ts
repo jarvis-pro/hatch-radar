@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { SettingsRepository } from './repositories/settings.repository';
+import { SettingsRepository } from '@/lib/db';
 import { logger } from '@/lib/kernel';
 
 /** 运行期可调项的 camelCase 键（同时用作 web DTO 字段名与 PUT body 字段名） */
@@ -11,6 +11,9 @@ export type RuntimeSettingKey =
   | 'workerStaleSeconds'
   | 'translationConcurrency';
 
+/** 僵死回收阈值相对单环节硬超时的安全余量（秒）：须覆盖数个心跳周期，容忍心跳抖动不误回收。 */
+const STALE_OVER_TIMEOUT_BUFFER_SEC = 60;
+
 /**
  * 各项默认值——首启播种入 app_settings 的种子，亦作 DB 行缺失时的最后兜底常量。
  * 这是这些参数默认值的唯一事实源（不再经 env）。
@@ -20,7 +23,8 @@ const DEFAULT_RUNTIME_SETTINGS: Record<RuntimeSettingKey, number> = {
   sessionIdleDays: 7,
   sessionAbsoluteDays: 30,
   workerJobTimeoutMs: 600_000,
-  workerStaleSeconds: 300,
+  // 僵死回收阈值须 > 单环节硬超时（见 getWorkerTuning 的运行时下界 enforce）：默认 900s = 600s + 余量。
+  workerStaleSeconds: 900,
   // 护栏 B：同时运行的翻译任务数上限（默认 1，挡导出洪峰独占 worker 槽位；分析另有 claim 优先权）
   translationConcurrency: 1,
 };
@@ -114,13 +118,20 @@ export class RuntimeSettingsService {
     return { idleDays, absoluteDays };
   }
 
-  /** 分析 worker 调优：单 job 硬超时（毫秒） / 僵死回收阈值（秒） */
+  /**
+   * 分析 worker 调优：单 job 硬超时（毫秒） / 僵死回收阈值（秒）。
+   *
+   * 关键不变量：staleSeconds 必须 > 单环节硬超时——否则一个正在合法跑超时（未及 jobTimeoutMs）的环节
+   * 会被僵死回收重排、第二个执行体并发启动 → 重复执行（analyze 还会重复付费 AI 调用）。配置值过小
+   * （含旧默认 300 < 600）时在此抬到安全下界，从运行时杜绝该反模式。
+   */
   async getWorkerTuning(): Promise<{ jobTimeoutMs: number; staleSeconds: number }> {
-    const [jobTimeoutMs, staleSeconds] = await Promise.all([
+    const [jobTimeoutMs, staleRaw] = await Promise.all([
       this.readField('workerJobTimeoutMs'),
       this.readField('workerStaleSeconds'),
     ]);
-    return { jobTimeoutMs, staleSeconds };
+    const minStale = Math.ceil(jobTimeoutMs / 1000) + STALE_OVER_TIMEOUT_BUFFER_SEC;
+    return { jobTimeoutMs, staleSeconds: Math.max(staleRaw, minStale) };
   }
 
   /** 翻译并发上限（护栏 B）：Gateway 认领时传给 claimNextJob，挡导出洪峰占满 worker 槽位 */
