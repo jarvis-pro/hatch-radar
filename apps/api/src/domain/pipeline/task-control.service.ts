@@ -12,7 +12,12 @@ import {
 import { DomainError } from '@/domain/errors';
 import type { Dispatcher } from '@/domain/protocol';
 import { nowSec } from '@/utils/time';
-import { INSPECT_STEP_NAMES, type InspectJobView, type InspectStepView } from '@hatch-radar/shared';
+import {
+  INSPECT_STEP_NAMES,
+  type InspectJobView,
+  type InspectStepView,
+  type TaskKind,
+} from '@hatch-radar/shared';
 
 /**
  * 任务逐环节交互控制（流水线检视器：单条手动 / 逐环节暂停）。
@@ -37,7 +42,7 @@ export class TaskControlService {
   ) {}
 
   /** 找或建一张指定 kind 的默认图纸（首次触发时惰性种子，免单独 seeder）。 */
-  private async ensureBlueprint(kind: string, label: string): Promise<BlueprintRow> {
+  private async ensureBlueprint(kind: TaskKind, label: string): Promise<BlueprintRow> {
     const existing = (await this.blueprints.listBlueprints(kind))[0];
     if (existing) return existing;
     return this.blueprints.createBlueprint({ kind, label }, nowSec());

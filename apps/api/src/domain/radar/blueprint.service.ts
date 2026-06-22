@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { BlueprintsRepository, ProcessesRepository } from '@/database';
 import { DomainError } from '@/domain/errors';
 import { nowSec } from '@/utils/time';
-import type { BlueprintDTO } from '@hatch-radar/shared';
+import type { BlueprintDTO, BlueprintKind } from '@hatch-radar/shared';
 import { toBlueprintDTO } from './radar.mappers';
 
 /**
@@ -28,7 +28,7 @@ export class BlueprintService {
   }
 
   async createBlueprint(input: {
-    kind: string;
+    kind: BlueprintKind;
     label: string;
     note?: string | null;
     sources?: unknown;

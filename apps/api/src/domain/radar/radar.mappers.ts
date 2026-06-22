@@ -55,7 +55,10 @@ export function triggerOf(p: ProcessRow): TriggerConfig {
 }
 
 /** 前端 TriggerConfig → { triggerKind, triggerConfig } 入库形状。 */
-export function triggerToRepo(t: TriggerConfig): { triggerKind: string; triggerConfig: unknown } {
+export function triggerToRepo(t: TriggerConfig): {
+  triggerKind: TriggerConfig['kind'];
+  triggerConfig: unknown;
+} {
   if (t.kind === 'interval')
     return { triggerKind: 'interval', triggerConfig: { everySec: t.everySec } };
   if (t.kind === 'cron') return { triggerKind: 'cron', triggerConfig: { expr: t.expr } };

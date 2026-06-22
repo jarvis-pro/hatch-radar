@@ -57,7 +57,7 @@ describe('进程调度（ProcessScheduler：fire / finalize / 重排）', () => 
   /** 建图纸 + 绑定一个 interval 进程（默认已到期、active）。 */
   async function makeProcess(
     kind: 'collect' | 'recheck',
-    opts: { status?: string; nextRunAt?: number | null } = {},
+    opts: { status?: 'active' | 'paused'; nextRunAt?: number | null } = {},
   ): Promise<{ blueprintId: number; processId: number }> {
     const bp = await blueprints.createBlueprint({ kind, label: kind }, nowSec());
     const proc = await processes.createProcess(

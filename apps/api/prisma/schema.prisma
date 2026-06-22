@@ -18,7 +18,8 @@ datasource db {
 // 图纸驱动生命周期（Blueprint Lifecycle，详见 docs/blueprint-lifecycle-design.md）
 // 统一执行模型：图纸 blueprints → 进程 runs → 任务 tasks → 环节 task_stages，
 // 外加全局出站请求闸 request_queue / request_lanes。已取代并删除旧 analysis_jobs / job_steps 队列。
-// 状态 / 类型一律 String + 应用层常量约束（不建 enum 便于演进）。
+// 执行引擎的 kind / status 一律上 enum（见文件末 task_kind / task_status / stage_status / run_status /
+// process_status / trigger_kind）：DB 层挡非法值、Prisma 生成 TS 联合类型供写入口与 worker 穷尽分支编译期校验。
 // 所有引用（run_id / parent_task_id / post_id / task_id / owner_*）均软引用、未建外键（沿用全库约定）。
 // ─────────────────────────────────────────────────────────────────────────
 
@@ -26,8 +27,8 @@ datasource db {
 /// **不含触发节奏**（节奏在 processes）。代码常量仅作首启种子，运行期以本表为准。
 model blueprints {
   id             Int     @id @default(autoincrement())
-  /// 流程类型：collect=采集 / recheck=复查 / maintenance=归档清理 / analyze=分析补扫（自动分析一般由事件派生，不必建图纸）。
-  kind           String
+  /// 流程类型（复用 task_kind；blueprints 实际仅用 collect / recheck / analyze / translate 子集，不会是 discover）。
+  kind           task_kind
   /// 展示名。
   label          String
   /// 备注（可空）。
@@ -57,11 +58,11 @@ model processes {
   /// 展示名。
   label          String
   /// 触发方式：once=单次（仅手动）/ interval=间隔（上轮完成后再等 everySec）/ cron=定时（墙钟点位）。
-  trigger_kind   String
+  trigger_kind   trigger_kind
   /// 触发配置(JSON)：interval={everySec} | cron={expr}；once 为空。
   trigger_config Json?
   /// 进程状态：active=随调度自动触发 / paused=暂停（next_run_at 置空、不再自动开 run）。
-  status         String  @default("active")
+  status         process_status @default(active)
   /// 复查 sweep 计数（每开一次 recheck run 自增，驱动退避到期判定）；采集进程恒 0。
   sweep_seq      Int     @default(0)
   /// 累计触发的 run 数。
@@ -84,10 +85,10 @@ model runs {
   blueprint_id   Int
   /// 触发它的进程（processes.id 软引用）；analyze / translate / inspect 等事件派生 run 为空。
   process_id     Int?
-  /// 冗余 kind，免联表。
-  kind           String
-  /// 进程状态：running | paused | completed | failed | canceled。
-  status         String  @default("running")
+  /// 冗余 kind，免联表（复用 task_kind；runs 实际仅用 collect / recheck / analyze / translate）。
+  kind           task_kind
+  /// 运行状态：running | paused | completed | failed | canceled。
+  status         run_status @default(running)
   /// 触发来源：manual=手动 / cron=定时 / interval=间隔循环。
   trigger_source String
   /// 复查 sweep 序号（间隔模式逐 sweep 自增，驱动退避到期判定）；非复查为空。
@@ -117,14 +118,14 @@ model tasks {
   /// 所属进程（processes.id 软引用，反范式自 run.process_id 省联表）；事件派生 run 的任务可空。
   process_id     Int?
   /// 任务类型：discover=发现去重派生 / collect=抓新帖 / recheck=复查 / analyze=AI 分析 / translate=翻译。
-  kind           String
+  kind           task_kind
   /// 血缘：派生它的父任务（discover→collect→analyze）；根任务为空。供树形展示与级联。
   parent_task_id Int?
   /// 目标帖子 id（posts.id 软引用）；discover 任务为空。
   post_id        String?
   /// 任务状态机：queued | running | paused | succeeded | skipped | failed | canceled。
   /// paused（环节闸门）不被 claimNextTask 认领、不被僵死回收；skipped=无需处理（如复查未变）。
-  status         String  @default("queued")
+  status         task_status @default(queued)
   attempts       Int     @default(0)
   max_attempts   Int     @default(3)
   /// 当前 / 下一个待执行环节 seq（展示与续跑参考）。
@@ -169,7 +170,7 @@ model task_stages {
   /// 环节名（按 kind 的模板，应用层常量约束）。
   name          String
   /// 环节状态：pending | running | done | failed | skipped。
-  status        String  @default("pending")
+  status        stage_status @default(pending)
   /// 闸门：true 则本环节跑完即置任务 paused 等人工放行（逐环节停起的载体）。
   gate          Boolean @default(false)
   /// 输入摘要（展示用）。
@@ -230,6 +231,64 @@ model request_lanes {
   /// 手动暂停开关（请求闸读此决定是否放行该 lane）。
   paused          Boolean @default(false)
   updated_at      BigInt
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// 执行引擎状态机枚举：图纸 / 进程 / 运行 / 任务 / 环节的 kind 与 status。
+// 原为裸 String + 应用层常量；上 enum 后 DB 挡非法值、Prisma 生成 TS 联合类型
+// （供 NewTaskInput.kind 等写入口与 worker execStage 穷尽分支编译期校验）。
+// request_queue.status 暂留 String（出站闸子系统，可后续同法收口）。
+// ─────────────────────────────────────────────────────────────────────────
+
+/// 任务 / 运行 / 图纸的类型（runs / blueprints 仅用其中非 discover 子集；与 shared 的 TaskKind 同构）。
+enum task_kind {
+  discover
+  collect
+  recheck
+  analyze
+  translate
+}
+
+/// 任务状态机：paused（环节闸门）不被认领 / 不被僵死回收；skipped=无需处理（如复查未变）。
+enum task_status {
+  queued
+  running
+  paused
+  succeeded
+  skipped
+  failed
+  canceled
+}
+
+/// 环节状态机。
+enum stage_status {
+  pending
+  running
+  done
+  skipped
+  failed
+}
+
+/// 运行状态机。
+enum run_status {
+  running
+  paused
+  completed
+  failed
+  canceled
+}
+
+/// 进程状态：active=随调度自动触发 / paused=暂停。
+enum process_status {
+  active
+  paused
+}
+
+/// 进程触发方式：once=单次（仅手动）/ interval=间隔 / cron=定时。
+enum trigger_kind {
+  once
+  interval
+  cron
 }
 
 /// 应用配置键值表：存放运行期可调设置（如默认模型、抓取参数）。

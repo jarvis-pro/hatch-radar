@@ -6,6 +6,8 @@ import {
   type AppDatabase,
   type ProcessPg,
   type ProcessRow,
+  type process_status as ProcessStatus,
+  type trigger_kind as TriggerKind,
 } from '../internal';
 
 export type { ProcessRow };
@@ -15,11 +17,11 @@ export interface NewProcessInput {
   blueprintId: number;
   label: string;
   /** once | interval | cron */
-  triggerKind: string;
+  triggerKind: TriggerKind;
   /** interval={everySec} | cron={expr}（JSON） */
   triggerConfig?: unknown;
   /** active | paused（默认 active） */
-  status?: string;
+  status?: ProcessStatus;
   /** 下次到期触发时刻（epoch 秒）；null=不自动触发 */
   nextRunAt?: number | null;
 }
@@ -27,9 +29,9 @@ export interface NewProcessInput {
 /** 更新进程入参（均可选，未给的字段不动） */
 export interface UpdateProcessInput {
   label?: string;
-  triggerKind?: string;
+  triggerKind?: TriggerKind;
   triggerConfig?: unknown;
-  status?: string;
+  status?: ProcessStatus;
   nextRunAt?: number | null;
 }
 
@@ -101,7 +103,7 @@ export class ProcessesRepository {
   }
 
   /** 置状态（active / paused）。 */
-  async setStatus(id: number, status: string, now: number): Promise<void> {
+  async setStatus(id: number, status: ProcessStatus, now: number): Promise<void> {
     await this.db.processes.update({
       where: { id },
       data: { status, updated_at: BigInt(now) },

@@ -207,8 +207,11 @@ export class WorkerService {
         if (!post) return Promise.reject(new Error('translate 任务缺少帖子'));
         // 译文按 content_hash 落 translations 表；产物含 usage 供成本回填。
         return this.translation.translatePost(post.id, task.provider_id, signal);
-      default:
-        return Promise.reject(new Error(`未实现的任务类型环节执行: ${task.kind}`));
+      default: {
+        // 穷尽性守卫：task.kind 现为 task_kind 枚举联合，新增 kind 未在此分支处理即编译失败。
+        const _exhaustive: never = task.kind;
+        return Promise.reject(new Error(`未实现的任务类型环节执行: ${String(_exhaustive)}`));
+      }
     }
   }
 

@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import type { TaskKind } from '@hatch-radar/shared';
 import { PRISMA } from '@/common/tokens';
 import {
   Prisma,
@@ -12,8 +13,8 @@ export type { BlueprintRow };
 
 /** 新建图纸入参（纯配方：来源 / 参数 / 暂停点 / 可选环节；触发节奏在 processes） */
 export interface NewBlueprintInput {
-  /** collect | recheck | maintenance | analyze */
-  kind: string;
+  /** 复用 task_kind；实际仅用 collect / recheck / analyze / translate（不会是 discover）。 */
+  kind: TaskKind;
   label: string;
   /** 备注 */
   note?: string | null;
@@ -73,7 +74,7 @@ export class BlueprintsRepository {
   }
 
   /** 列出图纸（可按 kind 过滤），id 倒序。 */
-  async listBlueprints(kind?: string): Promise<BlueprintRow[]> {
+  async listBlueprints(kind?: TaskKind): Promise<BlueprintRow[]> {
     const rows = await this.db.blueprints.findMany({
       where: kind ? { kind } : {},
       orderBy: { id: 'desc' },

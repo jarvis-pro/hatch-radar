@@ -1,6 +1,14 @@
 import { Inject, Injectable } from '@nestjs/common';
+import type { TaskKind } from '@hatch-radar/shared';
 import { PRISMA } from '@/common/tokens';
-import { Prisma, toRunRow, type AppDatabase, type RunPg, type RunRow } from '../internal';
+import {
+  Prisma,
+  toRunRow,
+  type AppDatabase,
+  type RunPg,
+  type RunRow,
+  type run_status as RunStatus,
+} from '../internal';
 
 export type { RunRow };
 
@@ -17,7 +25,8 @@ export interface NewRunInput {
   blueprintId: number;
   /** 触发它的进程（processes.id）；事件派生 run（analyze/translate/inspect）为空 */
   processId?: number | null;
-  kind: string;
+  /** 复用 task_kind；runs 实际仅用 collect / recheck / analyze / translate。 */
+  kind: TaskKind;
   /** manual | cron | interval */
   triggerSource: string;
   /** 复查 sweep 序号（间隔模式）；非复查为空 */
@@ -69,12 +78,12 @@ export class RunsRepository {
   }
 
   /** 置进程状态（running / paused 等非终态切换）。 */
-  async setStatus(id: number, status: string): Promise<void> {
+  async setStatus(id: number, status: RunStatus): Promise<void> {
     await this.db.runs.update({ where: { id }, data: { status } });
   }
 
   /** 收尾进程（completed / failed / canceled）+ 结束时间 + 可选错误。 */
-  async finishRun(id: number, status: string, now: number, error?: string | null): Promise<void> {
+  async finishRun(id: number, status: RunStatus, now: number, error?: string | null): Promise<void> {
     await this.db.runs.update({
       where: { id },
       data: { status, finished_at: BigInt(now), error: error ?? null },

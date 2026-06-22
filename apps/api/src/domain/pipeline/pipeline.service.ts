@@ -8,6 +8,7 @@ import {
   TasksRepository,
   type BlueprintRow,
   type ProcessRow,
+  type NewTaskInput,
 } from '@/database';
 import { CronExpressionParser } from 'cron-parser';
 import { RuntimeSettingsService } from '../settings/runtime-settings.service';
@@ -15,7 +16,7 @@ import { AnalysisConfigService } from '../analysis/analysis-config.service';
 import type { Dispatcher } from '@/domain/protocol';
 import { logger } from '@/logger';
 import { nowSec } from '@/utils/time';
-import { buildStages, type StageRecipe } from '@hatch-radar/shared';
+import { buildStages, type StageRecipe, type TaskKind } from '@hatch-radar/shared';
 
 /** analyze 任务的环节模板（= 检视器 6 节点；无闸门→worker 一口气运行到底）。 */
 const ANALYZE_STAGES = buildStages('analyze');
@@ -84,7 +85,7 @@ export class PipelineService {
   ) {}
 
   /** 找或建一张指定 kind 的默认图纸（首次触发时惰性种子，免单独 seeder）。 */
-  private async ensureBlueprint(kind: string, label: string): Promise<BlueprintRow> {
+  private async ensureBlueprint(kind: TaskKind, label: string): Promise<BlueprintRow> {
     const existing = (await this.blueprints.listBlueprints(kind))[0];
     if (existing) return existing;
     return this.blueprints.createBlueprint({ kind, label }, nowSec());
@@ -114,7 +115,7 @@ export class PipelineService {
 
     let created = 0;
     try {
-      const inputs = posts.map((p) => ({
+      const inputs = posts.map((p): NewTaskInput => ({
         runId: run.id,
         kind: 'analyze',
         postId: p.id,
@@ -206,7 +207,7 @@ export class PipelineService {
     const posts = await this.posts.getPostsToRecheck(sweep, RECHECK_BATCH);
     let created = 0;
     try {
-      const inputs = posts.map((p) => ({
+      const inputs = posts.map((p): NewTaskInput => ({
         runId: run.id,
         processId: process?.id ?? null,
         kind: 'recheck',
@@ -335,7 +336,7 @@ export class PipelineService {
     );
     let enqueued = 0;
     try {
-      const inputs = [...new Set(postIds)].map((id) => ({
+      const inputs = [...new Set(postIds)].map((id): NewTaskInput => ({
         runId: run.id,
         kind: 'translate',
         postId: id,

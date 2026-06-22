@@ -1,5 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { BlueprintsRepository, ProcessesRepository, RunsRepository } from '@/database';
+import {
+  BlueprintsRepository,
+  ProcessesRepository,
+  RunsRepository,
+  type UpdateProcessInput,
+} from '@/database';
 import { DomainError } from '@/domain/errors';
 import { nowSec } from '@/utils/time';
 import type { BlueprintKind, ProcessDTO, RunDTO, TriggerConfig } from '@hatch-radar/shared';
@@ -60,12 +65,7 @@ export class ProcessService {
     id: number,
     patch: { label?: string; trigger?: TriggerConfig },
   ): Promise<void> {
-    const repoPatch: {
-      label?: string;
-      triggerKind?: string;
-      triggerConfig?: unknown;
-      nextRunAt?: number | null;
-    } = {};
+    const repoPatch: UpdateProcessInput = {};
     if (patch.label !== undefined) repoPatch.label = patch.label;
     if (patch.trigger) {
       const { triggerKind, triggerConfig } = triggerToRepo(patch.trigger);
