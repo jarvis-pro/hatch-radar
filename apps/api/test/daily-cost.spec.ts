@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import type { AppDatabase, DbHandle } from '@/lib/db';
-import { CostRepository } from '@/lib/db';
-import { nowSec } from '@/lib/kernel';
+import type { AppDatabase, DbHandle } from '@/database';
+import { CostRepository } from '@/database';
+import { nowSec } from '@/utils/time';
 import { setupTestDb, truncateAll } from './helpers';
 
 /**

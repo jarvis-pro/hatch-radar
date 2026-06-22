@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+
 /** TokenBucketQueue 构造参数 */
 export interface TokenBucketOptions {
   /** 每分钟允许通过的请求数；默认 90，留出与 Reddit 100/min 上限的安全余量 */

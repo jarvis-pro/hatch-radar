@@ -1,9 +1,68 @@
 import { z } from 'zod';
-import { baseEnvShape, parseEnv, stripEmptyEnv, type HttpConfig } from '@/lib/kernel';
 
 /**
- * HTTP 服务默认监听端口（47xxx 段避撞常见 dev 端口，…878 呼应旧 8787）。原属
- * `@hatch-radar/config`，worker 退役后只剩 api 消费，故就近落在 api。
+ * 默认 PostgreSQL 连接串（本地 docker-compose，主机映射端口 47432）：运行期 `DATABASE_URL`
+ * 缺省时的权威回退默认值。docker-compose / .env.example 的同串与此对齐。
+ */
+export const DEFAULT_DATABASE_URL = 'postgres://radar:radar@localhost:47432/hatch_radar';
+
+/** HTTP 服务配置（env 推导）：api 用于监听端口。 */
+export interface HttpConfig {
+  /** 监听端口；绑定 0.0.0.0 供局域网内的移动端访问 */
+  port: number;
+}
+
+/**
+ * `KEY=`（空串 / 纯空白）一律按「未设置」处理：等同把该行注释掉。
+ * 用作下方 schema 的 `z.preprocess` 前置，确保空串语义统一。
+ */
+export function stripEmptyEnv(raw: unknown): unknown {
+  if (!raw || typeof raw !== 'object') return raw;
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    out[key] = typeof value === 'string' && value.trim() === '' ? undefined : value;
+  }
+  return out;
+}
+
+/**
+ * 基础 env 字段（schema 的共享基座）：
+ * - `DATABASE_URL` / `DATABASE_POOL_MAX`：PG 连接串与连接池上限（默认值由下方 schema 推导）。
+ * - `SETTINGS_SECRET`：模型密钥加密主密钥（此处仅校验非空串，实际读取在 {@link @/utils/crypto}）。
+ */
+export const baseEnvShape = {
+  /** 模型密钥加密入库的主密钥（仅校验非空串；真正读取在 crypto） */
+  SETTINGS_SECRET: z.string().trim().min(1).optional(),
+
+  /** PostgreSQL 连接串，默认指向本地 docker-compose 的 PG */
+  DATABASE_URL: z.string().trim().default(DEFAULT_DATABASE_URL),
+
+  /** PG 连接池上限；不设时由下方 schema 推导默认值 */
+  DATABASE_POOL_MAX: z.coerce.number().int().min(1).optional(),
+};
+
+/**
+ * 用给定 schema 解析 `process.env`，校验失败一次性报告所有缺失 / 非法字段
+ * （与裸跑早失败语义一致）。
+ */
+export function parseEnv<S extends z.ZodTypeAny>(schema: S): z.infer<S> {
+  const result = schema.safeParse(process.env);
+  if (!result.success) {
+    const messages = result.error.issues
+      .map((issue) => `  ${issue.path.join('.')}: ${issue.message}`)
+      .join('\n');
+    throw new Error(`环境变量校验失败，请先 cp .env.example .env 并填写：\n${messages}`);
+  }
+  return result.data;
+}
+
+/** PostgreSQL 连接串单独暴露：CLI / 迁移脚本不需要任何业务凭据 */
+export function databaseUrl(): string {
+  return process.env.DATABASE_URL?.trim() || DEFAULT_DATABASE_URL;
+}
+
+/**
+ * HTTP 服务默认监听端口（47xxx 段避撞常见 dev 端口，…878 呼应旧 8787）。
  */
 const DEFAULT_HTTP_PORT = 47878;
 

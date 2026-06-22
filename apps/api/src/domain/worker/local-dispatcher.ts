@@ -1,7 +1,9 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { WORKER_CONCURRENCY } from '@/common/tokens';
-import { TasksRepository } from '@/lib/db';
-import { logger, nowSec, type Dispatcher } from '@/lib/kernel';
+import { TasksRepository } from '@/database';
+import { logger } from '@/logger';
+import type { Dispatcher } from '@/domain/protocol';
+import { nowSec } from '@/utils/time';
 import { WorkerService } from './worker.service';
 
 /** 兜底泵周期：捡漏非 pipeline 入队的任务（检视放行 paused→queued、手动重排 failed→queued）。 */

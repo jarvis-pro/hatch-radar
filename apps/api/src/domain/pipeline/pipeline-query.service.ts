@@ -7,7 +7,7 @@ import {
   type RunRow,
   type TaskRow,
   type TaskStageRow,
-} from '@/lib/db';
+} from '@/database';
 
 /** 进程总览取最近 N 条 */
 const RECENT_RUNS_LIMIT = 50;

@@ -7,10 +7,10 @@ import {
   UsersRepository,
   type AppDatabase,
   type DbHandle,
-} from '@/lib/db';
+} from '@/database';
 import { AdminService } from '@/domain/admin/admin.service';
-import { hashPassword } from '@/lib/auth';
-import { nowSec } from '@/lib/kernel';
+import { hashPassword } from '@/auth';
+import { nowSec } from '@/utils/time';
 import type { PermissionKey, UserRole } from '@hatch-radar/shared';
 import type { AuthedUser } from '@/domain/account/auth-context';
 import { setupTestDb, truncateAll } from './helpers';

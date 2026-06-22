@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import type { AppDatabase, DbHandle } from '@/lib/db';
+import type { AppDatabase, DbHandle } from '@/database';
 import { RuntimeSettingsService } from '@/domain/settings/runtime-settings.service';
-import { SettingsRepository } from '@/lib/db';
+import { SettingsRepository } from '@/database';
 import { setupTestDb, truncateAll } from './helpers';
 
 // 出厂默认（与 RuntimeSettingsService.DEFAULT_RUNTIME_SETTINGS 对齐）

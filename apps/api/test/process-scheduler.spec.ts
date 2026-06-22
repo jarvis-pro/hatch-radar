@@ -1,16 +1,16 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import type { AppDatabase, DbHandle } from '@/lib/db';
+import type { AppDatabase, DbHandle } from '@/database';
 import {
   BlueprintsRepository,
   PostsRepository,
   ProcessesRepository,
   RunsRepository,
   TasksRepository,
-} from '@/lib/db';
+} from '@/database';
 import { RuntimeSettingsService } from '@/domain/settings/runtime-settings.service';
 import type { AnalysisConfigService } from '@/domain/analysis/analysis-config.service';
-import type { Dispatcher } from '@/lib/kernel';
-import { nowSec } from '@/lib/kernel';
+import type { Dispatcher } from '@/domain/protocol';
+import { nowSec } from '@/utils/time';
 import { PipelineService } from '@/domain';
 import { setupTestDb, truncateAll } from './helpers';
 

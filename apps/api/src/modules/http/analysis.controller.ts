@@ -13,7 +13,7 @@ import { z } from 'zod';
 import { RequirePermission } from '@/modules/account/auth-user.decorator';
 import { SessionAuthGuard } from '@/modules/account/session-auth.guard';
 import { ZodValidationPipe } from '@/common/zod-validation.pipe';
-import { ProvidersRepository, SettingsRepository } from '@/lib/db';
+import { ProvidersRepository, SettingsRepository } from '@/database';
 import { TaskControlService } from '@/domain';
 import { logger } from '@/logger';
 

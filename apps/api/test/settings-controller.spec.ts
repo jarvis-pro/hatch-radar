@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import type { AppDatabase, DbHandle } from '@/lib/db';
-import { nowSec } from '@/lib/kernel';
-import { ProvidersRepository, SettingsRepository } from '@/lib/db';
+import type { AppDatabase, DbHandle } from '@/database';
+import { nowSec } from '@/utils/time';
+import { ProvidersRepository, SettingsRepository } from '@/database';
 import { type RuntimeSettingsService } from '@/domain/settings/runtime-settings.service';
 import { type AnalysisConfigService } from '@/domain/analysis/analysis-config.service';
 import { type PipelineService, SettingsService } from '@/domain';

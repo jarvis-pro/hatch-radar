@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { Prisma, contentHash, type AppDatabase, type DbHandle } from '@/lib/db';
+import { Prisma, contentHash, type AppDatabase, type DbHandle } from '@/database';
 import { ExportService } from '@/domain/export/export.service';
 import { setupTestDb, truncateAll } from './helpers';
 

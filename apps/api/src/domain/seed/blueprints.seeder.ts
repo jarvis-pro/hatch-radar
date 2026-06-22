@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BlueprintsRepository } from '@/lib/db';
+import { BlueprintsRepository } from '@/database';
 import type { Seeder, SeedContext, SeedOutcome } from './seeder';
 import { HN_SECTIONS, RSS_FEEDS, SUBREDDITS } from './source-lists';
 

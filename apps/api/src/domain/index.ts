@@ -7,12 +7,15 @@
  * 改动都让所有 `from '@/domain'` 引用点参与重编译，且滋生 everything-imports-everything 的耦合。
  *
  * 框架无关的能力代码请直接按来源导入，不再经本 barrel 代理转出：
- * - 持久层 / 仓储 / 行类型 / 运行期设置 → `@/lib/db`
- * - 基座（errors / time / crypto / Dispatcher 契约）→ `@/lib/kernel`
+ * - 持久层 / 仓储 / 行类型 / 运行期设置 → `@/database`
  * - AI 分析引擎 / 翻译引擎 / 配置 → `@/lib/analysis`
  * - 采集（reddit/hn/rss/限速/连接器配置）→ `@/lib/crawler`
- * - 鉴权原语（口令 / 会话 / 设备验签）→ `@/lib/auth`
- * - 应用配置（AppEnv / loadEnv）→ `@/config/env`；logger → `@/logger`
+ * - 鉴权原语（口令 / 会话 / 设备验签）→ `@/auth`
+ * - 通用工具 → `@/utils/time`（时间）/ `@/utils/crypto`（密钥加解密）；logger → `@/logger`
+ * - 应用配置（AppEnv / loadEnv / env 工具）→ `@/config/env`
+ *
+ * 本 domain 自有的基础原语（非服务，不进本 barrel，直引具体文件）：领域错误基类 →
+ * `@/domain/errors`（DomainError）、任务派发契约 → `@/domain/protocol`（Dispatcher）。
  *
  * 各领域类均为 `@Injectable`，由 CoreModule 列为 provider、Nest 按类型自动注入（已退役 createCore 装配桥）。
  */

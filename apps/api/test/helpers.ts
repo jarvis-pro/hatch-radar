@@ -1,4 +1,4 @@
-import { createDb, type AppDatabase, type DbHandle } from '@/lib/db';
+import { createDb, type AppDatabase, type DbHandle } from '@/database';
 
 /** 测试库连接串（与 dev 库隔离）；可用 TEST_DATABASE_URL 覆盖 */
 export const TEST_DATABASE_URL =

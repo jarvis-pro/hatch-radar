@@ -2,8 +2,8 @@ import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import type { BoardData, BoardRange } from '@hatch-radar/shared';
 import { RequirePermission } from '@/modules/account/auth-user.decorator';
 import { SessionAuthGuard } from '@/modules/account/session-auth.guard';
-import { CostRepository, StatsRepository } from '@/lib/db';
-import { nowSec } from '@/lib/kernel';
+import { CostRepository, StatsRepository } from '@/database';
+import { nowSec } from '@/utils/time';
 
 const DAY = 86_400;
 const RANGES: readonly BoardRange[] = ['all', 'today', '7d', '30d'];

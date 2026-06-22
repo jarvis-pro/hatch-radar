@@ -13,8 +13,8 @@ import {
   type RunRow,
   type TaskRow,
   type TaskStageRow,
-} from '@/lib/db';
-import { nowSec } from '@/lib/kernel';
+} from '@/database';
+import { nowSec } from '@/utils/time';
 import {
   PAGE_SIZE,
   type ControlRoomDTO,

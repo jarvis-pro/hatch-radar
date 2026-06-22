@@ -1,8 +1,8 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { PRISMA } from '@/common/tokens';
-import { sha256Hex, verifyDeviceSignature } from '@/lib/auth';
+import { sha256Hex, verifyDeviceSignature } from '@/auth';
 import { hasPermission, type PermissionKey, type UserRole } from '@hatch-radar/shared';
-import { Prisma, type AppDatabase } from '@/lib/db';
+import { Prisma, type AppDatabase } from '@/database';
 import type { DeviceUserContext } from './device-context';
 
 /** 设备签名请求的时间窗（秒）：|now - ts| 超过即拒，挡重放。 */

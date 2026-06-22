@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hashPassword, verifyPassword } from '@/lib/auth';
+import { hashPassword, verifyPassword } from '@/auth';
 
 /** scrypt 口令哈希（纯函数）：往返、错密码、随机盐、NFKC 归一、非法哈希串。 */
 describe('password（scrypt 口令哈希）', () => {

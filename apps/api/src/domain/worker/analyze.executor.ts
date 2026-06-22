@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { AnalysisConfigService } from '../analysis/analysis-config.service';
 import { AnalysisService } from '../analysis/analysis.service';
 import { buildContext, normalizeInsight, parseLooseJson, SYSTEM_PROMPT } from '@/lib/analysis';
-import { CommentsRepository, PostsRepository, type PostRow } from '@/lib/db';
+import { CommentsRepository, PostsRepository, type PostRow } from '@/database';
 import type {
   AiCallOutput,
   ContextOutput,

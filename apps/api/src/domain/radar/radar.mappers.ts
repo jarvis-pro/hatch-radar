@@ -1,4 +1,4 @@
-import type { BlueprintRow, ProcessRow, RunRow, TaskStageRow } from '@/lib/db';
+import type { BlueprintRow, ProcessRow, RunRow, TaskStageRow } from '@/database';
 import {
   STAGE_TEMPLATES,
   type BlueprintDTO,

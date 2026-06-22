@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { StatsRepository, type AppDatabase, type DbHandle } from '@/lib/db';
-import { nowSec } from '@/lib/kernel';
+import { StatsRepository, type AppDatabase, type DbHandle } from '@/database';
+import { nowSec } from '@/utils/time';
 import { setupTestDb, truncateAll } from './helpers';
 
 /**

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
-import { generateEnrollmentCode, hashPassword, sha256Hex } from '@/lib/auth';
+import { generateEnrollmentCode, hashPassword, sha256Hex } from '@/auth';
 import {
   isPermissionKey,
   type AdminUserRow,
@@ -10,13 +10,13 @@ import {
   type UserRole,
 } from '@hatch-radar/shared';
 import type { AuthedUser } from '../account/auth-context';
-import { DomainError } from '@/lib/kernel';
-import { AuditLogsRepository } from '@/lib/db';
-import { DeviceCredentialsRepository } from '@/lib/db';
-import { DeviceEnrollmentsRepository } from '@/lib/db';
-import { SessionsRepository } from '@/lib/db';
-import { UsersRepository } from '@/lib/db';
-import { nowSec } from '@/lib/kernel';
+import { DomainError } from '@/domain/errors';
+import { AuditLogsRepository } from '@/database';
+import { DeviceCredentialsRepository } from '@/database';
+import { DeviceEnrollmentsRepository } from '@/database';
+import { SessionsRepository } from '@/database';
+import { UsersRepository } from '@/database';
+import { nowSec } from '@/utils/time';
 
 /** 激活码有效期（秒）：短，15 分钟。 */
 const ENROLL_TTL_SEC = 15 * 60;

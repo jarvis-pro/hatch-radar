@@ -8,12 +8,13 @@ import {
   TasksRepository,
   type BlueprintRow,
   type ProcessRow,
-} from '@/lib/db';
+} from '@/database';
 import { CronExpressionParser } from 'cron-parser';
 import { RuntimeSettingsService } from '../settings/runtime-settings.service';
 import { AnalysisConfigService } from '../analysis/analysis-config.service';
-import type { Dispatcher } from '@/lib/kernel';
-import { logger, nowSec } from '@/lib/kernel';
+import type { Dispatcher } from '@/domain/protocol';
+import { logger } from '@/logger';
+import { nowSec } from '@/utils/time';
 import { buildStages, type StageRecipe } from '@hatch-radar/shared';
 
 /** analyze 任务的环节模板（= 检视器 6 节点；无闸门→worker 一口气运行到底）。 */

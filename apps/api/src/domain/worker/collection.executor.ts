@@ -15,8 +15,9 @@ import {
   type PostRow,
   type SourceRow,
   type TaskRow,
-} from '@/lib/db';
-import { logger, nowSec } from '@/lib/kernel';
+} from '@/database';
+import { logger } from '@/logger';
+import { nowSec } from '@/utils/time';
 import { buildStages, type RedditComment, type StageRecipe } from '@hatch-radar/shared';
 import { RequestGate } from './request-gate';
 

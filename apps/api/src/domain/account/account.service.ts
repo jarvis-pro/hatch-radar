@@ -1,12 +1,13 @@
 import { Injectable } from '@nestjs/common';
-import { generateSessionToken, hashPassword, hashSessionToken, verifyPassword } from '@/lib/auth';
+import { generateSessionToken, hashPassword, hashSessionToken, verifyPassword } from '@/auth';
 import type { CurrentUser, SessionInfo } from '@hatch-radar/shared';
 import { RuntimeSettingsService } from '../settings/runtime-settings.service';
-import { AuditLogsRepository } from '@/lib/db';
-import { LoginAttemptsRepository } from '@/lib/db';
-import { SessionsRepository } from '@/lib/db';
-import { UsersRepository, type UserAuthView } from '@/lib/db';
-import { DomainError, nowSec } from '@/lib/kernel';
+import { AuditLogsRepository } from '@/database';
+import { LoginAttemptsRepository } from '@/database';
+import { SessionsRepository } from '@/database';
+import { UsersRepository, type UserAuthView } from '@/database';
+import { DomainError } from '@/domain/errors';
+import { nowSec } from '@/utils/time';
 import type { AuthedUser } from './auth-context';
 
 const DAY = 86_400;
@@ -48,7 +49,7 @@ function stripHash(view: UserAuthView): CurrentUser {
  * 人鉴权权威服务（后端归一：原 web lib/auth 整体迁来，行为不变）。
  *
  * 负责会话生命周期（建/解析/滑动续期/吊销）、登录限流、改密与审计。
- * 密码 scrypt 校验、会话 token 哈希复用 @/lib/auth。
+ * 密码 scrypt 校验、会话 token 哈希复用 @/auth。
  */
 @Injectable()
 export class AccountService {

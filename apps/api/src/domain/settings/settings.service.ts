@@ -7,9 +7,11 @@ import {
   type KeyInput,
   type KeyUpdate,
   type ProviderInput,
-} from '@/lib/db';
+} from '@/database';
 import { RuntimeSettingsService, type RuntimeSettingsPatch } from './runtime-settings.service';
-import { DomainError, isSecretConfigured, nowSec } from '@/lib/kernel';
+import { isSecretConfigured } from '@/utils/crypto';
+import { DomainError } from '@/domain/errors';
+import { nowSec } from '@/utils/time';
 import { logger } from '@/logger';
 import { PipelineService } from '../pipeline/pipeline.service';
 

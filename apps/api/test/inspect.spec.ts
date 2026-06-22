@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import type { AppDatabase, DbHandle } from '@/lib/db';
+import type { AppDatabase, DbHandle } from '@/database';
 import {
   BlueprintsRepository,
   CommentsRepository,
@@ -10,14 +10,14 @@ import {
   SettingsRepository,
   TasksRepository,
   TaskStagesRepository,
-} from '@/lib/db';
+} from '@/database';
 import { RuntimeSettingsService } from '@/domain/settings/runtime-settings.service';
 import type { PostProcessor, RawModelOutput } from '@/lib/analysis';
 import { AnalysisService } from '@/domain/analysis/analysis.service';
 import type { AnalysisConfigService } from '@/domain/analysis/analysis-config.service';
 import type { TranslationService } from '@/domain/analysis/translation.service';
-import type { Dispatcher } from '@/lib/kernel';
-import { nowSec } from '@/lib/kernel';
+import type { Dispatcher } from '@/domain/protocol';
+import { nowSec } from '@/utils/time';
 import {
   INSPECT_STEP_NAMES,
   type AiCallOutput,

@@ -1,6 +1,6 @@
 import { generateKeyPairSync, sign, type KeyObject } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { verifyDeviceSignature } from '@/lib/auth';
+import { verifyDeviceSignature } from '@/auth';
 
 /**
  * 设备 Ed25519 验签（纯函数）。模拟 mobile：公钥以「原始 32 字节 base64」上报、私钥对 canonical 签名。

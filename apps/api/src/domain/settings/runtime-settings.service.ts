@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { SettingsRepository } from '@/lib/db';
-import { logger } from '@/lib/kernel';
+import { SettingsRepository } from '@/database';
+import { logger } from '@/logger';
 
 /** 运行期可调项的 camelCase 键（同时用作 web DTO 字段名与 PUT body 字段名） */
 export type RuntimeSettingKey =

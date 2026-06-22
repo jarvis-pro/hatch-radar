@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { verifyPassword } from '@/lib/auth';
-import type { AppDatabase, DbHandle } from '@/lib/db';
+import { verifyPassword } from '@/auth';
+import type { AppDatabase, DbHandle } from '@/database';
 import type { AppEnv } from '@/config/env';
-import { UsersRepository } from '@/lib/db';
+import { UsersRepository } from '@/database';
 import { SuperAdminSeeder } from '@/domain/seed/super-admin.seeder';
 import { setupTestDb, truncateAll } from './helpers';
 

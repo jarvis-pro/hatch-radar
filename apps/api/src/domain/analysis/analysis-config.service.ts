@@ -13,12 +13,12 @@ import { testClaudeAgent } from '@/lib/analysis/analyzer/claude-agent';
 import { testOpenAICompatible } from '@/lib/analysis/analyzer/openai-compatible';
 import { testAzureTranslator } from '@/lib/analysis/translator/azure-client';
 import { classifyKeyError, errMsg, COOLDOWN_SECONDS } from '@/lib/analysis/key-failover';
-import { decryptSecret } from '@/lib/kernel';
-import { PostsRepository } from '@/lib/db';
-import { ProvidersRepository, type ProviderApiKeyRow, type ProviderRow } from '@/lib/db';
-import { SettingsRepository } from '@/lib/db';
-import { nowSec } from '@/lib/kernel';
-import { logger } from '@/lib/kernel';
+import { decryptSecret } from '@/utils/crypto';
+import { PostsRepository } from '@/database';
+import { ProvidersRepository, type ProviderApiKeyRow, type ProviderRow } from '@/database';
+import { SettingsRepository } from '@/database';
+import { nowSec } from '@/utils/time';
+import { logger } from '@/logger';
 
 /** 当前选用的 active 模型（供调度与启动日志使用） */
 export interface ActiveProvider {

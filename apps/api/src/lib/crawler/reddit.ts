@@ -1,4 +1,4 @@
-import { logger } from '@/lib/kernel';
+import { logger } from '@/logger';
 import type { RedditPost, RedditComment } from '@hatch-radar/shared';
 import type { TokenBucketQueue } from './queue';
 

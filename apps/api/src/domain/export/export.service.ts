@@ -9,7 +9,7 @@ import {
   type CommentPg,
   type InsightPgRow,
   type PostPg,
-} from '@/lib/db';
+} from '@/database';
 import {
   EXPORT_FORMAT_VERSION,
   type CommentRow,
@@ -18,7 +18,7 @@ import {
   type ExportTranslation,
   type PostRow,
 } from '@hatch-radar/shared';
-import { nowSec } from '@/lib/kernel';
+import { nowSec } from '@/utils/time';
 
 /**
  * 导出批次收集（数据源 = PG）。

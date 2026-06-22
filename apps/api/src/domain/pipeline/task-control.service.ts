@@ -8,8 +8,10 @@ import {
   TasksRepository,
   TaskStagesRepository,
   type BlueprintRow,
-} from '@/lib/db';
-import { DomainError, nowSec, type Dispatcher } from '@/lib/kernel';
+} from '@/database';
+import { DomainError } from '@/domain/errors';
+import type { Dispatcher } from '@/domain/protocol';
+import { nowSec } from '@/utils/time';
 import { INSPECT_STEP_NAMES, type InspectJobView, type InspectStepView } from '@hatch-radar/shared';
 
 /**

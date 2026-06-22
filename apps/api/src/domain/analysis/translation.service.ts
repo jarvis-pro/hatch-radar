@@ -6,8 +6,10 @@ import {
   type TranslationField,
   type TranslationProviderKind,
   type TranslationUpsert,
-} from '@/lib/db';
-import { decryptSecret, logger, nowSec } from '@/lib/kernel';
+} from '@/database';
+import { decryptSecret } from '@/utils/crypto';
+import { logger } from '@/logger';
+import { nowSec } from '@/utils/time';
 import type { TokenUsage } from '@/lib/analysis/analyzer/analyze';
 import { classifyKeyError, errMsg } from '@/lib/analysis/key-failover';
 import {

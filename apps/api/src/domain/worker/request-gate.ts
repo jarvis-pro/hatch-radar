@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { RequestLanesRepository, RequestQueueRepository } from '@/lib/db';
-import { logger, nowSec } from '@/lib/kernel';
+import { RequestLanesRepository, RequestQueueRepository } from '@/database';
+import { logger } from '@/logger';
+import { nowSec } from '@/utils/time';
 
 /** 默认：lane 暂停时每 2s 轮询一次是否恢复（实际带 ±20% 抖动，避免并发协程同相位） */
 const DEFAULT_PAUSE_POLL_MS = 2_000;

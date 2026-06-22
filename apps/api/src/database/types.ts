@@ -29,7 +29,7 @@ import type {
   request_lanesModel,
 } from './generated/prisma/models';
 
-// 便利再导出：让 server 数据层从 @/lib/db 单点取行类型（与表/映射同源）
+// 便利再导出：让 server 数据层从 @/database 单点取行类型（与表/映射同源）
 export type { CommentRow, InsightRow, PostRow } from '@hatch-radar/shared';
 
 /** 把 bigint 列在域类型里折回 number（含可空），其余字段透传 */

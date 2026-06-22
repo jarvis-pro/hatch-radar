@@ -1,2 +1,2 @@
 # Prisma 生成的 client：由 postinstall / `pnpm db:generate` 按 prisma/schema.prisma 重建，不入库
-/src/lib/db/generated/
+/src/database/generated/

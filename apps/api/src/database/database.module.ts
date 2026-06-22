@@ -6,7 +6,7 @@ import {
   type OnModuleInit,
   Injectable,
 } from '@nestjs/common';
-import { createDb, type AppDatabase, type DbHandle } from '@/lib/db';
+import { createDb, type AppDatabase, type DbHandle } from './internal';
 import type { AppEnv } from '@/config/env';
 import { APP_ENV, PRISMA } from '@/common/tokens';
 import { logger } from '@/logger';

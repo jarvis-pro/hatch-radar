@@ -1,6 +1,6 @@
 import { Controller, Get } from '@nestjs/common';
-import { nowSec } from '@/lib/kernel';
-import { StatsRepository } from '@/lib/db';
+import { nowSec } from '@/utils/time';
+import { StatsRepository } from '@/database';
 
 /**
  * GET /api/health —— 健康检查 + 数据概览（不鉴权，供 App 在局域网内探测工作台）。

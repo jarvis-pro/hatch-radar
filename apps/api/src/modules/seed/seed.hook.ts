@@ -1,5 +1,5 @@
 import { Injectable, type OnApplicationBootstrap } from '@nestjs/common';
-import { nowSec } from '@/lib/kernel';
+import { nowSec } from '@/utils/time';
 import { SeedRunner } from '@/domain';
 
 /**

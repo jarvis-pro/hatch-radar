@@ -7,7 +7,7 @@ import {
   type ProviderApiKeyRow,
   type ProviderRow,
 } from '../internal';
-import { decryptSecret, encryptSecret } from '@/lib/kernel';
+import { decryptSecret, encryptSecret } from '@/utils/crypto';
 
 /** 支持的模型厂商 */
 export type ProviderKind = ProviderRow['provider'];

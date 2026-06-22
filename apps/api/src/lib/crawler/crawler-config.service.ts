@@ -3,9 +3,9 @@ import {
   SourceConnectorsRepository,
   decryptConnectorSecret,
   type SourceConnectorRow,
-} from '@/lib/db';
-import { nowSec } from '@/lib/kernel';
-import { logger } from '@/lib/kernel';
+} from '@/database';
+import { nowSec } from '@/utils/time';
+import { logger } from '@/logger';
 import { TokenBucketQueue } from './queue';
 import { RedditClient, type RedditConfig } from './reddit';
 

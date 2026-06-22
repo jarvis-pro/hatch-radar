@@ -2,7 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { PRISMA } from '@/common/tokens';
 import type { AuditRow } from '@hatch-radar/shared';
 import { Prisma, type AppDatabase } from '../internal';
-import { nowSec } from '@/lib/kernel';
+import { nowSec } from '@/utils/time';
 
 /** 一条审计记录的输入。 */
 export interface AuditEntry {

@@ -1,13 +1,13 @@
 import { Controller, Get, HttpCode, Param, Post, UseGuards } from '@nestjs/common';
 import { RequirePermission } from '@/modules/account/auth-user.decorator';
 import { SessionAuthGuard } from '@/modules/account/session-auth.guard';
-import { nowSec } from '@/lib/kernel';
+import { nowSec } from '@/utils/time';
 import {
   RequestLanesRepository,
   RequestQueueRepository,
   type RequestLaneRow,
   type RequestQueueRow,
-} from '@/lib/db';
+} from '@/database';
 import { logger } from '@/logger';
 
 /** 控制台展示的最近请求条数 */

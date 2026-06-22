@@ -23,7 +23,7 @@ import {
   TaskStagesRepository,
   TranslationsRepository,
   UsersRepository,
-} from '@/lib/db';
+} from '@/database';
 
 /**
  * 仓储模块（全局）：全部 22 个仓储类。

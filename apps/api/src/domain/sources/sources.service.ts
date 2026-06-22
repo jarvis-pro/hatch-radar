@@ -8,8 +8,10 @@ import {
   type ConnectorUpdate,
   type SourceInput,
   type SourcePlatform,
-} from '@/lib/db';
-import { DomainError, isSecretConfigured, nowSec } from '@/lib/kernel';
+} from '@/database';
+import { isSecretConfigured } from '@/utils/crypto';
+import { DomainError } from '@/domain/errors';
+import { nowSec } from '@/utils/time';
 import { logger } from '@/logger';
 
 /**

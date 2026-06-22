@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import type { CommentRow, InsightResult, PostRow } from '@hatch-radar/shared';
-import { InsightsRepository } from '@/lib/db';
-import { nowSec } from '@/lib/kernel';
-import { logger } from '@/lib/kernel';
+import { InsightsRepository } from '@/database';
+import { nowSec } from '@/utils/time';
+import { logger } from '@/logger';
 import type { PostProcessor, TokenUsage } from '@/lib/analysis/analyzer/analyze';
 
 /**

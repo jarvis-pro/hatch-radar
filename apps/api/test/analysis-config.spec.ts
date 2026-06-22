@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import type { AppDatabase, DbHandle } from '@/lib/db';
+import type { AppDatabase, DbHandle } from '@/database';
 import { AnalysisConfigService } from '@/domain/analysis/analysis-config.service';
-import { PostsRepository } from '@/lib/db';
-import { ProvidersRepository } from '@/lib/db';
-import { SettingsRepository } from '@/lib/db';
-import { nowSec } from '@/lib/kernel';
+import { PostsRepository } from '@/database';
+import { ProvidersRepository } from '@/database';
+import { SettingsRepository } from '@/database';
+import { nowSec } from '@/utils/time';
 import { setupTestDb, truncateAll } from './helpers';
 
 // 模型密钥加解密需要主密钥；测试用任意高熵串即可（不连模型）

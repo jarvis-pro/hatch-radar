@@ -1,12 +1,12 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import type { AppDatabase, DbHandle } from '@/lib/db';
-import { nowSec } from '@/lib/kernel';
+import type { AppDatabase, DbHandle } from '@/database';
+import { nowSec } from '@/utils/time';
 import {
   decryptConnectorSecret,
   SourceConnectorsRepository,
   SourcesRepository,
   toConnectorDTO,
-} from '@/lib/db';
+} from '@/database';
 import { type CrawlerConfigService } from '@/lib/crawler';
 import { SourcesService } from '@/domain';
 import { setupTestDb, truncateAll } from './helpers';

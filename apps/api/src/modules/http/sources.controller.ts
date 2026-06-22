@@ -13,7 +13,7 @@ import { z } from 'zod';
 import { RequirePermission } from '@/modules/account/auth-user.decorator';
 import { SessionAuthGuard } from '@/modules/account/session-auth.guard';
 import { ZodValidationPipe } from '@/common/zod-validation.pipe';
-import { type ConnectorInput } from '@/lib/db';
+import { type ConnectorInput } from '@/database';
 import { SourcesService } from '@/domain';
 
 const platformEnum = z.enum(['reddit', 'hackernews', 'rss']);

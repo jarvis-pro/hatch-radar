@@ -5,8 +5,8 @@ import {
   SettingsRepository,
   TasksRepository,
   TranslationsRepository,
-} from '@/lib/db';
-import { DomainError } from '@/lib/kernel';
+} from '@/database';
+import { DomainError } from '@/domain/errors';
 import type { ExportFilter } from '@hatch-radar/shared';
 import { ExportService } from '../export/export.service';
 import { PipelineService } from '../pipeline/pipeline.service';

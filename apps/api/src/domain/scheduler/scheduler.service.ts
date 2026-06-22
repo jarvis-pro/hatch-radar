@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { PostsRepository } from '@/lib/db';
-import { TasksRepository } from '@/lib/db';
-import { logger } from '@/lib/kernel';
-import { nowSec } from '@/lib/kernel';
+import { PostsRepository } from '@/database';
+import { TasksRepository } from '@/database';
+import { logger } from '@/logger';
+import { nowSec } from '@/utils/time';
 import { PipelineService } from '@/domain/pipeline/pipeline.service';
 
 const ARCHIVE_DAYS = 30;

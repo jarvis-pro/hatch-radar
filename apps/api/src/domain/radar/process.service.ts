@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { BlueprintsRepository, ProcessesRepository, RunsRepository } from '@/lib/db';
-import { DomainError, nowSec } from '@/lib/kernel';
+import { BlueprintsRepository, ProcessesRepository, RunsRepository } from '@/database';
+import { DomainError } from '@/domain/errors';
+import { nowSec } from '@/utils/time';
 import type { BlueprintKind, ProcessDTO, RunDTO, TriggerConfig } from '@hatch-radar/shared';
 import { PipelineService } from '../pipeline/pipeline.service';
 import { toProcessDTO, toRunDTO, triggerToRepo } from './radar.mappers';

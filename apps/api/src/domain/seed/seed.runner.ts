@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { logger } from '@/lib/kernel';
+import { logger } from '@/logger';
 import { BlueprintsSeeder } from './blueprints.seeder';
 import { ProcessesSeeder } from './processes.seeder';
 import { RuntimeSettingsSeeder } from './runtime-settings.seeder';

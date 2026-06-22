@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import type { AppDatabase, DbHandle } from '@/lib/db';
-import { PostsRepository } from '@/lib/db';
+import type { AppDatabase, DbHandle } from '@/database';
+import { PostsRepository } from '@/database';
 import { setupTestDb, truncateAll } from './helpers';
 
 /**
