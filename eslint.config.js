@@ -104,6 +104,46 @@ export default tseslint.config(
       ],
     },
   },
+  // ── 分层护栏（apps/api）：modules → domain → lib 单向，防跨层反向依赖（审计 #21）──────────
+  // 用内置 no-restricted-imports + files scope（ESLint 10 可靠；eslint-plugin-boundaries 在 ESLint 10
+  // 崩，故沿用本仓「内置/自写规则」路线）。跨层必是跨目录、按约定走 @/ 别名，按别名前缀拦截即可。
+  // 注：lib 子层次序（kernel←db←crawler/analysis/auth）与领域服务相对路径互引混用 ../，不宜用别名
+  // pattern 强制，留待 dependency-cruiser；此处先固化最关键的「不可反向跨层」。
+  {
+    files: ['apps/api/src/lib/**/*.ts'],
+    ignores: ['apps/api/src/lib/db/generated/**'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@/domain', '@/domain/*', '@/modules', '@/modules/*'],
+              message:
+                'lib（能力 / 适配层）不可依赖 domain / modules——依赖方向应为 modules → domain → lib。',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['apps/api/src/domain/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@/modules', '@/modules/*'],
+              message:
+                'domain（领域层）不可依赖 modules（HTTP / wiring 层）——控制器依赖领域服务，反之不可。',
+            },
+          ],
+        },
+      ],
+    },
+  },
   {
     ignores: [
       '**/dist/',
