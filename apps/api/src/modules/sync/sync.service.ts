@@ -16,38 +16,63 @@ type Tx = Prisma.TransactionClient;
 
 /** 请求信封：deviceId + 待应用操作数组（单条操作的合法性在逐条校验时判定） */
 export const pushEnvelopeSchema = z.object({
+  /** 推送来源设备 id（≤128 字符），用于审计 / 归属 */
   deviceId: z.string().trim().min(1).max(128),
+  /** 待应用操作数组（最多 1 万条）；逐条用 opSchema 校验，非法条目单独 rejected */
   ops: z.array(z.unknown()).max(10_000),
 });
 
-/** 单条操作的协议校验（与 shared 的 SyncOpPayloads 一一对应） */
+/**
+ * 单条操作的协议校验（与 shared 的 SyncOpPayloads 一一对应），按 type 判别。
+ * 四类变体共享同样的外壳字段（opId / type / targetId / createdAt），仅 payload 形态不同。
+ */
 const opSchema = z.discriminatedUnion('type', [
   z.object({
+    /** 客户端生成的操作 id（≤64 字符）：服务端按此幂等去重 */
     opId: z.string().trim().min(1).max(64),
+    /** 操作类型判别字段：设置研判状态 */
     type: z.literal('set_status'),
+    /** 目标洞察 id */
     targetId: z.number().int().positive(),
+    /** 载荷：目标研判状态（取 TRIAGE_STATUSES 之一） */
     payload: z.object({ status: z.enum(TRIAGE_STATUSES) }),
+    /** 操作在设备上的发生时间（Unix 秒），落库 updated_at 取此值 */
     createdAt: z.number().int().positive(),
   }),
   z.object({
+    /** 客户端生成的操作 id（≤64 字符）：幂等去重 */
     opId: z.string().trim().min(1).max(64),
+    /** 操作类型判别字段：设置评分 */
     type: z.literal('set_rating'),
+    /** 目标洞察 id */
     targetId: z.number().int().positive(),
+    /** 载荷：1-5 星评分，null=清除评分 */
     payload: z.object({ rating: z.number().int().min(1).max(5).nullable() }),
+    /** 操作在设备上的发生时间（Unix 秒） */
     createdAt: z.number().int().positive(),
   }),
   z.object({
+    /** 客户端生成的操作 id（≤64 字符）：幂等去重 */
     opId: z.string().trim().min(1).max(64),
+    /** 操作类型判别字段：设置标签 */
     type: z.literal('set_tags'),
+    /** 目标洞察 id */
     targetId: z.number().int().positive(),
+    /** 载荷：标签数组（每条 ≤64 字符，最多 50 条，整体覆盖） */
     payload: z.object({ tags: z.array(z.string().trim().min(1).max(64)).max(50) }),
+    /** 操作在设备上的发生时间（Unix 秒） */
     createdAt: z.number().int().positive(),
   }),
   z.object({
+    /** 客户端生成的操作 id（≤64 字符）：幂等去重 */
     opId: z.string().trim().min(1).max(64),
+    /** 操作类型判别字段：设置备注 */
     type: z.literal('set_note'),
+    /** 目标洞察 id */
     targetId: z.number().int().positive(),
+    /** 载荷：备注文本（≤1 万字符，整体覆盖） */
     payload: z.object({ note: z.string().max(10_000) }),
+    /** 操作在设备上的发生时间（Unix 秒） */
     createdAt: z.number().int().positive(),
   }),
 ]);
