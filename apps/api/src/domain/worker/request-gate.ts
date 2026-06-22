@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { RequestLanesRepository, RequestQueueRepository } from '@/database';
 import { logger } from '@/logger';
-import { nowSec } from '@/utils/time';
+import { nowSec, sleep } from '@/utils/time';
+import { errMsg } from '@/utils/error';
 
 /** 默认：lane 暂停时每 2s 轮询一次是否恢复（实际带 ±20% 抖动，避免并发协程同相位） */
 const DEFAULT_PAUSE_POLL_MS = 2_000;
@@ -9,14 +10,6 @@ const DEFAULT_PAUSE_POLL_MS = 2_000;
 const DEFAULT_MAX_PAUSE_WAIT_MS = 5 * 60_000;
 /** lane 存在性缓存有效期（秒）：过期重新 ensureLane，免进程内缓存与被外部删/重置的 lane 行长期失配 */
 const ENSURE_LANE_TTL_SEC = 300;
-
-function errMsg(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 /** 一次出站请求的描述（用于落库展示与归属） */
 export interface GateRequest {

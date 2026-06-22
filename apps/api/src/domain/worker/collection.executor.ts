@@ -18,6 +18,7 @@ import {
 } from '@/database';
 import { logger } from '@/logger';
 import { nowSec } from '@/utils/time';
+import { errMsg } from '@/utils/error';
 import { buildStages, type RedditComment, type StageRecipe } from '@hatch-radar/shared';
 import { RequestGate } from './request-gate';
 
@@ -41,10 +42,6 @@ function redditSourceConfig(source: SourceRow): { sorts: ('hot' | 'new')[]; limi
     : [];
   const limit = typeof cfg.limit === 'number' && cfg.limit > 0 ? cfg.limit : 25;
   return { sorts: sorts.length > 0 ? sorts : ['hot', 'new'], limit };
-}
-
-function errMsg(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
 }
 
 /** 从任务 params（JsonValue）安全读出当前复查 sweep 序号；缺省 0 */

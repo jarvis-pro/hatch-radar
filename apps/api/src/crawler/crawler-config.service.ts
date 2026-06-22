@@ -5,13 +5,10 @@ import {
   type SourceConnectorRow,
 } from '@/database';
 import { nowSec } from '@/utils/time';
+import { errMsg } from '@/utils/error';
 import { logger } from '@/logger';
 import { TokenBucketQueue } from './queue';
 import { RedditClient, type RedditConfig } from './reddit';
-
-function errMsg(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
-}
 
 /**
  * 采集运行期配置层：把 source_connectors 行解析成 Reddit 客户端、跑连通性测试。

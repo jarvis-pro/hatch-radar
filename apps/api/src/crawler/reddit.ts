@@ -1,4 +1,5 @@
 import { logger } from '@/logger';
+import { sleep } from '@/utils/time';
 import type { RedditPost, RedditComment } from '@hatch-radar/shared';
 import type { TokenBucketQueue } from './queue';
 
@@ -97,10 +98,6 @@ export function flattenRedditTree(children: ListingChild[]): CommentFetchResult 
     comments: out.filter((c) => c.id && c.body && c.body !== '[deleted]' && c.body !== '[removed]'),
     dropped,
   };
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function mapPost(d: Record<string, unknown>, fallbackSubreddit: string): RedditPost {

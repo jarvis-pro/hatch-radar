@@ -8,6 +8,7 @@ import {
   buildUserPrompt,
   normalizeRawOutput,
 } from './prompt';
+import { sleep } from '@/utils/time';
 
 /**
  * OpenAI 兼容接口（chat/completions）调用配置，OpenAI 与 DeepSeek 共用一条代码路径。
@@ -43,10 +44,6 @@ const MAX_RETRIES = 3;
 const MAX_TOKENS = 8000;
 /** 单次请求超时（毫秒）：超时即 abort，避免某次调用挂死后拖住整个分析队列 */
 const REQUEST_TIMEOUT_MS = 120_000;
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 /**
  * 向 chat/completions 发起请求，对 429 / 5xx、网络错误与超时中止做指数退避重试。

@@ -5,6 +5,8 @@
  * 「限流冷却 / 鉴权失效 / 其余冒泡」判定，保证两处的 active/cooling/invalid 状态机口径一致。
  */
 
+import { errMsg } from '@/utils/error';
+
 /** 一把 Key 失败的归类：rate_limit=限流可冷却重试 / auth=鉴权失败或额度耗尽需人工 / other=非 Key 问题 */
 export type KeyErrorKind = 'rate_limit' | 'auth' | 'other';
 
@@ -13,11 +15,6 @@ export type KeyErrorKind = 'rate_limit' | 'auth' | 'other';
  * 注：当前为固定窗；指数退避（按连续冷却次数递增、上限封顶）留作后续细化。
  */
 export const COOLDOWN_SECONDS = 300;
-
-/** 取错误信息文本 */
-export function errMsg(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
-}
 
 /**
  * 归类一次远端调用失败是否「该把 Key 的问题」。

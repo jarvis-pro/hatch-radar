@@ -10,8 +10,9 @@ import {
 import { decryptSecret } from '@/utils/crypto';
 import { logger } from '@/logger';
 import { nowSec } from '@/utils/time';
+import { errMsg } from '@/utils/error';
 import type { TokenUsage } from '@/analysis/analyzer/analyze';
-import { classifyKeyError, errMsg } from '@/analysis/key-failover';
+import { classifyKeyError } from '@/analysis/key-failover';
 import {
   looksChinese,
   translateItems,
