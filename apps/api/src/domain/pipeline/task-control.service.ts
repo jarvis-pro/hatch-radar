@@ -9,7 +9,7 @@ import {
   TaskStagesRepository,
   type BlueprintRow,
 } from '@/database';
-import { DomainError } from '@/domain/errors';
+import { ValidationError } from '@/domain/errors';
 import type { Dispatcher } from '@/domain/protocol';
 import { nowSec } from '@/utils/time';
 import {
@@ -59,10 +59,10 @@ export class TaskControlService {
     stepGate: boolean,
   ): Promise<{ taskId: number }> {
     const provider = await this.providers.getProvider(providerId);
-    if (!provider) throw new DomainError('模型配置不存在', 400);
-    if (!provider.enabled) throw new DomainError('该模型已停用', 400);
+    if (!provider) throw new ValidationError('模型配置不存在');
+    if (!provider.enabled) throw new ValidationError('该模型已停用');
     const post = await this.posts.getPostById(postId);
-    if (!post) throw new DomainError('帖子不存在', 400);
+    if (!post) throw new ValidationError('帖子不存在');
 
     const bp = await this.ensureBlueprint('analyze', '自动分析');
     const run = await this.runs.createRun(
@@ -82,7 +82,7 @@ export class TaskControlService {
     );
     if (!res.ok) {
       await this.runs.finishRun(run.id, 'completed', nowSec());
-      throw new DomainError(res.error, 400);
+      throw new ValidationError(res.error);
     }
     await this.runs.incrementCounters(run.id, { total: 1 });
     await this.runs.finishRun(run.id, 'completed', nowSec());
@@ -149,11 +149,11 @@ export class TaskControlService {
    */
   async retryInspectStep(taskId: number): Promise<void> {
     const task = await this.tasks.getTask(taskId);
-    if (!task) throw new DomainError('任务不存在', 400);
-    if (task.status !== 'failed') throw new DomainError('当前不可重试（任务并非失败态）', 400);
+    if (!task) throw new ValidationError('任务不存在');
+    if (task.status !== 'failed') throw new ValidationError('当前不可重试（任务并非失败态）');
     await this.taskStages.resetStageToPending(taskId, task.current_seq);
     const ok = await this.tasks.requeueFailedTask(taskId);
-    if (!ok) throw new DomainError('当前不可重试', 400);
+    if (!ok) throw new ValidationError('当前不可重试');
     void this.dispatcher?.tryDispatch();
   }
 

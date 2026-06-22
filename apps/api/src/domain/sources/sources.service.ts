@@ -10,7 +10,7 @@ import {
   type SourcePlatform,
 } from '@/database';
 import { isSecretConfigured } from '@/utils/crypto';
-import { DomainError } from '@/domain/errors';
+import { NotFoundError, ValidationError } from '@/domain/errors';
 import { nowSec } from '@/utils/time';
 import { logger } from '@/logger';
 
@@ -55,7 +55,7 @@ export class SourcesService {
 
   async updateSource(id: number, fields: Partial<SourceInput>): Promise<void> {
     const existing = await this.sources.getSource(id);
-    if (!existing) throw new DomainError('来源不存在', 404);
+    if (!existing) throw new NotFoundError('来源不存在');
     if (fields.enabled === true) {
       await this.assertRedditEnable(existing.platform, true);
     }
@@ -64,7 +64,7 @@ export class SourcesService {
 
   async deleteSource(id: number): Promise<void> {
     if (!(await this.sources.deleteSource(id))) {
-      throw new DomainError('来源不存在', 404);
+      throw new NotFoundError('来源不存在');
     }
     logger.info(`[数据来源] 删除 #${id}`);
   }
@@ -76,9 +76,8 @@ export class SourcesService {
       enabling &&
       !(await this.connectors.hasUsableConnector('reddit'))
     ) {
-      throw new DomainError(
+      throw new ValidationError(
         'Reddit 来源需先在「采集连接器」配置并测试通过 Reddit 凭据，才能启用',
-        400,
       );
     }
   }
@@ -87,7 +86,7 @@ export class SourcesService {
 
   async createConnector(input: ConnectorInput): Promise<{ id: number }> {
     if (!isSecretConfigured()) {
-      throw new DomainError('未配置 SETTINGS_SECRET，无法加密入库，请先在 .env 设置', 400);
+      throw new ValidationError('未配置 SETTINGS_SECRET，无法加密入库，请先在 .env 设置');
     }
     const id = await this.connectors.createConnector(input, nowSec());
     logger.info(`[采集连接器] 新增 #${id}：${input.platform}/${input.authKind}`);
@@ -96,10 +95,10 @@ export class SourcesService {
 
   async updateConnector(id: number, fields: ConnectorUpdate): Promise<void> {
     if (fields.secret && !isSecretConfigured()) {
-      throw new DomainError('未配置 SETTINGS_SECRET，无法加密新凭据', 400);
+      throw new ValidationError('未配置 SETTINGS_SECRET，无法加密新凭据');
     }
     if (!(await this.connectors.getConnector(id))) {
-      throw new DomainError('连接器不存在', 404);
+      throw new NotFoundError('连接器不存在');
     }
     if (Object.keys(fields).length > 0) await this.connectors.updateConnector(id, fields, nowSec());
     logger.info(`[采集连接器] 更新 #${id}`);
@@ -107,7 +106,7 @@ export class SourcesService {
 
   async deleteConnector(id: number): Promise<void> {
     if (!(await this.connectors.deleteConnector(id))) {
-      throw new DomainError('连接器不存在', 404);
+      throw new NotFoundError('连接器不存在');
     }
     logger.info(`[采集连接器] 删除 #${id}`);
   }

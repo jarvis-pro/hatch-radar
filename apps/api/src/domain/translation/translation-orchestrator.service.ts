@@ -6,7 +6,7 @@ import {
   TasksRepository,
   TranslationsRepository,
 } from '@/database';
-import { DomainError } from '@/domain/errors';
+import { ValidationError } from '@/domain/errors';
 import type { ExportFilter } from '@hatch-radar/shared';
 import { ExportService } from '../export/export.service';
 import { PipelineService } from '../pipeline/pipeline.service';
@@ -190,16 +190,15 @@ export class TranslationOrchestrator {
       (await this.settings.getTranslationProviderId()) ??
       (await this.settings.getActiveProviderId());
     if (providerId == null) {
-      throw new DomainError('未配置翻译模型，请在弹窗中选择，或在设置页设定翻译/active 模型', 400);
+      throw new ValidationError('未配置翻译模型，请在弹窗中选择，或在设置页设定翻译/active 模型');
     }
     const provider = await this.providers.getProvider(providerId);
     if (!provider || !provider.enabled) {
-      throw new DomainError('翻译模型不存在或已停用', 400);
+      throw new ValidationError('翻译模型不存在或已停用');
     }
     if (provider.provider !== 'claude_cli' && provider.provider !== 'azure') {
-      throw new DomainError(
+      throw new ValidationError(
         `翻译暂仅支持 claude_cli（订阅）/ azure（机翻），当前为 ${provider.provider}`,
-        400,
       );
     }
     return provider;

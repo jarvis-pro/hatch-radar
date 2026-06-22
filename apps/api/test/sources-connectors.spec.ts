@@ -9,6 +9,7 @@ import {
 } from '@/database';
 import { type CrawlerConfigService } from '@/crawler';
 import { SourcesService } from '@/domain';
+import { ValidationError } from '@/domain/errors';
 import { setupTestDb, truncateAll } from './helpers';
 
 // 连接器凭据加解密需要主密钥；测试用任意高熵串
@@ -105,8 +106,8 @@ describe('数据来源 / 采集连接器（仓储 + Reddit 门禁）', () => {
       { platform: 'reddit', identifier: 'startups', enabled: false },
       nowSec(),
     );
-    // 无连接器 → 启用被拒（业务规则失败抛 DomainError 400）
-    await expect(svc.updateSource(srcId, { enabled: true })).rejects.toMatchObject({ status: 400 });
+    // 无连接器 → 启用被拒（业务规则失败抛 ValidationError）
+    await expect(svc.updateSource(srcId, { enabled: true })).rejects.toThrow(ValidationError);
     expect((await sources.getSource(srcId))!.enabled).toBe(false);
 
     // 配 reddit 连接器并测试通过 → 放行

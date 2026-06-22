@@ -5,7 +5,7 @@ import {
   RunsRepository,
   type UpdateProcessInput,
 } from '@/database';
-import { DomainError } from '@/domain/errors';
+import { ValidationError } from '@/domain/errors';
 import { nowSec } from '@/utils/time';
 import type { BlueprintKind, ProcessDTO, RunDTO, TriggerConfig } from '@hatch-radar/shared';
 import { PipelineService } from '../pipeline/pipeline.service';
@@ -50,7 +50,7 @@ export class ProcessService {
     trigger: TriggerConfig;
   }): Promise<ProcessDTO> {
     const bp = await this.blueprints.getBlueprint(input.blueprintId);
-    if (!bp) throw new DomainError('绑定的图纸不存在', 400);
+    if (!bp) throw new ValidationError('绑定的图纸不存在');
     const { triggerKind, triggerConfig } = triggerToRepo(input.trigger);
     // once 不自动触发；interval/cron 稍后即到期（首个心跳触发）
     const nextRunAt = input.trigger.kind === 'once' ? null : nowSec();
@@ -96,9 +96,9 @@ export class ProcessService {
   /** 手动触发一次：已有进行中运行则拒绝；否则 fireProcess(manual)。 */
   async triggerProcess(id: number): Promise<void> {
     const p = await this.processes.getProcess(id);
-    if (!p) throw new DomainError('进程不存在', 400);
+    if (!p) throw new ValidationError('进程不存在');
     if (await this.runs.hasRunningRunForProcess(id)) {
-      throw new DomainError('该进程已有进行中的运行', 400);
+      throw new ValidationError('该进程已有进行中的运行');
     }
     await this.pipeline.fireProcess(p, 'manual');
   }

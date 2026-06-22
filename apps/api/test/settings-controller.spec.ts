@@ -5,6 +5,7 @@ import { ProvidersRepository, SettingsRepository } from '@/database';
 import { type RuntimeSettingsService } from '@/domain/settings/runtime-settings.service';
 import { type AnalysisConfigService } from '@/domain/analysis/analysis-config.service';
 import { type PipelineService, SettingsService } from '@/domain';
+import { ValidationError } from '@/domain/errors';
 import { setupTestDb, truncateAll } from './helpers';
 
 // 加解密主密钥（createProvider 入库时加密用），测试用任意高熵串
@@ -63,7 +64,7 @@ describe('SettingsService.updateProvider（改 baseUrl 必须重填 API Key）',
     const id = await seedOpenAI();
     await expect(
       svc.updateProvider(id, { baseUrl: 'http://evil.example/v1' }),
-    ).rejects.toMatchObject({ status: 400 });
+    ).rejects.toThrow(ValidationError);
     const row = await providers.getProvider(id);
     expect(row!.base_url).toBe('https://api.openai.com/v1'); // 未被改动
   });
@@ -128,8 +129,8 @@ describe('SettingsService（claude_cli 订阅模式：免 Key）', () => {
 
   it('addKey 对 claude_cli → 拒绝（订阅模式不支持 Key）', async () => {
     const created = await svc.createProvider({ provider: 'claude_cli', label: 'sub', model: 'm' });
-    await expect(svc.addKey(created.id, { apiKey: 'sk-x-aaaabbbb' })).rejects.toMatchObject({
-      status: 400,
-    });
+    await expect(svc.addKey(created.id, { apiKey: 'sk-x-aaaabbbb' })).rejects.toThrow(
+      ValidationError,
+    );
   });
 });

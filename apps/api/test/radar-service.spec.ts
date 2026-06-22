@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { AppDatabase, DbHandle } from '@/database';
+import { ValidationError } from '@/domain/errors';
 import {
   BlueprintsRepository,
   CommentsRepository,
@@ -125,8 +126,8 @@ describe('RadarService（读 / 聚合 / CRUD）', () => {
     expect(procs).toHaveLength(1);
     expect(procs[0].trigger).toEqual({ kind: 'interval', everySec: 900 });
     expect(procs[0].blueprintKind).toBe('collect');
-    // 仍被进程引用 → 删除被拒（抛 DomainError 400）
-    await expect(bpSvc.deleteBlueprint(bp.id)).rejects.toMatchObject({ status: 400 });
+    // 仍被进程引用 → 删除被拒（抛 ValidationError）
+    await expect(bpSvc.deleteBlueprint(bp.id)).rejects.toThrow(ValidationError);
   });
 
   it('controlRoom：聚合 today / lanes / processes / recheck 不报错且形状正确', async () => {

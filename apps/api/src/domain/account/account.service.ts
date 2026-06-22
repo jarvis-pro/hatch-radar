@@ -7,14 +7,22 @@ import { LoginAttemptsRepository } from '@/database';
 import { SessionsRepository } from '@/database';
 import { UsersRepository, type UserAuthView } from '@/database';
 import { TxContext } from '@/database';
-import { DomainError } from '@/domain/errors';
+import {
+  DomainError,
+  RateLimitError,
+  ServiceUnavailableError,
+  UnauthorizedError,
+  ValidationError,
+} from '@/domain/errors';
 import { logger } from '@/logger';
 import { nowSec } from '@/utils/time';
 import type { AuthedUser } from './auth-context';
 
 /** 把被兜底成 503 的意外错误（DB 抖动 / 约束冲突等）的根因落日志——否则「服务暂时不可用」在日志里无迹可循。 */
 function logUnexpected(scope: string, e: unknown): void {
-  logger.error(`[account] ${scope} 异常：${e instanceof Error ? (e.stack ?? e.message) : String(e)}`);
+  logger.error(
+    `[account] ${scope} 异常：${e instanceof Error ? (e.stack ?? e.message) : String(e)}`,
+  );
 }
 
 const DAY = 86_400;
@@ -99,7 +107,7 @@ export class AccountService {
 
   /** 登录：限流 → 校验邮箱+密码 → 建会话 + 回 token；错误文案统一不泄露存在性。 */
   async login(email: string, password: string, meta: LoginMeta): Promise<LoginResult> {
-    if (!email || !password) throw new DomainError('请输入邮箱和密码', 400);
+    if (!email || !password) throw new ValidationError('请输入邮箱和密码');
     try {
       const now = nowSec();
       const lock = await this.lockRemaining(email, now);
@@ -109,7 +117,7 @@ export class AccountService {
           metadata: { email },
           ip: meta.ip ?? null,
         });
-        throw new DomainError(`尝试过于频繁，请约 ${Math.ceil(lock / 60)} 分钟后再试`, 429);
+        throw new RateLimitError(`尝试过于频繁，请约 ${Math.ceil(lock / 60)} 分钟后再试`);
       }
       const view = await this.users.findAuthViewByEmail(email);
       const ok =
@@ -121,7 +129,7 @@ export class AccountService {
           metadata: { email },
           ip: meta.ip ?? null,
         });
-        throw new DomainError('邮箱或密码不正确', 401);
+        throw new UnauthorizedError('邮箱或密码不正确');
       }
       const { idleDays, absoluteDays } = await this.runtimeSettings.getSessionConfig();
       const token = generateSessionToken();
@@ -146,7 +154,7 @@ export class AccountService {
       // 业务失败（限流 / 凭据错）原样冒泡；意外错误（DB 抖动等）记根因后才转 503
       if (e instanceof DomainError) throw e;
       logUnexpected('login', e);
-      throw new DomainError('登录失败：服务暂时不可用，请稍后再试', 503);
+      throw new ServiceUnavailableError('登录失败：服务暂时不可用，请稍后再试');
     }
   }
 
@@ -163,12 +171,12 @@ export class AccountService {
     next: string,
     confirm: string,
   ): Promise<void> {
-    if (next.length < 8) throw new DomainError('新密码至少 8 位', 400);
-    if (next !== confirm) throw new DomainError('两次输入的新密码不一致', 400);
+    if (next.length < 8) throw new ValidationError('新密码至少 8 位');
+    if (next !== confirm) throw new ValidationError('两次输入的新密码不一致');
     try {
       const row = await this.users.findById(user.id);
       if (!row || !(await verifyPassword(current, row.password_hash))) {
-        throw new DomainError('当前密码不正确', 400);
+        throw new ValidationError('当前密码不正确');
       }
       const newHash = await hashPassword(next);
       // 改密与「踢其余会话」必须同生共死：崩在两步之间会留下「密码已改、旧会话仍有效」的窗口。
@@ -180,20 +188,20 @@ export class AccountService {
     } catch (e) {
       if (e instanceof DomainError) throw e;
       logUnexpected('changePassword', e);
-      throw new DomainError('修改失败：服务暂时不可用，请稍后再试', 503);
+      throw new ServiceUnavailableError('修改失败：服务暂时不可用，请稍后再试');
     }
   }
 
   /** 改本人姓名。 */
   async updateOwnName(user: AuthedUser, name: string): Promise<void> {
     const trimmed = name.trim();
-    if (!trimmed) throw new DomainError('姓名不能为空', 400);
+    if (!trimmed) throw new ValidationError('姓名不能为空');
     try {
       await this.users.updateName(user.id, trimmed, nowSec());
     } catch (e) {
       if (e instanceof DomainError) throw e;
       logUnexpected('updateOwnName', e);
-      throw new DomainError('保存失败：服务暂时不可用', 503);
+      throw new ServiceUnavailableError('保存失败：服务暂时不可用');
     }
   }
 
@@ -215,7 +223,7 @@ export class AccountService {
     } catch (e) {
       if (e instanceof DomainError) throw e;
       logUnexpected('updateAvatarById', e);
-      throw new DomainError('保存失败：服务暂时不可用', 503);
+      throw new ServiceUnavailableError('保存失败：服务暂时不可用');
     }
   }
 
