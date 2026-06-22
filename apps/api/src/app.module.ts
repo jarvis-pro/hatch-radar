@@ -9,10 +9,13 @@ import { AuthModule } from './modules/auth/auth.module';
 import { CapabilityModule } from './core/capability.module';
 import { ExportModule } from './modules/export/export.module';
 import { RepositoryModule } from './core/repository.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { DatabaseModule } from './database/database.module';
-import { HttpModule } from './modules/http/http.module';
+import { HealthModule } from './modules/health/health.module';
 import { logger } from './logger';
+import { MeModule } from './modules/me/me.module';
 import { PipelineModule } from './modules/pipeline/pipeline.module';
+import { RequestsModule } from './modules/requests/requests.module';
 import { RadarModule } from './modules/radar/radar.module';
 import { SchedulerModule } from './modules/scheduler/scheduler.module';
 import { SeedModule } from './modules/seed/seed.module';
@@ -38,7 +41,8 @@ import { WorkerModule } from './modules/worker/worker.module';
  * - AdminModule    后台管理 + 审计日志（admin / audit）。
  * - PipelineModule / RadarModule / SettingsModule / SourcesModule / TranslationModule / ExportModule /
  *                  SyncModule  各上下文的领域服务 + 其 HTTP 控制器。
- * - HttpModule     边缘控制器（无 feature 归属 / 双通道）：dashboard / health / requests / me。
+ * - DashboardModule / RequestsModule / MeModule / HealthModule  各自独立的单控制器边缘模块
+ *                  （看板 / 出站请求闸视图 / 当前用户 / 健康检查）——已无 http 杂物聚合模块。
  * - WorkerModule   内嵌执行器生命周期（WorkerStarter）：起认领泵 + 僵死回收，关停排空在途任务。
  * - SchedulerModule  @Cron 采集/复查/分析/归档触发（执行经 LocalDispatcher 同进程认领）。
  * - SeedModule     首启播种，须排在 SchedulerModule 之前（先播种再跑初始轮）。
@@ -70,9 +74,12 @@ import { WorkerModule } from './modules/worker/worker.module';
     TranslationModule,
     ExportModule,
     SyncModule,
+    DashboardModule,
+    RequestsModule,
+    MeModule,
+    HealthModule,
     SeedModule,
     WorkerModule,
-    HttpModule,
     SchedulerModule,
   ],
   // 全局异常过滤器经 DI 装配（取代 main.ts 的 new AllExceptionsFilter()）：可注入、可在测试中替换。
