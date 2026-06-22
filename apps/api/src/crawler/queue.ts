@@ -8,9 +8,13 @@ export interface TokenBucketOptions {
   burst?: number;
 }
 
+/** 队列中等待出队的单个任务：保存待执行函数及其 Promise 的 settle 回调 */
 interface PendingTask {
+  /** 真正发起请求的无参函数，轮到且有令牌时调用 */
   run: () => Promise<unknown>;
+  /** 透传 run() 成功结果到 schedule() 返回的 Promise */
   resolve: (value: unknown) => void;
+  /** 透传 run() 异常到 schedule() 返回的 Promise */
   reject: (reason: unknown) => void;
 }
 
@@ -22,14 +26,24 @@ interface PendingTask {
  */
 @Injectable()
 export class TokenBucketQueue {
+  /** 每毫秒补充的令牌数（= ratePerMinute / 60000） */
   private readonly refillPerMs: number;
+  /** 令牌桶容量 / 突发上限，补令牌时的封顶值 */
   private readonly capacity: number;
+  /** 当前可用令牌数（浮点，惰性补充时会累积小数） */
   private tokens: number;
+  /** 上次补充令牌的时间戳，按与当前时刻的差值计算应补量 */
   private lastRefill = Date.now();
+  /** 全局暂停的截止时刻；早于此刻不出队，0 表示未暂停 */
   private pauseUntil = 0;
+  /** 严格 FIFO 的待出队任务队列 */
   private queue: PendingTask[] = [];
+  /** 当前挂起的泵定时器，单飞保证同时至多一个 */
   private timer: NodeJS.Timeout | null = null;
 
+  /**
+   * @param options 速率与突发配置；省略时用默认值（90/分钟、容量 10），桶初始填满
+   */
   constructor(options: TokenBucketOptions = {}) {
     const ratePerMinute = options.ratePerMinute ?? 90;
     this.capacity = options.burst ?? 10;
@@ -68,12 +82,22 @@ export class TokenBucketQueue {
     });
   }
 
+  /**
+   * 惰性补充令牌：按距上次补充的时间差增加令牌，封顶 capacity。
+   * - 不依赖周期定时器，仅在 pump() 出队前现算，避免空转
+   */
   private refill(): void {
     const now = Date.now();
     this.tokens = Math.min(this.capacity, this.tokens + (now - this.lastRefill) * this.refillPerMs);
     this.lastRefill = now;
   }
 
+  /**
+   * 出队泵：补令牌后尽可能放行队首任务，直到令牌耗尽或队列清空。
+   * - 暂停期内不放行，改为重新排程等暂停结束
+   * - 放行后不 await run()，请求并发执行、Promise 结果异步透传
+   * - 队列仍有剩余时自动排下一次泵等待令牌补足
+   */
   private pump(): void {
     if (Date.now() < this.pauseUntil) {
       this.schedulePump();
@@ -90,6 +114,11 @@ export class TokenBucketQueue {
     }
   }
 
+  /**
+   * 安排下一次 pump()，等待时间取「暂停剩余 / 攒够 1 令牌所需 / 25ms 底线」三者最大值。
+   * - 单飞：已有挂起定时器时直接返回，避免重复排程
+   * - 25ms 底线防止令牌将满时空转过密
+   */
   private schedulePump(): void {
     if (this.timer) return;
     const now = Date.now();
