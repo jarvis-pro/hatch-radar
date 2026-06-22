@@ -83,9 +83,9 @@ describe('AdminService 越权矩阵', () => {
     await expect(admin.resetPassword(actorA, bId)).rejects.toThrow(msg);
     await expect(admin.setStatus(actorA, bId, 'disabled')).rejects.toThrow(msg);
     await expect(admin.deleteUser(actorA, bId)).rejects.toThrow(msg);
-    await expect(admin.editUser(actorA, bId, { name: 'x', role: 'admin', perms: [] })).rejects.toThrow(
-      msg,
-    );
+    await expect(
+      admin.editUser(actorA, bId, { name: 'x', role: 'admin', perms: [] }),
+    ).rejects.toThrow(msg);
   });
 
   it('超级管理员可重置普通管理员密码', async () => {

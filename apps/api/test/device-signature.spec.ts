@@ -23,9 +23,9 @@ describe('verifyDeviceSignature（Ed25519 设备验签）', () => {
   it('合法签名通过', () => {
     const { publicKeyB64, privateKey } = genKeys();
     const canonical = 'cred-1.1700000000.POST./api/sync/push.abc123';
-    expect(verifyDeviceSignature(publicKeyB64, canonical, signCanonical(privateKey, canonical))).toBe(
-      true,
-    );
+    expect(
+      verifyDeviceSignature(publicKeyB64, canonical, signCanonical(privateKey, canonical)),
+    ).toBe(true);
   });
 
   it('canonical 被篡改（换 body 哈希）则验签失败 —— #4 防换 body 重放', () => {
@@ -41,9 +41,9 @@ describe('verifyDeviceSignature（Ed25519 设备验签）', () => {
     const a = genKeys();
     const b = genKeys();
     const canonical = 'cred-1.1700000000.GET./api/me.e3b0c4';
-    expect(verifyDeviceSignature(a.publicKeyB64, canonical, signCanonical(b.privateKey, canonical))).toBe(
-      false,
-    );
+    expect(
+      verifyDeviceSignature(a.publicKeyB64, canonical, signCanonical(b.privateKey, canonical)),
+    ).toBe(false);
   });
 
   it('公钥 / 签名格式非法返回 false（不抛）', () => {

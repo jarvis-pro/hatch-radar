@@ -88,7 +88,12 @@ export class RadarService {
     const stagesByTask = await this.taskStages.listStagesByTasks(tasks.map((t) => t.id));
     const taskViews: TaskDTO[] = tasks.map((t) => {
       const post = t.post_id != null ? postById.get(t.post_id) : undefined;
-      return this.toTaskDTO(t, stagesByTask.get(t.id) ?? [], post?.source ?? null, post?.title ?? null);
+      return this.toTaskDTO(
+        t,
+        stagesByTask.get(t.id) ?? [],
+        post?.source ?? null,
+        post?.title ?? null,
+      );
     });
     return {
       run: toRunDTO(run, bp?.label ?? null, proc?.label ?? null),

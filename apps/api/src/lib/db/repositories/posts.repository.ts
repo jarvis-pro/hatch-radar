@@ -322,9 +322,7 @@ export class PostsRepository {
   }
 
   /** 一批帖子 id → {id, source, title}（供运行详情任务树标注来源 / 标题）。 */
-  async listSummaryByIds(
-    ids: string[],
-  ): Promise<{ id: string; source: string; title: string }[]> {
+  async listSummaryByIds(ids: string[]): Promise<{ id: string; source: string; title: string }[]> {
     if (ids.length === 0) return [];
     return this.db.posts.findMany({
       where: { id: { in: ids } },

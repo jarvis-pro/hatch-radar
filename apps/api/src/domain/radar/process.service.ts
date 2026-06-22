@@ -55,7 +55,10 @@ export class ProcessService {
     return toProcessDTO(p, bp.kind as BlueprintKind);
   }
 
-  async updateProcess(id: number, patch: { label?: string; trigger?: TriggerConfig }): Promise<void> {
+  async updateProcess(
+    id: number,
+    patch: { label?: string; trigger?: TriggerConfig },
+  ): Promise<void> {
     const repoPatch: {
       label?: string;
       triggerKind?: string;
