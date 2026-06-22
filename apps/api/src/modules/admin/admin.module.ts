@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { AccountModule } from '@/account/account.module';
+import { AccountModule } from '@/modules/account/account.module';
 import { AdminController } from './admin.controller';
 import { AuditController } from './audit.controller';
 

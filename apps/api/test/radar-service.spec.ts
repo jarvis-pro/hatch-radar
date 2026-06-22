@@ -11,11 +11,12 @@ import {
 } from '@/lib/db';
 import { buildStages } from '@hatch-radar/shared';
 import { nowSec } from '@/lib/kernel';
-import { RadarService, type PipelineService } from '@/domain';
+import { BlueprintService, ProcessService, RadarService, type PipelineService } from '@/domain';
 import { setupTestDb, truncateAll } from './helpers';
 
 /**
- * 雷达指挥室读 / 聚合 / CRUD 服务（真连 PG，验证查询能跑通、DTO 形状正确）。
+ * 雷达指挥室读 / 聚合服务 + 图纸 / 进程 CRUD 服务（真连 PG，验证查询能跑通、DTO 形状正确）。
+ * RadarService 已拆为三：BlueprintService（图纸 CRUD）/ ProcessService（进程 CRUD/触发）/ RadarService（只读聚合）。
  * triggerProcess 走 PipelineService.fireProcess（另由 process-scheduler.spec 覆盖），此处用桩、不调。
  */
 describe('RadarService（读 / 聚合 / CRUD）', () => {
@@ -25,6 +26,8 @@ describe('RadarService（读 / 聚合 / CRUD）', () => {
   let runs: RunsRepository;
   let tasks: TasksRepository;
   let svc: RadarService;
+  let bpSvc: BlueprintService;
+  let procSvc: ProcessService;
 
   beforeAll(() => {
     handle = setupTestDb();
@@ -32,11 +35,13 @@ describe('RadarService（读 / 聚合 / CRUD）', () => {
     blueprints = new BlueprintsRepository(db);
     runs = new RunsRepository(db);
     tasks = new TasksRepository(db);
+    const processes = new ProcessesRepository(db);
+    bpSvc = new BlueprintService(blueprints, processes);
+    procSvc = new ProcessService(db, processes, blueprints, runs, {} as unknown as PipelineService);
     svc = new RadarService(
       db,
       blueprints,
-      new ProcessesRepository(db),
-      {} as unknown as PipelineService,
+      procSvc,
       runs,
       tasks,
       new TaskStagesRepository(db),
@@ -86,7 +91,7 @@ describe('RadarService（读 / 聚合 / CRUD）', () => {
   }
 
   it('图纸 CRUD：create → list 带 sources/gates/params', async () => {
-    const bp = await svc.createBlueprint({
+    const bp = await bpSvc.createBlueprint({
       kind: 'collect',
       label: '采集A',
       sources: [{ kind: 'reddit', channels: ['SaaS'] }],
@@ -94,7 +99,7 @@ describe('RadarService（读 / 聚合 / CRUD）', () => {
       gates: ['collect:fetch_comments'],
     });
     expect(bp.id).toBeGreaterThan(0);
-    const list = await svc.listBlueprints();
+    const list = await bpSvc.listBlueprints();
     expect(list).toHaveLength(1);
     expect(list[0].sources[0]).toEqual({ kind: 'reddit', channels: ['SaaS'] });
     expect(list[0].gates).toEqual(['collect:fetch_comments']);
@@ -102,18 +107,18 @@ describe('RadarService（读 / 聚合 / CRUD）', () => {
   });
 
   it('进程 CRUD：create(interval) → list 带 trigger；删图纸被进程引用应拒绝', async () => {
-    const bp = await svc.createBlueprint({ kind: 'collect', label: '采集B' });
-    const created = await svc.createProcess({
+    const bp = await bpSvc.createBlueprint({ kind: 'collect', label: '采集B' });
+    const created = await procSvc.createProcess({
       blueprintId: bp.id,
       label: '进程B',
       trigger: { kind: 'interval', everySec: 900 },
     });
     expect('error' in created).toBe(false);
-    const procs = await svc.listProcesses();
+    const procs = await procSvc.listProcesses();
     expect(procs).toHaveLength(1);
     expect(procs[0].trigger).toEqual({ kind: 'interval', everySec: 900 });
     expect(procs[0].blueprintKind).toBe('collect');
-    const del = await svc.deleteBlueprint(bp.id);
+    const del = await bpSvc.deleteBlueprint(bp.id);
     expect(del.ok).toBe(false); // 仍被进程引用
   });
 

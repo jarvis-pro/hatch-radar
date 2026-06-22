@@ -1,10 +1,9 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   Delete,
   Get,
-  NotFoundException,
+  HttpException,
   Param,
   ParseIntPipe,
   Post,
@@ -12,20 +11,11 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { z } from 'zod';
-import { RequirePermission } from '@/account/auth-user.decorator';
-import { SessionAuthGuard } from '@/account/session-auth.guard';
+import { RequirePermission } from '@/modules/account/auth-user.decorator';
+import { SessionAuthGuard } from '@/modules/account/session-auth.guard';
 import { ZodValidationPipe } from '@/common/zod-validation.pipe';
-import {
-  isSecretConfigured,
-  nowSec,
-  CrawlerConfigService,
-  SourceConnectorsRepository,
-  toConnectorDTO,
-  type ConnectorInput,
-  SourcesRepository,
-  type SourcePlatform,
-} from '@/domain';
-import { logger } from '@/logger';
+import { type ConnectorInput } from '@/lib/db';
+import { SourcesService } from '@/domain';
 
 const platformEnum = z.enum(['reddit', 'hackernews', 'rss']);
 
@@ -74,31 +64,18 @@ const updateConnectorSchema = z.object({
 
 /**
  * /api/sources/* —— 采集来源（爬虫计划）CRUD + 概览。
- * Reddit 门禁（服务端闸）：平台=reddit 的来源置 enabled=true 须存在「可用 reddit 连接器」。
+ * 编排与 Reddit 服务端闸在 {@link SourcesService}；本控制器仅做入参校验与结果对象 → HTTP 翻译。
  */
 @UseGuards(SessionAuthGuard)
 @RequirePermission('settings:manage')
 @Controller('sources')
 export class SourcesController {
-  constructor(
-    private readonly sources: SourcesRepository,
-    private readonly connectors: SourceConnectorsRepository,
-  ) {}
+  constructor(private readonly sources: SourcesService) {}
 
   /** GET /api/sources —— 来源列表 + 连接器（脱敏）+ redditUsable + secretConfigured */
   @Get()
-  async overview() {
-    const [sourceRows, connectorRows, redditUsable] = await Promise.all([
-      this.sources.listSources(),
-      this.connectors.listConnectors(),
-      this.connectors.hasUsableConnector('reddit'),
-    ]);
-    return {
-      sources: sourceRows,
-      connectors: connectorRows.map(toConnectorDTO),
-      redditUsable,
-      secretConfigured: isSecretConfigured(),
-    };
+  overview() {
+    return this.sources.overview();
   }
 
   /** POST /api/sources —— 新建来源，201 { id } */
@@ -106,10 +83,9 @@ export class SourcesController {
   async create(
     @Body(new ZodValidationPipe(createSourceSchema)) dto: z.infer<typeof createSourceSchema>,
   ) {
-    await this.assertRedditEnable(dto.platform, dto.enabled !== false);
-    const id = await this.sources.createSource(dto, nowSec());
-    logger.info(`[数据来源] 新增 #${id}：${dto.platform}/${dto.identifier}`);
-    return { id };
+    const res = await this.sources.createSource(dto);
+    if (!res.ok) throw new HttpException(res.message, res.status);
+    return { id: res.id };
   }
 
   /** PUT /api/sources/:id —— 更新来源（含勾选 enabled，走 Reddit 门禁） */
@@ -118,32 +94,17 @@ export class SourcesController {
     @Param('id', ParseIntPipe) id: number,
     @Body(new ZodValidationPipe(updateSourceSchema)) dto: z.infer<typeof updateSourceSchema>,
   ) {
-    const existing = await this.sources.getSource(id);
-    if (!existing) throw new NotFoundException('来源不存在');
-    if (dto.enabled === true) await this.assertRedditEnable(existing.platform, true);
-    if (Object.keys(dto).length > 0) await this.sources.updateSource(id, dto, nowSec());
+    const res = await this.sources.updateSource(id, dto);
+    if (!res.ok) throw new HttpException(res.message, res.status);
     return { ok: true };
   }
 
   /** DELETE /api/sources/:id */
   @Delete(':id')
   async remove(@Param('id', ParseIntPipe) id: number) {
-    if (!(await this.sources.deleteSource(id))) throw new NotFoundException('来源不存在');
-    logger.info(`[数据来源] 删除 #${id}`);
+    const res = await this.sources.deleteSource(id);
+    if (!res.ok) throw new HttpException(res.message, res.status);
     return { ok: true };
-  }
-
-  /** Reddit 门禁：平台=reddit 的来源要置 enabled=true，必须已有「可用 reddit 连接器」 */
-  private async assertRedditEnable(platform: SourcePlatform, enabling: boolean): Promise<void> {
-    if (
-      platform === 'reddit' &&
-      enabling &&
-      !(await this.connectors.hasUsableConnector('reddit'))
-    ) {
-      throw new BadRequestException(
-        'Reddit 来源需先在「采集连接器」配置并测试通过 Reddit 凭据，才能启用',
-      );
-    }
   }
 }
 
@@ -155,19 +116,13 @@ export class SourcesController {
 @RequirePermission('settings:manage')
 @Controller('source-connectors')
 export class SourceConnectorsController {
-  constructor(
-    private readonly connectors: SourceConnectorsRepository,
-    private readonly crawlerConfig: CrawlerConfigService,
-  ) {}
+  constructor(private readonly sources: SourcesService) {}
 
   /** POST /api/source-connectors —— 新建连接器（凭据加密入库），201 { id } */
   @Post()
   async create(
     @Body(new ZodValidationPipe(createConnectorSchema)) dto: z.infer<typeof createConnectorSchema>,
   ) {
-    if (!isSecretConfigured()) {
-      throw new BadRequestException('未配置 SETTINGS_SECRET，无法加密入库，请先在 .env 设置');
-    }
     const input: ConnectorInput = {
       platform: dto.platform,
       authKind: dto.authKind,
@@ -176,9 +131,9 @@ export class SourceConnectorsController {
       priority: dto.priority,
       enabled: dto.enabled,
     };
-    const id = await this.connectors.createConnector(input, nowSec());
-    logger.info(`[采集连接器] 新增 #${id}：${dto.platform}/${dto.authKind}`);
-    return { id };
+    const res = await this.sources.createConnector(input);
+    if (!res.ok) throw new HttpException(res.message, res.status);
+    return { id: res.id };
   }
 
   /** PUT /api/source-connectors/:id —— 更新（改 secret 会清空测试结果，须重测） */
@@ -187,26 +142,22 @@ export class SourceConnectorsController {
     @Param('id', ParseIntPipe) id: number,
     @Body(new ZodValidationPipe(updateConnectorSchema)) dto: z.infer<typeof updateConnectorSchema>,
   ) {
-    if (dto.secret && !isSecretConfigured()) {
-      throw new BadRequestException('未配置 SETTINGS_SECRET，无法加密新凭据');
-    }
-    if (!(await this.connectors.getConnector(id))) throw new NotFoundException('连接器不存在');
-    if (Object.keys(dto).length > 0) await this.connectors.updateConnector(id, dto, nowSec());
-    logger.info(`[采集连接器] 更新 #${id}`);
+    const res = await this.sources.updateConnector(id, dto);
+    if (!res.ok) throw new HttpException(res.message, res.status);
     return { ok: true };
   }
 
   /** DELETE /api/source-connectors/:id */
   @Delete(':id')
   async remove(@Param('id', ParseIntPipe) id: number) {
-    if (!(await this.connectors.deleteConnector(id))) throw new NotFoundException('连接器不存在');
-    logger.info(`[采集连接器] 删除 #${id}`);
+    const res = await this.sources.deleteConnector(id);
+    if (!res.ok) throw new HttpException(res.message, res.status);
     return { ok: true };
   }
 
   /** POST /api/source-connectors/:id/test —— 连通性测试并记录结果，始终 200 + { ok, error? } */
   @Post(':id/test')
   async test(@Param('id', ParseIntPipe) id: number) {
-    return this.crawlerConfig.testConnector(id);
+    return this.sources.testConnector(id);
   }
 }

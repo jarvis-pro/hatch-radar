@@ -7,7 +7,7 @@ import {
   Injectable,
 } from '@nestjs/common';
 import { createDb, type AppDatabase, type DbHandle } from '@/lib/db';
-import type { AppEnv } from '@/domain';
+import type { AppEnv } from '@/config/env';
 import { APP_ENV, PRISMA } from '@/common/tokens';
 import { logger } from '@/logger';
 

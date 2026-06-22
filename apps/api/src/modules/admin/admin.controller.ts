@@ -10,8 +10,8 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { z } from 'zod';
-import { AuthUser, RequirePermission, type AuthedUser } from '@/account/auth-user.decorator';
-import { SessionAuthGuard } from '@/account/session-auth.guard';
+import { AuthUser, RequirePermission, type AuthedUser } from '@/modules/account/auth-user.decorator';
+import { SessionAuthGuard } from '@/modules/account/session-auth.guard';
 import { ZodValidationPipe } from '@/common/zod-validation.pipe';
 import { AdminService } from '@/domain';
 

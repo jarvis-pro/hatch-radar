@@ -10,10 +10,11 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { z } from 'zod';
-import { RequirePermission } from '@/account/auth-user.decorator';
-import { SessionAuthGuard } from '@/account/session-auth.guard';
+import { RequirePermission } from '@/modules/account/auth-user.decorator';
+import { SessionAuthGuard } from '@/modules/account/session-auth.guard';
 import { ZodValidationPipe } from '@/common/zod-validation.pipe';
-import { PipelineService, ProvidersRepository, SettingsRepository } from '@/domain';
+import { ProvidersRepository, SettingsRepository } from '@/lib/db';
+import { PipelineService } from '@/domain';
 import { logger } from '@/logger';
 
 const inspectSchema = z.object({

@@ -1,27 +1,26 @@
 import { Module, RequestMethod } from '@nestjs/common';
 import { LoggerModule } from 'nestjs-pino';
-import { AccountModule } from './account/account.module';
-import { AdminModule } from './admin/admin.module';
+import { AccountModule } from './modules/account/account.module';
+import { AdminModule } from './modules/admin/admin.module';
 import { AppConfigModule } from './config/app-config.module';
 import { CoreModule } from './core/core.module';
-import { DataModule } from './data/data.module';
 import { DatabaseModule } from './database/database.module';
-import { HttpModule } from './http/http.module';
+import { HttpModule } from './modules/http/http.module';
 import { logger } from './logger';
-import { SchedulerModule } from './scheduler/scheduler.module';
-import { SeedModule } from './seed/seed.module';
-import { WorkerModule } from './worker/worker.module';
+import { SchedulerModule } from './modules/scheduler/scheduler.module';
+import { SeedModule } from './modules/seed/seed.module';
+import { WorkerModule } from './modules/worker/worker.module';
 
 /**
  * 后端根模块（单进程归一：唯一进程）：聚合 HTTP 接口 + 定时调度 + 内嵌任务执行（web SPA 单独部署，api 不再同源托管）。
  *
- * 领域逻辑全在 @/domain：CoreModule（@Global）用 createCore 一处装配、按类登记,处处可按类型注入；
- * 各功能模块只留控制器/守卫与生命周期薄封装。imports 各模块职责：
+ * 领域逻辑全在 @/domain：CoreModule（@Global）把领域类直接列为 provider、由 Nest 按构造参数类型
+ * 自动注入（已退役 createCore 装配桥），处处可按类型注入；各功能模块只留控制器/守卫与生命周期薄封装。
+ * imports 各模块职责：
  * - AccountModule  会话鉴权权威（SessionAuthGuard + cookie），web/mobile 共用。
- * - DataModule     只读展示：dashboard / insights / posts / stats。
  * - AdminModule    后台管理 + 审计日志（admin / audit）。
- * - HttpModule     业务写/操作面：export / sync / settings / analysis / pipeline（检视器）
- *                  / requests（出站请求闸）/ translations / sources / me / health。
+ * - HttpModule     会话守卫下的业务控制器统一收口：dashboard / export / sync / settings / analysis
+ *                  / pipeline（检视器）/ requests（出站请求闸）/ translations / sources / me / health。
  * - WorkerModule   内嵌执行器生命周期（WorkerStarter）：起认领泵 + 僵死回收，关停排空在途任务。
  * - SchedulerModule  @Cron 采集/复查/分析/归档触发（执行经 LocalDispatcher 同进程认领）。
  * - SeedModule     首启播种，须排在 SchedulerModule 之前（先播种再跑初始轮）。
@@ -44,7 +43,6 @@ import { WorkerModule } from './worker/worker.module';
     CoreModule,
     AccountModule,
     SeedModule,
-    DataModule,
     AdminModule,
     WorkerModule,
     HttpModule,

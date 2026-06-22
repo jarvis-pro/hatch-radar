@@ -1,14 +1,9 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { BadRequestException } from '@nestjs/common';
 import type { AppDatabase, DbHandle } from '@/lib/db';
-import {
-  decryptConnectorSecret,
-  nowSec,
-  SourceConnectorsRepository,
-  SourcesRepository,
-  toConnectorDTO,
-} from '@/domain';
-import { SourcesController } from '@/http/sources.controller';
+import { nowSec } from '@/lib/kernel';
+import { decryptConnectorSecret, SourceConnectorsRepository, SourcesRepository, toConnectorDTO } from '@/lib/db';
+import { type CrawlerConfigService } from '@/lib/crawler';
+import { SourcesService } from '@/domain';
 import { setupTestDb, truncateAll } from './helpers';
 
 // 连接器凭据加解密需要主密钥；测试用任意高熵串
@@ -98,16 +93,18 @@ describe('数据来源 / 采集连接器（仓储 + Reddit 门禁）', () => {
   });
 
   it('Reddit 门禁：无可用连接器时启用 reddit 来源被拒，配齐后放行', async () => {
-    const controller = new SourcesController(sources, connectors);
+    // SourcesService 仅在 testConnector 用 CrawlerConfigService，本用例不触及，给空桩即可
+    const svc = new SourcesService(sources, connectors, {} as unknown as CrawlerConfigService);
     // 建一个停用的 reddit 来源
     const srcId = await sources.createSource(
       { platform: 'reddit', identifier: 'startups', enabled: false },
       nowSec(),
     );
-    // 无连接器 → 启用被拒
-    await expect(controller.update(srcId, { enabled: true })).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
+    // 无连接器 → 启用被拒（业务规则失败以结果对象返回 ok:false / 400）
+    expect(await svc.updateSource(srcId, { enabled: true })).toMatchObject({
+      ok: false,
+      status: 400,
+    });
     expect((await sources.getSource(srcId))!.enabled).toBe(false);
 
     // 配 reddit 连接器并测试通过 → 放行
@@ -116,7 +113,7 @@ describe('数据来源 / 采集连接器（仓储 + Reddit 门禁）', () => {
       nowSec(),
     );
     await connectors.recordCheck(connId, true, null, nowSec());
-    await expect(controller.update(srcId, { enabled: true })).resolves.toEqual({ ok: true });
+    expect(await svc.updateSource(srcId, { enabled: true })).toEqual({ ok: true });
     expect((await sources.getSource(srcId))!.enabled).toBe(true);
   });
 });

@@ -1,7 +1,8 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
-import { RequirePermission } from '@/account/auth-user.decorator';
-import { SessionAuthGuard } from '@/account/session-auth.guard';
-import { AuditLogsRepository, parsePage, trimmed } from '@/domain';
+import { RequirePermission } from '@/modules/account/auth-user.decorator';
+import { SessionAuthGuard } from '@/modules/account/session-auth.guard';
+import { parsePage, trimmed } from '@/common/query-parse';
+import { AuditLogsRepository } from '@/lib/db';
 
 /** GET /api/admin/audit —— 审计日志分页（需 audit:view，与账户管理是独立能力）。 */
 @UseGuards(SessionAuthGuard)

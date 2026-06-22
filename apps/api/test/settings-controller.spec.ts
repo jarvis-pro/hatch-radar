@@ -1,29 +1,23 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { BadRequestException } from '@nestjs/common';
 import type { AppDatabase, DbHandle } from '@/lib/db';
-import {
-  type AnalysisConfigService,
-  nowSec,
-  type PipelineService,
-  ProvidersRepository,
-  type RuntimeSettingsService,
-  SettingsRepository,
-} from '@/domain';
-import { SettingsController } from '@/http/settings.controller';
+import { nowSec } from '@/lib/kernel';
+import { ProvidersRepository, type RuntimeSettingsService, SettingsRepository } from '@/lib/db';
+import { type AnalysisConfigService } from '@/lib/analysis';
+import { type PipelineService, SettingsService } from '@/domain';
 import { setupTestDb, truncateAll } from './helpers';
 
 // 加解密主密钥（createProvider 入库时加密用），测试用任意高熵串
 process.env.SETTINGS_SECRET ||= 'hatch-radar-test-secret-0123456789abcdef';
 
 /**
- * 安全回归：改 baseUrl 必须同时重填 API Key。
+ * 安全回归：改 baseUrl 必须同时重填 API Key（业务规则在 SettingsService）。
  * 否则攻击者可只改 baseUrl（不带 key）把已入库的明文密钥经 test/分析调用发往任意地址。
  */
-describe('SettingsController.update（改 baseUrl 必须重填 API Key）', () => {
+describe('SettingsService.updateProvider（改 baseUrl 必须重填 API Key）', () => {
   let handle: DbHandle;
   let db: AppDatabase;
   let providers: ProvidersRepository;
-  let controller: SettingsController;
+  let svc: SettingsService;
 
   beforeAll(() => {
     handle = setupTestDb();
@@ -33,9 +27,9 @@ describe('SettingsController.update（改 baseUrl 必须重填 API Key）', () =
     const analysisConfig = {
       reloadAnalysisConfig: async () => {},
     } as unknown as AnalysisConfigService;
-    // 本组用例只测改 baseUrl 的安全闸，不触及运行期参数端点，空桩即可
+    // 本组用例不触及运行期参数 / 入队，空桩即可
     const runtimeSettings = {} as unknown as RuntimeSettingsService;
-    controller = new SettingsController(
+    svc = new SettingsService(
       providers,
       new SettingsRepository(db),
       analysisConfig,
@@ -66,16 +60,17 @@ describe('SettingsController.update（改 baseUrl 必须重填 API Key）', () =
 
   it('改 baseUrl 但不带 apiKey → 拒绝，且库中 baseUrl 不变', async () => {
     const id = await seedOpenAI();
-    await expect(
-      controller.update(id, { baseUrl: 'http://evil.example/v1' }),
-    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(await svc.updateProvider(id, { baseUrl: 'http://evil.example/v1' })).toMatchObject({
+      ok: false,
+      status: 400,
+    });
     const row = await providers.getProvider(id);
     expect(row!.base_url).toBe('https://api.openai.com/v1'); // 未被改动
   });
 
   it('改 baseUrl 且同时重填 apiKey → 允许', async () => {
     const id = await seedOpenAI();
-    const res = await controller.update(id, {
+    const res = await svc.updateProvider(id, {
       baseUrl: 'https://api.openai.com/v2',
       apiKey: 'sk-new-ccccdddd',
     });
@@ -86,17 +81,17 @@ describe('SettingsController.update（改 baseUrl 必须重填 API Key）', () =
 
   it('不动 baseUrl（仅改 label）→ 允许，无需重填 key', async () => {
     const id = await seedOpenAI();
-    const res = await controller.update(id, { label: 'renamed' });
+    const res = await svc.updateProvider(id, { label: 'renamed' });
     expect(res).toEqual({ ok: true });
   });
 });
 
 /** claude_cli 订阅模式：无 API Key，创建免 Key、Key 池端点拒绝。 */
-describe('SettingsController（claude_cli 订阅模式：免 Key）', () => {
+describe('SettingsService（claude_cli 订阅模式：免 Key）', () => {
   let handle: DbHandle;
   let db: AppDatabase;
   let providers: ProvidersRepository;
-  let controller: SettingsController;
+  let svc: SettingsService;
 
   beforeAll(() => {
     handle = setupTestDb();
@@ -106,7 +101,7 @@ describe('SettingsController（claude_cli 订阅模式：免 Key）', () => {
       reloadAnalysisConfig: async () => {},
     } as unknown as AnalysisConfigService;
     const runtimeSettings = {} as unknown as RuntimeSettingsService;
-    controller = new SettingsController(
+    svc = new SettingsService(
       providers,
       new SettingsRepository(db),
       analysisConfig,
@@ -122,21 +117,26 @@ describe('SettingsController（claude_cli 订阅模式：免 Key）', () => {
   });
 
   it('create 不带 apiKey → 成功，且无 Key、base_url 为空', async () => {
-    const { id } = await controller.create({
+    const res = await svc.createProvider({
       provider: 'claude_cli',
       label: 'sub',
       model: 'claude-opus-4-8',
     });
-    const withKeys = await providers.getProviderWithKeys(id);
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    const withKeys = await providers.getProviderWithKeys(res.id);
     expect(withKeys?.provider.provider).toBe('claude_cli');
     expect(withKeys?.provider.base_url).toBeNull();
     expect(withKeys?.keys).toHaveLength(0);
   });
 
   it('addKey 对 claude_cli → 拒绝（订阅模式不支持 Key）', async () => {
-    const { id } = await controller.create({ provider: 'claude_cli', label: 'sub', model: 'm' });
-    await expect(controller.addKey(id, { apiKey: 'sk-x-aaaabbbb' })).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
+    const created = await svc.createProvider({ provider: 'claude_cli', label: 'sub', model: 'm' });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    expect(await svc.addKey(created.id, { apiKey: 'sk-x-aaaabbbb' })).toMatchObject({
+      ok: false,
+      status: 400,
+    });
   });
 });

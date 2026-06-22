@@ -2,7 +2,6 @@ import { Inject, Injectable } from '@nestjs/common';
 import { PRISMA } from '@/common/tokens';
 import {
   BlueprintsRepository,
-  ProcessesRepository,
   RequestLanesRepository,
   RequestQueueRepository,
   RunsRepository,
@@ -10,8 +9,6 @@ import {
   TasksRepository,
   toRunRow,
   type AppDatabase,
-  type BlueprintRow,
-  type ProcessRow,
   type RunRow,
   type TaskRow,
   type TaskStageRow,
@@ -19,185 +16,42 @@ import {
 import { nowSec } from '@/lib/kernel';
 import {
   PAGE_SIZE,
-  STAGE_TEMPLATES,
-  type BlueprintDTO,
-  type BlueprintKind,
   type ControlRoomDTO,
   type LaneDTO,
   type Paged,
   type PostLifecycleEvent,
-  type ProcessDTO,
-  type RadarCommentDTO,
   type RadarFilterOptions,
   type RadarInsightDTO,
   type RadarInsightDetailDTO,
   type RadarInsightFilter,
   type RadarIntensity,
-  type RadarLaneId,
   type RadarPostDTO,
   type RadarPostDetailDTO,
   type RadarPostFilter,
   type RadarTaskStatus,
   type RequestRowDTO,
   type RunDTO,
-  type StageDTO,
   type TaskDTO,
   type TaskKind,
-  type TriggerConfig,
 } from '@hatch-radar/shared';
-import { PipelineService } from '../pipeline/pipeline.service';
+import { ProcessService } from './process.service';
+import {
+  asRecord,
+  asStrArr,
+  buildCommentTree,
+  firstPainPoint,
+  toRunDTO,
+  toStageDTO,
+} from './radar.mappers';
 
 const ALERTS_LIMIT = 5;
 const RECENT_PER_LANE = 8;
-const PROCESS_RUNS_LIMIT = 50;
-
-// ─── 纯映射 / 工具 ─────────────────────────────────────────────────────────────
-
-function asStrArr(v: unknown): string[] {
-  return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
-}
-
-function asRecord(v: unknown): Record<string, unknown> {
-  return v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
-}
-
-function toBlueprintDTO(b: BlueprintRow): BlueprintDTO {
-  return {
-    id: b.id,
-    kind: b.kind as BlueprintKind,
-    label: b.label,
-    note: b.note,
-    sources: Array.isArray(b.sources) ? (b.sources as unknown as BlueprintDTO['sources']) : [],
-    params: asRecord(b.params),
-    gates: asStrArr(b.gates),
-    enabledStages: asStrArr(b.enabled_stages),
-    createdAt: b.created_at,
-    updatedAt: b.updated_at,
-  };
-}
-
-/** ProcessRow.trigger_kind + trigger_config → 前端 TriggerConfig 联合。 */
-function triggerOf(p: ProcessRow): TriggerConfig {
-  const cfg = asRecord(p.trigger_config);
-  if (p.trigger_kind === 'interval') {
-    return { kind: 'interval', everySec: typeof cfg.everySec === 'number' ? cfg.everySec : 0 };
-  }
-  if (p.trigger_kind === 'cron') {
-    return { kind: 'cron', expr: typeof cfg.expr === 'string' ? cfg.expr : '' };
-  }
-  return { kind: 'once' };
-}
-
-/** 前端 TriggerConfig → { triggerKind, triggerConfig } 入库形状。 */
-function triggerToRepo(t: TriggerConfig): { triggerKind: string; triggerConfig: unknown } {
-  if (t.kind === 'interval')
-    return { triggerKind: 'interval', triggerConfig: { everySec: t.everySec } };
-  if (t.kind === 'cron') return { triggerKind: 'cron', triggerConfig: { expr: t.expr } };
-  return { triggerKind: 'once', triggerConfig: null };
-}
-
-function toProcessDTO(p: ProcessRow, kind: BlueprintKind): ProcessDTO {
-  return {
-    id: p.id,
-    blueprintId: p.blueprint_id,
-    blueprintKind: kind,
-    label: p.label,
-    trigger: triggerOf(p),
-    status: p.status === 'paused' ? 'paused' : 'active',
-    sweepSeq: p.sweep_seq,
-    runsTotal: p.runs_total,
-    lastRunAt: p.last_run_at,
-    nextRunAt: p.next_run_at,
-  };
-}
-
-function toRunDTO(r: RunRow, blueprintLabel: string | null, processLabel: string | null): RunDTO {
-  return {
-    id: r.id,
-    processId: r.process_id,
-    processLabel,
-    blueprintId: r.blueprint_id,
-    blueprintLabel,
-    kind: r.kind,
-    status: r.status,
-    triggerSource: r.trigger_source,
-    sweepSeq: r.sweep_seq,
-    error: r.error,
-    startedAt: r.started_at,
-    finishedAt: r.finished_at,
-    tasksTotal: r.tasks_total,
-    tasksDone: r.tasks_done,
-    tasksSkipped: r.tasks_skipped,
-    tasksFailed: r.tasks_failed,
-  };
-}
-
-/** 环节 lane：fetch:'source'→帖来源、fetch:'ai'→ai、本地环节→null（按 STAGE_TEMPLATES 推导）。 */
-function stageLane(kind: TaskKind, name: string, source: string | null): RadarLaneId | null {
-  const def = STAGE_TEMPLATES[kind]?.find((s) => s.name === name);
-  if (def?.fetch === 'ai') return 'ai';
-  if (def?.fetch === 'source') {
-    if (source === 'reddit' || source === 'hackernews' || source === 'rss') return source;
-    return null;
-  }
-  return null;
-}
-
-/** 环节产物 jsonb → 人话摘要（展示用；不可解析则 null）。 */
-function summarizeStage(name: string, output: unknown): string | null {
-  const o = asRecord(output);
-  const num = (k: string): number => (typeof o[k] === 'number' ? (o[k] as number) : 0);
-  switch (name) {
-    case 'fetch_listing':
-      return `新增 ${num('added')} · 更新 ${num('updated')}`;
-    case 'dedup':
-      return `候选 ${Array.isArray(o.toSpawn) ? (o.toSpawn as unknown[]).length : 0}`;
-    case 'spawn':
-      return `派生采集 ${num('collectSpawned')}`;
-    case 'fetch_comments':
-    case 'recrawl':
-      return `评论 ${num('commentCount')}`;
-    case 'persist':
-      if ('changed' in o) return o.changed ? '有变化 → 重新分析' : '无变化 · 退避';
-      if ('analyzeSpawned' in o) return o.analyzeSpawned ? '落库 · 派生分析' : '落库';
-      if ('saved' in o) return o.saved ? '洞察已落库' : '无信号 · 未落库';
-      return '落库';
-    case 'ai_call':
-      return 'AI 响应已落检查点';
-    case 'translate':
-      return `翻译 ${num('translated')} 段`;
-    default:
-      return null;
-  }
-}
-
-function toStageDTO(s: TaskStageRow, kind: TaskKind, source: string | null): StageDTO {
-  return {
-    seq: s.seq,
-    name: s.name,
-    status: s.status as StageDTO['status'],
-    gate: s.gate,
-    lane: stageLane(kind, s.name, source),
-    output: summarizeStage(s.name, s.output),
-    error: s.error,
-    startedAt: s.started_at,
-    finishedAt: s.finished_at,
-  };
-}
-
-function firstPainPoint(painPoints: unknown, fallback: string): string {
-  const first = (Array.isArray(painPoints) ? painPoints[0] : null) as {
-    description?: string;
-    title?: string;
-  } | null;
-  return first?.description ?? first?.title ?? fallback;
-}
 
 /**
- * 雷达指挥室读 / 聚合 / CRUD 编排服务（控制面）。
+ * 雷达指挥室只读 / 聚合服务（控制面）。
  *
- * - 读：control-room 聚合、运行详情、收成洞察 / 帖子库分页、帖子一生、lane 概览（合成 web 视图 DTO）。
- * - 写：图纸 / 进程 CRUD（委托仓储 + 校验）+ 触发进程（委托 {@link PipelineService.fireProcess}）。
+ * 关注点 = 读：control-room 聚合、运行详情、收成洞察 / 帖子库分页、帖子一生、lane 概览（合成 web 视图 DTO）。
+ * 图纸 CRUD 见 {@link BlueprintService}，进程 CRUD / 触发见 {@link ProcessService}（本服务聚合时复用其列举）。
  * 译文标题（titleZh）按 posts.title_hash 从 translations(done) 批量 join。
  */
 @Injectable()
@@ -205,8 +59,7 @@ export class RadarService {
   constructor(
     @Inject(PRISMA) private readonly db: AppDatabase,
     private readonly blueprints: BlueprintsRepository,
-    private readonly processes: ProcessesRepository,
-    private readonly pipeline: PipelineService,
+    private readonly processSvc: ProcessService,
     private readonly runs: RunsRepository,
     private readonly tasks: TasksRepository,
     private readonly taskStages: TaskStagesRepository,
@@ -214,155 +67,7 @@ export class RadarService {
     private readonly requestLanes: RequestLanesRepository,
   ) {}
 
-  // ─── 图纸 CRUD ───────────────────────────────────────────────────────────────
-
-  async listBlueprints(): Promise<BlueprintDTO[]> {
-    return (await this.blueprints.listBlueprints()).map(toBlueprintDTO);
-  }
-
-  async getBlueprint(id: number): Promise<BlueprintDTO | null> {
-    const b = await this.blueprints.getBlueprint(id);
-    return b ? toBlueprintDTO(b) : null;
-  }
-
-  async createBlueprint(input: {
-    kind: string;
-    label: string;
-    note?: string | null;
-    sources?: unknown;
-    params?: unknown;
-    gates?: string[];
-    enabledStages?: string[];
-  }): Promise<BlueprintDTO> {
-    const b = await this.blueprints.createBlueprint(input, nowSec());
-    return toBlueprintDTO(b);
-  }
-
-  async updateBlueprint(
-    id: number,
-    patch: {
-      label?: string;
-      note?: string | null;
-      sources?: unknown;
-      params?: unknown;
-      gates?: string[];
-      enabledStages?: string[];
-    },
-  ): Promise<void> {
-    await this.blueprints.updateBlueprint(id, patch, nowSec());
-  }
-
-  /** 删图纸：被进程引用则拒绝（返回 false），否则删除。 */
-  async deleteBlueprint(id: number): Promise<{ ok: boolean; reason?: string }> {
-    const used = (await this.processes.listProcesses(id)).length > 0;
-    if (used) return { ok: false, reason: '该图纸仍被进程引用，请先删除其进程' };
-    await this.blueprints.deleteBlueprint(id);
-    return { ok: true };
-  }
-
-  // ─── 进程 CRUD + 触发 ─────────────────────────────────────────────────────────
-
-  async listProcesses(): Promise<ProcessDTO[]> {
-    const [procs, bps] = await Promise.all([
-      this.processes.listProcesses(),
-      this.blueprints.listBlueprints(),
-    ]);
-    const kindById = new Map(bps.map((b) => [b.id, b.kind as BlueprintKind]));
-    return procs.map((p) => toProcessDTO(p, kindById.get(p.blueprint_id) ?? 'collect'));
-  }
-
-  async getProcess(id: number): Promise<ProcessDTO | null> {
-    const p = await this.processes.getProcess(id);
-    if (!p) return null;
-    const bp = await this.blueprints.getBlueprint(p.blueprint_id);
-    return toProcessDTO(p, (bp?.kind as BlueprintKind) ?? 'collect');
-  }
-
-  async createProcess(input: {
-    blueprintId: number;
-    label: string;
-    trigger: TriggerConfig;
-  }): Promise<ProcessDTO | { error: string }> {
-    const bp = await this.blueprints.getBlueprint(input.blueprintId);
-    if (!bp) return { error: '绑定的图纸不存在' };
-    const { triggerKind, triggerConfig } = triggerToRepo(input.trigger);
-    // once 不自动触发；interval/cron 稍后即到期（首个心跳触发）
-    const nextRunAt = input.trigger.kind === 'once' ? null : nowSec();
-    const p = await this.processes.createProcess(
-      { blueprintId: input.blueprintId, label: input.label, triggerKind, triggerConfig, nextRunAt },
-      nowSec(),
-    );
-    return toProcessDTO(p, bp.kind as BlueprintKind);
-  }
-
-  async updateProcess(
-    id: number,
-    patch: { label?: string; trigger?: TriggerConfig },
-  ): Promise<void> {
-    const repoPatch: {
-      label?: string;
-      triggerKind?: string;
-      triggerConfig?: unknown;
-      nextRunAt?: number | null;
-    } = {};
-    if (patch.label !== undefined) repoPatch.label = patch.label;
-    if (patch.trigger) {
-      const { triggerKind, triggerConfig } = triggerToRepo(patch.trigger);
-      repoPatch.triggerKind = triggerKind;
-      repoPatch.triggerConfig = triggerConfig;
-      // 改了节奏：active 进程重排到「即将触发」，once 置空
-      const p = await this.processes.getProcess(id);
-      if (p?.status === 'active')
-        repoPatch.nextRunAt = patch.trigger.kind === 'once' ? null : nowSec();
-    }
-    await this.processes.updateProcess(id, repoPatch, nowSec());
-  }
-
-  /** 暂停进程：status=paused + next_run_at=null（停止自动触发）。 */
-  async pauseProcess(id: number): Promise<void> {
-    await this.processes.setStatus(id, 'paused', nowSec());
-    await this.processes.setNextRunAt(id, null, nowSec());
-  }
-
-  /** 恢复进程：status=active + 重排下次触发（once 仍置空）。 */
-  async resumeProcess(id: number): Promise<void> {
-    const p = await this.processes.getProcess(id);
-    if (!p) return;
-    await this.processes.setStatus(id, 'active', nowSec());
-    await this.processes.setNextRunAt(id, p.trigger_kind === 'once' ? null : nowSec(), nowSec());
-  }
-
-  /** 手动触发一次：已有进行中运行则拒绝；否则 fireProcess(manual)。 */
-  async triggerProcess(id: number): Promise<{ ok: boolean; reason?: string }> {
-    const p = await this.processes.getProcess(id);
-    if (!p) return { ok: false, reason: '进程不存在' };
-    if (await this.runs.hasRunningRunForProcess(id)) {
-      return { ok: false, reason: '该进程已有进行中的运行' };
-    }
-    await this.pipeline.fireProcess(p, 'manual');
-    return { ok: true };
-  }
-
-  async deleteProcess(id: number): Promise<void> {
-    await this.processes.deleteProcess(id);
-  }
-
-  // ─── 运行 ────────────────────────────────────────────────────────────────────
-
-  /** 单进程的运行历史。 */
-  async processRuns(processId: number): Promise<{ process: ProcessDTO | null; runs: RunDTO[] }> {
-    const process = await this.getProcess(processId);
-    const rows = await this.db.runs.findMany({
-      where: { process_id: processId },
-      orderBy: { id: 'desc' },
-      take: PROCESS_RUNS_LIMIT,
-    });
-    const bp = process ? await this.blueprints.getBlueprint(process.blueprintId) : null;
-    return {
-      process,
-      runs: rows.map((r) => toRunDTO(toRunRow(r), bp?.label ?? null, process?.label ?? null)),
-    };
-  }
+  // ─── 运行详情 ──────────────────────────────────────────────────────────────────
 
   /** 运行详情：运行 + 任务树（每任务含环节，lane / 产物摘要已合成）。 */
   async runDetail(id: number): Promise<{ run: RunDTO; tasks: TaskDTO[] } | null> {
@@ -370,7 +75,7 @@ export class RadarService {
     if (!run) return null;
     const [bp, proc, tasks] = await Promise.all([
       this.blueprints.getBlueprint(run.blueprint_id),
-      run.process_id != null ? this.processes.getProcess(run.process_id) : Promise.resolve(null),
+      run.process_id != null ? this.processSvc.getProcess(run.process_id) : Promise.resolve(null),
       this.tasks.listByRun(id),
     ]);
     const postIds = [...new Set(tasks.map((t) => t.post_id).filter((x): x is string => x != null))];
@@ -476,7 +181,7 @@ export class RadarService {
         this.db.runs.count({ where: { started_at: { gte: BigInt(dayStart) } } }),
         this.tasks.taskStats(),
         this.lanes(),
-        this.listProcesses(),
+        this.processSvc.listProcesses(),
         this.runs.listRunningRuns(), // 进行中运行（用于 activeRun）
         this.recheckHealth(now),
       ]);
@@ -832,40 +537,4 @@ export class RadarService {
     }
     return out;
   }
-}
-
-/** 评论平铺列表 → 楼层树（按 parent_id）。 */
-function buildCommentTree(
-  rows: {
-    id: string;
-    parent_id: string | null;
-    author: string | null;
-    body: string;
-    score: number;
-    depth: number;
-    created_utc: bigint;
-    body_hash: string | null;
-  }[],
-): RadarCommentDTO[] {
-  const byId = new Map<string, RadarCommentDTO>();
-  for (const r of rows) {
-    byId.set(r.id, {
-      id: r.id,
-      author: r.author,
-      score: r.score,
-      depth: r.depth,
-      body: r.body,
-      bodyHash: r.body_hash,
-      createdUtc: Number(r.created_utc),
-      children: [],
-    });
-  }
-  const roots: RadarCommentDTO[] = [];
-  for (const r of rows) {
-    const node = byId.get(r.id)!;
-    const parent = r.parent_id ? byId.get(r.parent_id) : undefined;
-    if (parent) parent.children.push(node);
-    else roots.push(node);
-  }
-  return roots;
 }

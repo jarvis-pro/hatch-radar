@@ -14,10 +14,10 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { z } from 'zod';
-import { RequirePermission } from '@/account/auth-user.decorator';
-import { SessionAuthGuard } from '@/account/session-auth.guard';
+import { RequirePermission } from '@/modules/account/auth-user.decorator';
+import { SessionAuthGuard } from '@/modules/account/session-auth.guard';
 import { ZodValidationPipe } from '@/common/zod-validation.pipe';
-import { RadarService } from '@/domain';
+import { BlueprintService, ProcessService, RadarService } from '@/domain';
 import { logger } from '@/logger';
 import type { RadarIntensity } from '@hatch-radar/shared';
 
@@ -69,16 +69,16 @@ const updateProcessSchema = z.object({
 @RequirePermission('pipeline:run')
 @Controller('blueprints')
 export class BlueprintsController {
-  constructor(private readonly radar: RadarService) {}
+  constructor(private readonly blueprints: BlueprintService) {}
 
   @Get()
   list() {
-    return this.radar.listBlueprints();
+    return this.blueprints.listBlueprints();
   }
 
   @Get(':id')
   async get(@Param('id', ParseIntPipe) id: number) {
-    const bp = await this.radar.getBlueprint(id);
+    const bp = await this.blueprints.getBlueprint(id);
     if (!bp) throw new NotFoundException('图纸不存在');
     return bp;
   }
@@ -88,7 +88,7 @@ export class BlueprintsController {
   async create(
     @Body(new ZodValidationPipe(createBlueprintSchema)) dto: z.infer<typeof createBlueprintSchema>,
   ) {
-    const bp = await this.radar.createBlueprint(dto);
+    const bp = await this.blueprints.createBlueprint(dto);
     logger.info(`[图纸] 新建 #${bp.id}：${bp.kind}/${bp.label}`);
     return bp;
   }
@@ -99,15 +99,15 @@ export class BlueprintsController {
     @Param('id', ParseIntPipe) id: number,
     @Body(new ZodValidationPipe(updateBlueprintSchema)) dto: z.infer<typeof updateBlueprintSchema>,
   ) {
-    if (!(await this.radar.getBlueprint(id))) throw new NotFoundException('图纸不存在');
-    await this.radar.updateBlueprint(id, dto);
+    if (!(await this.blueprints.getBlueprint(id))) throw new NotFoundException('图纸不存在');
+    await this.blueprints.updateBlueprint(id, dto);
     return { ok: true };
   }
 
   @Delete(':id')
   @RequirePermission('pipeline:control')
   async remove(@Param('id', ParseIntPipe) id: number) {
-    const res = await this.radar.deleteBlueprint(id);
+    const res = await this.blueprints.deleteBlueprint(id);
     if (!res.ok) throw new BadRequestException(res.reason ?? '无法删除');
     logger.info(`[图纸] 删除 #${id}`);
     return { ok: true };
@@ -122,23 +122,23 @@ export class BlueprintsController {
 @RequirePermission('pipeline:run')
 @Controller('processes')
 export class ProcessesController {
-  constructor(private readonly radar: RadarService) {}
+  constructor(private readonly processes: ProcessService) {}
 
   @Get()
   list() {
-    return this.radar.listProcesses();
+    return this.processes.listProcesses();
   }
 
   @Get(':id')
   async get(@Param('id', ParseIntPipe) id: number) {
-    const p = await this.radar.getProcess(id);
+    const p = await this.processes.getProcess(id);
     if (!p) throw new NotFoundException('进程不存在');
     return p;
   }
 
   @Get(':id/runs')
   runs(@Param('id', ParseIntPipe) id: number) {
-    return this.radar.processRuns(id);
+    return this.processes.processRuns(id);
   }
 
   @Post()
@@ -146,7 +146,7 @@ export class ProcessesController {
   async create(
     @Body(new ZodValidationPipe(createProcessSchema)) dto: z.infer<typeof createProcessSchema>,
   ) {
-    const res = await this.radar.createProcess(dto);
+    const res = await this.processes.createProcess(dto);
     if ('error' in res) throw new BadRequestException(res.error);
     logger.info(`[进程] 新建 #${res.id}：${res.label}`);
     return res;
@@ -158,8 +158,8 @@ export class ProcessesController {
     @Param('id', ParseIntPipe) id: number,
     @Body(new ZodValidationPipe(updateProcessSchema)) dto: z.infer<typeof updateProcessSchema>,
   ) {
-    if (!(await this.radar.getProcess(id))) throw new NotFoundException('进程不存在');
-    await this.radar.updateProcess(id, dto);
+    if (!(await this.processes.getProcess(id))) throw new NotFoundException('进程不存在');
+    await this.processes.updateProcess(id, dto);
     return { ok: true };
   }
 
@@ -167,7 +167,7 @@ export class ProcessesController {
   @HttpCode(200)
   @RequirePermission('pipeline:control')
   async pause(@Param('id', ParseIntPipe) id: number) {
-    await this.radar.pauseProcess(id);
+    await this.processes.pauseProcess(id);
     return { ok: true };
   }
 
@@ -175,14 +175,14 @@ export class ProcessesController {
   @HttpCode(200)
   @RequirePermission('pipeline:control')
   async resume(@Param('id', ParseIntPipe) id: number) {
-    await this.radar.resumeProcess(id);
+    await this.processes.resumeProcess(id);
     return { ok: true };
   }
 
   @Post(':id/trigger')
   @HttpCode(200)
   async trigger(@Param('id', ParseIntPipe) id: number) {
-    const res = await this.radar.triggerProcess(id);
+    const res = await this.processes.triggerProcess(id);
     if (!res.ok) throw new BadRequestException(res.reason ?? '无法触发');
     logger.info(`[进程] 手动触发 #${id}`);
     return { ok: true };
@@ -191,8 +191,8 @@ export class ProcessesController {
   @Delete(':id')
   @RequirePermission('pipeline:control')
   async remove(@Param('id', ParseIntPipe) id: number) {
-    if (!(await this.radar.getProcess(id))) throw new NotFoundException('进程不存在');
-    await this.radar.deleteProcess(id);
+    if (!(await this.processes.getProcess(id))) throw new NotFoundException('进程不存在');
+    await this.processes.deleteProcess(id);
     logger.info(`[进程] 删除 #${id}`);
     return { ok: true };
   }

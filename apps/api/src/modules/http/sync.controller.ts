@@ -4,8 +4,8 @@ import {
   DeviceUser,
   RequireDevicePermission,
   type DeviceUserContext,
-} from '@/auth/device-permission.decorator';
-import { DeviceOrSessionGuard } from '@/auth/device-or-session.guard';
+} from '@/modules/auth/device-permission.decorator';
+import { DeviceOrSessionGuard } from '@/modules/auth/device-or-session.guard';
 import { ZodValidationPipe } from '@/common/zod-validation.pipe';
 import { DeviceAuthService, pushEnvelopeSchema, SyncService } from '@/domain';
 
