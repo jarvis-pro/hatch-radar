@@ -392,8 +392,11 @@ export class ProvidersRepository {
     error: string,
     now: number,
   ): Promise<void> {
-    await this.db.provider_api_keys.update({
-      where: { id: keyId },
+    // 守卫 status != invalid：invalid 是需人工复位的终态，不可被并发的限流冷却覆盖——否则一把额度
+    // 耗尽（invalid）的 Key 会被 cooling 改成 cooldown 后自动重试、反复撞额度墙。用 updateMany 让守卫
+    // 与写入原子（命中 0 行＝该 Key 已 invalid，安全跳过）。
+    await this.db.provider_api_keys.updateMany({
+      where: { id: keyId, status: { not: 'invalid' } },
       data: {
         status: 'cooling',
         cooldown_until: BigInt(cooldownUntil),

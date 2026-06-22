@@ -100,9 +100,8 @@ export class PipelineQueryService {
     if (!run) return null;
     const bp = await this.blueprints.getBlueprint(run.blueprint_id);
     const tasks = await this.tasks.listByRun(id);
-    const taskViews = await Promise.all(
-      tasks.map(async (t) => toTaskView(t, await this.taskStages.listStages(t.id))),
-    );
+    const stagesByTask = await this.taskStages.listStagesByTasks(tasks.map((t) => t.id));
+    const taskViews = tasks.map((t) => toTaskView(t, stagesByTask.get(t.id) ?? []));
     return { run: toRunView(run, bp?.label ?? null), tasks: taskViews };
   }
 }

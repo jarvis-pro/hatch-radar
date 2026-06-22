@@ -20,6 +20,7 @@ const FALLBACK_PUMP_MS = 10_000;
 export class LocalDispatcher implements Dispatcher {
   private inFlight = 0;
   private pumping = false;
+  private draining = false;
   private fallbackTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(
@@ -30,26 +31,31 @@ export class LocalDispatcher implements Dispatcher {
 
   /** 入队后 / 任务完成后 / 兜底周期触发：尽量把并发名额填满。 */
   async tryDispatch(): Promise<void> {
-    if (this.pumping) return; // 单飞：认领循环不可并发重入
+    if (this.draining || this.pumping) return; // 排空中不再认领；单飞：认领循环不可并发重入
     this.pumping = true;
     try {
       while (this.inFlight < this.concurrency) {
         const task = await this.tasks.claimNextTask(nowSec());
         if (!task) break; // 队列空
+        // 先占名额再起执行：inFlight++ 紧邻 runClaimed（其同步建立 .finally 归还链），中间无
+        // await，故不存在「占了名额却没挂归还回调」的泄漏窗口。
         this.inFlight++;
-        void this.worker
-          .executeDispatchedTask(task.id)
-          .catch((err: unknown) =>
-            logger.error(`[dispatch] task#${task.id} 顶层异常: ${String(err)}`),
-          )
-          .finally(() => {
-            this.inFlight--;
-            void this.tryDispatch(); // 腾出名额，补位认领
-          });
+        this.runClaimed(task.id);
       }
     } finally {
       this.pumping = false;
     }
+  }
+
+  /** 执行一条已认领任务：保证 inFlight 在任何结局都归位；完成后补位认领（排空期不补）。 */
+  private runClaimed(taskId: number): void {
+    void this.worker
+      .executeDispatchedTask(taskId)
+      .catch((err: unknown) => logger.error(`[dispatch] task#${taskId} 顶层异常: ${String(err)}`))
+      .finally(() => {
+        this.inFlight--;
+        if (!this.draining) void this.tryDispatch(); // 腾名额补位；排空期不补，在途跑完即真正排空
+      });
   }
 
   /** 起兜底泵（对应 NestJS onApplicationBootstrap）。 */
@@ -57,8 +63,12 @@ export class LocalDispatcher implements Dispatcher {
     this.fallbackTimer = setInterval(() => void this.tryDispatch(), FALLBACK_PUMP_MS);
   }
 
-  /** 停止认领新任务（对应 NestJS beforeApplicationShutdown；在途由 WorkerService.stop 排空）。 */
+  /**
+   * 关停（对应 NestJS beforeApplicationShutdown）：置 draining 停止认领新任务 + 停补位泵，在途由
+   * WorkerService.stop 排空。draining 杜绝「排空期 finally 仍补位认领」致队列不空时永远排不空。
+   */
   stop(): void {
+    this.draining = true;
     if (this.fallbackTimer) clearInterval(this.fallbackTimer);
   }
 }

@@ -33,6 +33,25 @@ export class TaskStagesRepository {
     return rows.map((r: TaskStagePg) => toTaskStageRow(r));
   }
 
+  /**
+   * 批量取多个任务的环节，按 task_id 分组（一次查询 + 内存分组）——消除任务树逐任务查 listStages 的
+   * N+1（进程详情页一次请求可有上百任务）。每组内按 seq 升序。
+   */
+  async listStagesByTasks(taskIds: number[]): Promise<Map<number, TaskStageRow[]>> {
+    const grouped = new Map<number, TaskStageRow[]>();
+    if (taskIds.length === 0) return grouped;
+    const rows = await this.db.task_stages.findMany({
+      where: { task_id: { in: taskIds } },
+      orderBy: [{ task_id: 'asc' }, { seq: 'asc' }],
+    });
+    for (const r of rows) {
+      const list = grouped.get(r.task_id);
+      if (list) list.push(toTaskStageRow(r));
+      else grouped.set(r.task_id, [toTaskStageRow(r)]);
+    }
+    return grouped;
+  }
+
   /** 标记环节开始：status→running、记录开始时间与输入摘要（展示用）。 */
   async markStageRunning(
     taskId: number,

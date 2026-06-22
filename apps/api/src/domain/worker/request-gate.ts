@@ -2,10 +2,12 @@ import { Injectable } from '@nestjs/common';
 import { RequestLanesRepository, RequestQueueRepository } from '@/lib/db';
 import { logger, nowSec } from '@/lib/kernel';
 
-/** 默认：lane 暂停时每 2s 轮询一次是否恢复 */
+/** 默认：lane 暂停时每 2s 轮询一次是否恢复（实际带 ±20% 抖动，避免并发协程同相位） */
 const DEFAULT_PAUSE_POLL_MS = 2_000;
 /** 默认：lane 持续暂停超此时长则放弃本次抓取（防无限挂起） */
 const DEFAULT_MAX_PAUSE_WAIT_MS = 5 * 60_000;
+/** lane 存在性缓存有效期（秒）：过期重新 ensureLane，免进程内缓存与被外部删/重置的 lane 行长期失配 */
+const ENSURE_LANE_TTL_SEC = 300;
 
 function errMsg(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
@@ -40,7 +42,7 @@ export interface RequestGateOptions {
  */
 @Injectable()
 export class RequestGate {
-  private readonly ensured = new Set<string>();
+  private readonly ensured = new Map<string, number>(); // lane → 上次 ensure 时刻（秒），带 TTL
   private readonly pausePollMs: number;
   private readonly maxPauseWaitMs: number;
 
@@ -75,9 +77,11 @@ export class RequestGate {
   }
 
   private async ensureLane(lane: string): Promise<void> {
-    if (this.ensured.has(lane)) return;
-    await this.lanes.ensureLane(lane, nowSec());
-    this.ensured.add(lane);
+    const now = nowSec();
+    const at = this.ensured.get(lane);
+    if (at != null && now - at < ENSURE_LANE_TTL_SEC) return;
+    await this.lanes.ensureLane(lane, now);
+    this.ensured.set(lane, now);
   }
 
   private async waitIfPaused(lane: string): Promise<void> {
@@ -87,8 +91,10 @@ export class RequestGate {
         throw new Error(`请求闸 lane=${lane} 持续暂停超时，放弃本次抓取`);
       }
       if (waited === 0) logger.info(`[请求闸] lane=${lane} 已暂停，等待恢复…`);
-      await sleep(this.pausePollMs);
-      waited += this.pausePollMs;
+      // ±20% 抖动：多个并发抓取协程不再同相位轮询，避免同时醒来打 DB、lane 恢复瞬间齐发成对外尖峰。
+      const delay = this.pausePollMs * (0.8 + Math.random() * 0.4);
+      await sleep(delay);
+      waited += delay;
     }
   }
 }

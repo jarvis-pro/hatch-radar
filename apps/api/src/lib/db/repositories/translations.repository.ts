@@ -189,6 +189,21 @@ export class TranslationsRepository {
   }
 
   /**
+   * 一批内容哈希 → 中文译文（仅 status=done 且 text 非空）。供雷达视图按 posts.title_hash /
+   * selftext_hash 批量 join 译文（同文去重已在内容哈希层面完成）。
+   * @param hashes 内容哈希集合（自动去重）
+   */
+  async doneTextByHashes(hashes: string[]): Promise<Map<string, string>> {
+    const uniq = [...new Set(hashes)];
+    if (uniq.length === 0) return new Map();
+    const rows = await this.db.translations.findMany({
+      where: { content_hash: { in: uniq }, status: 'done', text: { not: null } },
+      select: { content_hash: true, text: true },
+    });
+    return new Map(rows.map((r) => [r.content_hash, r.text as string]));
+  }
+
+  /**
    * 累计某 provider 类型自某时刻起 done 译文的源字符数（Azure 免费档月度配额监控用）。
    * 仅计 done（实际调用机翻消耗的字符）；skipped（本地判中文跳过，未调远端）不计入。
    * @param providerKind provider 类型（如 'azure'）
