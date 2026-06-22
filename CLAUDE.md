@@ -40,13 +40,13 @@ Web / Mobile：
 - **执行解耦靠 PostgreSQL 持久化队列**（`tasks` / `task_stages`）：`PipelineService` 入队后经 `LocalDispatcher`（`Dispatcher` 接口的进程内实现，替换原 WS 版 `GatewayService`）在**同进程内** `FOR UPDATE SKIP LOCKED` 认领 task（分析 / 采集 / 复查 / 翻译 / 逐节点检视）、直接调 `WorkerService` 跑 AI 写回（无 WS、无序列化）。
 - **崩溃续跑 / 逐环节检查点 / 闸门 + 重认领 / 僵死回收 / 出站请求闸 / 多 Key 故障转移全原样保留**——它们与「几个进程」无关，只与「任务可靠执行」有关。并发上限 `WORKER_CONCURRENCY`（env，默认 20）由 `LocalDispatcher` 进程内闸把关（`inFlight < concurrency` + `pumping` 单飞泵防超发）。
 
-**内联能力代码**（`apps/api/src/lib/*`，方案A 塌缩后从原 `packages/*` 并入 api；全部 `@Injectable`，见 `docs/package-architecture-eval.md`）：
+**框架无关能力代码**（`apps/api/src/` 顶层按来源分目录；原 `packages/*` 经方案A 并入 api、再经 `lib` 层解散归位，见 `docs/package-architecture-eval.md`）：
 
-- `lib/kernel` —— 基座（零内部依赖）：errors / logger / utils（time、**crypto = AES-256-GCM 密钥加解密**）/ env 校验 / 派发契约（`Dispatcher` 接口）。
-- `lib/db` —— **唯一 PG 读写层**：连接工厂 + PG⇄域类型映射（`mappers.ts`）+ 仓储 + runtime-settings；Prisma schema/migrations 基建在 `apps/api/prisma/`，生成 client 在 `lib/db/generated/prisma`。
-- `lib/crawler` —— 采集：Reddit/HN/RSS 抓取 + 令牌桶限速 + 采集连接器。
-- `lib/analysis` —— AI：analyzer 引擎（prompt / 洞察 schema / 各厂商客户端）+ 配置入队 + 洞察落库 + **翻译**（`translator/`）。
-- `lib/auth` —— Node-only 纯函数：scrypt 口令 / 会话 token / Ed25519 设备验签。
+- `@/database` —— **唯一 PG 读写层**：连接工厂 + 事务感知代理 + `TxContext`（UoW）+ PG⇄域类型映射（`mappers.ts`）+ 22 仓储；Prisma schema/migrations 基建在 `apps/api/prisma/`，生成 client 在 `src/database/generated/prisma`。
+- `@/crawler` —— 采集：Reddit/HN/RSS 抓取 + 令牌桶限速 + 采集连接器（`HackerNewsClient` / `CrawlerConfigService` 为 `@Injectable`，CapabilityModule 全局提供）。
+- `@/analysis` —— AI **无状态引擎**：analyzer（prompt / 洞察 schema / 各厂商客户端）+ translator + 多 Key 故障转移分类；业务编排 service（AnalysisConfigService / AnalysisService / TranslationService）已 collocate 到 `@/modules/analysis`。
+- `@/auth` —— Node-only 纯函数：scrypt 口令 / 会话 token / Ed25519 设备验签。
+- 其余基座散在顶层：`@/utils`（`time` / `crypto` = **AES-256-GCM 密钥加解密**）、`@/config/env`（env 校验）、`@/logger`（日志）、`@/common/errors`（领域错误语义子类）、`@/modules/worker/protocol`（`Dispatcher` 派发契约）。
 
 **剩余跨端包**（`packages/*`，因有 web/mobile 等非-api 消费方而保留）：`shared`（跨端类型 + 权限目录，零运行时）/ `config`（仅 tsconfig base/nest 预设）/ `ui`（shadcn + Tailwind v4，仅 PC 端）。
 
@@ -63,7 +63,7 @@ Web / Mobile：
 **Prisma 7**
 
 - schema 不写 datasource url → `apps/api/prisma.config.ts`（加载根 `.env`）；运行期由 `@prisma/adapter-pg` 直供连接。schema/migrations 在 `apps/api/prisma/`。
-- 生成的 client 在 `apps/api/src/lib/db/generated/prisma`（自定义 output，**导入带 `.ts` 扩展**，api tsconfig 开 `allowImportingTsExtensions`）；bigint↔number 经 `mappers.ts` 的 `toXxxRow`（仓储读出后转域类型）。
+- 生成的 client 在 `apps/api/src/database/generated/prisma`（自定义 output，**导入带 `.ts` 扩展**，api tsconfig 开 `allowImportingTsExtensions`）；bigint↔number 经 `mappers.ts` 的 `toXxxRow`（仓储读出后转域类型）。
 - **改 schema 后必须 `db:migrate:dev` + 重启 api 进程**：api 把生成的 client 载入内存，不重启会用旧枚举/旧字段（典型报错 `Value 'xxx' not found in enum 'yyy'`）。
 - `db push` 有 AI 同意闸；迁移一律走 CLI。
 
@@ -75,7 +75,7 @@ Web / Mobile：
 
 **密钥**：模型 / 连接器密钥经 `SETTINGS_SECRET`（AES-256-GCM，`kernel` 的 `crypto.ts`）加密入库，API 只返回脱敏值；未配 `SETTINGS_SECRET` 则禁用相关功能。
 
-**AI provider + 多 Key 故障转移**：4 种 `provider_kind`——`anthropic`/`openai`/`deepseek`（API Key 模式）+ `claude_cli`（订阅模式，经 `@anthropic-ai/claude-agent-sdk` 复用后端本机已登录的 Claude Code、无 Key；单进程后已无独立 worker，订阅模式仅适合宿主机运行、容器内不可用）。API Key 模式每条挂多把 Key，状态机 `active/cooling/invalid`（429 冷却 5min、401/403 失效需人工复位）；分析与翻译共用 `apps/api/src/lib/analysis/key-failover.ts`。
+**AI provider + 多 Key 故障转移**：4 种 `provider_kind`——`anthropic`/`openai`/`deepseek`（API Key 模式）+ `claude_cli`（订阅模式，经 `@anthropic-ai/claude-agent-sdk` 复用后端本机已登录的 Claude Code、无 Key；单进程后已无独立 worker，订阅模式仅适合宿主机运行、容器内不可用）。API Key 模式每条挂多把 Key，状态机 `active/cooling/invalid`（429 冷却 5min、401/403 失效需人工复位）；分析与翻译共用 `apps/api/src/analysis/key-failover.ts`。
 
 **翻译**：`claude_cli`（高质量、零边际）/ `azure`（机翻、按字符、走 Key 池；`azure` **仅翻译**）。译文按源内容哈希存 `translations` 表、走分析同队列（`job_type=translation`）。**改这块前先看 `/translation` skill（provider 矩阵 + 坑）+ 设计稿 `docs/translation-pipeline-design.md`。**
 
