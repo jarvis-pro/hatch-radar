@@ -39,34 +39,16 @@ const changePasswordSchema = z.object({
 });
 
 /** 改资料入参：仅姓名（trim 后非空）。 */
-const profileSchema = z.object({ /** 展示用姓名，去空白后必填 */ name: z.string().trim().min(1) });
+const profileSchema = z.object({
+  /** 展示用姓名，去空白后必填 */
+  name: z.string().trim().min(1),
+});
 
 /** 改头像入参：DiceBear seed 字符串，或 null 恢复姓名首字母。 */
 const avatarSchema = z.object({
   /** 头像 seed（≤128 字符）；null=清除自定义头像、回落首字母 */
   avatar: z.string().trim().min(1).max(128).nullable(),
 });
-
-/**
- * 取客户端 IP：直接用 express req.ip——它按 `trust proxy` 设置解析（信任代理时取 XFF 链，否则取
- * socket IP）。不再手动读 x-forwarded-for：未经 trust proxy 校验的 XFF 可被任意伪造、污染审计取证。
- */
-function clientIp(req: Request): string | undefined {
-  return req.ip;
-}
-
-function toCurrentUser(user: AuthedUser): CurrentUser {
-  return {
-    id: user.id,
-    email: user.email,
-    name: user.name,
-    avatar: user.avatar,
-    role: user.role,
-    status: user.status,
-    mustChangePassword: user.mustChangePassword,
-    permissions: user.permissions,
-  };
-}
 
 /**
  * /api/auth/* —— 人鉴权权威端点（会话登录/登出/校验/改密/会话管理/资料）。
@@ -86,7 +68,7 @@ export class AccountController {
   ): Promise<{ user: CurrentUser }> {
     const result = await this.account.login(dto.email, dto.password, {
       userAgent: req.headers['user-agent'],
-      ip: clientIp(req),
+      ip: req.ip,
     });
     setSessionCookie(res, result.token, result.absoluteDays);
     return { user: result.user };
@@ -96,7 +78,18 @@ export class AccountController {
   @Get('session')
   @UseGuards(SessionAuthGuard)
   session(@AuthUser() user: AuthedUser): { user: CurrentUser } {
-    return { user: toCurrentUser(user) };
+    return {
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        avatar: user.avatar,
+        role: user.role,
+        status: user.status,
+        mustChangePassword: user.mustChangePassword,
+        permissions: user.permissions,
+      },
+    };
   }
 
   /** POST /api/auth/logout —— 吊销当前会话 + 过期 cookie。 */
