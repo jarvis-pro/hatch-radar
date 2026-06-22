@@ -1,0 +1,53 @@
+{
+  "name": "@hatch-radar/lumen",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Lumen —— AI 产品灵感雷达（纯 mock 概念体验 App，Expo；无服务端、无密钥、无本地库）",
+  "main": "expo-router/entry",
+  "scripts": {
+    "start": "expo start",
+    "web": "expo start --web",
+    "android": "APP_VARIANT=development expo run:android --device",
+    "ios": "APP_VARIANT=development expo run:ios --device",
+    "prebuild": "APP_VARIANT=development expo prebuild --clean",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@expo-google-fonts/inter": "^0.4.2",
+    "@expo-google-fonts/jetbrains-mono": "^0.4.1",
+    "@expo/metro-runtime": "~56.0.15",
+    "@rn-primitives/slot": "^1.4.0",
+    "class-variance-authority": "catalog:",
+    "clsx": "catalog:",
+    "expo": "~56.0.11",
+    "expo-blur": "~56.0.3",
+    "expo-build-properties": "~56.0.18",
+    "expo-constants": "~56.0.18",
+    "expo-font": "~56.0.7",
+    "expo-haptics": "~56.0.3",
+    "expo-linear-gradient": "~56.0.4",
+    "expo-linking": "~56.0.14",
+    "expo-router": "~56.2.10",
+    "expo-status-bar": "~56.0.4",
+    "lucide-react-native": "^1.17.0",
+    "nativewind": "^4.2.5",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-native": "0.85.3",
+    "react-native-css-interop": "0.2.5",
+    "react-native-gesture-handler": "~2.31.2",
+    "react-native-reanimated": "4.3.1",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-screens": "4.25.2",
+    "react-native-svg": "15.15.4",
+    "react-native-web": "^0.21.2",
+    "react-native-worklets": "0.8.3",
+    "tailwind-merge": "catalog:",
+    "tailwindcss-animate": "^1.0.7"
+  },
+  "devDependencies": {
+    "@types/react": "catalog:",
+    "tailwindcss": "^3.4.19",
+    "typescript": "catalog:"
+  }
+}

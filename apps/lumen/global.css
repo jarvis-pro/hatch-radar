@@ -1,0 +1,86 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Lumen 色彩系统 —— 在 Signal 设计语言（靛紫 / 信号青 / 强度色阶）之上，为
+ * 「玻璃拟态」重新调校：深色优先、近黑墨蓝底，玻璃面靠不透明度工具类
+ * （bg-white/[0.06]、border-white/10）叠在极光背景上呈现，故 --card 等实体
+ * 槽位主要服务原生控件与非玻璃面。
+ *
+ * RN 不认 oklch → 落地为等价 HSL。极光渐变色另在 src/lib/theme.ts 的
+ * AURORA / GLASS 常量里给 JS 侧（LinearGradient / BlurView）。
+ *
+ * 用 .dark:root（非 .dark）：NativeWind v4 原生端对 .dark{} 覆盖切换不可靠
+ * （nativewind#702），.dark:root 才能在 colorScheme 切换时可靠重解析变量。
+ */
+@layer base {
+  :root {
+    --background: 240 60% 99%;
+    --foreground: 234 28% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 234 28% 12%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 234 28% 12%;
+    --primary: 244 76% 62%;
+    --primary-foreground: 240 100% 99%;
+    --secondary: 240 40% 97%;
+    --secondary-foreground: 234 22% 22%;
+    --muted: 240 40% 97%;
+    --muted-foreground: 235 10% 44%;
+    --accent: 240 66% 96%;
+    --accent-foreground: 240 30% 34%;
+    --destructive: 356 75% 52%;
+    --destructive-foreground: 6 100% 98%;
+    --success: 159 72% 40%;
+    --warning: 34 88% 52%;
+    --border: 235 16% 90%;
+    --input: 235 16% 90%;
+    --ring: 244 76% 62%;
+    --radius: 1.1rem;
+
+    --signal: 190 95% 40%;
+    --signal-foreground: 188 100% 98%;
+
+    --intensity-high: 358 84% 58%;
+    --intensity-high-foreground: 6 100% 98%;
+    --intensity-medium: 34 88% 52%;
+    --intensity-medium-foreground: 45 100% 97%;
+    --intensity-low: 159 72% 42%;
+    --intensity-low-foreground: 165 80% 97%;
+  }
+
+  .dark:root {
+    --background: 234 30% 6%;
+    --foreground: 230 24% 96%;
+    --card: 233 24% 10%;
+    --card-foreground: 230 24% 96%;
+    --popover: 233 24% 13%;
+    --popover-foreground: 230 24% 96%;
+    --primary: 245 92% 72%;
+    --primary-foreground: 230 100% 99%;
+    --secondary: 233 18% 16%;
+    --secondary-foreground: 230 24% 96%;
+    --muted: 233 16% 15%;
+    --muted-foreground: 232 14% 66%;
+    --accent: 233 20% 22%;
+    --accent-foreground: 232 60% 96%;
+    --destructive: 2 100% 71%;
+    --destructive-foreground: 6 100% 98%;
+    --success: 156 60% 54%;
+    --warning: 36 92% 62%;
+    --border: 233 16% 22%;
+    --input: 233 16% 26%;
+    --ring: 245 92% 72%;
+
+    --signal: 188 95% 52%;
+    --signal-foreground: 193 67% 6%;
+
+    --intensity-high: 1 96% 68%;
+    --intensity-high-foreground: 12 45% 8%;
+    --intensity-medium: 36 92% 62%;
+    --intensity-medium-foreground: 40 50% 9%;
+    --intensity-low: 156 60% 54%;
+    --intensity-low-foreground: 165 45% 7%;
+  }
+}
