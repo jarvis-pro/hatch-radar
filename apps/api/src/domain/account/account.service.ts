@@ -6,6 +6,7 @@ import { AuditLogsRepository } from '@/database';
 import { LoginAttemptsRepository } from '@/database';
 import { SessionsRepository } from '@/database';
 import { UsersRepository, type UserAuthView } from '@/database';
+import { TxContext } from '@/database';
 import { DomainError } from '@/domain/errors';
 import { logger } from '@/logger';
 import { nowSec } from '@/utils/time';
@@ -65,6 +66,7 @@ export class AccountService {
     private readonly attempts: LoginAttemptsRepository,
     private readonly audit: AuditLogsRepository,
     private readonly runtimeSettings: RuntimeSettingsService,
+    private readonly tx: TxContext,
   ) {}
 
   /**
@@ -121,19 +123,23 @@ export class AccountService {
         });
         throw new DomainError('邮箱或密码不正确', 401);
       }
-      await this.attempts.clear(email);
       const { idleDays, absoluteDays } = await this.runtimeSettings.getSessionConfig();
       const token = generateSessionToken();
-      await this.sessions.create({
-        userId: view.id,
-        tokenHash: hashSessionToken(token),
-        expiresAt: now + idleDays * DAY,
-        lastSeenAt: now,
-        createdAt: now,
-        userAgent: meta.userAgent ?? null,
-        ip: meta.ip ?? null,
+      const tokenHash = hashSessionToken(token);
+      // 成功登录的副作用收进一个事务：清失败计数 + 建会话 + 记最近登录同生共死。
+      await this.tx.run(async () => {
+        await this.attempts.clear(email);
+        await this.sessions.create({
+          userId: view.id,
+          tokenHash,
+          expiresAt: now + idleDays * DAY,
+          lastSeenAt: now,
+          createdAt: now,
+          userAgent: meta.userAgent ?? null,
+          ip: meta.ip ?? null,
+        });
+        await this.users.updateLastLogin(view.id, now);
       });
-      await this.users.updateLastLogin(view.id, now);
       await this.audit.write({ actorId: view.id, action: 'auth.login', ip: meta.ip ?? null });
       return { token, user: stripHash(view), absoluteDays };
     } catch (e) {
@@ -164,8 +170,12 @@ export class AccountService {
       if (!row || !(await verifyPassword(current, row.password_hash))) {
         throw new DomainError('当前密码不正确', 400);
       }
-      await this.users.updatePassword(user.id, await hashPassword(next), false, nowSec());
-      await this.sessions.deleteOthers(user.id, user.sessionId);
+      const newHash = await hashPassword(next);
+      // 改密与「踢其余会话」必须同生共死：崩在两步之间会留下「密码已改、旧会话仍有效」的窗口。
+      await this.tx.run(async () => {
+        await this.users.updatePassword(user.id, newHash, false, nowSec());
+        await this.sessions.deleteOthers(user.id, user.sessionId);
+      });
       await this.audit.write({ actorId: user.id, action: 'account.password.change' });
     } catch (e) {
       if (e instanceof DomainError) throw e;

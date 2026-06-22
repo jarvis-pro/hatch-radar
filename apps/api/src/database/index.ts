@@ -7,6 +7,9 @@
 // 内部基础桶（client + 类型 + 映射 + 生成的 Prisma）；仓储经 ../internal 相对引用，避免自引循环
 export * from './internal';
 
+// 事务上下文（Unit of Work）：服务层经 TxContext.run 组合跨仓储事务
+export * from './tx-context';
+
 // 仓储（领域数据访问层；构造注入 AppDatabase）
 export * from './repositories/audit-logs.repository';
 export * from './repositories/comments.repository';
