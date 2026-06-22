@@ -7,18 +7,20 @@ import {
   InsightsRepository,
   PostsRepository,
   RunsRepository,
-  RuntimeSettingsService,
   SettingsRepository,
   TasksRepository,
   TaskStagesRepository,
 } from '@/lib/db';
-import { AnalysisConfigService, AnalysisService } from '@/lib/analysis';
+import { RuntimeSettingsService } from '@/domain/settings/runtime-settings.service';
 import type { PostProcessor, RawModelOutput } from '@/lib/analysis';
-import type { TranslationService } from '@/lib/analysis';
+import { AnalysisConfigService } from '@/domain/analysis/analysis-config.service';
+import { AnalysisService } from '@/domain/analysis/analysis.service';
+import type { TranslationService } from '@/domain/analysis/translation.service';
 import { INSPECT_STEP_NAMES, type PersistOutput, type ResolveOutput } from '@hatch-radar/shared';
 import { nowSec } from '@/lib/kernel';
-// 通用任务内核（WorkerService.runTask）单进程归一后内嵌 api domain；测试直引其源码 + CollectionExecutor 桩。
+// 通用任务内核（WorkerService.runTask）单进程归一后内嵌 api domain；测试直引其源码 + AnalyzeExecutor / CollectionExecutor 桩。
 import { WorkerService } from '../src/domain/worker/worker.service';
+import { AnalyzeExecutor } from '../src/domain/worker/analyze.executor';
 import type { CollectionExecutor } from '../src/domain/worker/collection.executor';
 import { setupTestDb, truncateAll } from './helpers';
 
@@ -126,17 +128,21 @@ describe('图纸生命周期：通用任务执行内核（runTask + task_stages 
     callRaw: () => Promise<RawModelOutput>,
     translation: TranslationService = {} as unknown as TranslationService,
   ): WorkerService {
+    const analyze = new AnalyzeExecutor(
+      stubConfig(callRaw),
+      new AnalysisService(new InsightsRepository(db)),
+      new CommentsRepository(db),
+      new PostsRepository(db),
+    );
     return new WorkerService(
       tasks,
       taskStages,
       runs,
       new PostsRepository(db),
-      new CommentsRepository(db),
-      new AnalysisService(new InsightsRepository(db)),
-      stubConfig(callRaw),
       translation,
       new RuntimeSettingsService(new SettingsRepository(db)),
       {} as unknown as CollectionExecutor,
+      analyze,
     );
   }
 

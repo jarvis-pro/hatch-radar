@@ -5,17 +5,17 @@ import {
   CommentsRepository,
   InsightsRepository,
   PostsRepository,
-  ProcessesRepository,
   ProvidersRepository,
   RunsRepository,
-  RuntimeSettingsService,
   SettingsRepository,
   TasksRepository,
   TaskStagesRepository,
 } from '@/lib/db';
-import { AnalysisService } from '@/lib/analysis';
-import type { AnalysisConfigService, PostProcessor, RawModelOutput } from '@/lib/analysis';
-import type { TranslationService } from '@/lib/analysis';
+import { RuntimeSettingsService } from '@/domain/settings/runtime-settings.service';
+import type { PostProcessor, RawModelOutput } from '@/lib/analysis';
+import { AnalysisService } from '@/domain/analysis/analysis.service';
+import type { AnalysisConfigService } from '@/domain/analysis/analysis-config.service';
+import type { TranslationService } from '@/domain/analysis/translation.service';
 import type { Dispatcher } from '@/lib/kernel';
 import { nowSec } from '@/lib/kernel';
 import {
@@ -27,9 +27,10 @@ import {
   type PersistOutput,
   type ResolveOutput,
 } from '@hatch-radar/shared';
-import { PipelineService } from '@/domain';
-// 任务执行内核（WorkerService.runTask）单进程归一后内嵌 api domain；测试直引其源码 + CollectionExecutor 桩。
+import { TaskControlService } from '@/domain';
+// 任务执行内核（WorkerService.runTask）单进程归一后内嵌 api domain；测试直引其源码 + AnalyzeExecutor / CollectionExecutor 桩。
 import { WorkerService } from '../src/domain/worker/worker.service';
+import { AnalyzeExecutor } from '../src/domain/worker/analyze.executor';
 import type { CollectionExecutor } from '../src/domain/worker/collection.executor';
 import { setupTestDb, truncateAll } from './helpers';
 
@@ -155,20 +156,24 @@ describe('流水线检视器：执行内核（runTask 闸门状态机）', () =>
     return res.taskId;
   }
 
-  /** 用桩 config 构造 WorkerService（其余仓储真连 db）。 */
+  /** 用桩 config 构造 WorkerService（analyze 节点经 AnalyzeExecutor，其余仓储真连 db）。 */
   function makeWorker(callRaw: () => Promise<RawModelOutput>): WorkerService {
     const settings = new SettingsRepository(db);
+    const analyze = new AnalyzeExecutor(
+      stubConfig(callRaw),
+      new AnalysisService(new InsightsRepository(db)),
+      new CommentsRepository(db),
+      new PostsRepository(db),
+    );
     return new WorkerService(
       tasks,
       taskStages,
       new RunsRepository(db),
       new PostsRepository(db),
-      new CommentsRepository(db),
-      new AnalysisService(new InsightsRepository(db)),
-      stubConfig(callRaw),
       {} as unknown as TranslationService,
       new RuntimeSettingsService(settings),
       {} as unknown as CollectionExecutor,
+      analyze,
     );
   }
 
@@ -310,15 +315,15 @@ describe('流水线检视器：执行内核（runTask 闸门状态机）', () =>
 });
 
 /**
- * 检视器 API 编排（PipelineService）：发起 / 视图组装 / 放行·运行到底·重试·取消的状态流转与派发触发。
- * 用计数 Dispatcher 验证「写操作后触发一次派发」，其余仓储真连 PG（取代旧 AnalysisConfigService 编排）。
+ * 检视器 API 编排（TaskControlService）：发起 / 视图组装 / 放行·运行到底·重试·取消的状态流转与派发触发。
+ * 用计数 Dispatcher 验证「写操作后触发一次派发」，其余仓储真连 PG（从 PipelineService 抽出的逐环节交互）。
  */
-describe('流水线检视器：PipelineService 编排（API 层）', () => {
+describe('流水线检视器：TaskControlService 编排（API 层）', () => {
   let handle: DbHandle;
   let db: AppDatabase;
   let tasks: TasksRepository;
   let taskStages: TaskStagesRepository;
-  let svc: PipelineService;
+  let svc: TaskControlService;
   let dispatchCount = 0;
 
   beforeAll(() => {
@@ -332,16 +337,13 @@ describe('流水线检视器：PipelineService 编排（API 层）', () => {
         return Promise.resolve();
       },
     };
-    svc = new PipelineService(
+    svc = new TaskControlService(
       new BlueprintsRepository(db),
       new RunsRepository(db),
       tasks,
       taskStages,
       new PostsRepository(db),
-      {} as unknown as AnalysisConfigService,
-      {} as unknown as RuntimeSettingsService,
       new ProvidersRepository(db),
-      new ProcessesRepository(db),
       gateway,
     );
   });
@@ -386,11 +388,9 @@ describe('流水线检视器：PipelineService 编排（API 层）', () => {
   it('enqueueInspect：校验模型 → 建 analyze 任务 + 6 环节（挂闸门）→ 触发派发', async () => {
     await seedPost();
     const providerId = await seedProvider();
-    const res = await svc.enqueueInspect('p1', providerId, true);
-    expect(res.ok).toBe(true);
-    if (!res.ok) return;
+    const { taskId } = await svc.enqueueInspect('p1', providerId, true);
     expect(dispatchCount).toBe(1);
-    const view = await svc.getInspectView(res.taskId);
+    const view = await svc.getInspectView(taskId);
     expect(view).not.toBeNull();
     expect(view!.status).toBe('queued');
     expect(view!.stepGate).toBe(true);
@@ -399,10 +399,9 @@ describe('流水线检视器：PipelineService 编排（API 层）', () => {
     expect(view!.steps.every((s) => s.status === 'pending')).toBe(true);
   });
 
-  it('enqueueInspect：模型不存在 → ok=false 且不派发', async () => {
+  it('enqueueInspect：模型不存在 → 抛 DomainError 且不派发', async () => {
     await seedPost();
-    const res = await svc.enqueueInspect('p1', 9999, true);
-    expect(res.ok).toBe(false);
+    await expect(svc.enqueueInspect('p1', 9999, true)).rejects.toThrow('模型配置不存在');
     expect(dispatchCount).toBe(0);
   });
 
@@ -413,50 +412,45 @@ describe('流水线检视器：PipelineService 编排（API 层）', () => {
   it('resumeInspect / cancelInspect：经服务流转状态并触发派发', async () => {
     await seedPost();
     const providerId = await seedProvider();
-    const res = await svc.enqueueInspect('p1', providerId, true);
-    if (!res.ok) throw new Error('创建失败');
+    const { taskId } = await svc.enqueueInspect('p1', providerId, true);
     await tasks.claimNextTask(nowSec()); // →running
-    await tasks.pauseTask(res.taskId); // →paused
+    await tasks.pauseTask(taskId); // →paused
     dispatchCount = 0;
 
-    expect(await svc.resumeInspect(res.taskId)).toBe(true);
+    expect(await svc.resumeInspect(taskId)).toBe(true);
     expect(dispatchCount).toBe(1);
-    expect((await tasks.getTask(res.taskId))!.status).toBe('queued');
+    expect((await tasks.getTask(taskId))!.status).toBe('queued');
 
-    expect(await svc.cancelInspect(res.taskId)).toBe(true);
-    expect((await tasks.getTask(res.taskId))!.status).toBe('canceled');
+    expect(await svc.cancelInspect(taskId)).toBe(true);
+    expect((await tasks.getTask(taskId))!.status).toBe('canceled');
   });
 
   it('runInspectToEnd：清除全部环节闸门并放行（暂停→queued）', async () => {
     await seedPost();
     const providerId = await seedProvider();
-    const res = await svc.enqueueInspect('p1', providerId, true);
-    if (!res.ok) throw new Error('创建失败');
+    const { taskId } = await svc.enqueueInspect('p1', providerId, true);
     await tasks.claimNextTask(nowSec()); // →running
-    await tasks.pauseTask(res.taskId); // →paused
+    await tasks.pauseTask(taskId); // →paused
     dispatchCount = 0;
 
-    await svc.runInspectToEnd(res.taskId);
+    await svc.runInspectToEnd(taskId);
     expect(dispatchCount).toBe(1);
-    expect((await tasks.getTask(res.taskId))!.status).toBe('queued');
-    const stages = await taskStages.listStages(res.taskId);
+    expect((await tasks.getTask(taskId))!.status).toBe('queued');
+    const stages = await taskStages.listStages(taskId);
     expect(stages.every((s) => !s.gate)).toBe(true);
   });
 
   it('retryInspectStep：失败任务复位失败环节 + 重排 queued + 派发', async () => {
     await seedPost();
     const providerId = await seedProvider();
-    const res = await svc.enqueueInspect('p1', providerId, false);
-    if (!res.ok) throw new Error('创建失败');
-    const taskId = res.taskId;
+    const { taskId } = await svc.enqueueInspect('p1', providerId, false);
     await tasks.claimNextTask(nowSec()); // →running
     await tasks.setCurrentSeq(taskId, 3); // 当前停在 ai_call
     await taskStages.markStageFailed(taskId, 3, 'boom', nowSec());
     await tasks.failTask(taskId, 'boom', nowSec());
     dispatchCount = 0;
 
-    const r = await svc.retryInspectStep(taskId);
-    expect(r.ok).toBe(true);
+    await svc.retryInspectStep(taskId);
     expect(dispatchCount).toBe(1);
     expect((await tasks.getTask(taskId))!.status).toBe('queued');
     const stages = await taskStages.listStages(taskId);

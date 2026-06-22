@@ -4,25 +4,17 @@ import {
   BlueprintsRepository,
   PostsRepository,
   ProcessesRepository,
-  ProvidersRepository,
   RunsRepository,
-  RuntimeSettingsService,
   TasksRepository,
-  TaskStagesRepository,
   type BlueprintRow,
   type ProcessRow,
 } from '@/lib/db';
 import { CronExpressionParser } from 'cron-parser';
-import { AnalysisConfigService } from '@/lib/analysis';
+import { RuntimeSettingsService } from '../settings/runtime-settings.service';
+import { AnalysisConfigService } from '../analysis/analysis-config.service';
 import type { Dispatcher } from '@/lib/kernel';
 import { logger, nowSec } from '@/lib/kernel';
-import {
-  buildStages,
-  INSPECT_STEP_NAMES,
-  type InspectJobView,
-  type InspectStepView,
-  type StageRecipe,
-} from '@hatch-radar/shared';
+import { buildStages, type StageRecipe } from '@hatch-radar/shared';
 
 /** analyze 任务的环节模板（= 检视器 6 节点；无闸门→worker 一口气运行到底）。 */
 const ANALYZE_STAGES = buildStages('analyze');
@@ -83,11 +75,9 @@ export class PipelineService {
     private readonly blueprints: BlueprintsRepository,
     private readonly runs: RunsRepository,
     private readonly tasks: TasksRepository,
-    private readonly taskStages: TaskStagesRepository,
     private readonly posts: PostsRepository,
     private readonly analysisConfig: AnalysisConfigService,
     private readonly runtimeSettings: RuntimeSettingsService,
-    private readonly providers: ProvidersRepository,
     private readonly processes: ProcessesRepository,
     @Inject(LocalDispatcher) private readonly dispatcher?: Dispatcher,
   ) {}
@@ -122,26 +112,24 @@ export class PipelineService {
     );
 
     let created = 0;
-    for (const p of posts) {
-      const res = await this.tasks.createTaskWithStages(
-        {
-          runId: run.id,
-          kind: 'analyze',
-          postId: p.id,
-          providerId: active.id,
-          model: active.model,
-        },
-        ANALYZE_STAGES,
-        nowSec(),
-      );
-      if (res.ok) created += 1;
-    }
-    await this.runs.incrementCounters(run.id, { total: created });
-    // sweep run = 一次派生批次：派生即收尾（各 task 异步执行、完成时各自累加 run 计数）。
-    await this.runs.finishRun(run.id, 'completed', nowSec());
-    if (created > 0) {
-      void this.dispatcher?.tryDispatch();
-      logger.info(`[pipeline] analyze 进程#${run.id} 派生 ${created} 个分析任务`);
+    try {
+      const inputs = posts.map((p) => ({
+        runId: run.id,
+        kind: 'analyze',
+        postId: p.id,
+        providerId: active.id,
+        model: active.model,
+      }));
+      ({ created } = await this.tasks.createTasksBatchSameStages(inputs, ANALYZE_STAGES, nowSec()));
+    } finally {
+      // 收尾恒执行：即使派生循环中途抛错，也要让 sweep run 落终态——否则无任务的 run 会永久 running
+      // （finalizeRunningRuns 对 total===0 的 run 不收尾）。sweep run = 派生批次，派生即 completed。
+      await this.runs.incrementCounters(run.id, { total: created });
+      await this.runs.finishRun(run.id, 'completed', nowSec());
+      if (created > 0) {
+        void this.dispatcher?.tryDispatch();
+        logger.info(`[pipeline] analyze 进程#${run.id} 派生 ${created} 个分析任务`);
+      }
     }
     return { active, runId: run.id, created, pending: posts.length };
   }
@@ -173,9 +161,14 @@ export class PipelineService {
       buildStages('discover', recipe),
       nowSec(),
     );
-    if (res.ok) await this.runs.incrementCounters(run.id, { total: 1 });
-    void this.dispatcher?.tryDispatch();
-    logger.info(`[pipeline] collect 运行#${run.id} 已创建 discover 任务`);
+    if (res.ok) {
+      await this.runs.incrementCounters(run.id, { total: 1 });
+      void this.dispatcher?.tryDispatch();
+      logger.info(`[pipeline] collect 运行#${run.id} 已创建 discover 任务`);
+    } else {
+      // discover 被去重（已有活跃任务）：本运行无任务，即时收尾免留永久 running（finalize 不收尾空 run）。
+      await this.runs.finishRun(run.id, 'completed', nowSec());
+    }
     return { runId: run.id };
   }
 
@@ -211,28 +204,31 @@ export class PipelineService {
     );
     const posts = await this.posts.getPostsToRecheck(sweep, RECHECK_BATCH);
     let created = 0;
-    for (const p of posts) {
-      const res = await this.tasks.createTaskWithStages(
-        {
-          runId: run.id,
-          processId: process?.id ?? null,
-          kind: 'recheck',
-          postId: p.id,
-          params: { sweep },
-        },
+    try {
+      const inputs = posts.map((p) => ({
+        runId: run.id,
+        processId: process?.id ?? null,
+        kind: 'recheck',
+        postId: p.id,
+        params: { sweep },
+      }));
+      ({ created } = await this.tasks.createTasksBatchSameStages(
+        inputs,
         buildStages('recheck', recipe),
         nowSec(),
-      );
-      if (res.ok) created += 1;
-    }
-    await this.runs.incrementCounters(run.id, { total: created });
-    // 空轮（无到期帖）即时完成；非空运行交 finalizeRunningRuns 在任务全终结后收尾（驱动进程重排）。
-    if (created === 0) await this.runs.finishRun(run.id, 'completed', nowSec());
-    else void this.dispatcher?.tryDispatch();
-    if (created > 0) {
-      logger.info(
-        `[pipeline] recheck sweep#${sweep} 运行#${run.id} 派生 ${created} 复查任务（${posts.length} 到期）`,
-      );
+      ));
+    } finally {
+      // 收尾恒执行：派生循环抛错时，空轮（created===0）必须即时收尾，否则无任务的 run 永久 running
+      // （finalizeRunningRuns 对 total===0 不收尾）；非空运行交 finalizeRunningRuns 在任务全终结后收尾。
+      await this.runs.incrementCounters(run.id, { total: created });
+      if (created === 0) {
+        await this.runs.finishRun(run.id, 'completed', nowSec());
+      } else {
+        void this.dispatcher?.tryDispatch();
+        logger.info(
+          `[pipeline] recheck sweep#${sweep} 运行#${run.id} 派生 ${created} 复查任务（${posts.length} 到期）`,
+        );
+      }
     }
     return { runId: run.id, sweep, due: posts.length };
   }
@@ -244,7 +240,14 @@ export class PipelineService {
     const due = await this.processes.listDue(nowSec());
     for (const process of due) {
       if (await this.runs.hasRunningRunForProcess(process.id)) continue;
-      await this.fireProcess(process);
+      // 单个进程触发失败不应中断整轮——隔离记错，余下到期进程照常触发。
+      try {
+        await this.fireProcess(process);
+      } catch (e) {
+        logger.error(
+          `[scheduler] 进程#${process.id} 触发失败：${e instanceof Error ? e.message : String(e)}`,
+        );
+      }
     }
   }
 
@@ -255,36 +258,47 @@ export class PipelineService {
       logger.warn(`[scheduler] 进程#${process.id} 绑定图纸缺失，跳过`);
       return;
     }
-    const src = triggerSource ?? (process.trigger_kind === 'cron' ? 'cron' : 'interval');
-    if (bp.kind === 'collect') await this.runCollectSweep(src, process);
-    else if (bp.kind === 'recheck') await this.runRecheckSweep(src, process);
-    else {
+    if (bp.kind !== 'collect' && bp.kind !== 'recheck') {
       logger.warn(`[scheduler] 进程#${process.id} 图纸 kind=${bp.kind} 不可调度，跳过`);
       return;
     }
-    // 记账：runs_total++ / last_run_at / next_run_at=null（防本次运行完成前被重复触发）
-    await this.processes.markFired(process.id, nowSec());
-    // 空轮已收尾（进程无 running run）→ 立即重排；非空运行仍在跑 → 交 finalizeRunningRuns 完成后重排。
-    if (!(await this.runs.hasRunningRunForProcess(process.id))) await this.scheduleNext(process);
+    const src = triggerSource ?? (process.trigger_kind === 'cron' ? 'cron' : 'interval');
+    try {
+      if (bp.kind === 'collect') await this.runCollectSweep(src, process);
+      else await this.runRecheckSweep(src, process);
+    } finally {
+      // 记账恒执行：即使 sweep 抛错，也要 markFired + 重排——否则 next_run_at 停在过去，该进程会被
+      // 反复当作到期触发，或被 hasRunningRunForProcess 永久挡住从此卡死。
+      await this.processes.markFired(process.id, nowSec());
+      // 空轮已收尾（进程无 running run）→ 立即重排；非空运行仍在跑 → 交 finalizeRunningRuns 完成后重排。
+      if (!(await this.runs.hasRunningRunForProcess(process.id))) await this.scheduleNext(process);
+    }
   }
 
   /** 收尾所有任务已全部终结的运行（completed / failed），并为其进程重排下一轮。 */
   async finalizeRunningRuns(): Promise<void> {
     const running = await this.runs.listRunningRuns();
     for (const run of running) {
-      const counts = await this.tasks.countByRun(run.id);
-      // 仍有未终结任务（含 paused 闸门停等）或运行暂无任务 → 继续等下一轮心跳
-      if (counts.total === 0 || counts.active > 0) continue;
-      const status = counts.failed > 0 ? 'failed' : 'completed';
-      await this.runs.finishRun(
-        run.id,
-        status,
-        nowSec(),
-        status === 'failed' ? '部分任务失败（见任务树）' : null,
-      );
-      if (run.process_id != null) {
-        const proc = await this.processes.getProcess(run.process_id);
-        if (proc) await this.scheduleNext(proc);
+      try {
+        const counts = await this.tasks.countByRun(run.id);
+        // 仍有未终结任务（含 paused 闸门停等）或运行暂无任务 → 继续等下一轮心跳
+        if (counts.total === 0 || counts.active > 0) continue;
+        const status = counts.failed > 0 ? 'failed' : 'completed';
+        await this.runs.finishRun(
+          run.id,
+          status,
+          nowSec(),
+          status === 'failed' ? '部分任务失败（见任务树）' : null,
+        );
+        if (run.process_id != null) {
+          const proc = await this.processes.getProcess(run.process_id);
+          if (proc) await this.scheduleNext(proc);
+        }
+      } catch (e) {
+        // 单个 run 收尾失败不阻断其余 run（下一轮心跳重试本 run）。
+        logger.error(
+          `[scheduler] 运行#${run.id} 收尾失败：${e instanceof Error ? e.message : String(e)}`,
+        );
       }
     }
   }
@@ -319,136 +333,25 @@ export class PipelineService {
       nowSec(),
     );
     let enqueued = 0;
-    for (const id of [...new Set(postIds)]) {
-      const res = await this.tasks.createTaskWithStages(
-        { runId: run.id, kind: 'translate', postId: id, providerId, model },
+    try {
+      const inputs = [...new Set(postIds)].map((id) => ({
+        runId: run.id,
+        kind: 'translate',
+        postId: id,
+        providerId,
+        model,
+      }));
+      ({ created: enqueued } = await this.tasks.createTasksBatchSameStages(
+        inputs,
         buildStages('translate'),
         nowSec(),
-      );
-      if (res.ok) enqueued += 1;
-    }
-    await this.runs.incrementCounters(run.id, { total: enqueued });
-    await this.runs.finishRun(run.id, 'completed', nowSec());
-    if (enqueued > 0) void this.dispatcher?.tryDispatch();
-    return { enqueued };
-  }
-
-  // ─── 流水线检视器（单条手动 / 逐环节暂停）──────────────────────────────────────────
-  // 检视 = 带闸门的 analyze 任务：复用 tasks/task_stages 同一执行内核（worker 逐环节落检查点、
-  // 遇闸门置 paused）。取代旧 analysis_jobs(inspect=true) 专路；视图沿用 InspectJobView 契约。
-
-  /**
-   * 发起检视任务：建 analyze 任务（检视器 6 环节）；stepGate=true 时每环节挂闸门（逐环节暂停），
-   * false 则运行到底＋留痕。该帖已有活跃 analyze 任务时由 createTaskWithStages 去重拒绝。
-   */
-  async enqueueInspect(
-    postId: string,
-    providerId: number,
-    stepGate: boolean,
-  ): Promise<{ ok: true; taskId: number } | { ok: false; error: string }> {
-    const provider = await this.providers.getProvider(providerId);
-    if (!provider) return { ok: false, error: '模型配置不存在' };
-    if (!provider.enabled) return { ok: false, error: '该模型已停用' };
-    const post = await this.posts.getPostById(postId);
-    if (!post) return { ok: false, error: '帖子不存在' };
-
-    const bp = await this.ensureBlueprint('analyze', '自动分析');
-    const run = await this.runs.createRun(
-      {
-        blueprintId: bp.id,
-        kind: 'analyze',
-        triggerSource: 'inspect',
-        params: { providerId, model: provider.model },
-      },
-      nowSec(),
-    );
-    const stages = INSPECT_STEP_NAMES.map((name) => ({ name, gate: stepGate }));
-    const res = await this.tasks.createTaskWithStages(
-      { runId: run.id, kind: 'analyze', postId, providerId, model: provider.model },
-      stages,
-      nowSec(),
-    );
-    if (!res.ok) {
+      ));
+    } finally {
+      // 收尾恒执行（同 analyze sweep）：派生抛错也让 run 落终态，免空 run 永久 running。
+      await this.runs.incrementCounters(run.id, { total: enqueued });
       await this.runs.finishRun(run.id, 'completed', nowSec());
-      return { ok: false, error: res.error };
+      if (enqueued > 0) void this.dispatcher?.tryDispatch();
     }
-    await this.runs.incrementCounters(run.id, { total: 1 });
-    await this.runs.finishRun(run.id, 'completed', nowSec());
-    void this.dispatcher?.tryDispatch();
-    return { ok: true, taskId: res.taskId };
-  }
-
-  /** 取检视任务视图：任务元信息 + 各环节轨迹（InspectJobView 形状，时间戳 number、output 已解析）。 */
-  async getInspectView(taskId: number): Promise<InspectJobView | null> {
-    const task = await this.tasks.getTask(taskId);
-    if (!task) return null;
-    const [stages, post, provider] = await Promise.all([
-      this.taskStages.listStages(taskId),
-      task.post_id != null ? this.posts.getPostById(task.post_id) : Promise.resolve(null),
-      task.provider_id != null
-        ? this.providers.getProvider(task.provider_id)
-        : Promise.resolve(null),
-    ]);
-    const steps: InspectStepView[] = stages.map((s) => ({
-      seq: s.seq,
-      name: s.name,
-      status: s.status,
-      inputSummary: s.input_summary ?? null,
-      output: s.output ?? null,
-      error: s.error,
-      startedAt: s.started_at,
-      finishedAt: s.finished_at,
-    }));
-    return {
-      id: task.id,
-      postId: task.post_id ?? '',
-      postTitle: post?.title ?? null,
-      model: task.model ?? '',
-      provider: provider?.provider ?? null,
-      status: task.status,
-      // 仍有未清的闸门即「逐节点暂停」模式（「运行到底」清闸后转 false、隐藏该按钮）
-      stepGate: stages.some((s) => s.gate),
-      trigger: 'inspect',
-      error: task.error,
-      enqueuedAt: task.enqueued_at,
-      startedAt: task.started_at,
-      finishedAt: task.finished_at,
-      steps,
-    };
-  }
-
-  /** 放行下一环节：paused→queued + 派发。返回 false = 当前并非暂停态。 */
-  async resumeInspect(taskId: number): Promise<boolean> {
-    const ok = await this.tasks.resumeTask(taskId);
-    if (ok) void this.dispatcher?.tryDispatch();
-    return ok;
-  }
-
-  /** 运行到底：清除全部环节闸门、若暂停则放行；worker 回读已清的闸门后连续跑完剩余环节（仍留轨迹）。 */
-  async runInspectToEnd(taskId: number): Promise<void> {
-    await this.taskStages.clearGates(taskId);
-    await this.tasks.resumeTask(taskId); // 暂停则放行；运行中为 no-op（worker 自会回读清掉的闸门续跑）
-    void this.dispatcher?.tryDispatch();
-  }
-
-  /** 重试当前失败环节：失败环节复位 pending、任务 failed→queued + 派发。返回 ok=false = 当前不可重试。 */
-  async retryInspectStep(taskId: number): Promise<{ ok: boolean; error?: string }> {
-    const task = await this.tasks.getTask(taskId);
-    if (!task) return { ok: false, error: '任务不存在' };
-    if (task.status !== 'failed') return { ok: false, error: '当前不可重试（任务并非失败态）' };
-    await this.taskStages.resetStageToPending(taskId, task.current_seq);
-    const ok = await this.tasks.requeueFailedTask(taskId);
-    if (ok) void this.dispatcher?.tryDispatch();
-    return { ok };
-  }
-
-  /** 取消检视任务：活跃态（queued/running/paused）→ canceled。返回 false = 当前已是终态。 */
-  async cancelInspect(taskId: number): Promise<boolean> {
-    return this.tasks.cancelTask(taskId, nowSec());
-  }
-
-  /** 运行前挂 / 摘某环节暂停点（仅 pending 环节可改）。返回是否生效。 */
-  async toggleStageGate(taskId: number, seq: number, gate: boolean): Promise<boolean> {
-    return this.taskStages.setStageGate(taskId, seq, gate);
+    return { enqueued };
   }
 }

@@ -4,13 +4,11 @@ import {
   BlueprintsRepository,
   PostsRepository,
   ProcessesRepository,
-  ProvidersRepository,
   RunsRepository,
-  RuntimeSettingsService,
   TasksRepository,
-  TaskStagesRepository,
 } from '@/lib/db';
-import type { AnalysisConfigService } from '@/lib/analysis';
+import { RuntimeSettingsService } from '@/domain/settings/runtime-settings.service';
+import type { AnalysisConfigService } from '@/domain/analysis/analysis-config.service';
 import type { Dispatcher } from '@/lib/kernel';
 import { nowSec } from '@/lib/kernel';
 import { PipelineService } from '@/domain';
@@ -42,11 +40,9 @@ describe('进程调度（ProcessScheduler：fire / finalize / 重排）', () => 
       blueprints,
       runs,
       tasks,
-      new TaskStagesRepository(db),
       new PostsRepository(db),
       {} as unknown as AnalysisConfigService,
       {} as unknown as RuntimeSettingsService,
-      new ProvidersRepository(db),
       processes,
       gateway,
     );

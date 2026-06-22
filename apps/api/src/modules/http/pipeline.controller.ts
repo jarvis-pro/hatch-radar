@@ -11,7 +11,7 @@ import {
 } from '@nestjs/common';
 import { RequirePermission } from '@/modules/account/auth-user.decorator';
 import { SessionAuthGuard } from '@/modules/account/session-auth.guard';
-import { PipelineQueryService, PipelineService } from '@/domain';
+import { PipelineQueryService, PipelineService, TaskControlService } from '@/domain';
 import { logger } from '@/logger';
 
 function parseId(raw: string): number {
@@ -23,8 +23,8 @@ function parseId(raw: string): number {
 /**
  * /api/pipeline/* —— 图纸生命周期的「进程 / 任务」只读视图 + 触发 + 逐环节闸门控制（鉴权 analyze:run）。
  *
- * 只读视图（runs / runs/:id / inflight）委托 {@link PipelineQueryService}；
- * 触发与逐环节闸门控制委托 {@link PipelineService}（与 /api/analysis/inspect/* 共用同一组方法）。
+ * 只读视图（runs / runs/:id / inflight）委托 {@link PipelineQueryService}；触发（collect / recheck）委托
+ * {@link PipelineService}；逐环节闸门控制委托 {@link TaskControlService}（与 /api/analysis/inspect/* 共用同一组方法）。
  */
 @UseGuards(SessionAuthGuard)
 @RequirePermission('analyze:run')
@@ -32,6 +32,7 @@ function parseId(raw: string): number {
 export class PipelineController {
   constructor(
     private readonly pipeline: PipelineService,
+    private readonly taskControl: TaskControlService,
     private readonly query: PipelineQueryService,
   ) {}
 
@@ -73,13 +74,13 @@ export class PipelineController {
     return res;
   }
 
-  // ─── 逐环节闸门控制（任意 kind 通用；与 /api/analysis/inspect/* 共用 PipelineService 同一组方法）──
+  // ─── 逐环节闸门控制（任意 kind 通用；与 /api/analysis/inspect/* 共用 TaskControlService 同一组方法）──
 
   /** 放行暂停中的任务（静停于闸门→续跑）：paused→queued + 派发。 */
   @Post('tasks/:id/resume')
   @HttpCode(200)
   async resumeTask(@Param('id') idRaw: string) {
-    const ok = await this.pipeline.resumeInspect(parseId(idRaw));
+    const ok = await this.taskControl.resumeInspect(parseId(idRaw));
     if (!ok) throw new BadRequestException('当前不可放行（任务并非暂停态）');
     return { ok: true };
   }
@@ -88,16 +89,15 @@ export class PipelineController {
   @Post('tasks/:id/run-to-end')
   @HttpCode(200)
   async runTaskToEnd(@Param('id') idRaw: string) {
-    await this.pipeline.runInspectToEnd(parseId(idRaw));
+    await this.taskControl.runInspectToEnd(parseId(idRaw));
     return { ok: true };
   }
 
-  /** 重试当前失败环节：复位失败环节 + 任务 failed→queued + 派发。 */
+  /** 重试当前失败环节：复位失败环节 + 任务 failed→queued + 派发。不可重试时 400（服务抛 DomainError）。 */
   @Post('tasks/:id/retry')
   @HttpCode(200)
   async retryTask(@Param('id') idRaw: string) {
-    const res = await this.pipeline.retryInspectStep(parseId(idRaw));
-    if (!res.ok) throw new BadRequestException(res.error ?? '当前不可重试');
+    await this.taskControl.retryInspectStep(parseId(idRaw));
     return { ok: true };
   }
 
@@ -105,7 +105,7 @@ export class PipelineController {
   @Post('tasks/:id/cancel')
   @HttpCode(200)
   async cancelTask(@Param('id') idRaw: string) {
-    const ok = await this.pipeline.cancelInspect(parseId(idRaw));
+    const ok = await this.taskControl.cancelInspect(parseId(idRaw));
     if (!ok) throw new BadRequestException('当前不可取消（任务已是终态）');
     return { ok: true };
   }
@@ -120,7 +120,7 @@ export class PipelineController {
   ) {
     const seq = Number(seqRaw);
     if (!Number.isInteger(seq) || seq < 0) throw new BadRequestException('seq 非法');
-    const ok = await this.pipeline.toggleStageGate(parseId(idRaw), seq, body.gate === true);
+    const ok = await this.taskControl.toggleStageGate(parseId(idRaw), seq, body.gate === true);
     if (!ok) throw new BadRequestException('当前不可设置暂停点（环节非待执行）');
     return { ok: true };
   }

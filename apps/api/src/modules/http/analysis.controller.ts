@@ -14,7 +14,7 @@ import { RequirePermission } from '@/modules/account/auth-user.decorator';
 import { SessionAuthGuard } from '@/modules/account/session-auth.guard';
 import { ZodValidationPipe } from '@/common/zod-validation.pipe';
 import { ProvidersRepository, SettingsRepository } from '@/lib/db';
-import { PipelineService } from '@/domain';
+import { TaskControlService } from '@/domain';
 import { logger } from '@/logger';
 
 const inspectSchema = z.object({
@@ -47,7 +47,7 @@ function parseJobId(raw: string): number {
 @Controller('analysis')
 export class AnalysisController {
   constructor(
-    private readonly pipeline: PipelineService,
+    private readonly taskControl: TaskControlService,
     private readonly providers: ProvidersRepository,
     private readonly settings: SettingsRepository,
   ) {}
@@ -64,22 +64,25 @@ export class AnalysisController {
 
   // ─── 流水线检视器 ─────────────────────────────────────────────────────────────────
 
-  /** 发起检视任务：建 inspect job + 6 个 pending 节点 + 派发。该帖已有活跃分析任务时 400。 */
+  /** 发起检视任务：建 inspect job + 6 个 pending 节点 + 派发。该帖已有活跃分析任务时 400（服务抛 DomainError）。 */
   @Post('inspect')
   @HttpCode(200)
   async inspect(@Body(new ZodValidationPipe(inspectSchema)) dto: z.infer<typeof inspectSchema>) {
-    const res = await this.pipeline.enqueueInspect(dto.postId, dto.providerId, dto.stepGate);
-    if (!res.ok) throw new BadRequestException(res.error);
-    logger.info(
-      `[检视] 发起 task#${res.taskId}（post=${dto.postId} provider#${dto.providerId} gate=${dto.stepGate}）`,
+    const { taskId } = await this.taskControl.enqueueInspect(
+      dto.postId,
+      dto.providerId,
+      dto.stepGate,
     );
-    return { jobId: res.taskId };
+    logger.info(
+      `[检视] 发起 task#${taskId}（post=${dto.postId} provider#${dto.providerId} gate=${dto.stepGate}）`,
+    );
+    return { jobId: taskId };
   }
 
   /** 取检视任务视图（任务 + 6 节点轨迹，含产物）。前端轮询此端点。 */
   @Get('inspect/:jobId')
   async inspectView(@Param('jobId') jobIdRaw: string) {
-    const view = await this.pipeline.getInspectView(parseJobId(jobIdRaw));
+    const view = await this.taskControl.getInspectView(parseJobId(jobIdRaw));
     if (!view) throw new NotFoundException('检视任务不存在');
     return view;
   }
@@ -88,7 +91,7 @@ export class AnalysisController {
   @Post('inspect/:jobId/resume')
   @HttpCode(200)
   async inspectResume(@Param('jobId') jobIdRaw: string) {
-    const ok = await this.pipeline.resumeInspect(parseJobId(jobIdRaw));
+    const ok = await this.taskControl.resumeInspect(parseJobId(jobIdRaw));
     if (!ok) throw new BadRequestException('当前不可放行（任务并非暂停态）');
     return { ok: true };
   }
@@ -97,16 +100,15 @@ export class AnalysisController {
   @Post('inspect/:jobId/run-to-end')
   @HttpCode(200)
   async inspectRunToEnd(@Param('jobId') jobIdRaw: string) {
-    await this.pipeline.runInspectToEnd(parseJobId(jobIdRaw));
+    await this.taskControl.runInspectToEnd(parseJobId(jobIdRaw));
     return { ok: true };
   }
 
-  /** 重试当前失败节点：复位该 step 回 pending、job failed→queued + 派发。 */
+  /** 重试当前失败节点：复位该 step 回 pending、job failed→queued + 派发。不可重试时 400（服务抛 DomainError）。 */
   @Post('inspect/:jobId/retry-step')
   @HttpCode(200)
   async inspectRetryStep(@Param('jobId') jobIdRaw: string) {
-    const res = await this.pipeline.retryInspectStep(parseJobId(jobIdRaw));
-    if (!res.ok) throw new BadRequestException(res.error);
+    await this.taskControl.retryInspectStep(parseJobId(jobIdRaw));
     return { ok: true };
   }
 
@@ -114,7 +116,7 @@ export class AnalysisController {
   @Post('inspect/:jobId/cancel')
   @HttpCode(200)
   async inspectCancel(@Param('jobId') jobIdRaw: string) {
-    const ok = await this.pipeline.cancelInspect(parseJobId(jobIdRaw));
+    const ok = await this.taskControl.cancelInspect(parseJobId(jobIdRaw));
     if (!ok) throw new BadRequestException('当前不可取消（任务已是终态）');
     return { ok: true };
   }
