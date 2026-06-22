@@ -7,7 +7,8 @@ import { getMeta, setMeta } from '../db/schema';
 /**
  * 设备身份：Ed25519 密钥对 + 激活码换凭据 + 请求签名（对应 server DeviceAuthService）。
  *
- * - 私钥本地生成、永不外传；签名 `${credentialId}.${ts}.${METHOD}.${path}` 防重放（服务端 60s 时间窗）。
+ * - 私钥本地生成、永不外传；签名 `${credentialId}.${ts}.${METHOD}.${path}.${sha256(body)}`（覆盖请求体）
+ *   防篡改 + 重放（服务端 60s 时间窗 + 已用签名缓存）。
  * - 私钥存 expo-secure-store（Keychain/Keystore 安全区）、永不外传；公钥与凭据 id 非敏感留本地 meta。
  */
 
@@ -97,15 +98,23 @@ export function resetEnrollment(): void {
 
 /**
  * 为一次请求构造设备签名头；未激活返回空对象（请求将以匿名发出，由服务端拒绝）。
+ * 签名覆盖请求体哈希，与服务端 canonical 一致：`${id}.${ts}.${METHOD}.${path}.${sha256(body)}`。
  * @param method HTTP 方法（须与服务端 req.method 一致）
  * @param path 请求路径（去查询串后与服务端 req.path 一致）
+ * @param body 请求体原文（须与 fetch 实际发送的字节一致；无 body 传空串）
  */
-export function buildDeviceHeaders(method: string, path: string): Record<string, string> {
+export async function buildDeviceHeaders(
+  method: string,
+  path: string,
+  body = '',
+): Promise<Record<string, string>> {
   const credentialId = getCredentialId();
   if (!credentialId) return {};
   const { secretKey } = getOrCreateKeyPair();
   const ts = Math.floor(Date.now() / 1000);
-  const canonical = `${credentialId}.${ts}.${method.toUpperCase()}.${path.split('?')[0]}`;
+  // body 哈希纳入签名：与服务端按 req.rawBody 算的 sha256 hex 对齐，防「换 body 重放」。
+  const bodyHash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, body);
+  const canonical = `${credentialId}.${ts}.${method.toUpperCase()}.${path.split('?')[0]}.${bodyHash}`;
   const sig = nacl.sign.detached(naclUtil.decodeUTF8(canonical), secretKey);
   return {
     'x-device-id': credentialId,

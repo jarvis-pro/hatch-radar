@@ -33,6 +33,18 @@ const apiEnvSchema = z.preprocess(
       /** 首个超级管理员种子（仅空库时创建；幂等）；不设则跳过种子 */
       SUPER_ADMIN_EMAIL: z.string().trim().toLowerCase().optional(),
       SUPER_ADMIN_PASSWORD: z.string().min(8).optional(),
+
+      /**
+       * 跨源放行白名单（逗号分隔 origin）：web SPA 与 api 不同源部署时必填，否则浏览器不带凭据 /
+       * 预检被拒。留空＝不开 CORS（同源 / 反代收敛场景，安全默认）。
+       */
+      CORS_ORIGINS: z.string().trim().optional(),
+
+      /**
+       * Express trust proxy 设置（'true' / 代理层数 / 'loopback' 等）：配置后 req.ip 按代理链正确解析，
+       * 审计 IP 不再被伪造的 x-forwarded-for 污染。留空＝不信任任何代理（取 socket IP，安全默认）。
+       */
+      TRUST_PROXY: z.string().trim().optional(),
     })
     .transform((env) => ({
       databaseUrl: env.DATABASE_URL,
@@ -44,6 +56,12 @@ const apiEnvSchema = z.preprocess(
         env.SUPER_ADMIN_EMAIL && env.SUPER_ADMIN_PASSWORD
           ? { email: env.SUPER_ADMIN_EMAIL, password: env.SUPER_ADMIN_PASSWORD }
           : undefined,
+      corsOrigins: env.CORS_ORIGINS
+        ? env.CORS_ORIGINS.split(',')
+            .map((o) => o.trim())
+            .filter(Boolean)
+        : [],
+      trustProxy: env.TRUST_PROXY,
     })),
 );
 

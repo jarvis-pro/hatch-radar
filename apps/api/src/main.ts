@@ -20,6 +20,14 @@ function lanAddresses(): string[] {
   return result;
 }
 
+/** 解析 TRUST_PROXY env：'true'/'false' → 布尔；非负整数字符串 → 代理层数；其余（如 'loopback'）原样。 */
+function parseTrustProxy(raw: string): boolean | number | string {
+  if (raw === 'true') return true;
+  if (raw === 'false') return false;
+  const n = Number(raw);
+  return Number.isInteger(n) && n >= 0 ? n : raw;
+}
+
 /**
  * 后端唯一进程入口（`pnpm start:api`）—— 单实例。
  *
@@ -27,7 +35,10 @@ function lanAddresses(): string[] {
  * （经 PG 持久化队列 + LocalDispatcher 进程内认领）。web SPA 单独部署，不在此进程托管。
  */
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule, { bufferLogs: true });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    bufferLogs: true,
+    rawBody: true, // 供设备签名校验请求体哈希（DeviceAuthService 读 req.rawBody）
+  });
   app.useLogger(app.get(Logger));
   app.flushLogs();
   // 同步推送上限：outbox 操作很小，5MB 足够容纳上万条（对应裸跑实现）
@@ -39,6 +50,10 @@ async function bootstrap(): Promise<void> {
   app.enableShutdownHooks();
 
   const env = app.get<AppEnv>(APP_ENV);
+  // 信任代理（反代场景）：使 req.ip 按代理链正确解析、审计 IP 不被伪造的 x-forwarded-for 污染。留空＝不信任。
+  if (env.trustProxy) app.set('trust proxy', parseTrustProxy(env.trustProxy));
+  // 跨源放行：web 与 api 不同源部署时必填白名单（带凭据）；同源 / 反代留空即不开（浏览器同源策略足矣）。
+  if (env.corsOrigins.length > 0) app.enableCors({ origin: env.corsOrigins, credentials: true });
   // 绑 0.0.0.0：监听本机所有网卡，使本进程同时经 localhost 与局域网 IP 可达。
   // web（独立部署，经 /api 调本服务）与 mobile 共用这一监听；mobile 必须走局域网 IP
   // （手机是 LAN 上的另一台设备），故不能只绑回环——这才是对外开放的原因。

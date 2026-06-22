@@ -34,14 +34,14 @@ function toRequestView(r: RequestQueueRow) {
 }
 
 /**
- * /api/requests/* —— 出站请求闸控制台（鉴权 analyze:run）。
+ * /api/requests/* —— 出站请求闸控制台（鉴权 requests:control）。
  *
  * - GET  /api/requests                  lane 概览（速率/暂停/在途/近期）+ 最近请求
  * - POST /api/requests/lanes/:lane/pause  暂停某 lane（worker 抓取阻塞至恢复）
  * - POST /api/requests/lanes/:lane/resume 恢复某 lane
  */
 @UseGuards(SessionAuthGuard)
-@RequirePermission('analyze:run')
+@RequirePermission('requests:control')
 @Controller('requests')
 export class RequestsController {
   constructor(

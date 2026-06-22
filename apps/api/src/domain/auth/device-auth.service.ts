@@ -21,7 +21,21 @@ function header(headers: Record<string, string | string[] | undefined>, name: st
 /** 设备认证：激活码换凭据、签名请求验签、设备操作审计。 */
 @Injectable()
 export class DeviceAuthService {
+  /** 已用签名缓存（sig → 过期时刻秒）：防 TS_WINDOW 内重放。单进程内存即足够。 */
+  private readonly usedSigs = new Map<string, number>();
+
   constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
+
+  /** 标记并检测重放：窗口内重复签名返回 true（拒绝）；否则记录、顺带懒清理过期项防无界增长。 */
+  private isReplayed(sig: string, now: number): boolean {
+    const exp = this.usedSigs.get(sig);
+    if (exp != null && exp > now) return true;
+    this.usedSigs.set(sig, now + TS_WINDOW);
+    if (this.usedSigs.size > 4096) {
+      for (const [k, e] of this.usedSigs) if (e <= now) this.usedSigs.delete(k);
+    }
+    return false;
+  }
 
   /**
    * 用激活码 + 设备公钥换取一条 device_credentials（绑定到激活码所属账户）。
@@ -83,6 +97,7 @@ export class DeviceAuthService {
       method?: string;
       originalUrl?: string;
       url?: string;
+      rawBody?: Buffer;
     },
     requiredPerm?: PermissionKey,
   ): Promise<DeviceUserContext | null> {
@@ -101,8 +116,12 @@ export class DeviceAuthService {
 
     const method = (req.method ?? 'GET').toUpperCase();
     const path = (req.originalUrl ?? req.url ?? '').split('?')[0];
-    const canonical = `${credentialId}.${ts}.${method}.${path}`;
+    // 签名覆盖请求体哈希：杜绝「保留合法签名头、替换 body 重放」——body 不在签名内是最严重的篡改面。
+    const bodyHash = sha256Hex(req.rawBody?.toString('utf8') ?? '');
+    const canonical = `${credentialId}.${ts}.${method}.${path}.${bodyHash}`;
     if (!verifyDeviceSignature(cred.public_key, canonical, sig)) return null;
+    // 防重放：TS_WINDOW 内同一签名只接受一次（超窗重放已被上面的时间窗挡）。
+    if (this.isReplayed(sig, now)) return null;
 
     const user = cred.user;
     if (!user || user.status !== 'active') return null;

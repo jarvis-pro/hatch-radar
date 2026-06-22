@@ -116,9 +116,7 @@ export class AdminService {
     if (!name) throw new DomainError('参数不完整', 400);
     const target = await this.users.findById(userId);
     if (!target) throw new DomainError('账户不存在', 404);
-    if (target.role === 'super_admin' && actor.role !== 'super_admin') {
-      throw new DomainError('只有超级管理员能管理超级管理员', 403);
-    }
+    this.assertCanManageTarget(actor, userId);
     if (dto.role === 'super_admin' && actor.role !== 'super_admin') {
       throw new DomainError('只有超级管理员能授予超管角色', 403);
     }
@@ -150,9 +148,7 @@ export class AdminService {
   async resetPassword(actor: AuthedUser, userId: string): Promise<{ tempPassword: string }> {
     const target = await this.users.findById(userId);
     if (!target) throw new DomainError('账户不存在', 404);
-    if (target.role === 'super_admin' && actor.role !== 'super_admin') {
-      throw new DomainError('只有超级管理员能重置超级管理员密码', 403);
-    }
+    this.assertCanManageTarget(actor, userId);
     const pw = tempPassword();
     await this.users.updatePassword(userId, await hashPassword(pw), true, nowSec());
     await this.sessions.deleteByUser(userId);
@@ -170,9 +166,7 @@ export class AdminService {
     if (userId === actor.id) throw new DomainError('不能停用 / 启用自己', 400);
     const target = await this.users.findById(userId);
     if (!target) throw new DomainError('账户不存在', 404);
-    if (target.role === 'super_admin' && actor.role !== 'super_admin') {
-      throw new DomainError('只有超级管理员能管理超级管理员', 403);
-    }
+    this.assertCanManageTarget(actor, userId);
     if (status === 'disabled' && (await this.isLastActiveSuper(userId))) {
       throw new DomainError('不能停用最后一个超级管理员', 400);
     }
@@ -191,9 +185,7 @@ export class AdminService {
     if (userId === actor.id) throw new DomainError('不能删除自己', 400);
     const target = await this.users.findById(userId);
     if (!target) throw new DomainError('账户不存在', 404);
-    if (target.role === 'super_admin' && actor.role !== 'super_admin') {
-      throw new DomainError('只有超级管理员能删除超级管理员', 403);
-    }
+    this.assertCanManageTarget(actor, userId);
     if (await this.isLastActiveSuper(userId)) {
       throw new DomainError('不能删除最后一个超级管理员', 400);
     }
@@ -221,9 +213,7 @@ export class AdminService {
     const ttl = ALLOWED_TTL_DAYS.includes(ttlDays) ? ttlDays : 30;
     const target = await this.users.findById(userId);
     if (!target) throw new DomainError('账户不存在', 404);
-    if (target.role === 'super_admin' && actor.role !== 'super_admin') {
-      throw new DomainError('只有超级管理员能为超级管理员赋予设备', 403);
-    }
+    this.assertCanManageTarget(actor, userId);
     const code = generateEnrollmentCode();
     const now = nowSec();
     const id = await this.enrollments.create({
@@ -249,9 +239,7 @@ export class AdminService {
   async revokeDevice(actor: AuthedUser, credentialId: string): Promise<void> {
     const cred = await this.devices.findByIdWithOwnerRole(credentialId);
     if (!cred) throw new DomainError('设备不存在', 404);
-    if (cred.ownerRole === 'super_admin' && actor.role !== 'super_admin') {
-      throw new DomainError('只有超级管理员能管理超级管理员的设备', 403);
-    }
+    this.assertCanManageTarget(actor, cred.userId);
     await this.devices.revoke(credentialId);
     await this.audit.write({
       actorId: actor.id,
@@ -274,6 +262,18 @@ export class AdminService {
   }
 
   // ── 内部 ──────────────────────────────────────────────────────────────
+
+  /**
+   * 目标账户操作授权：超管可操作任何账户；非超管（普通管理员）只能操作自己——不可对任何其它账户
+   * （含平级管理员）做 编辑 / 重置密码 / 停用 / 删除 / 赋予设备 / 吊销设备。堵死「持 accounts:manage
+   * 的普通管理员重置其它管理员密码接管账户」这一越权（sanitizePermissions 只挡了授予越权、未挡操作平级）。
+   */
+  private assertCanManageTarget(actor: AuthedUser, targetUserId: string): void {
+    if (actor.role === 'super_admin') return; // 超管全通（仍受「最后一个超管」等单独校验约束）
+    if (targetUserId !== actor.id) {
+      throw new DomainError('只有超级管理员能管理其它账户', 403);
+    }
+  }
 
   /** 把请求的权限收敛为合法 key；非超管 actor 限制在其自身拥有的能力内（不能授予自己没有的）。 */
   private sanitizePermissions(actor: AuthedUser, requested: string[]): PermissionKey[] {

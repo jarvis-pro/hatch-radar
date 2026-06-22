@@ -39,8 +39,9 @@ export function normalizeBaseUrl(input: string): string {
 async function request<T>(cfg: WorkstationConfig, path: string, init?: RequestInit): Promise<T> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 15_000);
-  // 鉴权恒走设备签名头（未激活返回空头，server 据此拒绝）。
-  const deviceHeaders = buildDeviceHeaders(init?.method ?? 'GET', path);
+  // 鉴权恒走设备签名头（未激活返回空头，server 据此拒绝）。签名须覆盖请求体哈希，故传 body 原文。
+  const bodyStr = typeof init?.body === 'string' ? init.body : '';
+  const deviceHeaders = await buildDeviceHeaders(init?.method ?? 'GET', path, bodyStr);
   try {
     const res = await fetch(`${cfg.baseUrl}${path}`, {
       ...init,
