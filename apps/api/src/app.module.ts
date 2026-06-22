@@ -5,13 +5,21 @@ import { AllExceptionsFilter } from './common/http-exception.filter';
 import { AccountModule } from './modules/account/account.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { AppConfigModule } from './config/app-config.module';
+import { AuthModule } from './modules/auth/auth.module';
 import { CapabilityModule } from './core/capability.module';
+import { ExportModule } from './modules/export/export.module';
 import { RepositoryModule } from './core/repository.module';
 import { DatabaseModule } from './database/database.module';
 import { HttpModule } from './modules/http/http.module';
 import { logger } from './logger';
+import { PipelineModule } from './modules/pipeline/pipeline.module';
+import { RadarModule } from './modules/radar/radar.module';
 import { SchedulerModule } from './modules/scheduler/scheduler.module';
 import { SeedModule } from './modules/seed/seed.module';
+import { SettingsModule } from './modules/settings/settings.module';
+import { SourcesModule } from './modules/sources/sources.module';
+import { SyncModule } from './modules/sync/sync.module';
+import { TranslationModule } from './modules/translation/translation.module';
 import { WorkerModule } from './modules/worker/worker.module';
 
 /**
@@ -23,13 +31,14 @@ import { WorkerModule } from './modules/worker/worker.module';
  * provider）+ DatabaseModule（@Global，PRISMA 事务感知代理 + TxContext）此处注册即处处可注入；各 feature
  * module（Analysis / Worker / Pipeline / Radar / Settings / Sources / Sync / Export / Translation / Account /
  * Auth / Admin / Scheduler / Seed）各自 providers 领域服务、只 exports 公共面、按需 imports 依赖模块——依赖
- * 图为无环 DAG（Analysis←Worker←Pipeline←{Radar / Settings / Translation / Scheduler}），HttpModule 按其
- * 控制器所需 import 对应 feature module。
+ * 图为无环 DAG（Analysis←Worker←Pipeline←{Radar / Settings / Translation / Scheduler}）。各 feature module
+ * 同时声明自己的 HTTP 控制器（与 service 同目录 collocate）；根模块在此组合全部 feature module。
  * imports 各模块职责：
- * - AccountModule  会话鉴权权威（SessionAuthGuard + cookie），web/mobile 共用。
+ * - AccountModule  会话鉴权权威（SessionAuthGuard + cookie）+ 账户 / me 端点，web/mobile 共用。
  * - AdminModule    后台管理 + 审计日志（admin / audit）。
- * - HttpModule     会话守卫下的业务控制器统一收口：dashboard / export / sync / settings / analysis
- *                  / pipeline（检视器）/ requests（出站请求闸）/ translations / sources / me / health。
+ * - PipelineModule / RadarModule / SettingsModule / SourcesModule / TranslationModule / ExportModule /
+ *                  SyncModule  各上下文的领域服务 + 其 HTTP 控制器。
+ * - HttpModule     边缘控制器（无 feature 归属 / 双通道）：dashboard / health / requests / me。
  * - WorkerModule   内嵌执行器生命周期（WorkerStarter）：起认领泵 + 僵死回收，关停排空在途任务。
  * - SchedulerModule  @Cron 采集/复查/分析/归档触发（执行经 LocalDispatcher 同进程认领）。
  * - SeedModule     首启播种，须排在 SchedulerModule 之前（先播种再跑初始轮）。
@@ -52,8 +61,16 @@ import { WorkerModule } from './modules/worker/worker.module';
     RepositoryModule,
     CapabilityModule,
     AccountModule,
-    SeedModule,
+    AuthModule,
     AdminModule,
+    PipelineModule,
+    RadarModule,
+    SettingsModule,
+    SourcesModule,
+    TranslationModule,
+    ExportModule,
+    SyncModule,
+    SeedModule,
     WorkerModule,
     HttpModule,
     SchedulerModule,

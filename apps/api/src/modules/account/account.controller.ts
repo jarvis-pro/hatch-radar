@@ -20,20 +20,32 @@ import { AuthUser, type AuthedUser } from './auth-user.decorator';
 import { clearSessionCookie, readSessionCookie, setSessionCookie } from './cookies';
 import { SessionAuthGuard } from './session-auth.guard';
 
+/** 登录入参：邮箱（归一为小写）+ 明文口令（服务内比对 scrypt 哈希）。 */
 const loginSchema = z.object({
+  /** 登录邮箱；trim 去空白、toLowerCase 归一，避免大小写 / 空格导致查不到账户 */
   email: z.string().trim().toLowerCase(),
+  /** 明文口令，交服务做 scrypt 校验（不在此处限长，避免泄露口令策略） */
   password: z.string(),
 });
 
+/** 改密入参：旧口令 + 新口令 + 确认；三者一致性与强度在服务内校验。 */
 const changePasswordSchema = z.object({
+  /** 当前口令，先校验本人身份再放行改密 */
   current: z.string(),
+  /** 新口令明文 */
   password: z.string(),
+  /** 再次输入的新口令，服务内须与 password 完全一致 */
   confirm: z.string(),
 });
 
-const profileSchema = z.object({ name: z.string().trim().min(1) });
+/** 改资料入参：仅姓名（trim 后非空）。 */
+const profileSchema = z.object({ /** 展示用姓名，去空白后必填 */ name: z.string().trim().min(1) });
 
-const avatarSchema = z.object({ avatar: z.string().trim().min(1).max(128).nullable() });
+/** 改头像入参：DiceBear seed 字符串，或 null 恢复姓名首字母。 */
+const avatarSchema = z.object({
+  /** 头像 seed（≤128 字符）；null=清除自定义头像、回落首字母 */
+  avatar: z.string().trim().min(1).max(128).nullable(),
+});
 
 /**
  * 取客户端 IP：直接用 express req.ip——它按 `trust proxy` 设置解析（信任代理时取 XFF 链，否则取

@@ -7,7 +7,11 @@ import { DeviceUser, type DeviceUserContext } from '@/modules/auth/device-permis
 import { ZodValidationPipe } from '@/common/zod-validation.pipe';
 import { AccountService } from '@/modules/account/account.service';
 
-const avatarSchema = z.object({ avatar: z.string().trim().min(1).max(128).nullable() });
+/** 改头像入参：DiceBear seed 字符串，或 null 恢复姓名首字母。 */
+const avatarSchema = z.object({
+  /** 头像 seed（≤128 字符）；null=清除自定义头像、回落首字母 */
+  avatar: z.string().trim().min(1).max(128).nullable(),
+});
 
 /**
  * /api/me —— 设备/会话双通道的「当前用户」端点（移动端取身份 + 改头像）。
