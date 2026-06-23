@@ -1,14 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Copy, MoreHorizontal, Plus } from 'lucide-react';
-import type {
-  AdminUserRow,
-  CurrentUser,
-  DeviceRow,
-  EnrollmentRow,
-  PermissionKey,
-  UserRole,
-} from '@hatch-radar/shared';
+import type { AdminUserRow, CurrentUser, PermissionKey, UserRole } from '@hatch-radar/shared';
 import { Alert, AlertDescription } from '@hatch-radar/ui/components/alert';
 import {
   AlertDialog,
@@ -59,7 +52,6 @@ import {
 } from '@hatch-radar/ui/components/table';
 import { api, ApiError } from '@/api/client';
 import { timeAgo } from '@/lib/format';
-import { DeviceManager } from './device-manager';
 import { PermissionEditor } from './permission-editor';
 
 type ConfirmKind = 'reset' | 'disable' | 'enable' | 'delete';
@@ -72,13 +64,13 @@ const CONFIRM_TEXT: Record<ConfirmKind, { title: string; desc: string; action: s
   },
   disable: {
     title: '停用账户',
-    desc: '停用后该账户立即无法登录，其所有会话与设备失效。',
+    desc: '停用后该账户立即无法登录，其所有会话失效。',
     action: '停用',
   },
   enable: { title: '启用账户', desc: '重新允许该账户登录。', action: '启用' },
   delete: {
     title: '删除账户',
-    desc: '将永久删除该账户及其权限、会话、设备，且不可恢复。',
+    desc: '将永久删除该账户及其权限、会话，且不可恢复。',
     action: '删除',
   },
 };
@@ -91,17 +83,12 @@ function errText(err: unknown, fallback: string): string {
 export function AccountsManager({
   users,
   actor,
-  devicesByUser,
-  enrollmentsByUser,
 }: {
   users: AdminUserRow[];
   actor: CurrentUser;
-  devicesByUser: Record<string, DeviceRow[]>;
-  enrollmentsByUser: Record<string, EnrollmentRow[]>;
 }) {
   const qc = useQueryClient();
   const [sheet, setSheet] = useState<AdminUserRow | 'new' | null>(null);
-  const [deviceSheet, setDeviceSheet] = useState<AdminUserRow | null>(null);
   const [confirm, setConfirm] = useState<{ kind: ConfirmKind; user: AdminUserRow } | null>(null);
   const [resetResult, setResetResult] = useState<{ email: string; tempPassword: string } | null>(
     null,
@@ -172,7 +159,6 @@ export function AccountsManager({
               <TableHead>角色</TableHead>
               <TableHead>状态</TableHead>
               <TableHead>权限</TableHead>
-              <TableHead>设备</TableHead>
               <TableHead>最近登录</TableHead>
               <TableHead className="w-10" />
             </TableRow>
@@ -199,9 +185,6 @@ export function AccountsManager({
                 <TableCell className="text-sm text-muted-foreground">
                   {u.role === 'super_admin' ? '全部' : `${u.permissions.length} 项`}
                 </TableCell>
-                <TableCell className="text-sm text-muted-foreground tabular-nums">
-                  {u.deviceCount > 0 ? `${u.deviceCount} 台` : '—'}
-                </TableCell>
                 <TableCell className="text-sm text-muted-foreground">
                   {u.lastLoginAt ? timeAgo(u.lastLoginAt) : '从未'}
                 </TableCell>
@@ -214,9 +197,6 @@ export function AccountsManager({
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem onClick={() => setSheet(u)}>编辑</DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => setDeviceSheet(u)}>
-                        管理设备
-                      </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => setConfirm({ kind: 'reset', user: u })}>
                         重置密码
                       </DropdownMenuItem>
@@ -329,24 +309,6 @@ export function AccountsManager({
           </div>
         </DialogContent>
       </Dialog>
-
-      <Sheet open={deviceSheet !== null} onOpenChange={(o) => !o && setDeviceSheet(null)}>
-        <SheetContent className="overflow-y-auto sm:max-w-md">
-          <SheetHeader>
-            <SheetTitle>设备管理 · {deviceSheet?.name}</SheetTitle>
-            <SheetDescription>赋予设备、查看与强踢（凭据吊销即时生效）。</SheetDescription>
-          </SheetHeader>
-          {deviceSheet ? (
-            <div className="px-4 pb-4">
-              <DeviceManager
-                userId={deviceSheet.id}
-                devices={devicesByUser[deviceSheet.id] ?? []}
-                enrollments={enrollmentsByUser[deviceSheet.id] ?? []}
-              />
-            </div>
-          ) : null}
-        </SheetContent>
-      </Sheet>
     </div>
   );
 }

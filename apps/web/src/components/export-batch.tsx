@@ -12,7 +12,6 @@ import { api, ApiError, downloadBlob } from '@/api/client';
 import { can, useAuth } from '@/auth/auth-context';
 import { useTranslationProviders } from '@/translation/post-translation';
 
-type Format = 'sqlite' | 'json';
 type IntensityOpt = '' | 'MEDIUM' | 'HIGH';
 
 /** 导出筛选（数值化；与 server parseExportFilter 对齐），覆盖率 / 批量补翻 / 下载共用 */
@@ -58,17 +57,16 @@ function coverageQs(f: ExportFilterBody): string {
 }
 
 /**
- * 「导出批次」入口（同源直连 /api/export/*）：按条件筛出有效数据，下载为 .sqlite / .json。
+ * 「导出批次」入口（同源直连 /api/export/*）：按条件筛出有效数据，下载为 .json 批次。
  *
  * 翻译并入导出流程（旗舰）：选好筛选后展示本批译文覆盖率，可「翻译缺失 N 篇」批量补翻（走默认翻译模型，
- * 异步入队、覆盖率自动刷新）后再导出，或「直接导出」（未翻内容在移动端显示原文）。翻译只服务人工阅读。
+ * 异步入队、覆盖率自动刷新）后再导出，或「直接导出」（未翻内容显示原文）。翻译只服务人工阅读。
  */
 export function ExportBatchButton({ subreddits }: { subreddits: string[] }) {
   const { user } = useAuth();
   const canTranslate = can(user, 'analyze:run');
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
-  const [format, setFormat] = useState<Format>('sqlite');
   const [days, setDays] = useState('');
   const [minIntensity, setMinIntensity] = useState<IntensityOpt>('');
   const [subreddit, setSubreddit] = useState('');
@@ -162,8 +160,7 @@ export function ExportBatchButton({ subreddits }: { subreddits: string[] }) {
 
       const ts = Math.floor(Date.now() / 1000);
       const query = qs.toString() ? `?${qs.toString()}` : '';
-      const path = format === 'sqlite' ? `/export/batch.sqlite${query}` : `/export/batch${query}`;
-      const { blob, filename } = await downloadBlob(path, `batch-${ts}.${format}`);
+      const { blob, filename } = await downloadBlob(`/export/batch${query}`, `batch-${ts}.json`);
 
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
@@ -194,24 +191,11 @@ export function ExportBatchButton({ subreddits }: { subreddits: string[] }) {
         <div className="space-y-1">
           <p className="text-sm font-medium">导出有效数据批次</p>
           <p className="text-xs text-muted-foreground">
-            筛出有实质信号的洞察 + 关联帖子/评论，打包下载（可 AirDrop 给手机导入）。
+            筛出有实质信号的洞察 + 关联帖子/评论，打包下载为 JSON 批次。
           </p>
         </div>
 
         <div className="grid gap-3">
-          <div className="grid gap-1.5">
-            <Label htmlFor="export-format">格式</Label>
-            <NativeSelect
-              id="export-format"
-              className="w-full"
-              value={format}
-              onChange={(e) => setFormat(e.target.value as Format)}
-            >
-              <NativeSelectOption value="sqlite">.sqlite（移动端导入）</NativeSelectOption>
-              <NativeSelectOption value="json">.json</NativeSelectOption>
-            </NativeSelect>
-          </div>
-
           <div className="grid gap-1.5">
             <Label htmlFor="export-days">最近天数（空 = 全量）</Label>
             <Input
