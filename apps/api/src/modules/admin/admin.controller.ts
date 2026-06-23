@@ -1,53 +1,10 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  HttpCode,
-  Param,
-  Patch,
-  Post,
-} from '@nestjs/common';
-import { z } from 'zod';
+import { Controller, Delete, Get, HttpCode, Param, Patch, Post } from '@nestjs/common';
 import type { AuthedUser } from '@/types/auth-context';
 import { AuthUser, RequirePermission } from '@/modules/account/auth-user.decorator';
-import { ZodValidationPipe } from '@/common/zod-validation.pipe';
+import { ZodBody } from '@/common/zod-body.decorator';
 import { AdminService } from './admin.service';
-
-/** 账户角色：普通管理员 / 超级管理员（超管不可被普通管理员创建或越权操作）。 */
-const roleEnum = z.enum(['admin', 'super_admin']);
-
-/** 新建账户入参：身份 + 初始口令 + 角色 + 能力清单。 */
-const createUserSchema = z.object({
-  /** 登录邮箱，非空 */
-  email: z.string().trim().min(1),
-  /** 展示用姓名，非空 */
-  name: z.string().trim().min(1),
-  /** 角色；省略服务内默认 admin */
-  role: roleEnum.optional(),
-  /** 初始口令明文 */
-  password: z.string(),
-  /** 是否强制首次登录改密；省略=false */
-  requireChange: z.boolean().optional(),
-  /** 勾选的能力 key 列表（RBAC）；省略=无额外能力 */
-  perms: z.array(z.string()).optional(),
-});
-
-/** 编辑账户入参：改姓名 / 角色 / 能力（不含口令、状态——各有独立端点）。 */
-const editUserSchema = z.object({
-  /** 改展示姓名，非空 */
-  name: z.string().trim().min(1),
-  /** 改角色；省略服务内默认 admin */
-  role: roleEnum.optional(),
-  /** 改能力 key 列表（整体覆盖）；省略=清空额外能力 */
-  perms: z.array(z.string()).optional(),
-});
-
-/** 启停账户入参。 */
-const statusSchema = z.object({
-  /** 目标状态：active 启用 / disabled 停用（停用即吊销其会话） */
-  status: z.enum(['active', 'disabled']),
-});
+import { createUserSchema, editUserSchema, statusSchema } from './admin.schema';
+import type { CreateUserDto, EditUserDto, StatusDto } from './admin.schema';
 
 /**
  * /api/admin/* —— 账户 / 权限管理（需 accounts:manage）。
@@ -56,7 +13,10 @@ const statusSchema = z.object({
 @RequirePermission('accounts:manage')
 @Controller('admin')
 export class AdminController {
-  constructor(private readonly admin: AdminService) {}
+  constructor(
+    // 账户管理领域服务：建/改/删用户、重置密码、启停账户
+    private readonly admin: AdminService,
+  ) {}
 
   @Get('users')
   listUsers() {
@@ -65,10 +25,7 @@ export class AdminController {
 
   @Post('users')
   @HttpCode(201)
-  createUser(
-    @AuthUser() actor: AuthedUser,
-    @Body(new ZodValidationPipe(createUserSchema)) dto: z.infer<typeof createUserSchema>,
-  ) {
+  createUser(@AuthUser() actor: AuthedUser, @ZodBody(createUserSchema) dto: CreateUserDto) {
     return this.admin.createUser(actor, {
       email: dto.email,
       name: dto.name,
@@ -83,7 +40,7 @@ export class AdminController {
   async editUser(
     @AuthUser() actor: AuthedUser,
     @Param('id') id: string,
-    @Body(new ZodValidationPipe(editUserSchema)) dto: z.infer<typeof editUserSchema>,
+    @ZodBody(editUserSchema) dto: EditUserDto,
   ): Promise<{ ok: true }> {
     await this.admin.editUser(actor, id, {
       name: dto.name,
@@ -112,7 +69,7 @@ export class AdminController {
   async setStatus(
     @AuthUser() actor: AuthedUser,
     @Param('id') id: string,
-    @Body(new ZodValidationPipe(statusSchema)) dto: z.infer<typeof statusSchema>,
+    @ZodBody(statusSchema) dto: StatusDto,
   ): Promise<{ ok: true }> {
     await this.admin.setStatus(actor, id, dto.status);
 

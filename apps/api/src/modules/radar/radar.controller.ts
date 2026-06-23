@@ -1,5 +1,4 @@
 import {
-  Body,
   Controller,
   Delete,
   Get,
@@ -11,84 +10,25 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { z } from 'zod';
 import { RequirePermission } from '@/modules/account/auth-user.decorator';
-import { ZodValidationPipe } from '@/common/zod-validation.pipe';
+import { ZodBody } from '@/common/zod-body.decorator';
 import { BlueprintService } from '@/modules/radar/blueprint.service';
 import { ProcessService } from '@/modules/radar/process.service';
 import { RadarService } from '@/modules/radar/radar.service';
 import { logger } from '@/logger';
 import type { RadarIntensity } from '@hatch-radar/shared';
-
-/** 图纸的一个采集来源项：平台 + 该平台下的频道/版块清单。 */
-const sourceSchema = z.object({
-  /** 来源平台 */
-  kind: z.enum(['reddit', 'hackernews', 'rss']),
-  /** 该平台下要抓的频道 / 版块 / RSS 地址列表 */
-  channels: z.array(z.string()),
-});
-
-/** 新建图纸（纯配方）入参：类型 + 标识 + 采集来源 + 参数 + 闸门 + 启用节点。 */
-const createBlueprintSchema = z.object({
-  /** 图纸类型：collect 采集 / recheck 复查 */
-  kind: z.enum(['collect', 'recheck']),
-  /** 图纸展示名，非空 */
-  label: z.string().trim().min(1),
-  /** 备注说明；省略=无 */
-  note: z.string().trim().optional(),
-  /** 采集来源清单（collect 用）；省略=无来源 */
-  sources: z.array(sourceSchema).optional(),
-  /** 图纸参数（间隔 / 退避 / 阈值等），自由 KV；省略=默认 */
-  params: z.record(z.string(), z.unknown()).optional(),
-  /** 默认开闸的节点 key 列表（逐节点暂停）；省略=不开闸 */
-  gates: z.array(z.string()).optional(),
-  /** 启用的执行节点 key 列表；省略=全部节点 */
-  enabledStages: z.array(z.string()).optional(),
-});
-
-/** 更新图纸入参：每项可省略（不改）；kind 不可改（建后固定）。 */
-const updateBlueprintSchema = z.object({
-  /** 改展示名（非空）；省略=不改 */
-  label: z.string().trim().min(1).optional(),
-  /** 改备注；省略=不改 */
-  note: z.string().trim().optional(),
-  /** 改采集来源（整体覆盖）；省略=不改 */
-  sources: z.array(sourceSchema).optional(),
-  /** 改图纸参数（整体覆盖）；省略=不改 */
-  params: z.record(z.string(), z.unknown()).optional(),
-  /** 改开闸节点（整体覆盖）；省略=不改 */
-  gates: z.array(z.string()).optional(),
-  /** 改启用节点（整体覆盖）；省略=不改 */
-  enabledStages: z.array(z.string()).optional(),
-});
-
-/** 进程触发节奏（按 kind 判别）：单次 / 固定间隔 / cron 表达式。 */
-const triggerSchema = z.discriminatedUnion('kind', [
-  /** once：手动单次触发，无额外参数 */
-  z.object({ kind: z.literal('once') }),
-  /** interval：每 everySec 秒触发一次 */
-  z.object({ kind: z.literal('interval'), everySec: z.number().int().positive() }),
-  /** cron：按 expr（cron 表达式）触发 */
-  z.object({ kind: z.literal('cron'), expr: z.string().trim().min(1) }),
-]);
-
-/** 新建进程（图纸 + 触发节奏）入参。 */
-const createProcessSchema = z.object({
-  /** 绑定的图纸 id（blueprints.id） */
-  blueprintId: z.number().int().positive(),
-  /** 进程展示名，非空 */
-  label: z.string().trim().min(1),
-  /** 触发节奏 */
-  trigger: triggerSchema,
-});
-
-/** 更新进程入参：每项可省略（不改）；不可改绑定图纸。 */
-const updateProcessSchema = z.object({
-  /** 改展示名（非空）；省略=不改 */
-  label: z.string().trim().min(1).optional(),
-  /** 改触发节奏；省略=不改 */
-  trigger: triggerSchema.optional(),
-});
+import {
+  createBlueprintSchema,
+  createProcessSchema,
+  updateBlueprintSchema,
+  updateProcessSchema,
+} from './radar.schema';
+import type {
+  CreateBlueprintDto,
+  CreateProcessDto,
+  UpdateBlueprintDto,
+  UpdateProcessDto,
+} from './radar.schema';
 
 /**
  * /api/blueprints/* —— 图纸（纯配方）CRUD。读 pipeline:run，写 pipeline:control。
@@ -96,7 +36,10 @@ const updateProcessSchema = z.object({
 @RequirePermission('pipeline:run')
 @Controller('blueprints')
 export class BlueprintsController {
-  constructor(private readonly blueprints: BlueprintService) {}
+  constructor(
+    // 图纸 CRUD 服务：图纸列举 / 读取 / 增删改
+    private readonly blueprints: BlueprintService,
+  ) {}
 
   @Get()
   list() {
@@ -115,9 +58,7 @@ export class BlueprintsController {
 
   @Post()
   @RequirePermission('pipeline:control')
-  async create(
-    @Body(new ZodValidationPipe(createBlueprintSchema)) dto: z.infer<typeof createBlueprintSchema>,
-  ) {
+  async create(@ZodBody(createBlueprintSchema) dto: CreateBlueprintDto) {
     const bp = await this.blueprints.createBlueprint(dto);
     logger.info(`[图纸] 新建 #${bp.id}：${bp.kind}/${bp.label}`);
 
@@ -128,7 +69,7 @@ export class BlueprintsController {
   @RequirePermission('pipeline:control')
   async update(
     @Param('id', ParseIntPipe) id: number,
-    @Body(new ZodValidationPipe(updateBlueprintSchema)) dto: z.infer<typeof updateBlueprintSchema>,
+    @ZodBody(updateBlueprintSchema) dto: UpdateBlueprintDto,
   ) {
     if (!(await this.blueprints.getBlueprint(id))) {
       throw new NotFoundException('图纸不存在');
@@ -156,7 +97,10 @@ export class BlueprintsController {
 @RequirePermission('pipeline:run')
 @Controller('processes')
 export class ProcessesController {
-  constructor(private readonly processes: ProcessService) {}
+  constructor(
+    // 进程 CRUD + 启停 / 触发 / 运行历史服务
+    private readonly processes: ProcessService,
+  ) {}
 
   @Get()
   list() {
@@ -180,9 +124,7 @@ export class ProcessesController {
 
   @Post()
   @RequirePermission('pipeline:control')
-  async create(
-    @Body(new ZodValidationPipe(createProcessSchema)) dto: z.infer<typeof createProcessSchema>,
-  ) {
+  async create(@ZodBody(createProcessSchema) dto: CreateProcessDto) {
     const res = await this.processes.createProcess(dto);
     logger.info(`[进程] 新建 #${res.id}：${res.label}`);
 
@@ -193,7 +135,7 @@ export class ProcessesController {
   @RequirePermission('pipeline:control')
   async update(
     @Param('id', ParseIntPipe) id: number,
-    @Body(new ZodValidationPipe(updateProcessSchema)) dto: z.infer<typeof updateProcessSchema>,
+    @ZodBody(updateProcessSchema) dto: UpdateProcessDto,
   ) {
     if (!(await this.processes.getProcess(id))) {
       throw new NotFoundException('进程不存在');
@@ -254,7 +196,10 @@ const INTENSITIES: readonly RadarIntensity[] = ['high', 'medium', 'low'];
 @RequirePermission('pipeline:run')
 @Controller('radar')
 export class RadarController {
-  constructor(private readonly radar: RadarService) {}
+  constructor(
+    // 雷达只读 / 聚合服务：指挥室 / lane / 运行详情 / 洞察 / 帖子库
+    private readonly radar: RadarService,
+  ) {}
 
   @Get('control-room')
   controlRoom() {

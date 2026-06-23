@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  Body,
   Controller,
   Get,
   HttpCode,
@@ -8,22 +7,13 @@ import {
   Param,
   Post,
 } from '@nestjs/common';
-import { z } from 'zod';
 import { RequirePermission } from '@/modules/account/auth-user.decorator';
-import { ZodValidationPipe } from '@/common/zod-validation.pipe';
+import { ZodBody } from '@/common/zod-body.decorator';
 import { ProvidersRepository, SettingsRepository } from '@/database';
 import { TaskControlService } from '@/modules/pipeline/task-control.service';
 import { logger } from '@/logger';
-
-/** 发起检视任务入参：目标帖 + 用哪个模型 + 是否逐节点暂停。 */
-const inspectSchema = z.object({
-  /** 待检视的帖子 id（posts.id），非空 */
-  postId: z.string().min(1),
-  /** 本次检视使用的模型 id（providers.id） */
-  providerId: z.number().int(),
-  /** 逐节点闸门：缺省 true（逐步检视）；false 为运行到底＋留痕 */
-  stepGate: z.boolean().optional().default(true),
-});
+import { inspectSchema } from './analysis.schema';
+import type { InspectDto } from './analysis.schema';
 
 /** 解析并校验路径里的 jobId（正整数）。 */
 function parseJobId(raw: string): number {
@@ -50,8 +40,11 @@ function parseJobId(raw: string): number {
 @Controller('analysis')
 export class AnalysisController {
   constructor(
+    // 检视任务逐环节控制：发起检视、组装视图、放行 / 运行到底 / 重试 / 取消
     private readonly taskControl: TaskControlService,
+    // 模型配置仓储：取启用模型下拉
     private readonly providers: ProvidersRepository,
+    // 运行期设置仓储：取当前 active 模型 id
     private readonly settings: SettingsRepository,
   ) {}
 
@@ -71,7 +64,7 @@ export class AnalysisController {
   /** 发起检视任务：建 inspect job + 6 个 pending 节点 + 派发。该帖已有活跃分析任务时 400（服务抛 DomainError）。 */
   @Post('inspect')
   @HttpCode(200)
-  async inspect(@Body(new ZodValidationPipe(inspectSchema)) dto: z.infer<typeof inspectSchema>) {
+  async inspect(@ZodBody(inspectSchema) dto: InspectDto) {
     const { taskId } = await this.taskControl.enqueueInspect(
       dto.postId,
       dto.providerId,

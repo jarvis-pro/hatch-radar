@@ -1,31 +1,12 @@
-import { Body, Controller, Get, HttpCode, Param, Post, Query } from '@nestjs/common';
-import { z } from 'zod';
+import { Controller, Get, HttpCode, Param, Post, Query } from '@nestjs/common';
 import type { ExportFilter } from '@hatch-radar/shared';
 import type { AuthedUser } from '@/types/auth-context';
 import { AuthUser, RequirePermission } from '@/modules/account/auth-user.decorator';
-import { ZodValidationPipe } from '@/common/zod-validation.pipe';
+import { ZodBody } from '@/common/zod-body.decorator';
 import { parseExportFilter } from '@/modules/export/export-query';
 import { TranslationOrchestrator } from '@/modules/translation/translation-orchestrator.service';
-
-/** 入队翻译入参：可选 providerId——无默认翻译模型时由前端弹窗选定，一次性指定本次用模型。 */
-const enqueueSchema = z.object({
-  /** 本次翻译用的模型 id；省略走默认翻译模型（再回落 active provider） */
-  providerId: z.number().int().positive().optional(),
-});
-
-/** 批量补翻入参：导出同款筛选（since/强度/版块/上限）+ 可选 providerId（不传走默认翻译模型）。 */
-const batchSchema = z.object({
-  /** 只翻该 Unix 秒之后产生的洞察对应帖子；省略=不限时间 */
-  since: z.number().int().positive().optional(),
-  /** 最低痛点强度过滤；省略=各强度都翻 */
-  minIntensity: z.enum(['LOW', 'MEDIUM', 'HIGH']).optional(),
-  /** 限定版块；省略=全部版块 */
-  subreddit: z.string().trim().min(1).optional(),
-  /** 命中帖子数上限；省略=不设上限 */
-  limit: z.number().int().positive().optional(),
-  /** 本次翻译用的模型 id；省略走默认翻译模型 */
-  providerId: z.number().int().positive().optional(),
-});
+import { batchSchema, enqueueSchema } from './translations.schema';
+import type { BatchDto, EnqueueDto } from './translations.schema';
 
 /**
  * /api/translations/* —— 帖子内容翻译：查询某帖翻译进度（按钮三态）+ 入队翻译（首次/增量）。
@@ -35,7 +16,10 @@ const batchSchema = z.object({
  */
 @Controller('translations')
 export class TranslationsController {
-  constructor(private readonly translations: TranslationOrchestrator) {}
+  constructor(
+    // 翻译编排服务：翻译进度三态 + 模型解析 + 单帖/批量入队 + 覆盖率/用量
+    private readonly translations: TranslationOrchestrator,
+  ) {}
 
   /** GET /api/translations/posts/:id —— 某帖翻译进度与按钮状态。 */
   @Get('posts/:id')
@@ -65,7 +49,7 @@ export class TranslationsController {
   async enqueue(
     @AuthUser() actor: AuthedUser,
     @Param('id') postId: string,
-    @Body(new ZodValidationPipe(enqueueSchema)) dto: z.infer<typeof enqueueSchema>,
+    @ZodBody(enqueueSchema) dto: EnqueueDto,
   ): Promise<{ enqueued: boolean }> {
     return this.translations.enqueue(actor.id, postId, dto.providerId);
   }
@@ -83,7 +67,7 @@ export class TranslationsController {
   @RequirePermission('analyze:run')
   async enqueueBatch(
     @AuthUser() actor: AuthedUser,
-    @Body(new ZodValidationPipe(batchSchema)) dto: z.infer<typeof batchSchema>,
+    @ZodBody(batchSchema) dto: BatchDto,
   ): Promise<{ enqueued: number; posts: number }> {
     const filter: ExportFilter = {
       since: dto.since,

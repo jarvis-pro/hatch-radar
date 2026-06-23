@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  Body,
   Controller,
   Get,
   HttpCode,
@@ -9,10 +8,13 @@ import {
   Post,
 } from '@nestjs/common';
 import { RequirePermission } from '@/modules/account/auth-user.decorator';
+import { ZodBody } from '@/common/zod-body.decorator';
 import { PipelineQueryService } from '@/modules/pipeline/pipeline-query.service';
 import { PipelineService } from '@/modules/pipeline/pipeline.service';
 import { TaskControlService } from '@/modules/pipeline/task-control.service';
 import { logger } from '@/logger';
+import { stageGateSchema } from './pipeline.schema';
+import type { StageGateDto } from './pipeline.schema';
 
 function parseId(raw: string): number {
   const id = Number(raw);
@@ -33,8 +35,11 @@ function parseId(raw: string): number {
 @Controller('pipeline')
 export class PipelineController {
   constructor(
+    // 流水线触发编排：手动 collect / recheck 一轮
     private readonly pipeline: PipelineService,
+    // 任务逐环节闸门控制：放行 / 运行到底 / 重试 / 取消 / 挂摘暂停点
     private readonly taskControl: TaskControlService,
+    // 进程 / 任务只读视图：在飞计数、进程总览、单进程任务树
     private readonly query: PipelineQueryService,
   ) {}
 
@@ -131,7 +136,7 @@ export class PipelineController {
   async toggleStageGate(
     @Param('id') idRaw: string,
     @Param('seq') seqRaw: string,
-    @Body() body: { gate?: boolean },
+    @ZodBody(stageGateSchema) body: StageGateDto,
   ) {
     const seq = Number(seqRaw);
     if (!Number.isInteger(seq) || seq < 0) {

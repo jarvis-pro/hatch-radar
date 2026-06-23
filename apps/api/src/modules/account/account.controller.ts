@@ -1,53 +1,13 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  HttpCode,
-  Param,
-  Patch,
-  Post,
-  Req,
-  Res,
-} from '@nestjs/common';
+import { Controller, Delete, Get, HttpCode, Param, Patch, Post, Req, Res } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import { z } from 'zod';
 import type { CurrentUser } from '@hatch-radar/shared';
-import { ZodValidationPipe } from '@/common/zod-validation.pipe';
+import { ZodBody } from '@/common/zod-body.decorator';
 import { AccountService } from './account.service';
 import type { AuthedUser } from '@/types/auth-context';
 import { AuthUser, Public } from './auth-user.decorator';
 import { clearSessionCookie, setSessionCookie } from './cookies';
-
-/** 登录入参：邮箱（归一为小写）+ 明文口令（服务内比对 scrypt 哈希）。 */
-const loginSchema = z.object({
-  /** 登录邮箱；trim 去空白、toLowerCase 归一，避免大小写 / 空格导致查不到账户 */
-  email: z.string().trim().toLowerCase(),
-  /** 明文口令，交服务做 scrypt 校验（不在此处限长，避免泄露口令策略） */
-  password: z.string(),
-});
-
-/** 改密入参：旧口令 + 新口令 + 确认；三者一致性与强度在服务内校验。 */
-const changePasswordSchema = z.object({
-  /** 当前口令，先校验本人身份再放行改密 */
-  current: z.string(),
-  /** 新口令明文 */
-  password: z.string(),
-  /** 再次输入的新口令，服务内须与 password 完全一致 */
-  confirm: z.string(),
-});
-
-/** 改资料入参：仅姓名（trim 后非空）。 */
-const profileSchema = z.object({
-  /** 展示用姓名，去空白后必填 */
-  name: z.string().trim().min(1),
-});
-
-/** 改头像入参：DiceBear seed 字符串，或 null 恢复姓名首字母。 */
-const avatarSchema = z.object({
-  /** 头像 seed（≤128 字符）；null=清除自定义头像、回落首字母 */
-  avatar: z.string().trim().min(1).max(128).nullable(),
-});
+import { avatarSchema, changePasswordSchema, loginSchema, profileSchema } from './account.schema';
+import type { AvatarDto, ChangePasswordDto, LoginDto, ProfileDto } from './account.schema';
 
 /** 剥离 AuthedUser 内部的 sessionId，得到对外的 CurrentUser（解构丢弃，避免会话 id 泄露进响应体）。 */
 function toCurrentUser({ sessionId: _sessionId, ...user }: AuthedUser): CurrentUser {
@@ -60,14 +20,17 @@ function toCurrentUser({ sessionId: _sessionId, ...user }: AuthedUser): CurrentU
  */
 @Controller('auth')
 export class AccountController {
-  constructor(private readonly account: AccountService) {}
+  constructor(
+    // 账户领域服务：登录/登出/会话校验/改密/会话管理/资料
+    private readonly account: AccountService,
+  ) {}
 
   /** POST /api/auth/login —— 校验后 Set-Cookie: radar_session（HttpOnly），返回用户态。 */
   @Public()
   @Post('login')
   @HttpCode(200)
   async login(
-    @Body(new ZodValidationPipe(loginSchema)) dto: z.infer<typeof loginSchema>,
+    @ZodBody(loginSchema) dto: LoginDto,
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ): Promise<{ user: CurrentUser }> {
@@ -104,7 +67,7 @@ export class AccountController {
   @HttpCode(200)
   async changePassword(
     @AuthUser() user: AuthedUser,
-    @Body(new ZodValidationPipe(changePasswordSchema)) dto: z.infer<typeof changePasswordSchema>,
+    @ZodBody(changePasswordSchema) dto: ChangePasswordDto,
   ): Promise<{ ok: true }> {
     await this.account.changePassword(user, dto.current, dto.password, dto.confirm);
 
@@ -115,7 +78,7 @@ export class AccountController {
   @Patch('profile')
   async updateProfile(
     @AuthUser() user: AuthedUser,
-    @Body(new ZodValidationPipe(profileSchema)) dto: z.infer<typeof profileSchema>,
+    @ZodBody(profileSchema) dto: ProfileDto,
   ): Promise<{ ok: true }> {
     await this.account.updateOwnName(user, dto.name);
 
@@ -126,7 +89,7 @@ export class AccountController {
   @Patch('avatar')
   async updateAvatar(
     @AuthUser() user: AuthedUser,
-    @Body(new ZodValidationPipe(avatarSchema)) dto: z.infer<typeof avatarSchema>,
+    @ZodBody(avatarSchema) dto: AvatarDto,
   ): Promise<{ ok: true }> {
     await this.account.updateOwnAvatar(user, dto.avatar);
 
