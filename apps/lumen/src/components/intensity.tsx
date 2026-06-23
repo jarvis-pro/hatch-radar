@@ -1,8 +1,5 @@
-import { Text } from '@/components/ui/text';
 import type { Intensity } from '@/data/types';
-import { INTENSITY_META } from '@/lib/format';
 import { type Palette, usePalette } from '@/lib/theme';
-import { cn } from '@/lib/utils';
 import { useEffect } from 'react';
 import { View } from 'react-native';
 import Animated, {
@@ -22,7 +19,7 @@ function colorFor(palette: Palette, intensity: Intensity): string {
       : palette.intensityLow;
 }
 
-/** 强度光点：可选向外扩散的脉冲光环（雷达光点、列表前导点用）。 */
+/** 强度光点：可选向外扩散的脉冲光环（雷达光点用）。 */
 export function IntensityDot({
   intensity,
   size = 8,
@@ -57,19 +54,6 @@ export function IntensityDot({
         />
       ) : null}
       <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: color }} />
-    </View>
-  );
-}
-
-/** 强度药丸徽标：柔色底 + 静态点 + 中文标签。 */
-export function IntensityPill({ intensity, className }: { intensity: Intensity; className?: string }) {
-  const m = INTENSITY_META[intensity];
-  return (
-    <View
-      className={cn('flex-row items-center gap-1.5 self-start rounded-full px-2.5 py-1', m.soft, className)}
-    >
-      <IntensityDot intensity={intensity} size={6} pulse={false} />
-      <Text className={cn('text-xs font-sans-sb', m.text)}>{m.label}</Text>
     </View>
   );
 }

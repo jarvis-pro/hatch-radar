@@ -1,5 +1,3 @@
-import { Text } from '@/components/ui/text';
-import { compact, withCommas } from '@/lib/format';
 import { useEffect, useState } from 'react';
 
 /**
@@ -31,36 +29,4 @@ export function useCountUp(target: number, opts?: { duration?: number; delay?: n
   }, [target, duration, delay]);
 
   return val;
-}
-
-interface AnimatedNumberProps {
-  value: number;
-  format?: 'int' | 'compact';
-  prefix?: string;
-  suffix?: string;
-  className?: string;
-  duration?: number;
-  delay?: number;
-}
-
-/** 数值文本，挂载时从 0 滚动到 value。等宽字呈现，数字不跳动。 */
-export function AnimatedNumber({
-  value,
-  format = 'int',
-  prefix = '',
-  suffix = '',
-  className,
-  duration,
-  delay,
-}: AnimatedNumberProps) {
-  const v = useCountUp(value, { duration, delay });
-  const n = Math.round(v);
-  const body = format === 'compact' ? compact(n) : withCommas(n);
-  return (
-    <Text className={className}>
-      {prefix}
-      {body}
-      {suffix}
-    </Text>
-  );
 }
