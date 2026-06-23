@@ -19,7 +19,7 @@ import {
 } from '@/common/errors';
 import { logger } from '@/logger';
 import { nowSec } from '@/utils/time';
-import type { AuthedUser } from './auth-context';
+import type { AuthedUser } from '@/types/auth-context';
 
 /** 把被兜底成 503 的意外错误（DB 抖动 / 约束冲突等）的根因落日志——否则「服务暂时不可用」在日志里无迹可循。 */
 function logUnexpected(scope: string, e: unknown): void {

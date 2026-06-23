@@ -9,7 +9,7 @@ import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
 import { hasPermission, type PermissionKey } from '@hatch-radar/shared';
 import { AccountService } from './account.service';
-import type { AuthedUser } from './auth-context';
+import type { AuthedUser } from '@/types/auth-context';
 import { REQUIRE_PERMISSION } from './auth-user.decorator';
 import { CSRF_HEADER, readSessionCookie } from './cookies';
 

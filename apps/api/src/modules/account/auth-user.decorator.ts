@@ -1,6 +1,6 @@
 import { type ExecutionContext, SetMetadata, createParamDecorator } from '@nestjs/common';
 import type { PermissionKey } from '@hatch-radar/shared';
-import type { AuthedUser } from './auth-context';
+import type { AuthedUser } from '@/types/auth-context';
 
 /** 路由所需能力 key 的元数据键。 */
 export const REQUIRE_PERMISSION = 'require_permission';

@@ -16,7 +16,7 @@ import { z } from 'zod';
 import type { CurrentUser } from '@hatch-radar/shared';
 import { ZodValidationPipe } from '@/common/zod-validation.pipe';
 import { AccountService } from './account.service';
-import type { AuthedUser } from './auth-context';
+import type { AuthedUser } from '@/types/auth-context';
 import { AuthUser } from './auth-user.decorator';
 import { clearSessionCookie, setSessionCookie } from './cookies';
 import { SessionAuthGuard } from './session-auth.guard';

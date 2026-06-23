@@ -7,7 +7,7 @@ import {
   type PermissionKey,
   type UserRole,
 } from '@hatch-radar/shared';
-import type { AuthedUser } from '../account/auth-context';
+import type { AuthedUser } from '@/types/auth-context';
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '@/common/errors';
 import { AuditLogsRepository } from '@/database';
 import { SessionsRepository } from '@/database';

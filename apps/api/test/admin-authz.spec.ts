@@ -10,7 +10,7 @@ import { AdminService } from '@/modules/admin/admin.service';
 import { hashPassword } from '@/auth';
 import { nowSec } from '@/utils/time';
 import type { PermissionKey, UserRole } from '@hatch-radar/shared';
-import type { AuthedUser } from '@/modules/account/auth-context';
+import type { AuthedUser } from '@/types/auth-context';
 import { setupTestDb, truncateAll } from './helpers';
 
 /** 构造一个 actor 上下文（无需真实会话）。 */
