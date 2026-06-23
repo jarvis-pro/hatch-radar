@@ -1,18 +1,16 @@
 import { Appear } from '@/components/appear';
-import { GlassCard } from '@/components/glass';
-import { IntensityPill } from '@/components/intensity';
 import { PressableScale } from '@/components/pressable-scale';
 import { Text } from '@/components/ui/text';
 import { OPPORTUNITIES } from '@/data/opportunities';
 import type { Opportunity } from '@/data/types';
+import { INTENSITY_META, momentumLabel } from '@/lib/format';
 import { hapticSelect, hapticSuccess, hapticTap } from '@/lib/haptics';
 import { SPRING, SPRING_SOFT } from '@/lib/motion';
 import { useStore } from '@/lib/store';
 import { INTENSITY_GLOW, usePalette } from '@/lib/theme';
 import { cn } from '@/lib/utils';
-import { BlurView } from 'expo-blur';
 import { useRouter } from 'expo-router';
-import { Bookmark, Check, Maximize2, RotateCcw, X, type LucideIcon } from 'lucide-react-native';
+import { Bookmark, Maximize2, RotateCcw, TrendingDown, TrendingUp, X, type LucideIcon } from 'lucide-react-native';
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
 import Animated, {
@@ -35,14 +33,43 @@ interface SwipeCardHandle {
 
 const DECK_ORDER = () => [...OPPORTUNITIES].sort((a, b) => b.score - a.score);
 
-/** 卡面：强玻璃大卡 + 三向意图标签（收藏 / 跳过 / 展开），标签透明度随拖拽位移浮现。 */
+/** 编辑式卡面：卡内强度色场 + 巨型幽灵分数 + 超大标题；三向意图标签随拖拽浮现。 */
 function SwipeCardFace({ op, tx, ty }: { op: Opportunity; tx: SharedValue<number>; ty: SharedValue<number> }) {
+  const palette = usePalette();
+  const hue = INTENSITY_GLOW[op.intensity];
   const pp = op.painPoints[0];
+  const up = op.momentum >= 0;
   const saveStyle = useAnimatedStyle(() => ({ opacity: interpolate(tx.value, [20, 120], [0, 1], Extrapolation.CLAMP) }));
   const skipStyle = useAnimatedStyle(() => ({ opacity: interpolate(tx.value, [-120, -20], [1, 0], Extrapolation.CLAMP) }));
   const openStyle = useAnimatedStyle(() => ({ opacity: interpolate(ty.value, [-120, -30], [1, 0], Extrapolation.CLAMP) }));
+
   return (
-    <GlassCard tone="strong" className="flex-1 rounded-[32px] p-6">
+    <View
+      className="flex-1 overflow-hidden rounded-[34px]"
+      style={{ backgroundColor: '#0D0E16', borderWidth: StyleSheet.hairlineWidth, borderColor: `${hue}40` }}
+    >
+      {/* 卡内强度色场 */}
+      <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+        <Svg width="100%" height="100%">
+          <Defs>
+            <RadialGradient id={`deckcard-${op.id}`} cx="50%" cy="0%" r="95%">
+              <Stop offset="0%" stopColor={hue} stopOpacity={0.34} />
+              <Stop offset="55%" stopColor={hue} stopOpacity={0.08} />
+              <Stop offset="100%" stopColor={hue} stopOpacity={0} />
+            </RadialGradient>
+          </Defs>
+          <Rect x="0" y="0" width="100%" height="100%" fill={`url(#deckcard-${op.id})`} />
+        </Svg>
+      </View>
+
+      {/* 巨型幽灵分数 */}
+      <View pointerEvents="none" style={{ position: 'absolute', right: -16, bottom: -14 }}>
+        <Text style={{ fontFamily: 'JetBrainsMono_600SemiBold', fontSize: 200, lineHeight: 200, color: hue, opacity: 0.1 }}>
+          {op.score}
+        </Text>
+      </View>
+
+      {/* 意图标签 */}
       <Animated.View
         style={[saveStyle, { transform: [{ rotate: '-10deg' }] }]}
         className="absolute left-6 top-6 z-10 rounded-xl border-2 border-intensity-low px-3 py-1"
@@ -59,41 +86,52 @@ function SwipeCardFace({ op, tx, ty }: { op: Opportunity; tx: SharedValue<number
         <Text className="text-lg font-sans-bd text-primary">展开 ↑</Text>
       </Animated.View>
 
-      <View className="flex-row items-center justify-between">
-        <IntensityPill intensity={op.intensity} />
-        <Text className="font-mono text-xs text-muted-foreground">{op.channel}</Text>
-      </View>
-
-      <Text className="mt-5 text-[25px] font-sans-bd leading-tight text-foreground">{op.title}</Text>
-      <Text className="mt-3 text-[15px] leading-6 text-muted-foreground" numberOfLines={3}>
-        {op.pitch}
-      </Text>
-
-      <View className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-4">
-        <Text className="text-[11px] font-sans-sb uppercase tracking-wider text-primary">核心痛点</Text>
-        <Text className="mt-1.5 text-[14px] leading-5 text-foreground">“{pp.text}”</Text>
-        <View className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-white/10">
-          <View className="h-full rounded-full bg-intensity-high" style={{ width: `${pp.frequency}%` }} />
+      {/* 内容 */}
+      <View className="flex-1 p-7">
+        <View className="flex-row items-center gap-2.5">
+          <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: hue }} />
+          <Text style={{ color: hue }} className="text-[12px] font-sans-sb">
+            {INTENSITY_META[op.intensity].label}
+          </Text>
+          <Text className="text-[12px] font-sans-md uppercase tracking-wider text-muted-foreground">· {op.category}</Text>
         </View>
-        <Text className="mt-1.5 font-mono text-[11px] text-muted-foreground">{pp.frequency}% 的样本提及</Text>
-      </View>
 
-      <View className="flex-1" />
+        <Text className="mt-6 text-[30px] font-sans-bd leading-[1.3] text-foreground">{op.title}</Text>
+        <Text className="mt-4 text-[15px] leading-6 text-muted-foreground" numberOfLines={3}>
+          {op.pitch}
+        </Text>
 
-      <View className="flex-row items-end justify-between">
-        <View className="flex-row items-baseline gap-1.5">
-          <Text className="font-mono-sb text-4xl text-primary">{op.score}</Text>
-          <Text className="mb-1 text-xs text-muted-foreground">机会分</Text>
+        <View className="mt-6">
+          <Text className="text-[11px] font-sans-sb uppercase tracking-[1.5px]" style={{ color: hue }}>
+            核心痛点
+          </Text>
+          <Text className="mt-2 text-[15px] leading-6 text-foreground" numberOfLines={2}>
+            “{pp.text}”
+          </Text>
         </View>
-        <View className="max-w-[58%] flex-row flex-wrap justify-end gap-1.5">
-          {op.tags.slice(0, 3).map((t) => (
-            <View key={t} className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1">
-              <Text className="text-[11px] text-muted-foreground">#{t}</Text>
-            </View>
-          ))}
+
+        <View className="flex-1" />
+
+        <View className="flex-row items-end justify-between">
+          <View className="flex-row items-baseline gap-2">
+            <Text style={{ color: hue }} className="font-mono-sb text-5xl">
+              {op.score}
+            </Text>
+            <Text className="mb-1.5 text-xs text-muted-foreground">机会分</Text>
+          </View>
+          <View className="flex-row items-center gap-1.5">
+            {up ? (
+              <TrendingUp size={15} color={palette.intensityLow} strokeWidth={2.4} />
+            ) : (
+              <TrendingDown size={15} color={palette.mutedForeground} strokeWidth={2.4} />
+            )}
+            <Text className={`font-mono-sb text-sm ${up ? 'text-intensity-low' : 'text-muted-foreground'}`}>
+              {momentumLabel(op.momentum)}
+            </Text>
+          </View>
         </View>
       </View>
-    </GlassCard>
+    </View>
   );
 }
 
@@ -169,12 +207,20 @@ function PreviewCard({ op, depth }: { op: Opportunity; depth: number }) {
         { transform: [{ scale: 1 - depth * 0.05 }, { translateY: depth * 16 }], opacity: 1 - depth * 0.4, zIndex: -depth },
       ]}
     >
-      <GlassCard tone="strong" className="flex-1 rounded-[32px] p-6">
-        <IntensityPill intensity={op.intensity} />
-        <Text className="mt-5 text-[25px] font-sans-bd leading-tight text-foreground" numberOfLines={2}>
+      <View
+        className="flex-1 overflow-hidden rounded-[34px] p-7"
+        style={{ backgroundColor: '#0D0E16', borderWidth: StyleSheet.hairlineWidth, borderColor: `${INTENSITY_GLOW[op.intensity]}33` }}
+      >
+        <View className="flex-row items-center gap-2.5">
+          <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: INTENSITY_GLOW[op.intensity] }} />
+          <Text style={{ color: INTENSITY_GLOW[op.intensity] }} className="text-[12px] font-sans-sb">
+            {INTENSITY_META[op.intensity].label}
+          </Text>
+        </View>
+        <Text className="mt-6 text-[30px] font-sans-bd leading-[1.3] text-foreground" numberOfLines={2}>
           {op.title}
         </Text>
-      </GlassCard>
+      </View>
     </Animated.View>
   );
 }
@@ -186,7 +232,6 @@ const ACTIONS: Record<string, { Icon: LucideIcon; tone: string; ring: string; bi
 };
 
 function ActionButton({ kind, color, onPress }: { kind: keyof typeof ACTIONS; color: string; onPress: () => void }) {
-  const palette = usePalette();
   const c = ACTIONS[kind];
   return (
     <PressableScale
@@ -202,8 +247,8 @@ function ActionButton({ kind, color, onPress }: { kind: keyof typeof ACTIONS; co
           c.big ? 'h-16 w-16' : 'h-12 w-12',
           c.ring,
         )}
+        style={{ backgroundColor: '#14151F' }}
       >
-        <BlurView intensity={28} tint={palette.glass.tint} style={StyleSheet.absoluteFill} />
         <View className={cn('absolute inset-0', c.tone)} />
         <c.Icon size={c.size} color={color} strokeWidth={2.4} />
       </View>
@@ -222,22 +267,20 @@ function DeckProgress({ value }: { value: number }) {
 function EmptyDeck({ onReshuffle, savedCount }: { onReshuffle: () => void; savedCount: number }) {
   const palette = usePalette();
   return (
-    <Appear from="none" duration={500} className="flex-1 items-center justify-center px-7">
-      <GlassCard className="w-full items-center rounded-[32px] p-8">
-        <View className="h-16 w-16 items-center justify-center rounded-full bg-primary/15">
-          <Check size={30} color={palette.primary} strokeWidth={2.5} />
+    <Appear from="none" duration={500} className="flex-1 items-center justify-center px-10">
+      <Text className="text-[64px] font-sans-bd leading-none text-foreground" style={{ opacity: 0.12 }}>
+        ✓
+      </Text>
+      <Text className="mt-4 text-xl font-sans-bd text-foreground">本轮研判完成</Text>
+      <Text className="mt-3 text-center text-[14px] leading-6 text-muted-foreground">
+        你已看完全部机会，收藏了 <Text className="font-mono-sb text-primary">{savedCount}</Text> 个。{'\n'}重新洗牌再来一轮。
+      </Text>
+      <PressableScale scaleTo={0.94} onPress={onReshuffle} className="mt-7">
+        <View className="flex-row items-center gap-2 rounded-full border border-primary/40 bg-primary/15 px-5 py-3">
+          <RotateCcw size={17} color={palette.primary} strokeWidth={2.4} />
+          <Text className="text-[14px] font-sans-sb text-primary">重新洗牌</Text>
         </View>
-        <Text className="mt-5 text-xl font-sans-bd text-foreground">本轮研判完成</Text>
-        <Text className="mt-2 text-center text-[13px] leading-5 text-muted-foreground">
-          你已看完全部机会，收藏了 <Text className="font-mono-sb text-primary">{savedCount}</Text> 个。{'\n'}重新洗牌再来一轮。
-        </Text>
-        <PressableScale scaleTo={0.94} onPress={onReshuffle} className="mt-6">
-          <View className="flex-row items-center gap-2 rounded-full border border-primary/40 bg-primary/15 px-5 py-3">
-            <RotateCcw size={17} color={palette.primary} strokeWidth={2.4} />
-            <Text className="text-[14px] font-sans-sb text-primary">重新洗牌</Text>
-          </View>
-        </PressableScale>
-      </GlassCard>
+      </PressableScale>
     </Appear>
   );
 }

@@ -1,5 +1,3 @@
-import { Appear } from '@/components/appear';
-import { GlassCard } from '@/components/glass';
 import { PageHeading } from '@/components/section';
 import { Text } from '@/components/ui/text';
 import { OPPORTUNITIES } from '@/data/opportunities';
@@ -10,10 +8,9 @@ import { usePalette } from '@/lib/theme';
 import { useThemeMode, type ThemeMode } from '@/lib/theme-mode';
 import { cn } from '@/lib/utils';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Bell, Bookmark, Info, ListChecks, Moon, RotateCcw, Smartphone, Sun, Vibrate } from 'lucide-react-native';
-import type { LucideIcon } from 'lucide-react-native';
+import { Bell, Moon, RotateCcw, Smartphone, Sun, Vibrate, type LucideIcon } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, {
   interpolate,
   interpolateColor,
@@ -28,6 +25,24 @@ const THEME_OPTIONS: { key: ThemeMode; label: string; Icon: LucideIcon }[] = [
   { key: 'dark', label: '深色', Icon: Moon },
   { key: 'system', label: '跟随', Icon: Smartphone },
 ];
+
+function SectionLabel({ children }: { children: string }) {
+  return (
+    <View className="mb-5 mt-11 px-7">
+      <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: 'rgba(255,255,255,0.1)' }} className="mb-5" />
+      <Text className="text-[12px] font-sans-sb uppercase tracking-[2px] text-primary">{children}</Text>
+    </View>
+  );
+}
+
+function Stat({ value, label }: { value: number; label: string }) {
+  return (
+    <View className="flex-1">
+      <Text className="font-mono-sb text-[22px] text-foreground">{value}</Text>
+      <Text className="mt-1 text-[11px] text-muted-foreground">{label}</Text>
+    </View>
+  );
+}
 
 function ThemeSegmented() {
   const { mode, setMode } = useThemeMode();
@@ -114,26 +129,13 @@ function PrefRow({
 }) {
   const palette = usePalette();
   return (
-    <View className="flex-row items-center gap-3 py-2.5">
-      <View className="h-9 w-9 items-center justify-center rounded-xl bg-white/5">
-        <Icon size={17} color={palette.mutedForeground} strokeWidth={2.2} />
-      </View>
+    <View className="flex-row items-center gap-3 py-4">
+      <Icon size={18} color={palette.mutedForeground} strokeWidth={2.2} />
       <View className="flex-1">
-        <Text className="text-[14px] font-sans-md text-foreground">{label}</Text>
-        <Text className="text-[11.5px] text-muted-foreground">{hint}</Text>
+        <Text className="text-[15px] font-sans-md text-foreground">{label}</Text>
+        <Text className="text-[12px] text-muted-foreground">{hint}</Text>
       </View>
       <GlassSwitch value={value} onChange={onChange} />
-    </View>
-  );
-}
-
-function MiniStat({ icon: Icon, value, label }: { icon: LucideIcon; value: number; label: string }) {
-  const palette = usePalette();
-  return (
-    <View className="flex-1 items-center">
-      <Icon size={18} color={palette.primary} strokeWidth={2.2} />
-      <Text className="mt-1.5 font-mono-sb text-xl text-foreground">{value}</Text>
-      <Text className="text-[11px] text-muted-foreground">{label}</Text>
     </View>
   );
 }
@@ -152,77 +154,68 @@ export default function ProfileScreen() {
     >
       <PageHeading eyebrow="我的" title="个人空间" />
 
-      {/* 资料卡 */}
-      <Appear delay={40} className="px-5 pt-2">
-        <GlassCard className="rounded-[28px] p-5">
-          <View className="flex-row items-center gap-4">
-            <View className="h-16 w-16 overflow-hidden rounded-full">
-              <LinearGradient
-                colors={['#7C76FF', '#22D3EE']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}
-              >
-                <Text className="text-2xl font-sans-bd text-white">灵</Text>
-              </LinearGradient>
-            </View>
-            <View className="flex-1">
-              <Text className="text-lg font-sans-bd text-foreground">灵感探索者</Text>
-              <Text className="text-[12.5px] text-muted-foreground">Lumen 概念体验 · 早期成员</Text>
-            </View>
-          </View>
+      {/* 资料 */}
+      <View className="mt-3 flex-row items-center gap-4 px-7">
+        <View className="h-16 w-16 overflow-hidden rounded-full">
+          <LinearGradient
+            colors={['#7C76FF', '#22D3EE']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}
+          >
+            <Text className="text-2xl font-sans-bd text-white">灵</Text>
+          </LinearGradient>
+        </View>
+        <View className="flex-1">
+          <Text className="text-[22px] font-sans-bd text-foreground">灵感探索者</Text>
+          <Text className="text-[12.5px] text-muted-foreground">Lumen 概念体验 · 早期成员</Text>
+        </View>
+      </View>
 
-          <View className="mt-5 flex-row border-t border-white/10 pt-4">
-            <MiniStat icon={Bookmark} value={savedIds.length} label="收藏" />
-            <View className="w-px bg-white/10" />
-            <MiniStat icon={ListChecks} value={dismissedIds.length} label="已跳过" />
-            <View className="w-px bg-white/10" />
-            <MiniStat icon={Info} value={OPPORTUNITIES.length} label="追踪机会" />
-          </View>
-        </GlassCard>
-      </Appear>
+      {/* 统计 */}
+      <View className="mt-8 flex-row items-start px-7">
+        <Stat value={savedIds.length} label="收藏" />
+        <View style={{ width: StyleSheet.hairlineWidth, backgroundColor: 'rgba(255,255,255,0.12)', marginHorizontal: 16 }} />
+        <Stat value={dismissedIds.length} label="已跳过" />
+        <View style={{ width: StyleSheet.hairlineWidth, backgroundColor: 'rgba(255,255,255,0.12)', marginHorizontal: 16 }} />
+        <Stat value={OPPORTUNITIES.length} label="追踪机会" />
+      </View>
 
       {/* 外观 */}
-      <Appear delay={120} className="px-5 pt-4">
-        <Text className="mb-2.5 px-1 text-xs font-sans-sb uppercase tracking-wider text-muted-foreground">外观</Text>
-        <GlassCard className="rounded-[24px] p-4">
-          <ThemeSegmented />
-        </GlassCard>
-      </Appear>
+      <SectionLabel>外观</SectionLabel>
+      <View className="px-7">
+        <ThemeSegmented />
+      </View>
 
       {/* 偏好 */}
-      <Appear delay={200} className="px-5 pt-4">
-        <Text className="mb-2.5 px-1 text-xs font-sans-sb uppercase tracking-wider text-muted-foreground">偏好</Text>
-        <GlassCard className="rounded-[24px] px-4 py-1.5">
-          <PrefRow icon={Bell} label="强信号提醒" hint="出现高强度机会时推送" value={notify} onChange={setNotify} />
-          <View className="h-px bg-white/8" />
-          <PrefRow icon={Vibrate} label="触感反馈" hint="交互时的轻微震动" value={haptics} onChange={setHaptics} />
-        </GlassCard>
-      </Appear>
+      <SectionLabel>偏好</SectionLabel>
+      <View className="px-7">
+        <PrefRow icon={Bell} label="强信号提醒" hint="出现高强度机会时推送" value={notify} onChange={setNotify} />
+        <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: 'rgba(255,255,255,0.08)' }} />
+        <PrefRow icon={Vibrate} label="触感反馈" hint="交互时的轻微震动" value={haptics} onChange={setHaptics} />
+      </View>
 
       {/* 关于 */}
-      <Appear delay={280} className="px-5 pt-4">
-        <Text className="mb-2.5 px-1 text-xs font-sans-sb uppercase tracking-wider text-muted-foreground">关于</Text>
-        <GlassCard className="rounded-[24px] p-5">
-          <Text className="text-[14px] leading-6 text-foreground">
-            Lumen 是一个 AI 产品灵感雷达的概念体验：持续扫描社区信号，把浮现中的产品机会与用户痛点提炼成可探索的卡片。
-          </Text>
-          <Text className="mt-3 text-[12.5px] leading-5 text-muted-foreground">
-            本应用的全部数据均为演示用 mock，不发起任何网络请求。
-          </Text>
-          <Pressable
-            onPress={() => {
-              hapticSelect();
-              reset();
-              restoreDeck();
-            }}
-            className="mt-5 flex-row items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 py-3"
-          >
-            <RotateCcw size={16} color={palette.mutedForeground} strokeWidth={2.3} />
-            <Text className="text-[13.5px] font-sans-md text-muted-foreground">重置演示数据</Text>
-          </Pressable>
-        </GlassCard>
-      </Appear>
+      <SectionLabel>关于</SectionLabel>
+      <View className="px-7">
+        <Text className="text-[15px] leading-7 text-foreground">
+          Lumen 是一个 AI 产品灵感雷达的概念体验：持续扫描社区信号，把浮现中的产品机会与用户痛点提炼成可探索的卡片。
+        </Text>
+        <Text className="mt-3 text-[13px] leading-6 text-muted-foreground">
+          本应用的全部数据均为演示用 mock，不发起任何网络请求。
+        </Text>
+        <Pressable
+          onPress={() => {
+            hapticSelect();
+            reset();
+            restoreDeck();
+          }}
+          className="mt-7 flex-row items-center gap-2.5"
+        >
+          <RotateCcw size={16} color={palette.mutedForeground} strokeWidth={2.3} />
+          <Text className="text-[14px] font-sans-md text-muted-foreground">重置演示数据</Text>
+        </Pressable>
+      </View>
     </ScrollView>
   );
 }

@@ -1,83 +1,121 @@
-import { Appear } from '@/components/appear';
-import { LiveBadge, LumenMark } from '@/components/brand';
-import { Marquee } from '@/components/marquee';
-import { OpportunityCarousel } from '@/components/opportunity-carousel';
-import { RadarScope } from '@/components/radar-scope';
-import { SectionHeader } from '@/components/section';
-import { StatTile } from '@/components/stat-tile';
+import { PulseDot } from '@/components/brand';
+import { IntroScene } from '@/components/intro-scene';
+import { OpportunityScene } from '@/components/opportunity-scene';
+import { ReelBackground } from '@/components/reel-background';
 import { Text } from '@/components/ui/text';
-import { OPPORTUNITIES, SCAN_SOURCES } from '@/data/opportunities';
+import { OPPORTUNITIES } from '@/data/opportunities';
 import type { Opportunity } from '@/data/types';
 import { hapticSelect } from '@/lib/haptics';
-import { usePalette } from '@/lib/theme';
+import { INTENSITY_GLOW, usePalette } from '@/lib/theme';
 import { useRouter } from 'expo-router';
-import { Activity, Flame, Sparkles } from 'lucide-react-native';
 import { useMemo } from 'react';
-import { ScrollView, useWindowDimensions, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useWindowDimensions, View } from 'react-native';
+import Animated, {
+  Extrapolation,
+  interpolate,
+  type SharedValue,
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  useSharedValue,
+} from 'react-native-reanimated';
+import { type EdgeInsets, useSafeAreaInsets } from 'react-native-safe-area-context';
+
+/** 滚动过 intro 后淡入的迷你品牌头。 */
+function MiniHeader({ scrollY, height, insets }: { scrollY: SharedValue<number>; height: number; insets: EdgeInsets }) {
+  const palette = usePalette();
+  const style = useAnimatedStyle(() => ({
+    opacity: interpolate(scrollY.value, [height * 0.55, height * 0.95], [0, 1], Extrapolation.CLAMP),
+    transform: [{ translateY: interpolate(scrollY.value, [height * 0.55, height * 0.95], [-10, 0], Extrapolation.CLAMP) }],
+  }));
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={[{ position: 'absolute', top: insets.top + 8, left: 0, right: 0, alignItems: 'center' }, style]}
+    >
+      <View className="flex-row items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3.5 py-1.5">
+        <PulseDot color={palette.signal} size={6} />
+        <Text className="text-[13px] font-sans-bd tracking-tight text-foreground">Lumen</Text>
+      </View>
+    </Animated.View>
+  );
+}
+
+/** 右侧进度轨的一颗：当前场景的点拉长提亮。 */
+function RailDot({ index, scrollY, height }: { index: number; scrollY: SharedValue<number>; height: number }) {
+  const palette = usePalette();
+  const style = useAnimatedStyle(() => {
+    const d = Math.abs(scrollY.value / height - index);
+    return {
+      height: interpolate(d, [0, 1], [22, 7], Extrapolation.CLAMP),
+      opacity: interpolate(d, [0, 1], [1, 0.3], Extrapolation.CLAMP),
+    };
+  });
+  return <Animated.View style={[{ width: 3, borderRadius: 2, backgroundColor: palette.foreground }, style]} />;
+}
 
 export default function RadarScreen() {
   const router = useRouter();
-  const palette = usePalette();
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
-  const radarSize = Math.min(width * 0.72, 300);
+  const { width, height } = useWindowDimensions();
+  const radarSize = Math.min(width * 0.58, 248);
 
-  const { totalSignals, high, featured } = useMemo(() => {
-    const sorted = [...OPPORTUNITIES].sort((a, b) => b.score - a.score);
-    return {
-      totalSignals: OPPORTUNITIES.reduce((s, o) => s + o.mentions, 0),
-      high: OPPORTUNITIES.filter((o) => o.intensity === 'high').length,
-      featured: sorted.slice(0, 8),
-    };
-  }, []);
+  const scrollY = useSharedValue(0);
+  const onScroll = useAnimatedScrollHandler((e) => {
+    scrollY.value = e.contentOffset.y;
+  });
 
-  const openOpportunity = (op: Opportunity) => {
+  const featured = useMemo(() => [...OPPORTUNITIES].sort((a, b) => b.score - a.score).slice(0, 7), []);
+  const colors = useMemo(() => ['#6C63FF', ...featured.map((o) => INTENSITY_GLOW[o.intensity])], [featured]);
+
+  const open = (op: Opportunity) => {
     hapticSelect();
     router.push(`/opportunity/${op.id}`);
   };
 
   return (
-    <ScrollView
-      showsVerticalScrollIndicator={false}
-      contentContainerStyle={{ paddingTop: insets.top + 6, paddingBottom: 150 }}
-    >
-      {/* 顶栏 */}
-      <Appear from="none" duration={500} className="flex-row items-center justify-between px-5 pb-3">
-        <View className="flex-row items-center gap-3">
-          <LumenMark size={30} />
-          <View>
-            <Text className="text-[19px] font-sans-bd leading-tight text-foreground">Lumen</Text>
-            <Text className="text-[11px] text-muted-foreground">AI 产品灵感雷达</Text>
-          </View>
-        </View>
-        <LiveBadge label="实时扫描" />
-      </Appear>
+    <View style={{ flex: 1 }}>
+      <ReelBackground colors={colors} scrollY={scrollY} height={height} />
 
-      {/* 实时源跑马灯 */}
-      <Appear from="none" delay={80}>
-        <Marquee items={SCAN_SOURCES} />
-      </Appear>
+      <Animated.ScrollView
+        onScroll={onScroll}
+        scrollEventThrottle={16}
+        snapToInterval={height}
+        decelerationRate="fast"
+        showsVerticalScrollIndicator={false}
+      >
+        <IntroScene
+          scrollY={scrollY}
+          height={height}
+          width={width}
+          radarSize={radarSize}
+          opportunities={OPPORTUNITIES}
+          newCount={OPPORTUNITIES.length}
+          insets={insets}
+          onSelectBlip={open}
+        />
+        {featured.map((op, i) => (
+          <OpportunityScene
+            key={op.id}
+            op={op}
+            sceneIndex={i + 1}
+            number={i + 1}
+            total={featured.length}
+            scrollY={scrollY}
+            height={height}
+            width={width}
+            insets={insets}
+            onPress={() => open(op)}
+          />
+        ))}
+      </Animated.ScrollView>
 
-      {/* 今日精选 · 视差轮播（主秀） */}
-      <SectionHeader title="今日精选" trailing="左右滑动探索" />
-      <Appear delay={140}>
-        <OpportunityCarousel items={featured} />
-      </Appear>
+      <MiniHeader scrollY={scrollY} height={height} insets={insets} />
 
-      {/* 脉冲统计 */}
-      <Appear delay={220} className="mt-7 flex-row gap-3 px-5">
-        <StatTile icon={Activity} label="今日信号" value={totalSignals} format="compact" accent={palette.signal} delay={300} />
-        <StatTile icon={Sparkles} label="活跃机会" value={OPPORTUNITIES.length} accent={palette.primary} delay={400} />
-        <StatTile icon={Flame} label="强信号" value={high} accent={palette.intensityHigh} delay={500} />
-      </Appear>
-
-      {/* 信号雷达 */}
-      <SectionHeader title="信号雷达" trailing={`${OPPORTUNITIES.length} 簇信号`} />
-      <Appear from="none" delay={180} className="items-center pt-1">
-        <RadarScope size={radarSize} opportunities={OPPORTUNITIES} onSelectBlip={openOpportunity} />
-        <Text className="mt-4 text-[13px] text-muted-foreground">轻点雷达上的光点展开机会</Text>
-      </Appear>
-    </ScrollView>
+      <View pointerEvents="none" style={{ position: 'absolute', right: 14, top: 0, bottom: 0, justifyContent: 'center', gap: 8 }}>
+        {Array.from({ length: featured.length + 1 }).map((_, i) => (
+          <RailDot key={i} index={i} scrollY={scrollY} height={height} />
+        ))}
+      </View>
+    </View>
   );
 }

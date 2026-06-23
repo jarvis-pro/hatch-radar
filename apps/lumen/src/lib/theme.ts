@@ -10,21 +10,9 @@ export const INTENSITY_GLOW: Record<Intensity, string> = {
 
 /**
  * JS 侧调色板 —— 凡是 className 够不着的地方（SVG fill/stroke、LinearGradient、
- * BlurView tint、StatusBar、原生控件）从这里取真实色值。唯一色相来源仍是
- * global.css 的 Signal 令牌，本文件是它在 JS 的镜像（改色两边同步）。
- *
- * 玻璃拟态相关：
- *   aurora —— 背景极光光斑的着色（叠加在近黑底上缓慢漂移）
- *   glass  —— 玻璃面的 BlurView tint / 表层底色 / 发丝描边
+ * StatusBar、原生控件）从这里取真实色值。唯一色相来源仍是 global.css 的 Signal 令牌，
+ * 本文件是它在 JS 的镜像（改色两边同步）。aurora 为背景极光光斑着色。
  */
-interface Glass {
-  tint: 'light' | 'dark';
-  surface: string;
-  surfaceStrong: string;
-  stroke: string;
-  strokeSoft: string;
-}
-
 export interface Palette {
   background: string;
   card: string;
@@ -38,7 +26,6 @@ export interface Palette {
   intensityMedium: string;
   intensityLow: string;
   aurora: { color: string; opacity: number }[];
-  glass: Glass;
 }
 
 const PALETTE: Record<'light' | 'dark', Palette> = {
@@ -59,13 +46,6 @@ const PALETTE: Record<'light' | 'dark', Palette> = {
       { color: '#38BDF8', opacity: 0.2 },
       { color: '#A855F7', opacity: 0.18 },
     ],
-    glass: {
-      tint: 'light',
-      surface: 'rgba(255,255,255,0.55)',
-      surfaceStrong: 'rgba(255,255,255,0.72)',
-      stroke: 'rgba(255,255,255,0.7)',
-      strokeSoft: 'rgba(120,120,160,0.16)',
-    },
   },
   dark: {
     background: 'hsl(234 30% 6%)',
@@ -84,13 +64,6 @@ const PALETTE: Record<'light' | 'dark', Palette> = {
       { color: '#22D3EE', opacity: 0.34 },
       { color: '#A855F7', opacity: 0.44 },
     ],
-    glass: {
-      tint: 'dark',
-      surface: 'rgba(255,255,255,0.055)',
-      surfaceStrong: 'rgba(255,255,255,0.09)',
-      stroke: 'rgba(255,255,255,0.12)',
-      strokeSoft: 'rgba(255,255,255,0.06)',
-    },
   },
 };
 

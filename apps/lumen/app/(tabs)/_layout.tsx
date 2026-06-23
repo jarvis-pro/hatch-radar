@@ -1,4 +1,4 @@
-import { GlassTabBar } from '@/components/glass-tab-bar';
+import { TabBar } from '@/components/tab-bar';
 import { Tabs } from 'expo-router';
 
 /**
@@ -12,7 +12,7 @@ import { Tabs } from 'expo-router';
 export default function TabsLayout() {
   return (
     <Tabs
-      tabBar={(props) => <GlassTabBar {...props} />}
+      tabBar={(props) => <TabBar {...props} />}
       screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: 'transparent' } }}
     >
       <Tabs.Screen name="index" options={{ title: '雷达' }} />

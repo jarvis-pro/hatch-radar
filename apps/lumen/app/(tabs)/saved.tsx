@@ -1,21 +1,52 @@
-import { Appear } from '@/components/appear';
-import { GlassCard } from '@/components/glass';
-import { OpportunityCard } from '@/components/opportunity-card';
-import { ScrollScaleItem } from '@/components/scroll-reveal';
 import { PageHeading } from '@/components/section';
-import { StatTile } from '@/components/stat-tile';
+import { ScrollScaleItem } from '@/components/scroll-reveal';
 import { Text } from '@/components/ui/text';
+import type { Opportunity } from '@/data/types';
+import { compact, INTENSITY_META, momentumLabel } from '@/lib/format';
+import { hapticSelect } from '@/lib/haptics';
 import { useStore } from '@/lib/store';
-import { usePalette } from '@/lib/theme';
-import { Bookmark, Flame, Gauge, Sparkles } from 'lucide-react-native';
+import { INTENSITY_GLOW } from '@/lib/theme';
+import { useRouter } from 'expo-router';
 import { useMemo } from 'react';
-import { useWindowDimensions, View } from 'react-native';
+import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import Animated, { useAnimatedScrollHandler, useSharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+const pad = (n: number) => String(n).padStart(2, '0');
+
+function SavedRow({ op, index, onPress }: { op: Opportunity; index: number; onPress: () => void }) {
+  const hue = INTENSITY_GLOW[op.intensity];
+  const up = op.momentum >= 0;
+  return (
+    <Pressable onPress={onPress} className="px-7 py-6" style={{ borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: 'rgba(255,255,255,0.08)' }}>
+      <View className="mb-3 flex-row items-center gap-3">
+        <Text style={{ color: hue }} className="font-mono-sb text-[13px]">
+          {pad(index)}
+        </Text>
+        <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: hue }} />
+        <Text style={{ color: hue }} className="text-[12px] font-sans-sb">
+          {INTENSITY_META[op.intensity].label}
+        </Text>
+        <Text className="text-[12px] font-sans-md uppercase tracking-wider text-muted-foreground">· {op.category}</Text>
+        <View className="flex-1" />
+        <Text style={{ color: hue }} className="font-mono-sb text-[24px]">
+          {op.score}
+        </Text>
+      </View>
+      <Text className="text-[23px] font-sans-bd leading-[1.3] text-foreground" numberOfLines={2}>
+        {op.title}
+      </Text>
+      <Text className="mt-3 font-mono text-[12px] text-muted-foreground">
+        {op.channel} · 声量 {compact(op.mentions)} · {momentumLabel(op.momentum)}
+        {up ? ' ↑' : ' ↓'}
+      </Text>
+    </Pressable>
+  );
+}
+
 export default function SavedScreen() {
   const insets = useSafeAreaInsets();
-  const palette = usePalette();
+  const router = useRouter();
   const { height } = useWindowDimensions();
   const { savedOpportunities } = useStore();
 
@@ -31,6 +62,11 @@ export default function SavedScreen() {
     return { count, avg, high };
   }, [savedOpportunities]);
 
+  const open = (op: Opportunity) => {
+    hapticSelect();
+    router.push(`/opportunity/${op.id}`);
+  };
+
   return (
     <Animated.ScrollView
       onScroll={onScroll}
@@ -41,35 +77,32 @@ export default function SavedScreen() {
       <PageHeading eyebrow="收藏" title="灵感板" subtitle="你筛选出的高潜力产品机会" />
 
       {stats.count > 0 ? (
-        <Appear delay={60} className="mt-3 flex-row gap-3 px-5">
-          <StatTile icon={Bookmark} label="已收藏" value={stats.count} accent={palette.primary} delay={150} />
-          <StatTile icon={Gauge} label="平均机会分" value={stats.avg} accent={palette.signal} delay={250} />
-          <StatTile icon={Flame} label="强信号" value={stats.high} accent={palette.intensityHigh} delay={350} />
-        </Appear>
+        <View className="mb-8 mt-3 flex-row items-center gap-6 px-7">
+          <Text className="text-[13px] text-muted-foreground">
+            <Text className="font-mono-sb text-[15px] text-foreground">{stats.count}</Text> 收藏
+          </Text>
+          <Text className="text-[13px] text-muted-foreground">
+            <Text className="font-mono-sb text-[15px] text-foreground">{stats.avg}</Text> 均分
+          </Text>
+          <Text className="text-[13px] text-muted-foreground">
+            <Text className="font-mono-sb text-[15px] text-foreground">{stats.high}</Text> 强信号
+          </Text>
+        </View>
       ) : null}
 
       {stats.count === 0 ? (
-        <Appear from="none" className="px-5 pt-6">
-          <GlassCard className="items-center rounded-[28px] p-8">
-            <View className="h-16 w-16 items-center justify-center rounded-full bg-primary/12">
-              <Sparkles size={28} color={palette.primary} strokeWidth={2.3} />
-            </View>
-            <Text className="mt-5 text-lg font-sans-bd text-foreground">还没有收藏</Text>
-            <Text className="mt-2 text-center text-[13px] leading-5 text-muted-foreground">
-              在雷达点开光点，或到「探索」右滑卡片，{'\n'}把心动的机会收进灵感板。
-            </Text>
-          </GlassCard>
-        </Appear>
+        <View className="px-7 pt-16 items-center">
+          <Text className="text-[44px] font-sans-bd text-foreground" style={{ opacity: 0.12 }}>
+            ∅
+          </Text>
+          <Text className="mt-4 text-center text-[15px] leading-7 text-muted-foreground">
+            还没有收藏。{'\n'}在雷达滑动浏览，或到「探索」右滑卡片，{'\n'}把心动的机会收进灵感板。
+          </Text>
+        </View>
       ) : (
         savedOpportunities.map((op, i) => (
-          <ScrollScaleItem
-            key={op.id}
-            scrollY={scrollY}
-            viewportH={height}
-            className="px-5"
-            style={{ marginTop: i === 0 ? 10 : 14 }}
-          >
-            <OpportunityCard op={op} />
+          <ScrollScaleItem key={op.id} scrollY={scrollY} viewportH={height}>
+            <SavedRow op={op} index={i + 1} onPress={() => open(op)} />
           </ScrollScaleItem>
         ))
       )}
