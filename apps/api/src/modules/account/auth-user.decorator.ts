@@ -9,13 +9,12 @@ export const REQUIRE_PERMISSION = 'require_permission';
 export const RequirePermission = (key: PermissionKey) => SetMetadata(REQUIRE_PERMISSION, key);
 
 /**
- * 取当前登录用户（由 SessionAuthGuard、或 DeviceOrSessionGuard 的会话分支附加到 req.user）。
+ * 取当前登录用户（SessionAuthGuard 校验通过后附到 req.user）。
  *
- * 返回 undefined 表示当前请求未走会话通道——双通道端点改走设备签名时 req.user 为空（身份在 req.deviceUser），
- * 或路由漏挂守卫。故类型如实标可空：纯会话端点配 SessionAuthGuard 后调用方可安全断言非空，
- * 双通道端点须自行收窄（见 MeController 的 resolveUserId）。
+ * 仅用于挂了 SessionAuthGuard 的路由——守卫放行即保证 req.user 已就位，故类型非空。
+ * 漏挂守卫会让运行期为 undefined 而类型仍断言非空，属用法错误（须与守卫成对出现）。
  */
 export const AuthUser = createParamDecorator(
-  (_data: unknown, ctx: ExecutionContext): AuthedUser | undefined =>
-    ctx.switchToHttp().getRequest<{ user?: AuthedUser }>().user,
+  (_data: unknown, ctx: ExecutionContext): AuthedUser =>
+    ctx.switchToHttp().getRequest<{ user: AuthedUser }>().user,
 );
