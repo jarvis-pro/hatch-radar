@@ -80,7 +80,7 @@ export function OpportunityScene({
           style={{
             fontFamily: 'JetBrainsMono_600SemiBold',
             fontSize: width * 0.62,
-            lineHeight: width * 0.62,
+            lineHeight: width * 0.62 * 1.3,
             color: hue,
             opacity: 0.16,
           }}

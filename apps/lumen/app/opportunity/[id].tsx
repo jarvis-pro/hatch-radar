@@ -22,7 +22,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 function Stat({ value, label, color }: { value: string; label: string; color?: string }) {
   return (
     <View className="flex-1">
-      <Text className="font-mono-sb text-[20px] text-foreground" style={color ? { color } : undefined}>
+      <Text className="font-mono-sb text-[20px] leading-[1.3] text-foreground" style={color ? { color } : undefined}>
         {value}
       </Text>
       <Text className="mt-1 text-[11px] text-muted-foreground">{label}</Text>
@@ -40,7 +40,7 @@ function PainPoint({ text, frequency, delay, hue }: { text: string; frequency: n
   return (
     <View className="mb-7">
       <View className="flex-row items-baseline gap-4">
-        <Text style={{ color: hue, width: 56 }} className="font-mono-sb text-[24px]">
+        <Text style={{ color: hue, width: 56 }} className="font-mono-sb text-[24px] leading-[1.3]">
           {Math.round(v)}%
         </Text>
         <Text className="flex-1 text-[15px] leading-6 text-foreground">{text}</Text>
@@ -93,7 +93,7 @@ export default function OpportunityDetail() {
         style={[{ position: 'absolute', right: -width * 0.06, bottom: insets.bottom + 40 }, ghostStyle]}
       >
         <Text
-          style={{ fontFamily: 'JetBrainsMono_600SemiBold', fontSize: width * 0.66, lineHeight: width * 0.66, color: hue }}
+          style={{ fontFamily: 'JetBrainsMono_600SemiBold', fontSize: width * 0.66, lineHeight: width * 0.66 * 1.3, color: hue }}
         >
           {op.score}
         </Text>

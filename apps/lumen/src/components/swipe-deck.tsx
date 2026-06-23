@@ -64,7 +64,7 @@ function SwipeCardFace({ op, tx, ty }: { op: Opportunity; tx: SharedValue<number
 
       {/* 巨型幽灵分数 */}
       <View pointerEvents="none" style={{ position: 'absolute', right: -16, bottom: -14 }}>
-        <Text style={{ fontFamily: 'JetBrainsMono_600SemiBold', fontSize: 200, lineHeight: 200, color: hue, opacity: 0.1 }}>
+        <Text style={{ fontFamily: 'JetBrainsMono_600SemiBold', fontSize: 200, lineHeight: 260, color: hue, opacity: 0.1 }}>
           {op.score}
         </Text>
       </View>
@@ -114,7 +114,7 @@ function SwipeCardFace({ op, tx, ty }: { op: Opportunity; tx: SharedValue<number
 
         <View className="flex-row items-end justify-between">
           <View className="flex-row items-baseline gap-2">
-            <Text style={{ color: hue }} className="font-mono-sb text-5xl">
+            <Text style={{ color: hue }} className="font-mono-sb text-[48px] leading-[1.3]">
               {op.score}
             </Text>
             <Text className="mb-1.5 text-xs text-muted-foreground">机会分</Text>

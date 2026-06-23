@@ -30,7 +30,7 @@ function SavedRow({ op, index, onPress }: { op: Opportunity; index: number; onPr
         </Text>
         <Text className="text-[12px] font-sans-md uppercase tracking-wider text-muted-foreground">· {op.category}</Text>
         <View className="flex-1" />
-        <Text style={{ color: hue }} className="font-mono-sb text-[24px]">
+        <Text style={{ color: hue }} className="font-mono-sb text-[24px] leading-[1.3]">
           {op.score}
         </Text>
       </View>
