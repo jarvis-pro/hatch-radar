@@ -32,7 +32,7 @@ export interface SessionInfo {
   createdAt: number;
 }
 
-/** 账户管理列表的一行（含已授予权限与设备数）。 */
+/** 账户管理列表的一行（含已授予权限）。 */
 export interface AdminUserRow {
   id: string;
   email: string;
@@ -41,30 +41,7 @@ export interface AdminUserRow {
   status: 'active' | 'disabled';
   mustChangePassword: boolean;
   permissions: PermissionKey[];
-  deviceCount: number;
   lastLoginAt: number | null;
-  createdAt: number;
-}
-
-/** 设备凭据（账户管理设备面板用）。 */
-export interface DeviceRow {
-  id: string;
-  userId: string;
-  deviceName: string;
-  status: 'active' | 'revoked';
-  ttlDays: number;
-  expiresAt: number;
-  lastSeenAt: number | null;
-  createdAt: number;
-}
-
-/** 待激活的激活码（pending、未过期）。 */
-export interface EnrollmentRow {
-  id: string;
-  userId: string;
-  deviceName: string;
-  ttlDays: number;
-  expiresAt: number;
   createdAt: number;
 }
 

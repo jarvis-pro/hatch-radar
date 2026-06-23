@@ -58,7 +58,7 @@ function toCurrentUser({ sessionId: _sessionId, ...user }: AuthedUser): CurrentU
 
 /**
  * /api/auth/* —— 人鉴权权威端点（会话登录/登出/校验/改密/会话管理/资料）。
- * 登录公开；其余挂 SessionAuthGuard（读 httpOnly cookie 校验）。设备激活在另一控制器 /api/auth/device。
+ * 登录公开；其余挂 SessionAuthGuard（读 httpOnly cookie 校验）。
  */
 @Controller('auth')
 export class AccountController {

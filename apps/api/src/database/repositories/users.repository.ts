@@ -262,7 +262,7 @@ export class UsersRepository {
   }
 
   /**
-   * 删除账户（user_permissions / sessions / 设备等按 schema 级联清理）。
+   * 删除账户（user_permissions / sessions 按 schema 级联清理）。
    * @param id 用户 id
    */
   async delete(id: string): Promise<void> {
@@ -284,7 +284,6 @@ export class UsersRepository {
       status: r.status,
       mustChangePassword: r.must_change_password,
       permissions: r.permissions.map((p) => p.permission).filter(isPermissionKey),
-      deviceCount: 0,
       lastLoginAt: r.last_login_at != null ? Number(r.last_login_at) : null,
       createdAt: Number(r.created_at),
     }));

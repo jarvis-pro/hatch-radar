@@ -42,7 +42,7 @@ const LOCK_SEC = 300;
 
 /** 登录请求附带的客户端信息（写入会话与审计）。 */
 export interface LoginMeta {
-  /** 客户端 User-Agent（写入会话，供「我的设备」展示） */
+  /** 客户端 User-Agent（写入会话，供会话列表展示） */
   userAgent?: string;
   /** 客户端 IP（写入会话 + 审计；不可得时省略） */
   ip?: string;
@@ -282,37 +282,14 @@ export class AccountService {
   }
 
   /**
-   * 取指定用户的当前态（设备/会话双通道的 /api/me 用）。
-   * @param userId 用户 id
-   * @returns 用户态（脱敏）；不存在时返回 null
-   * @throws ServiceUnavailableError 意外错误记根因后兜底
-   */
-  async getProfile(userId: string): Promise<CurrentUser | null> {
-    return this.guard('getProfile', '获取用户失败：服务暂时不可用', async () => {
-      const view = await this.users.resolveWithPermissions(userId);
-
-      return view ? stripHash(view) : null;
-    });
-  }
-
-  /**
    * 改本人头像（avatar=DiceBear seed；null 恢复姓名首字母）。
    * @param user 当前登录用户
    * @param avatar DiceBear seed；传 null 恢复姓名首字母
-   */
-  async updateOwnAvatar(user: AuthedUser, avatar: string | null): Promise<void> {
-    await this.updateAvatarById(user.id, avatar);
-  }
-
-  /**
-   * 按 id 改头像（设备通道 /api/me/avatar 复用，无 AuthedUser 时用）。
-   * @param userId 用户 id
-   * @param avatar DiceBear seed；传 null 恢复姓名首字母
    * @throws ServiceUnavailableError 意外错误记根因后兜底
    */
-  async updateAvatarById(userId: string, avatar: string | null): Promise<void> {
-    await this.guard('updateAvatarById', '保存失败：服务暂时不可用', async () => {
-      await this.users.updateAvatar(userId, avatar, nowSec());
+  async updateOwnAvatar(user: AuthedUser, avatar: string | null): Promise<void> {
+    await this.guard('updateOwnAvatar', '保存失败：服务暂时不可用', async () => {
+      await this.users.updateAvatar(user.id, avatar, nowSec());
     });
   }
 

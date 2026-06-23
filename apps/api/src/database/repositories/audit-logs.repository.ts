@@ -8,9 +8,9 @@ import { nowSec } from '@/utils/time';
 export interface AuditEntry {
   /** 操作者 users.id；系统动作或匿名（登录失败）为空。 */
   actorId?: string | null;
-  /** 操作类型，如 auth.login / account.create / permission.update / device.revoke。 */
+  /** 操作类型，如 auth.login / account.create / permission.update。 */
   action: string;
-  /** 操作目标的类型，如 user / device / enrollment；无目标时为空。 */
+  /** 操作目标的类型，如 user；无目标时为空。 */
   targetType?: string | null;
   /** 操作目标的 id；无目标时为空。 */
   targetId?: string | null;

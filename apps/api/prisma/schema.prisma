@@ -624,7 +624,7 @@ model audit_logs {
   id          Int      @id @default(autoincrement())
   /// 操作者 users.id（软引用）；系统动作或操作者已删时为空。
   actor_id    String?
-  /// 操作类型，如 auth.login / account.create / permission.update / device.enroll / device.revoke / analyze.run / export.run。
+  /// 操作类型，如 auth.login / account.create / permission.update / analyze.run / export.run。
   action      String
   /// 操作对象类型与 id（软引用，可空）。
   target_type String?

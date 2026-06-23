@@ -24,7 +24,7 @@ import { buildQuery } from '@/lib/qs';
 /** 失败 / 删除 / 吊销 / 停用 / 取消等负向、敏感事件——审计里最该一眼揪出的。 */
 const ACTION_NEGATIVE = /\.(failed|locked|delete|revoke|disable|cancel)$/;
 
-/** 审计动作 → 语义色分类（负向红 / 登录青 / 账户靛 / 设备翠 / 其它中性）。 */
+/** 审计动作 → 语义色分类（负向红 / 登录青 / 账户靛 / 其它中性）。 */
 function actionClass(action: string): string {
   if (ACTION_NEGATIVE.test(action)) {
     return 'border-destructive/30 bg-destructive/10 text-destructive';
@@ -36,10 +36,6 @@ function actionClass(action: string): string {
 
   if (action.startsWith('account.')) {
     return 'border-primary/30 bg-primary/12 text-primary';
-  }
-
-  if (action.startsWith('device.')) {
-    return 'border-intensity-low/30 bg-intensity-low/12 text-intensity-low';
   }
 
   return 'text-muted-foreground';
@@ -71,7 +67,7 @@ function AuditView() {
     <div>
       <PageHeader
         title="审计日志"
-        description="账户 / 权限 / 密钥 / 分析 / 导出 / 设备等敏感操作的追溯"
+        description="账户 / 权限 / 密钥 / 分析 / 导出等敏感操作的追溯"
       />
 
       <FilterBar
