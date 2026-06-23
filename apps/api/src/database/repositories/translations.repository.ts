@@ -107,8 +107,11 @@ export class TranslationsRepository {
     let untranslated = 0;
     for (const r of rows) {
       const n = Number(r.n);
-      if (r.translated) translated += n;
-      else untranslated += n;
+      if (r.translated) {
+        translated += n;
+      } else {
+        untranslated += n;
+      }
     }
     return { total: translated + untranslated, translated, untranslated };
   }
@@ -138,7 +141,9 @@ export class TranslationsRepository {
    * @param now 写入 Unix 时间戳（秒）
    */
   async upsertTranslations(rows: TranslationUpsert[], now: number): Promise<void> {
-    if (rows.length === 0) return;
+    if (rows.length === 0) {
+      return;
+    }
     const ts = BigInt(now);
     const values = Prisma.join(
       rows.map(
@@ -169,7 +174,9 @@ export class TranslationsRepository {
    * @param postIds 目标帖子 ID 集合（通常来自一个导出筛选的 selectPostIds）
    */
   async getPostIdsNeedingTranslation(postIds: string[]): Promise<string[]> {
-    if (postIds.length === 0) return [];
+    if (postIds.length === 0) {
+      return [];
+    }
     const ids = Prisma.join(postIds);
     const rows = await this.db.$queryRaw<{ post_id: string }[]>`
       SELECT e.post_id
@@ -195,7 +202,9 @@ export class TranslationsRepository {
    */
   async doneTextByHashes(hashes: string[]): Promise<Map<string, string>> {
     const uniq = [...new Set(hashes)];
-    if (uniq.length === 0) return new Map();
+    if (uniq.length === 0) {
+      return new Map();
+    }
     const rows = await this.db.translations.findMany({
       where: { content_hash: { in: uniq }, status: 'done', text: { not: null } },
       select: { content_hash: true, text: true },

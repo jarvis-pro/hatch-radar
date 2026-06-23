@@ -34,8 +34,14 @@ export function IntensityDot({
   const t = useSharedValue(0);
 
   useEffect(() => {
-    if (!pulse) return;
-    t.value = withRepeat(withTiming(1, { duration: 2200, easing: Easing.out(Easing.ease) }), -1, false);
+    if (!pulse) {
+      return;
+    }
+    t.value = withRepeat(
+      withTiming(1, { duration: 2200, easing: Easing.out(Easing.ease) }),
+      -1,
+      false,
+    );
   }, [pulse, t]);
 
   const ring = useAnimatedStyle(() => ({
@@ -48,7 +54,13 @@ export function IntensityDot({
       {pulse ? (
         <Animated.View
           style={[
-            { position: 'absolute', width: size, height: size, borderRadius: size / 2, backgroundColor: color },
+            {
+              position: 'absolute',
+              width: size,
+              height: size,
+              borderRadius: size / 2,
+              backgroundColor: color,
+            },
             ring,
           ]}
         />

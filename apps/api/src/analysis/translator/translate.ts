@@ -40,7 +40,9 @@ const MAX_CHARS_PER_BATCH = 12_000;
  */
 export function looksChinese(text: string): boolean {
   const han = (text.match(/\p{Script=Han}/gu) ?? []).length;
-  if (han === 0) return false;
+  if (han === 0) {
+    return false;
+  }
   const latin = (text.match(/[A-Za-z]/g) ?? []).length;
   return han >= latin;
 }
@@ -62,7 +64,9 @@ function chunk(items: TranslateItem[]): TranslateItem[][] {
     cur.push(it);
     curChars += it.text.length;
   }
-  if (cur.length > 0) batches.push(cur);
+  if (cur.length > 0) {
+    batches.push(cur);
+  }
   return batches;
 }
 
@@ -109,7 +113,9 @@ export async function translateItems(
     signal?.throwIfAborted();
     const { results: r, usage } = await translateBatch(config, batch, signal);
     results.push(...r);
-    if (usage) usageAcc = usageAcc ? addUsage(usageAcc, usage) : usage;
+    if (usage) {
+      usageAcc = usageAcc ? addUsage(usageAcc, usage) : usage;
+    }
   }
   return { results, usage: usageAcc };
 }

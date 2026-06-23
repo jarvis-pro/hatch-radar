@@ -84,7 +84,9 @@ export class AccountService {
   async resolveSession(token: string): Promise<AuthedUser | null> {
     const now = nowSec();
     const session = await this.sessions.findByTokenHash(hashSessionToken(token));
-    if (!session) return null;
+    if (!session) {
+      return null;
+    }
     if (Number(session.expires_at) <= now) {
       await this.sessions.deleteById(session.id);
       return null;
@@ -107,7 +109,9 @@ export class AccountService {
 
   /** 登录：限流 → 校验邮箱+密码 → 建会话 + 回 token；错误文案统一不泄露存在性。 */
   async login(email: string, password: string, meta: LoginMeta): Promise<LoginResult> {
-    if (!email || !password) throw new ValidationError('请输入邮箱和密码');
+    if (!email || !password) {
+      throw new ValidationError('请输入邮箱和密码');
+    }
     try {
       const now = nowSec();
       const lock = await this.lockRemaining(email, now);
@@ -152,7 +156,9 @@ export class AccountService {
       return { token, user: stripHash(view), absoluteDays };
     } catch (e) {
       // 业务失败（限流 / 凭据错）原样冒泡；意外错误（DB 抖动等）记根因后才转 503
-      if (e instanceof DomainError) throw e;
+      if (e instanceof DomainError) {
+        throw e;
+      }
       logUnexpected('login', e);
       throw new ServiceUnavailableError('登录失败：服务暂时不可用，请稍后再试');
     }
@@ -161,7 +167,9 @@ export class AccountService {
   /** 登出：吊销当前会话 + 写审计。 */
   async logout(token: string, actorId?: string): Promise<void> {
     await this.sessions.deleteByTokenHash(hashSessionToken(token));
-    if (actorId) await this.audit.write({ actorId, action: 'auth.logout' });
+    if (actorId) {
+      await this.audit.write({ actorId, action: 'auth.logout' });
+    }
   }
 
   /** 改密：校验当前密码 → 写新哈希、清强制改密标记、吊销其余会话。 */
@@ -171,8 +179,12 @@ export class AccountService {
     next: string,
     confirm: string,
   ): Promise<void> {
-    if (next.length < 8) throw new ValidationError('新密码至少 8 位');
-    if (next !== confirm) throw new ValidationError('两次输入的新密码不一致');
+    if (next.length < 8) {
+      throw new ValidationError('新密码至少 8 位');
+    }
+    if (next !== confirm) {
+      throw new ValidationError('两次输入的新密码不一致');
+    }
     try {
       const row = await this.users.findById(user.id);
       if (!row || !(await verifyPassword(current, row.password_hash))) {
@@ -186,7 +198,9 @@ export class AccountService {
       });
       await this.audit.write({ actorId: user.id, action: 'account.password.change' });
     } catch (e) {
-      if (e instanceof DomainError) throw e;
+      if (e instanceof DomainError) {
+        throw e;
+      }
       logUnexpected('changePassword', e);
       throw new ServiceUnavailableError('修改失败：服务暂时不可用，请稍后再试');
     }
@@ -195,11 +209,15 @@ export class AccountService {
   /** 改本人姓名。 */
   async updateOwnName(user: AuthedUser, name: string): Promise<void> {
     const trimmed = name.trim();
-    if (!trimmed) throw new ValidationError('姓名不能为空');
+    if (!trimmed) {
+      throw new ValidationError('姓名不能为空');
+    }
     try {
       await this.users.updateName(user.id, trimmed, nowSec());
     } catch (e) {
-      if (e instanceof DomainError) throw e;
+      if (e instanceof DomainError) {
+        throw e;
+      }
       logUnexpected('updateOwnName', e);
       throw new ServiceUnavailableError('保存失败：服务暂时不可用');
     }
@@ -221,7 +239,9 @@ export class AccountService {
     try {
       await this.users.updateAvatar(userId, avatar, nowSec());
     } catch (e) {
-      if (e instanceof DomainError) throw e;
+      if (e instanceof DomainError) {
+        throw e;
+      }
       logUnexpected('updateAvatarById', e);
       throw new ServiceUnavailableError('保存失败：服务暂时不可用');
     }
@@ -248,7 +268,9 @@ export class AccountService {
   /** 邮箱当前的登录锁定剩余秒数；未锁返回 0。 */
   private async lockRemaining(email: string, now: number): Promise<number> {
     const row = await this.attempts.findByEmail(email);
-    if (!row || row.locked_until == null) return 0;
+    if (!row || row.locked_until == null) {
+      return 0;
+    }
     const remaining = Number(row.locked_until) - now;
     return remaining > 0 ? remaining : 0;
   }

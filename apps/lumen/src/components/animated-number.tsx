@@ -13,7 +13,9 @@ export function useCountUp(target: number, opts?: { duration?: number; delay?: n
     let raf = 0;
     let start: number | null = null;
     const tick = (now: number) => {
-      if (start === null) start = now;
+      if (start === null) {
+        start = now;
+      }
       const elapsed = now - start - delay;
       if (elapsed < 0) {
         raf = requestAnimationFrame(tick);
@@ -21,8 +23,11 @@ export function useCountUp(target: number, opts?: { duration?: number; delay?: n
       }
       const p = Math.min(1, elapsed / duration);
       setVal(target * (1 - Math.pow(1 - p, 3)));
-      if (p < 1) raf = requestAnimationFrame(tick);
-      else setVal(target);
+      if (p < 1) {
+        raf = requestAnimationFrame(tick);
+      } else {
+        setVal(target);
+      }
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);

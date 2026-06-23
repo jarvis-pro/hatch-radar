@@ -30,7 +30,9 @@ const inspectSchema = z.object({
 /** 解析并校验路径里的 jobId（正整数）。 */
 function parseJobId(raw: string): number {
   const id = Number(raw);
-  if (!Number.isInteger(id) || id <= 0) throw new BadRequestException('jobId 非法');
+  if (!Number.isInteger(id) || id <= 0) {
+    throw new BadRequestException('jobId 非法');
+  }
   return id;
 }
 
@@ -86,7 +88,9 @@ export class AnalysisController {
   @Get('inspect/:jobId')
   async inspectView(@Param('jobId') jobIdRaw: string) {
     const view = await this.taskControl.getInspectView(parseJobId(jobIdRaw));
-    if (!view) throw new NotFoundException('检视任务不存在');
+    if (!view) {
+      throw new NotFoundException('检视任务不存在');
+    }
     return view;
   }
 
@@ -95,7 +99,9 @@ export class AnalysisController {
   @HttpCode(200)
   async inspectResume(@Param('jobId') jobIdRaw: string) {
     const ok = await this.taskControl.resumeInspect(parseJobId(jobIdRaw));
-    if (!ok) throw new BadRequestException('当前不可放行（任务并非暂停态）');
+    if (!ok) {
+      throw new BadRequestException('当前不可放行（任务并非暂停态）');
+    }
     return { ok: true };
   }
 
@@ -120,7 +126,9 @@ export class AnalysisController {
   @HttpCode(200)
   async inspectCancel(@Param('jobId') jobIdRaw: string) {
     const ok = await this.taskControl.cancelInspect(parseJobId(jobIdRaw));
-    if (!ok) throw new BadRequestException('当前不可取消（任务已是终态）');
+    if (!ok) {
+      throw new BadRequestException('当前不可取消（任务已是终态）');
+    }
     return { ok: true };
   }
 }

@@ -111,14 +111,20 @@ async function apiSend(
   const p = path.replace(/^\/api/, ''); // api 客户端再补 /api 前缀
   try {
     let data: ApiData | undefined;
-    if (method === 'GET') data = await api.get<ApiData>(p);
-    else if (method === 'POST') data = await api.post<ApiData>(p, body);
-    else if (method === 'PUT') data = await api.put<ApiData>(p, body);
-    else data = await api.del<ApiData>(p, body);
+    if (method === 'GET') {
+      data = await api.get<ApiData>(p);
+    } else if (method === 'POST') {
+      data = await api.post<ApiData>(p, body);
+    } else if (method === 'PUT') {
+      data = await api.put<ApiData>(p, body);
+    } else {
+      data = await api.del<ApiData>(p, body);
+    }
     return { ok: true, status: 200, data: data ?? {} };
   } catch (err) {
-    if (err instanceof ApiError)
+    if (err instanceof ApiError) {
       return { ok: false, status: err.status, data: { error: err.message } };
+    }
     return { ok: false, status: 0, data: { error: '网络错误' } };
   }
 }
@@ -154,8 +160,12 @@ const EMPTY_CONN: ConnForm = {
 
 /** 连接器测试状态徽标 */
 function CheckBadge({ c }: { c: ConnectorDTO }) {
-  if (c.lastCheckOk === true) return <Badge variant="secondary">测试通过</Badge>;
-  if (c.lastCheckOk === false) return <Badge variant="destructive">测试失败</Badge>;
+  if (c.lastCheckOk === true) {
+    return <Badge variant="secondary">测试通过</Badge>;
+  }
+  if (c.lastCheckOk === false) {
+    return <Badge variant="destructive">测试失败</Badge>;
+  }
   return <Badge variant="outline">未测试</Badge>;
 }
 
@@ -229,7 +239,9 @@ export function SourcesManager({
       label: srcForm.label.trim() || undefined,
       enabled: srcForm.enabled,
     };
-    if (srcEditingId === null) body.platform = srcForm.platform;
+    if (srcEditingId === null) {
+      body.platform = srcForm.platform;
+    }
     const res =
       srcEditingId === null
         ? await apiSend('/api/sources', 'POST', body)
@@ -246,8 +258,11 @@ export function SourcesManager({
 
   async function toggleSource(s: SourceDTO) {
     const res = await apiSend(`/api/sources/${s.id}`, 'PUT', { enabled: !s.enabled });
-    if (res.ok) onChanged();
-    else toast.error(res.data?.error ?? '操作失败');
+    if (res.ok) {
+      onChanged();
+    } else {
+      toast.error(res.data?.error ?? '操作失败');
+    }
   }
 
   async function removeSource(s: SourceDTO) {
@@ -323,8 +338,11 @@ export function SourcesManager({
 
   async function toggleConn(c: ConnectorDTO) {
     const res = await apiSend(`/api/source-connectors/${c.id}`, 'PUT', { enabled: !c.enabled });
-    if (res.ok) onChanged();
-    else toast.error(res.data?.error ?? '操作失败');
+    if (res.ok) {
+      onChanged();
+    } else {
+      toast.error(res.data?.error ?? '操作失败');
+    }
   }
 
   async function removeConn(c: ConnectorDTO) {
@@ -354,9 +372,14 @@ export function SourcesManager({
 
   /** 执行受控确认弹窗里被确认的删除 */
   function runConfirm() {
-    if (!confirm) return;
-    if (confirm.kind === 'deleteSource') void removeSource(confirm.source);
-    else void removeConn(confirm.conn);
+    if (!confirm) {
+      return;
+    }
+    if (confirm.kind === 'deleteSource') {
+      void removeSource(confirm.source);
+    } else {
+      void removeConn(confirm.conn);
+    }
   }
 
   return (

@@ -22,7 +22,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 function Stat({ value, label, color }: { value: string; label: string; color?: string }) {
   return (
     <View className="flex-1">
-      <Text className="font-mono-sb text-[20px] leading-[1.3] text-foreground" style={color ? { color } : undefined}>
+      <Text
+        className="font-mono-sb text-[20px] leading-[1.3] text-foreground"
+        style={color ? { color } : undefined}
+      >
         {value}
       </Text>
       <Text className="mt-1 text-[11px] text-muted-foreground">{label}</Text>
@@ -32,10 +35,28 @@ function Stat({ value, label, color }: { value: string; label: string; color?: s
 
 function VRule() {
   const palette = usePalette();
-  return <View style={{ width: StyleSheet.hairlineWidth, backgroundColor: palette.hairline, marginHorizontal: 16 }} />;
+  return (
+    <View
+      style={{
+        width: StyleSheet.hairlineWidth,
+        backgroundColor: palette.hairline,
+        marginHorizontal: 16,
+      }}
+    />
+  );
 }
 
-function PainPoint({ text, frequency, delay, hue }: { text: string; frequency: number; delay: number; hue: string }) {
+function PainPoint({
+  text,
+  frequency,
+  delay,
+  hue,
+}: {
+  text: string;
+  frequency: number;
+  delay: number;
+  hue: string;
+}) {
   const v = useCountUp(frequency, { duration: 950, delay });
   return (
     <View className="mb-7">
@@ -66,13 +87,17 @@ export default function OpportunityDetail() {
   });
   const ghostStyle = useAnimatedStyle(() => ({
     opacity: interpolate(scrollY.value, [0, 360], [0.15, 0.05], Extrapolation.CLAMP),
-    transform: [{ translateY: interpolate(scrollY.value, [0, 500], [0, -90], Extrapolation.CLAMP) }],
+    transform: [
+      { translateY: interpolate(scrollY.value, [0, 500], [0, -90], Extrapolation.CLAMP) },
+    ],
   }));
 
   const op = getOpportunity(id);
   if (!op) {
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: insets.top }}>
+      <View
+        style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: insets.top }}
+      >
         <Text className="text-muted-foreground">未找到该机会</Text>
       </View>
     );
@@ -90,10 +115,18 @@ export default function OpportunityDetail() {
       {/* 巨型幽灵分数（与场景延续，固定 + 缓速视差） */}
       <Animated.View
         pointerEvents="none"
-        style={[{ position: 'absolute', right: -width * 0.06, bottom: insets.bottom + 40 }, ghostStyle]}
+        style={[
+          { position: 'absolute', right: -width * 0.06, bottom: insets.bottom + 40 },
+          ghostStyle,
+        ]}
       >
         <Text
-          style={{ fontFamily: 'JetBrainsMono_600SemiBold', fontSize: width * 0.66, lineHeight: width * 0.66 * 1.3, color: hue }}
+          style={{
+            fontFamily: 'JetBrainsMono_600SemiBold',
+            fontSize: width * 0.66,
+            lineHeight: width * 0.66 * 1.3,
+            color: hue,
+          }}
         >
           {op.score}
         </Text>
@@ -103,24 +136,36 @@ export default function OpportunityDetail() {
         onScroll={onScroll}
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingTop: insets.top + 60, paddingBottom: insets.bottom + 64, paddingHorizontal: 28 }}
+        contentContainerStyle={{
+          paddingTop: insets.top + 60,
+          paddingBottom: insets.bottom + 64,
+          paddingHorizontal: 28,
+        }}
       >
         {/* eyebrow */}
         <View className="flex-row items-center gap-3">
           <View
             className="flex-row items-center gap-2 rounded-full px-3 py-1.5"
-            style={{ backgroundColor: `${hue}1F`, borderWidth: StyleSheet.hairlineWidth, borderColor: `${hue}55` }}
+            style={{
+              backgroundColor: `${hue}1F`,
+              borderWidth: StyleSheet.hairlineWidth,
+              borderColor: `${hue}55`,
+            }}
           >
             <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: hue }} />
             <Text style={{ color: hue }} className="text-[12px] font-sans-sb">
               {INTENSITY_META[op.intensity].label}
             </Text>
           </View>
-          <Text className="text-[12px] font-sans-md uppercase tracking-wider text-muted-foreground">{op.category}</Text>
+          <Text className="text-[12px] font-sans-md uppercase tracking-wider text-muted-foreground">
+            {op.category}
+          </Text>
         </View>
 
         {/* huge title */}
-        <Text className="mt-5 text-[40px] font-sans-bd leading-[1.3] text-foreground">{op.title}</Text>
+        <Text className="mt-5 text-[40px] font-sans-bd leading-[1.3] text-foreground">
+          {op.title}
+        </Text>
         <Text className="mt-5 text-[16px] leading-7 text-muted-foreground">{op.pitch}</Text>
         <Text className="mt-4 font-mono text-[12px] text-muted-foreground">
           {SOURCE_LABEL[op.source]} · {op.channel} · {agoLabel(op.ageMinutes)}
@@ -142,17 +187,35 @@ export default function OpportunityDetail() {
         </View>
 
         {/* 用户痛点 */}
-        <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: palette.hairline }} className="mt-14" />
-        <Text className="mb-7 mt-6 text-[12px] font-sans-sb uppercase tracking-[2px]" style={{ color: hue }}>
+        <View
+          style={{ height: StyleSheet.hairlineWidth, backgroundColor: palette.hairline }}
+          className="mt-14"
+        />
+        <Text
+          className="mb-7 mt-6 text-[12px] font-sans-sb uppercase tracking-[2px]"
+          style={{ color: hue }}
+        >
           用户痛点
         </Text>
         {op.painPoints.map((pp, i) => (
-          <PainPoint key={i} text={pp.text} frequency={pp.frequency} delay={250 + i * 130} hue={hue} />
+          <PainPoint
+            key={i}
+            text={pp.text}
+            frequency={pp.frequency}
+            delay={250 + i * 130}
+            hue={hue}
+          />
         ))}
 
         {/* 社区原声 */}
-        <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: palette.hairline }} className="mt-14" />
-        <Text className="mb-7 mt-6 text-[12px] font-sans-sb uppercase tracking-[2px]" style={{ color: hue }}>
+        <View
+          style={{ height: StyleSheet.hairlineWidth, backgroundColor: palette.hairline }}
+          className="mt-14"
+        />
+        <Text
+          className="mb-7 mt-6 text-[12px] font-sans-sb uppercase tracking-[2px]"
+          style={{ color: hue }}
+        >
           社区原声
         </Text>
         {op.evidence.map((ev, i) => (
@@ -163,26 +226,43 @@ export default function OpportunityDetail() {
                 {ev.author} · {ev.channel}
               </Text>
               <ArrowUp size={12} color={palette.signal} strokeWidth={2.6} />
-              <Text className="ml-1 font-mono-sb text-[12px] text-signal">{compact(ev.upvotes)}</Text>
+              <Text className="ml-1 font-mono-sb text-[12px] text-signal">
+                {compact(ev.upvotes)}
+              </Text>
             </View>
             {i < op.evidence.length - 1 ? (
-              <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: palette.hairline, marginTop: 22 }} />
+              <View
+                style={{
+                  height: StyleSheet.hairlineWidth,
+                  backgroundColor: palette.hairline,
+                  marginTop: 22,
+                }}
+              />
             ) : null}
           </View>
         ))}
 
         {/* tags */}
-        <Text className="mt-12 font-mono text-[12px] text-muted-foreground">{op.tags.map((t) => `#${t}`).join('  ')}</Text>
+        <Text className="mt-12 font-mono text-[12px] text-muted-foreground">
+          {op.tags.map((t) => `#${t}`).join('  ')}
+        </Text>
 
         {/* CTA */}
         <Pressable
           onPress={() => {
-            if (!saved) hapticSuccess();
-            else hapticTap();
+            if (!saved) {
+              hapticSuccess();
+            } else {
+              hapticTap();
+            }
             toggleSave(op.id);
           }}
           className="mt-12 flex-row items-center justify-center gap-2.5 rounded-2xl py-4"
-          style={{ backgroundColor: saved ? `${hue}2E` : `${hue}1A`, borderWidth: StyleSheet.hairlineWidth, borderColor: `${hue}66` }}
+          style={{
+            backgroundColor: saved ? `${hue}2E` : `${hue}1A`,
+            borderWidth: StyleSheet.hairlineWidth,
+            borderColor: `${hue}66`,
+          }}
         >
           <Bookmark size={18} color={hue} fill={saved ? hue : 'transparent'} strokeWidth={2.3} />
           <Text style={{ color: hue }} className="text-[15px] font-sans-sb">
@@ -206,14 +286,22 @@ export default function OpportunityDetail() {
         </Pressable>
         <Pressable
           onPress={() => {
-            if (!saved) hapticSuccess();
-            else hapticTap();
+            if (!saved) {
+              hapticSuccess();
+            } else {
+              hapticTap();
+            }
             toggleSave(op.id);
           }}
           hitSlop={10}
           className="h-9 w-9 items-center justify-center rounded-full border border-border bg-foreground/[0.08]"
         >
-          <Bookmark size={18} color={saved ? hue : palette.foreground} fill={saved ? hue : 'transparent'} strokeWidth={2.3} />
+          <Bookmark
+            size={18}
+            color={saved ? hue : palette.foreground}
+            fill={saved ? hue : 'transparent'}
+            strokeWidth={2.3}
+          />
         </Pressable>
       </View>
     </View>

@@ -60,7 +60,9 @@ export class PostsRepository {
     fetchedAt: number,
     initialCommentPass = 0,
   ): Promise<{ added: number; updated: number; newPosts: { id: string; subreddit: string }[] }> {
-    if (items.length === 0) return { added: 0, updated: 0, newPosts: [] };
+    if (items.length === 0) {
+      return { added: 0, updated: 0, newPosts: [] };
+    }
     return this.db.$transaction(async (tx) => {
       const ids = items.map((p) => p.id);
       const existingRows = await tx.posts.findMany({
@@ -216,7 +218,9 @@ export class PostsRepository {
         where: { created_utc: { lt: BigInt(cutoff) } },
         select: { id: true },
       });
-      if (old.length === 0) return { posts: 0, comments: 0 };
+      if (old.length === 0) {
+        return { posts: 0, comments: 0 };
+      }
       const ids = old.map((p) => p.id);
       const deletedComments = await tx.comments.deleteMany({ where: { post_id: { in: ids } } });
       const deletedPosts = await tx.posts.deleteMany({
@@ -265,17 +269,26 @@ export class PostsRepository {
    */
   private radarWhere(f: RadarPostFilter, sweep: number): Prisma.postsWhereInput {
     const where: Record<string, unknown> = {};
-    if (f.source) where.source = f.source;
-    if (f.subreddit) where.subreddit = f.subreddit;
-    if (f.q) where.title = { contains: f.q, mode: 'insensitive' };
-    if (f.status === 'new') where.last_rechecked_at = null;
-    else if (f.status === 'quiet') where.recheck_misses = { gt: 0 };
-    else if (f.status === 'due')
+    if (f.source) {
+      where.source = f.source;
+    }
+    if (f.subreddit) {
+      where.subreddit = f.subreddit;
+    }
+    if (f.q) {
+      where.title = { contains: f.q, mode: 'insensitive' };
+    }
+    if (f.status === 'new') {
+      where.last_rechecked_at = null;
+    } else if (f.status === 'quiet') {
+      where.recheck_misses = { gt: 0 };
+    } else if (f.status === 'due') {
       Object.assign(where, {
         source: { not: 'rss' },
         comment_pass: { gte: 1 },
         recheck_due_sweep: { lte: sweep },
       });
+    }
     return where;
   }
 
@@ -313,7 +326,9 @@ export class PostsRepository {
   /** 一批帖子 id → title_hash（供按内容哈希 join 译文标题）。 */
   async titleHashByIds(ids: string[]): Promise<Map<string, string | null>> {
     const uniq = [...new Set(ids)];
-    if (uniq.length === 0) return new Map();
+    if (uniq.length === 0) {
+      return new Map();
+    }
     const rows = await this.db.posts.findMany({
       where: { id: { in: uniq } },
       select: { id: true, title_hash: true },
@@ -323,7 +338,9 @@ export class PostsRepository {
 
   /** 一批帖子 id → {id, source, title}（供运行详情任务树标注来源 / 标题）。 */
   async listSummaryByIds(ids: string[]): Promise<{ id: string; source: string; title: string }[]> {
-    if (ids.length === 0) return [];
+    if (ids.length === 0) {
+      return [];
+    }
     return this.db.posts.findMany({
       where: { id: { in: ids } },
       select: { id: true, source: true, title: true },

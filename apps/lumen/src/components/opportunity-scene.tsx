@@ -47,14 +47,24 @@ export function OpportunityScene({
   const titleStyle = useAnimatedStyle(() => {
     const rel = scrollY.value / height - sceneIndex;
     return {
-      opacity: interpolate(rel, [-0.85, -0.35, 0, 0.35, 0.85], [0, 1, 1, 1, 0], Extrapolation.CLAMP),
+      opacity: interpolate(
+        rel,
+        [-0.85, -0.35, 0, 0.35, 0.85],
+        [0, 1, 1, 1, 0],
+        Extrapolation.CLAMP,
+      ),
       transform: [{ translateY: interpolate(rel, [-1, 0, 1], [120, 0, -84], Extrapolation.CLAMP) }],
     };
   });
   const bodyStyle = useAnimatedStyle(() => {
     const rel = scrollY.value / height - sceneIndex;
     return {
-      opacity: interpolate(rel, [-0.85, -0.35, 0, 0.35, 0.85], [0, 1, 1, 1, 0], Extrapolation.CLAMP),
+      opacity: interpolate(
+        rel,
+        [-0.85, -0.35, 0, 0.35, 0.85],
+        [0, 1, 1, 1, 0],
+        Extrapolation.CLAMP,
+      ),
       transform: [{ translateY: interpolate(rel, [-1, 0, 1], [62, 0, -42], Extrapolation.CLAMP) }],
     };
   });
@@ -63,7 +73,9 @@ export function OpportunityScene({
     return {
       opacity: interpolate(rel, [-1, -0.5, 0, 0.5, 1], [0, 0.55, 1, 0.55, 0], Extrapolation.CLAMP),
       transform: [
-        { translateY: interpolate(rel, [-1, 1], [height * 0.5, -height * 0.5], Extrapolation.CLAMP) },
+        {
+          translateY: interpolate(rel, [-1, 1], [height * 0.5, -height * 0.5], Extrapolation.CLAMP),
+        },
         { scale: interpolate(rel, [-1, 0, 1], [1.3, 1, 0.78], Extrapolation.CLAMP) },
       ],
     };
@@ -74,7 +86,10 @@ export function OpportunityScene({
       {/* 巨型幽灵分数 */}
       <Animated.View
         pointerEvents="none"
-        style={[{ position: 'absolute', right: -width * 0.05, bottom: insets.bottom + 64 }, numberStyle]}
+        style={[
+          { position: 'absolute', right: -width * 0.05, bottom: insets.bottom + 64 },
+          numberStyle,
+        ]}
       >
         <Text
           style={{
@@ -91,19 +106,30 @@ export function OpportunityScene({
 
       {/* 内容（三层视差） */}
       <View
-        style={{ flex: 1, justifyContent: 'center', paddingTop: insets.top, paddingBottom: insets.bottom + 92 }}
+        style={{
+          flex: 1,
+          justifyContent: 'center',
+          paddingTop: insets.top,
+          paddingBottom: insets.bottom + 92,
+        }}
         className="px-7"
       >
         <Animated.View style={bodyStyle} className="flex-row items-center gap-3">
           <Text style={{ color: hue }} className="font-mono-sb text-[13px]">
             {pad(number)} / {pad(total)}
           </Text>
-          <View style={{ flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: palette.hairline }} />
-          <Text className="text-[12px] font-sans-md uppercase tracking-wider text-muted-foreground">{op.category}</Text>
+          <View
+            style={{ flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: palette.hairline }}
+          />
+          <Text className="text-[12px] font-sans-md uppercase tracking-wider text-muted-foreground">
+            {op.category}
+          </Text>
         </Animated.View>
 
         <Animated.View style={titleStyle}>
-          <Text className="mt-6 text-[42px] font-sans-bd leading-[1.3] text-foreground">{op.title}</Text>
+          <Text className="mt-6 text-[42px] font-sans-bd leading-[1.3] text-foreground">
+            {op.title}
+          </Text>
         </Animated.View>
 
         <Animated.View style={bodyStyle}>
@@ -112,7 +138,11 @@ export function OpportunityScene({
           <View className="mt-7 flex-row items-center gap-4">
             <View
               className="flex-row items-center gap-2 rounded-full px-3 py-1.5"
-              style={{ backgroundColor: `${hue}1F`, borderWidth: StyleSheet.hairlineWidth, borderColor: `${hue}55` }}
+              style={{
+                backgroundColor: `${hue}1F`,
+                borderWidth: StyleSheet.hairlineWidth,
+                borderColor: `${hue}55`,
+              }}
             >
               <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: hue }} />
               <Text style={{ color: hue }} className="text-[12px] font-sans-sb">
@@ -125,7 +155,9 @@ export function OpportunityScene({
               ) : (
                 <TrendingDown size={15} color={palette.mutedForeground} strokeWidth={2.4} />
               )}
-              <Text className={`font-mono-sb text-[14px] ${up ? 'text-intensity-low' : 'text-muted-foreground'}`}>
+              <Text
+                className={`font-mono-sb text-[14px] ${up ? 'text-intensity-low' : 'text-muted-foreground'}`}
+              >
                 {momentumLabel(op.momentum)}
               </Text>
             </View>

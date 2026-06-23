@@ -23,14 +23,19 @@ function buildTree(rows: CommentRow[]): CommentNode[] {
   const roots: CommentNode[] = [];
   for (const node of byId.values()) {
     const parent = node.row.parent_id ? byId.get(node.row.parent_id) : undefined;
-    if (parent) parent.children.push(node);
-    else roots.push(node);
+    if (parent) {
+      parent.children.push(node);
+    } else {
+      roots.push(node);
+    }
   }
   // 展示用时间倒序：每层兄弟按发布时间从新到旧，优先看最近评论（父→子嵌套结构保留）。
   // 仅影响 web 展示——AI 分析是独立路径（packages/analysis/.../context.ts，按得分排序），不受此影响。
   const sortByNewest = (nodes: CommentNode[]): void => {
     nodes.sort((a, b) => b.row.created_utc - a.row.created_utc);
-    for (const n of nodes) sortByNewest(n.children);
+    for (const n of nodes) {
+      sortByNewest(n.children);
+    }
   };
   sortByNewest(roots);
   return roots;

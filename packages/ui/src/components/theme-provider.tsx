@@ -31,7 +31,9 @@ function systemPrefersDark(): boolean {
 }
 
 function readStoredTheme(storageKey: string, fallback: Theme): Theme {
-  if (typeof window === 'undefined') return fallback;
+  if (typeof window === 'undefined') {
+    return fallback;
+  }
   const stored = window.localStorage.getItem(storageKey);
   return stored === 'light' || stored === 'dark' || stored === 'system' ? stored : fallback;
 }
@@ -64,7 +66,9 @@ export function ThemeProvider({
       setResolvedTheme(dark ? 'dark' : 'light');
     };
     apply();
-    if (theme !== 'system') return;
+    if (theme !== 'system') {
+      return;
+    }
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
     mq.addEventListener('change', apply);
     return () => mq.removeEventListener('change', apply);
@@ -93,6 +97,8 @@ export function ThemeProvider({
 /** 取主题上下文（必须在 ThemeProvider 内）。 */
 export function useTheme(): ThemeContextValue {
   const ctx = use(ThemeContext);
-  if (!ctx) throw new Error('useTheme 必须在 <ThemeProvider> 内使用');
+  if (!ctx) {
+    throw new Error('useTheme 必须在 <ThemeProvider> 内使用');
+  }
   return ctx;
 }

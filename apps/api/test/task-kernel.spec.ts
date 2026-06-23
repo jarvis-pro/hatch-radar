@@ -158,7 +158,9 @@ describe('图纸生命周期：通用任务执行内核（runTask + task_stages 
       INSPECT_STEP_NAMES.map((name) => ({ name, gate })),
       nowSec(),
     );
-    if (!res.ok) throw new Error(res.error);
+    if (!res.ok) {
+      throw new Error(res.error);
+    }
     return { runId: run.id, taskId: res.taskId };
   }
 
@@ -319,7 +321,9 @@ describe('图纸生命周期：通用任务执行内核（runTask + task_stages 
       [{ name: 'translate' }],
       nowSec(),
     );
-    if (!res.ok) throw new Error(res.error);
+    if (!res.ok) {
+      throw new Error(res.error);
+    }
 
     const t = await tasks.claimNextTask(nowSec());
     expect(t).not.toBeNull();

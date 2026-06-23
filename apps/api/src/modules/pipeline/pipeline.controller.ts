@@ -18,7 +18,9 @@ import { logger } from '@/logger';
 
 function parseId(raw: string): number {
   const id = Number(raw);
-  if (!Number.isInteger(id) || id <= 0) throw new BadRequestException('id 非法');
+  if (!Number.isInteger(id) || id <= 0) {
+    throw new BadRequestException('id 非法');
+  }
   return id;
 }
 
@@ -72,7 +74,9 @@ export class PipelineController {
   @Get('runs/:id')
   async runDetail(@Param('id') idRaw: string) {
     const res = await this.query.runDetail(parseId(idRaw));
-    if (!res) throw new NotFoundException('进程不存在');
+    if (!res) {
+      throw new NotFoundException('进程不存在');
+    }
     return res;
   }
 
@@ -83,7 +87,9 @@ export class PipelineController {
   @HttpCode(200)
   async resumeTask(@Param('id') idRaw: string) {
     const ok = await this.taskControl.resumeInspect(parseId(idRaw));
-    if (!ok) throw new BadRequestException('当前不可放行（任务并非暂停态）');
+    if (!ok) {
+      throw new BadRequestException('当前不可放行（任务并非暂停态）');
+    }
     return { ok: true };
   }
 
@@ -108,7 +114,9 @@ export class PipelineController {
   @HttpCode(200)
   async cancelTask(@Param('id') idRaw: string) {
     const ok = await this.taskControl.cancelInspect(parseId(idRaw));
-    if (!ok) throw new BadRequestException('当前不可取消（任务已是终态）');
+    if (!ok) {
+      throw new BadRequestException('当前不可取消（任务已是终态）');
+    }
     return { ok: true };
   }
 
@@ -121,9 +129,13 @@ export class PipelineController {
     @Body() body: { gate?: boolean },
   ) {
     const seq = Number(seqRaw);
-    if (!Number.isInteger(seq) || seq < 0) throw new BadRequestException('seq 非法');
+    if (!Number.isInteger(seq) || seq < 0) {
+      throw new BadRequestException('seq 非法');
+    }
     const ok = await this.taskControl.toggleStageGate(parseId(idRaw), seq, body.gate === true);
-    if (!ok) throw new BadRequestException('当前不可设置暂停点（环节非待执行）');
+    if (!ok) {
+      throw new BadRequestException('当前不可设置暂停点（环节非待执行）');
+    }
     return { ok: true };
   }
 }

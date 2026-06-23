@@ -2,7 +2,9 @@
 export function buildQuery(params: Record<string, string | number | undefined | null>): string {
   const sp = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
-    if (value !== undefined && value !== null && value !== '') sp.set(key, String(value));
+    if (value !== undefined && value !== null && value !== '') {
+      sp.set(key, String(value));
+    }
   }
   const s = sp.toString();
   return s ? `?${s}` : '';

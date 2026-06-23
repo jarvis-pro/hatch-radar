@@ -81,7 +81,9 @@ const opSchema = z.discriminatedUnion('type', [
 function extractOpId(raw: unknown, index: number): string {
   if (raw && typeof raw === 'object' && 'opId' in raw) {
     const opId = (raw as { opId: unknown }).opId;
-    if (typeof opId === 'string' && opId.length > 0) return opId;
+    if (typeof opId === 'string' && opId.length > 0) {
+      return opId;
+    }
   }
   return `<无效操作 #${index}>`;
 }
@@ -155,7 +157,9 @@ export class SyncService {
       where: { op_id: op.opId },
       select: { op_id: true },
     });
-    if (dup) return { opId: op.opId, outcome: 'duplicate' };
+    if (dup) {
+      return { opId: op.opId, outcome: 'duplicate' };
+    }
 
     const target = await tx.insights.findUnique({
       where: { id: op.targetId },
@@ -195,7 +199,9 @@ export class SyncService {
     });
 
     const tally = { applied: 0, duplicate: 0, rejected: 0 };
-    for (const r of results) tally[r.outcome]++;
+    for (const r of results) {
+      tally[r.outcome]++;
+    }
     logger.info(
       `[sync] 设备 ${deviceId.slice(0, 8)}… 推送 ${rawOps.length} 条：应用 ${tally.applied} / 重复 ${tally.duplicate} / 拒绝 ${tally.rejected}`,
     );

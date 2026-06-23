@@ -69,7 +69,9 @@ export function writeBatchSqlite(batch: ExportBatch, file: string): string {
       insertMeta.run('exported_at', String(batch.meta.exportedAt));
       insertMeta.run('filter', JSON.stringify(batch.meta.filter));
       insertMeta.run('counts', JSON.stringify(batch.meta.counts));
-      for (const row of batch.insights) insertInsight.run(row);
+      for (const row of batch.insights) {
+        insertInsight.run(row);
+      }
       for (const row of batch.posts) {
         // 仅写共享 DDL 含有的 16 列：comments_changed_at / export_locked_at 是 server 私有列，
         // 不在 mobile / 导出 schema 中，显式构造避免向 named 占位符传入多余 key。
@@ -92,8 +94,12 @@ export function writeBatchSqlite(batch: ExportBatch, file: string): string {
           analyze_attempts: row.analyze_attempts,
         });
       }
-      for (const row of batch.comments) insertComment.run(row);
-      for (const row of batch.translations) insertTranslation.run(row);
+      for (const row of batch.comments) {
+        insertComment.run(row);
+      }
+      for (const row of batch.translations) {
+        insertTranslation.run(row);
+      }
     })();
   } finally {
     out.close();

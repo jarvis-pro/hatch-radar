@@ -128,7 +128,9 @@ export function LoginPage() {
   const next = safeNext(params.get('next'));
 
   // 已登录访问 /login → 回目标页（替代原 middleware 行为）
-  if (status === 'authed' && user) return <Navigate to={next} replace />;
+  if (status === 'authed' && user) {
+    return <Navigate to={next} replace />;
+  }
 
   async function onSubmit(e: FormEvent<HTMLFormElement>): Promise<void> {
     e.preventDefault();

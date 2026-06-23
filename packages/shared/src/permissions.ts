@@ -131,7 +131,11 @@ export function hasPermission(
   key: PermissionKey,
   active = true,
 ): boolean {
-  if (!active) return false;
-  if (role === 'super_admin') return true;
+  if (!active) {
+    return false;
+  }
+  if (role === 'super_admin') {
+    return true;
+  }
   return granted.includes(key);
 }

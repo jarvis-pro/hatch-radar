@@ -57,7 +57,9 @@ export class BlueprintService {
   /** 删图纸：被进程引用则拒绝（抛 400），否则删除。 */
   async deleteBlueprint(id: number): Promise<void> {
     const used = (await this.processes.listProcesses(id)).length > 0;
-    if (used) throw new ValidationError('该图纸仍被进程引用，请先删除其进程');
+    if (used) {
+      throw new ValidationError('该图纸仍被进程引用，请先删除其进程');
+    }
     await this.blueprints.deleteBlueprint(id);
   }
 }

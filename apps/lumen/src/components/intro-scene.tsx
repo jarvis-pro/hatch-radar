@@ -65,11 +65,23 @@ export function IntroScene({
   }));
 
   return (
-    <View style={{ height, width, alignItems: 'center', justifyContent: 'center', paddingTop: insets.top }}>
+    <View
+      style={{
+        height,
+        width,
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingTop: insets.top,
+      }}
+    >
       <Animated.View style={heroStyle} className="items-center">
         <RadarScope size={radarSize} opportunities={opportunities} onSelectBlip={onSelectBlip} />
-        <Text className="mt-9 text-[62px] font-sans-bd leading-none tracking-tight text-foreground">Lumen</Text>
-        <Text className="mt-3 text-[13px] font-sans-sb uppercase tracking-[4px] text-primary">AI 产品灵感雷达</Text>
+        <Text className="mt-9 text-[62px] font-sans-bd leading-none tracking-tight text-foreground">
+          Lumen
+        </Text>
+        <Text className="mt-3 text-[13px] font-sans-sb uppercase tracking-[4px] text-primary">
+          AI 产品灵感雷达
+        </Text>
       </Animated.View>
 
       <Animated.View
@@ -83,7 +95,9 @@ export function IntroScene({
         <Animated.View style={bobStyle}>
           <ChevronDown size={22} color={palette.mutedForeground} strokeWidth={2.4} />
         </Animated.View>
-        <Text className="mt-1 text-[10px] uppercase tracking-[3px] text-muted-foreground">向下滑动</Text>
+        <Text className="mt-1 text-[10px] uppercase tracking-[3px] text-muted-foreground">
+          向下滑动
+        </Text>
       </Animated.View>
     </View>
   );

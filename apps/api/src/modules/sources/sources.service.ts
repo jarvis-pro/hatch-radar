@@ -55,11 +55,15 @@ export class SourcesService {
 
   async updateSource(id: number, fields: Partial<SourceInput>): Promise<void> {
     const existing = await this.sources.getSource(id);
-    if (!existing) throw new NotFoundError('来源不存在');
+    if (!existing) {
+      throw new NotFoundError('来源不存在');
+    }
     if (fields.enabled === true) {
       await this.assertRedditEnable(existing.platform, true);
     }
-    if (Object.keys(fields).length > 0) await this.sources.updateSource(id, fields, nowSec());
+    if (Object.keys(fields).length > 0) {
+      await this.sources.updateSource(id, fields, nowSec());
+    }
   }
 
   async deleteSource(id: number): Promise<void> {
@@ -100,7 +104,9 @@ export class SourcesService {
     if (!(await this.connectors.getConnector(id))) {
       throw new NotFoundError('连接器不存在');
     }
-    if (Object.keys(fields).length > 0) await this.connectors.updateConnector(id, fields, nowSec());
+    if (Object.keys(fields).length > 0) {
+      await this.connectors.updateConnector(id, fields, nowSec());
+    }
     logger.info(`[采集连接器] 更新 #${id}`);
   }
 

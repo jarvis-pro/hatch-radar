@@ -30,7 +30,9 @@ export function TranslationButton({ t }: { t: ReturnType<typeof usePostTranslati
   const providersQ = useTranslationProviders();
   const [pickerOpen, setPickerOpen] = useState(false);
   const s = t.status;
-  if (!s || s.state === 'none') return null;
+  if (!s || s.state === 'none') {
+    return null;
+  }
 
   const toggle = t.hasTranslations ? (
     <Button size="xs" variant="outline" onClick={() => t.setShowZh(!t.showZh)}>
@@ -135,7 +137,9 @@ export function TranslationButton({ t }: { t: ReturnType<typeof usePostTranslati
     }
   }
 
-  if (!toggle && !action) return null;
+  if (!toggle && !action) {
+    return null;
+  }
   return (
     <div className="space-y-1">
       <div className="flex flex-wrap items-center gap-2">

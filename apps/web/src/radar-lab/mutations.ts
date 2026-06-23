@@ -16,7 +16,9 @@ function errMsg(e: unknown): string {
 function useInvalidate(): (keys: QueryKey[]) => void {
   const qc = useQueryClient();
   return (keys) => {
-    for (const key of keys) void qc.invalidateQueries({ queryKey: key });
+    for (const key of keys) {
+      void qc.invalidateQueries({ queryKey: key });
+    }
   };
 }
 

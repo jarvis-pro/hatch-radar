@@ -20,7 +20,9 @@ function linkAbort(signal: AbortSignal | undefined): {
   dispose: () => void;
 } {
   const controller = new AbortController();
-  if (!signal) return { controller, dispose: () => {} };
+  if (!signal) {
+    return { controller, dispose: () => {} };
+  }
   if (signal.aborted) {
     controller.abort();
     return { controller, dispose: () => {} };
@@ -48,7 +50,9 @@ interface ResultMessageView {
  * @param message query() 异步流里的一条消息
  */
 export function translationFromMessage(message: ResultMessageView): TranslatedItem[] | null {
-  if (message.type !== 'result') return null;
+  if (message.type !== 'result') {
+    return null;
+  }
   if (message.subtype === 'success' && message.structured_output !== undefined) {
     return normalizeTranslationItems(message.structured_output);
   }

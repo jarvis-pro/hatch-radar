@@ -54,22 +54,29 @@ async function backfillPosts(db: AppDatabase, apply: boolean): Promise<Stats> {
       take: BATCH,
       ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
     });
-    if (rows.length === 0) break;
+    if (rows.length === 0) {
+      break;
+    }
     cursor = rows[rows.length - 1].id;
 
     const updates = [];
     for (const row of rows) {
       stats.scanned++;
       const after = decodeEntities(row.selftext);
-      if (after === row.selftext) continue;
+      if (after === row.selftext) {
+        continue;
+      }
       stats.changed++;
       if (stats.samples.length < SAMPLE) {
         stats.samples.push({ id: row.id, before: row.selftext, after });
       }
-      if (apply)
+      if (apply) {
         updates.push(db.posts.update({ where: { id: row.id }, data: { selftext: after } }));
+      }
     }
-    if (updates.length > 0) await db.$transaction(updates);
+    if (updates.length > 0) {
+      await db.$transaction(updates);
+    }
   }
   return stats;
 }
@@ -86,21 +93,29 @@ async function backfillComments(db: AppDatabase, apply: boolean): Promise<Stats>
       take: BATCH,
       ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
     });
-    if (rows.length === 0) break;
+    if (rows.length === 0) {
+      break;
+    }
     cursor = rows[rows.length - 1].id;
 
     const updates = [];
     for (const row of rows) {
       stats.scanned++;
       const after = decodeEntities(row.body);
-      if (after === row.body) continue;
+      if (after === row.body) {
+        continue;
+      }
       stats.changed++;
       if (stats.samples.length < SAMPLE) {
         stats.samples.push({ id: row.id, before: row.body, after });
       }
-      if (apply) updates.push(db.comments.update({ where: { id: row.id }, data: { body: after } }));
+      if (apply) {
+        updates.push(db.comments.update({ where: { id: row.id }, data: { body: after } }));
+      }
     }
-    if (updates.length > 0) await db.$transaction(updates);
+    if (updates.length > 0) {
+      await db.$transaction(updates);
+    }
   }
   return stats;
 }

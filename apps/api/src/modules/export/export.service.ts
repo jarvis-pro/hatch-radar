@@ -40,8 +40,12 @@ export class ExportService {
     const conds: Prisma.Sql[] = [
       Prisma.sql`(jsonb_array_length(pain_points) > 0 OR jsonb_array_length(opportunities) > 0)`,
     ];
-    if (filter.since) conds.push(Prisma.sql`created_at > ${BigInt(filter.since)}`);
-    if (filter.minIntensity === 'HIGH') conds.push(Prisma.sql`intensity::text = 'HIGH'`);
+    if (filter.since) {
+      conds.push(Prisma.sql`created_at > ${BigInt(filter.since)}`);
+    }
+    if (filter.minIntensity === 'HIGH') {
+      conds.push(Prisma.sql`intensity::text = 'HIGH'`);
+    }
     if (filter.minIntensity === 'MEDIUM') {
       conds.push(Prisma.sql`intensity::text IN ('HIGH', 'MEDIUM')`);
     }
@@ -66,7 +70,9 @@ export class ExportService {
       ${limit}
     `;
     const ids = rows.map((r) => r.post_id);
-    if (ids.length === 0) return [];
+    if (ids.length === 0) {
+      return [];
+    }
     // 过滤到现存帖（30 天归档后仅余洞察、无可译原文）；保留导出顺序
     const present = await this.db.posts.findMany({
       where: { id: { in: ids } },
@@ -112,8 +118,11 @@ export class ExportService {
     const commentsByPost = new Map<string, CommentPg[]>();
     for (const c of commentPgs) {
       const arr = commentsByPost.get(c.post_id);
-      if (arr) arr.push(c);
-      else commentsByPost.set(c.post_id, [c]);
+      if (arr) {
+        arr.push(c);
+      } else {
+        commentsByPost.set(c.post_id, [c]);
+      }
     }
 
     const postRows: PostRow[] = [];
@@ -121,7 +130,11 @@ export class ExportService {
     for (const p of orderedPosts) {
       postRows.push(toPostRow(p));
       const cs = commentsByPost.get(p.id);
-      if (cs) for (const c of cs) commentRows.push(toCommentRow(c));
+      if (cs) {
+        for (const c of cs) {
+          commentRows.push(toCommentRow(c));
+        }
+      }
     }
 
     // 本批帖子/评论涉及的内容哈希 → 取已完成译文（按 content_hash），随导出带给移动端做中文优先渲染。
@@ -144,15 +157,19 @@ export class ExportService {
     const translations: ExportTranslation[] = [];
     for (const p of postRows) {
       const tZh = p.title_hash ? zhByHash.get(p.title_hash) : undefined;
-      if (tZh != null) translations.push({ entity_kind: 'post_title', entity_id: p.id, text: tZh });
+      if (tZh != null) {
+        translations.push({ entity_kind: 'post_title', entity_id: p.id, text: tZh });
+      }
       const sZh = p.selftext_hash ? zhByHash.get(p.selftext_hash) : undefined;
-      if (sZh != null)
+      if (sZh != null) {
         translations.push({ entity_kind: 'post_selftext', entity_id: p.id, text: sZh });
+      }
     }
     for (const c of commentRows) {
       const bZh = c.body_hash ? zhByHash.get(c.body_hash) : undefined;
-      if (bZh != null)
+      if (bZh != null) {
         translations.push({ entity_kind: 'comment_body', entity_id: c.id, text: bZh });
+      }
     }
 
     return {

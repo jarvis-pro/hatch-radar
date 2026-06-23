@@ -45,7 +45,9 @@ export class InsightsRepository {
     const rank: Record<Intensity, number> = { HIGH: 3, MEDIUM: 2, LOW: 1 };
     let intensity: Intensity = 'LOW';
     for (const p of insight.pain_points) {
-      if (rank[p.intensity] > rank[intensity]) intensity = p.intensity;
+      if (rank[p.intensity] > rank[intensity]) {
+        intensity = p.intensity;
+      }
     }
     const data = {
       source: post.source,
@@ -109,10 +111,18 @@ export class InsightsRepository {
    */
   private radarWhere(f: RadarInsightFilter): Prisma.insightsWhereInput {
     const where: Record<string, unknown> = {};
-    if (f.source) where.source = f.source;
-    if (f.subreddit) where.subreddit = f.subreddit;
-    if (f.intensity) where.intensity = f.intensity.toUpperCase();
-    if (f.q) where.post_title = { contains: f.q, mode: 'insensitive' };
+    if (f.source) {
+      where.source = f.source;
+    }
+    if (f.subreddit) {
+      where.subreddit = f.subreddit;
+    }
+    if (f.intensity) {
+      where.intensity = f.intensity.toUpperCase();
+    }
+    if (f.q) {
+      where.post_title = { contains: f.q, mode: 'insensitive' };
+    }
     return where;
   }
 

@@ -255,7 +255,9 @@ export function NodePanel({ step, postId }: { step: InspectStepView; postId: str
     }
     // done：按节点类型渲染产物
     const out = step.output;
-    if (out == null) return <p className="text-sm text-muted-foreground">无产物。</p>;
+    if (out == null) {
+      return <p className="text-sm text-muted-foreground">无产物。</p>;
+    }
     switch (step.name as InspectStepName) {
       case 'resolve':
         return <ResolvePanel o={out as ResolveOutput} />;

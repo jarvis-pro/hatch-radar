@@ -38,7 +38,9 @@ export class CrawlerConfigService {
       return null;
     }
     const fingerprint = `${conn.id}:${conn.updated_at}`;
-    if (this.cached?.fingerprint === fingerprint) return this.cached.client;
+    if (this.cached?.fingerprint === fingerprint) {
+      return this.cached.client;
+    }
     const cfg = this.toRedditConfig(conn);
     if (!cfg) {
       this.cached = null;
@@ -78,7 +80,9 @@ export class CrawlerConfigService {
    */
   async testConnector(id: number): Promise<{ ok: boolean; error?: string }> {
     const conn = await this.connectors.getConnector(id);
-    if (!conn) return { ok: false, error: '连接器不存在' };
+    if (!conn) {
+      return { ok: false, error: '连接器不存在' };
+    }
     if (conn.platform !== 'reddit') {
       // 其余平台无需凭据；标记通过即可（理论上不会有非 reddit 连接器）
       await this.connectors.recordCheck(id, true, null, nowSec());

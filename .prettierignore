@@ -7,6 +7,9 @@ node_modules/
 apps/mobile/ios/
 apps/mobile/android/
 apps/mobile/.expo/
+apps/lumen/ios/
+apps/lumen/android/
+apps/lumen/.expo/
 
 # Prisma 生成的 client（prisma generate 产物，勿格式化）
 packages/db/src/generated/

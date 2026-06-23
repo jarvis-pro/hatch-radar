@@ -10,18 +10,30 @@ export function fmtDate(unixSec: number): string {
 /** Unix 秒 → 相对时间（30 天以上回退绝对日期） */
 export function timeAgo(unixSec: number): string {
   const diff = Math.floor(Date.now() / 1000) - unixSec;
-  if (diff < 60) return '刚刚';
-  if (diff < 3600) return `${Math.floor(diff / 60)} 分钟前`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)} 小时前`;
-  if (diff < 30 * 86400) return `${Math.floor(diff / 86400)} 天前`;
+  if (diff < 60) {
+    return '刚刚';
+  }
+  if (diff < 3600) {
+    return `${Math.floor(diff / 60)} 分钟前`;
+  }
+  if (diff < 86400) {
+    return `${Math.floor(diff / 3600)} 小时前`;
+  }
+  if (diff < 30 * 86400) {
+    return `${Math.floor(diff / 86400)} 天前`;
+  }
   return fmtDate(unixSec);
 }
 
 /** 秒数 → 紧凑时长，如 '45 秒' / '1 分 23 秒' / '2 时 5 分' */
 export function fmtDuration(sec: number): string {
   const s = Math.max(0, Math.floor(sec));
-  if (s < 60) return `${s} 秒`;
-  if (s < 3600) return `${Math.floor(s / 60)} 分 ${s % 60} 秒`;
+  if (s < 60) {
+    return `${s} 秒`;
+  }
+  if (s < 3600) {
+    return `${Math.floor(s / 60)} 分 ${s % 60} 秒`;
+  }
   return `${Math.floor(s / 3600)} 时 ${Math.floor((s % 3600) / 60)} 分`;
 }
 
@@ -38,9 +50,13 @@ let entityDecoder: HTMLTextAreaElement | null = null;
  * 按原文记忆化避免重渲染重复解码；无 '&' 时快速返回原串。
  */
 export function decodeEntities(text: string): string {
-  if (!text || !text.includes('&')) return text;
+  if (!text || !text.includes('&')) {
+    return text;
+  }
   const cached = entityCache.get(text);
-  if (cached !== undefined) return cached;
+  if (cached !== undefined) {
+    return cached;
+  }
   const el = (entityDecoder ??= document.createElement('textarea'));
   el.innerHTML = text;
   const out = el.value;

@@ -18,7 +18,9 @@ export function SystemPulse() {
   });
 
   const d = q.data;
-  if (!d) return null;
+  if (!d) {
+    return null;
+  }
 
   const workers = d.today.workers;
   const inflight = d.today.inflight;

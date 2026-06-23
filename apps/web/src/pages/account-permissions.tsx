@@ -12,7 +12,9 @@ import { PageHeader } from '@/components/page-header';
 /** 个人中心 · 我的权限：只读展示当前账户拥有的能力。 */
 export function PermissionsPage() {
   const { user } = useAuth();
-  if (!user) return null; // 受 ProtectedLayout 守卫，理论不达此
+  if (!user) {
+    return null;
+  } // 受 ProtectedLayout 守卫，理论不达此
   return (
     <div>
       <PageHeader title="我的权限" description="你在本控制台拥有的能力" />

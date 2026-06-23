@@ -33,23 +33,37 @@ const CAP = 16;
 const TIMELINE_CAP = 10; // 一生时间线只显示最近 N 条事件
 
 function intervalLabel(misses: number): string {
-  if (misses <= 0) return '每轮查';
+  if (misses <= 0) {
+    return '每轮查';
+  }
   return `隔 ${Math.min(2 ** (misses - 1), CAP)} 轮`;
 }
 
 /** 跨运行事件 → 一句话标签（据 kind/status/sweep 现算）。 */
 function eventLabel(ev: PostLifecycleEvent): string {
-  if (ev.kind === 'collect') return '采集入库';
+  if (ev.kind === 'collect') {
+    return '采集入库';
+  }
   if (ev.kind === 'analyze') {
-    if (ev.status === 'failed') return 'AI 分析失败';
-    if (ev.status === 'succeeded') return 'AI 分析 → 产出洞察';
+    if (ev.status === 'failed') {
+      return 'AI 分析失败';
+    }
+    if (ev.status === 'succeeded') {
+      return 'AI 分析 → 产出洞察';
+    }
     return 'AI 分析中';
   }
   if (ev.kind === 'recheck') {
     const s = ev.sweepSeq != null ? `复查 #${ev.sweepSeq}` : '复查';
-    if (ev.status === 'skipped') return `${s} · 未变化（退避）`;
-    if (ev.status === 'succeeded') return `${s} · 有变化 → 重抓`;
-    if (ev.status === 'failed') return `${s} · 失败`;
+    if (ev.status === 'skipped') {
+      return `${s} · 未变化（退避）`;
+    }
+    if (ev.status === 'succeeded') {
+      return `${s} · 有变化 → 重抓`;
+    }
+    if (ev.status === 'failed') {
+      return `${s} · 失败`;
+    }
     return `${s} · 进行中`;
   }
   return ev.kind;
@@ -57,7 +71,9 @@ function eventLabel(ev: PostLifecycleEvent): string {
 
 function countComments(nodes: RadarCommentDTO[]): number {
   let n = 0;
-  for (const x of nodes) n += 1 + (x.children ? countComments(x.children) : 0);
+  for (const x of nodes) {
+    n += 1 + (x.children ? countComments(x.children) : 0);
+  }
   return n;
 }
 

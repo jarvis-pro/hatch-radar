@@ -66,10 +66,14 @@ export function FilterBar({
     const params = new URLSearchParams();
     for (const s of selects) {
       const v = s.name in overrides ? overrides[s.name] : s.value;
-      if (v) params.set(s.name, v);
+      if (v) {
+        params.set(s.name, v);
+      }
     }
     const qv = searchName in overrides ? overrides[searchName] : (searchValue ?? '');
-    if (qv) params.set(searchName, qv);
+    if (qv) {
+      params.set(searchName, qv);
+    }
     const qs = params.toString();
     return qs ? `${basePath}?${qs}` : basePath;
   }

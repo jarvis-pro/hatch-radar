@@ -102,7 +102,9 @@ export function CommandPalette({
   });
 
   const close = (o: boolean): void => {
-    if (!o) setSearch('');
+    if (!o) {
+      setSearch('');
+    }
     onOpenChange(o);
   };
   const go = (to: string): void => {
@@ -170,7 +172,9 @@ export function CommandPalette({
           const items = group.items.filter((it) =>
             hasPermission(user.role, user.permissions, it.perm),
           );
-          if (items.length === 0) return null;
+          if (items.length === 0) {
+            return null;
+          }
           return (
             <CommandGroup key={group.label} heading={group.label}>
               {items.map((it) => (

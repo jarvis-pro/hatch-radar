@@ -38,7 +38,9 @@ const CACHE_KEY = 'profile_cache';
 /** 读上次同步缓存的资料（离线时兜底展示）。 */
 function readCache(): Profile | null {
   const raw = getMeta(CACHE_KEY);
-  if (!raw) return null;
+  if (!raw) {
+    return null;
+  }
   try {
     return JSON.parse(raw) as Profile;
   } catch {
@@ -93,7 +95,9 @@ export default function ProfileScreen() {
 
   const onSaved = useCallback((avatar: string | null) => {
     setProfile((prev) => {
-      if (!prev) return prev;
+      if (!prev) {
+        return prev;
+      }
       const next = { ...prev, avatar };
       setMeta(CACHE_KEY, JSON.stringify(next));
       return next;

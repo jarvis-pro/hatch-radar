@@ -13,7 +13,9 @@ const ThemeModeContext = createContext<ThemeModeContextValue | null>(null);
 
 export function useThemeMode(): ThemeModeContextValue {
   const ctx = useContext(ThemeModeContext);
-  if (!ctx) throw new Error('useThemeMode 必须在 <ThemeModeProvider> 内使用');
+  if (!ctx) {
+    throw new Error('useThemeMode 必须在 <ThemeModeProvider> 内使用');
+  }
   return ctx;
 }
 
@@ -33,5 +35,7 @@ export function ThemeModeProvider({ children }: { children: ReactNode }) {
 
   const setMode = useCallback((next: ThemeMode) => setModeState(next), []);
 
-  return <ThemeModeContext.Provider value={{ mode, setMode }}>{children}</ThemeModeContext.Provider>;
+  return (
+    <ThemeModeContext.Provider value={{ mode, setMode }}>{children}</ThemeModeContext.Provider>
+  );
 }

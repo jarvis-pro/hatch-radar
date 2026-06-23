@@ -63,9 +63,9 @@ describe('SettingsService.updateProvider（改 baseUrl 必须重填 API Key）',
 
   it('改 baseUrl 但不带 apiKey → 拒绝，且库中 baseUrl 不变', async () => {
     const id = await seedOpenAI();
-    await expect(
-      svc.updateProvider(id, { baseUrl: 'http://evil.example/v1' }),
-    ).rejects.toThrow(ValidationError);
+    await expect(svc.updateProvider(id, { baseUrl: 'http://evil.example/v1' })).rejects.toThrow(
+      ValidationError,
+    );
     const row = await providers.getProvider(id);
     expect(row!.base_url).toBe('https://api.openai.com/v1'); // 未被改动
   });

@@ -29,7 +29,9 @@ export class SchedulerService {
 
   /** 调度心跳：触发到期进程 + 收尾完成的运行并重排。非重入、异常只记录（高频，不打成功日志）。 */
   heartbeat(): Promise<void> {
-    if (this.running.has('heartbeat')) return Promise.resolve();
+    if (this.running.has('heartbeat')) {
+      return Promise.resolve();
+    }
     this.running.add('heartbeat');
     return (async () => {
       try {

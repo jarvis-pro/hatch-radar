@@ -81,8 +81,12 @@ const INTERVAL_UNITS: { value: IntervalUnit; label: string }[] = [
 ];
 /** 把 everySec 拆成最自然的「值 + 单位」（能整除优先 时 > 分 > 秒）——避免秒级间隔被时间输入取整丢失。 */
 function splitInterval(everySec: number): { value: number; unit: IntervalUnit } {
-  if (everySec > 0 && everySec % 3600 === 0) return { value: everySec / 3600, unit: 'hour' };
-  if (everySec > 0 && everySec % 60 === 0) return { value: everySec / 60, unit: 'min' };
+  if (everySec > 0 && everySec % 3600 === 0) {
+    return { value: everySec / 3600, unit: 'hour' };
+  }
+  if (everySec > 0 && everySec % 60 === 0) {
+    return { value: everySec / 60, unit: 'min' };
+  }
   return { value: everySec, unit: 'sec' };
 }
 const cronTimeOf = (expr: string): string => {
@@ -96,7 +100,9 @@ function useOpenKey(open: boolean): number {
   const [was, setWas] = useState(false);
   if (open !== was) {
     setWas(open);
-    if (open) setKey((k) => k + 1);
+    if (open) {
+      setKey((k) => k + 1);
+    }
   }
   return key;
 }
@@ -136,8 +142,9 @@ function initSources(editing?: BlueprintDTO): SourceDraft {
     rss: { enabled: false, channels: '' },
   };
   if (editing) {
-    for (const s of editing.sources)
+    for (const s of editing.sources) {
       base[s.kind] = { enabled: true, channels: s.channels.join(', ') };
+    }
   } else {
     base.reddit = { enabled: true, channels: '' };
   }
@@ -148,7 +155,9 @@ const num = (v: unknown, fallback: number): number => (typeof v === 'number' ? v
 
 /** 从图纸 params（Record）读出采集 / 复查参数，缺省回退默认。 */
 function readCollect(editing?: BlueprintDTO): CollectParams {
-  if (editing?.kind !== 'collect') return DEFAULT_COLLECT_PARAMS;
+  if (editing?.kind !== 'collect') {
+    return DEFAULT_COLLECT_PARAMS;
+  }
   const p = editing.params;
   return {
     limit: num(p.limit, DEFAULT_COLLECT_PARAMS.limit),
@@ -157,7 +166,9 @@ function readCollect(editing?: BlueprintDTO): CollectParams {
   };
 }
 function readRecheck(editing?: BlueprintDTO): RecheckParams {
-  if (editing?.kind !== 'recheck') return DEFAULT_RECHECK_PARAMS;
+  if (editing?.kind !== 'recheck') {
+    return DEFAULT_RECHECK_PARAMS;
+  }
   const p = editing.params;
   return {
     batchSize: num(p.batchSize, DEFAULT_RECHECK_PARAMS.batchSize),
@@ -197,7 +208,9 @@ function BlueprintBody({
   function submit(): void {
     setTried(true);
     const x = errs();
-    if (x.label || x.sources || x.channels) return;
+    if (x.label || x.sources || x.channels) {
+      return;
+    }
     const selected = enabled.map((k) => ({
       kind: k,
       channels: sources[k].channels
@@ -456,7 +469,9 @@ export function BlueprintFormDialog({
             key={k}
             editing={editing}
             onDone={(id) => {
-              if (id != null) onCreated?.(id);
+              if (id != null) {
+                onCreated?.(id);
+              }
               onOpenChange(false);
             }}
           />
@@ -496,8 +511,12 @@ function ProcessBody({
   const busy = create.isPending || update.isPending;
 
   function buildTrigger(): TriggerConfig {
-    if (tk === 'once') return { kind: 'once' };
-    if (tk === 'cron') return { kind: 'cron', expr: `每天 ${cronTime || '09:00'}` };
+    if (tk === 'once') {
+      return { kind: 'once' };
+    }
+    if (tk === 'cron') {
+      return { kind: 'cron', expr: `每天 ${cronTime || '09:00'}` };
+    }
     return {
       kind: 'interval',
       everySec: Math.max(5, Math.round(intervalValue) * UNIT_SEC[intervalUnit]),
@@ -505,7 +524,9 @@ function ProcessBody({
   }
 
   function submit(): void {
-    if (!blueprint) return;
+    if (!blueprint) {
+      return;
+    }
     const trigger = buildTrigger();
     const finalLabel = label.trim() || `${blueprint.label} · ${triggerSummary(trigger)}`;
     if (editing) {

@@ -38,20 +38,26 @@ async function request<T>(
   opts?: RequestOptions,
 ): Promise<T> {
   const headers: Record<string, string> = { 'x-radar-csrf': '1' };
-  if (body !== undefined) headers['content-type'] = 'application/json';
+  if (body !== undefined) {
+    headers['content-type'] = 'application/json';
+  }
   const res = await fetch(`${API_BASE}${path}`, {
     method,
     headers,
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   if (res.status === 401) {
-    if (!opts?.skipAuthHandler) unauthorizedHandler?.();
+    if (!opts?.skipAuthHandler) {
+      unauthorizedHandler?.();
+    }
     throw new ApiError(401, await errorMessage(res, '未登录或会话已过期'));
   }
   if (!res.ok) {
     throw new ApiError(res.status, await errorMessage(res, res.statusText));
   }
-  if (res.status === 204) return undefined as T;
+  if (res.status === 204) {
+    return undefined as T;
+  }
   const text = await res.text();
   return (text ? JSON.parse(text) : undefined) as T;
 }
@@ -91,7 +97,9 @@ export async function downloadBlob(
     unauthorizedHandler?.();
     throw new ApiError(401, '未登录或会话已过期');
   }
-  if (!res.ok) throw new ApiError(res.status, await errorMessage(res, res.statusText));
+  if (!res.ok) {
+    throw new ApiError(res.status, await errorMessage(res, res.statusText));
+  }
   const blob = await res.blob();
   const disposition = res.headers.get('content-disposition') ?? '';
   const match = /filename="?([^"]+)"?/.exec(disposition);

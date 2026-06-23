@@ -27,6 +27,8 @@ export type StageUsage = {
 /** 从 ai_call 或 translate 环节产物提取 token 用量，供整条任务计费（缺则 null）。 */
 export function usageFromSteps(stages: readonly StageLike[]): StageUsage | null {
   const fromAi = stepOutput<AiCallOutput>(stages, 'ai_call')?.usage;
-  if (fromAi) return fromAi;
+  if (fromAi) {
+    return fromAi;
+  }
   return stepOutput<{ usage: StageUsage | null }>(stages, 'translate')?.usage ?? null;
 }

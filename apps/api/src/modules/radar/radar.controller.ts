@@ -109,7 +109,9 @@ export class BlueprintsController {
   @Get(':id')
   async get(@Param('id', ParseIntPipe) id: number) {
     const bp = await this.blueprints.getBlueprint(id);
-    if (!bp) throw new NotFoundException('图纸不存在');
+    if (!bp) {
+      throw new NotFoundException('图纸不存在');
+    }
     return bp;
   }
 
@@ -129,7 +131,9 @@ export class BlueprintsController {
     @Param('id', ParseIntPipe) id: number,
     @Body(new ZodValidationPipe(updateBlueprintSchema)) dto: z.infer<typeof updateBlueprintSchema>,
   ) {
-    if (!(await this.blueprints.getBlueprint(id))) throw new NotFoundException('图纸不存在');
+    if (!(await this.blueprints.getBlueprint(id))) {
+      throw new NotFoundException('图纸不存在');
+    }
     await this.blueprints.updateBlueprint(id, dto);
     return { ok: true };
   }
@@ -161,7 +165,9 @@ export class ProcessesController {
   @Get(':id')
   async get(@Param('id', ParseIntPipe) id: number) {
     const p = await this.processes.getProcess(id);
-    if (!p) throw new NotFoundException('进程不存在');
+    if (!p) {
+      throw new NotFoundException('进程不存在');
+    }
     return p;
   }
 
@@ -186,7 +192,9 @@ export class ProcessesController {
     @Param('id', ParseIntPipe) id: number,
     @Body(new ZodValidationPipe(updateProcessSchema)) dto: z.infer<typeof updateProcessSchema>,
   ) {
-    if (!(await this.processes.getProcess(id))) throw new NotFoundException('进程不存在');
+    if (!(await this.processes.getProcess(id))) {
+      throw new NotFoundException('进程不存在');
+    }
     await this.processes.updateProcess(id, dto);
     return { ok: true };
   }
@@ -218,7 +226,9 @@ export class ProcessesController {
   @Delete(':id')
   @RequirePermission('pipeline:control')
   async remove(@Param('id', ParseIntPipe) id: number) {
-    if (!(await this.processes.getProcess(id))) throw new NotFoundException('进程不存在');
+    if (!(await this.processes.getProcess(id))) {
+      throw new NotFoundException('进程不存在');
+    }
     await this.processes.deleteProcess(id);
     logger.info(`[进程] 删除 #${id}`);
     return { ok: true };
@@ -250,7 +260,9 @@ export class RadarController {
   @Get('runs/:id')
   async runDetail(@Param('id', ParseIntPipe) id: number) {
     const res = await this.radar.runDetail(id);
-    if (!res) throw new NotFoundException('运行不存在');
+    if (!res) {
+      throw new NotFoundException('运行不存在');
+    }
     return res;
   }
 
@@ -285,7 +297,9 @@ export class RadarController {
   @RequirePermission('insights:view')
   async insightDetail(@Param('id', ParseIntPipe) id: number) {
     const res = await this.radar.insightDetail(id);
-    if (!res) throw new NotFoundException('洞察不存在');
+    if (!res) {
+      throw new NotFoundException('洞察不存在');
+    }
     return res;
   }
 
@@ -308,7 +322,9 @@ export class RadarController {
   @RequirePermission('posts:view')
   async postDetail(@Param('id') id: string) {
     const res = await this.radar.postDetail(id);
-    if (!res) throw new NotFoundException('帖子不存在');
+    if (!res) {
+      throw new NotFoundException('帖子不存在');
+    }
     return res;
   }
 }

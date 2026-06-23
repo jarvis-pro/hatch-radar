@@ -22,8 +22,11 @@ function scryptAsync(
 ): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     scryptCb(password, salt, keylen, options, (err, derived) => {
-      if (err) reject(err);
-      else resolve(derived);
+      if (err) {
+        reject(err);
+      } else {
+        resolve(derived);
+      }
     });
   });
 }
@@ -46,14 +49,20 @@ export async function hashPassword(plain: string): Promise<string> {
  */
 export async function verifyPassword(plain: string, stored: string): Promise<boolean> {
   const parts = stored.split(':');
-  if (parts.length !== 6 || parts[0] !== 'scrypt') return false;
+  if (parts.length !== 6 || parts[0] !== 'scrypt') {
+    return false;
+  }
   const n = Number(parts[1]);
   const r = Number(parts[2]);
   const p = Number(parts[3]);
-  if (!Number.isInteger(n) || !Number.isInteger(r) || !Number.isInteger(p)) return false;
+  if (!Number.isInteger(n) || !Number.isInteger(r) || !Number.isInteger(p)) {
+    return false;
+  }
   const salt = Buffer.from(parts[4], 'base64');
   const expected = Buffer.from(parts[5], 'base64');
-  if (salt.length === 0 || expected.length === 0) return false;
+  if (salt.length === 0 || expected.length === 0) {
+    return false;
+  }
   const key = await scryptAsync(plain.normalize('NFKC'), salt, expected.length, { N: n, r, p });
   return key.length === expected.length && timingSafeEqual(key, expected);
 }

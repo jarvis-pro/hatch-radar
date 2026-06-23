@@ -70,12 +70,24 @@ export class SourcesRepository {
   /** 更新来源（仅更新提供的字段） */
   async updateSource(id: number, fields: Partial<SourceInput>, now: number): Promise<boolean> {
     const data: Record<string, unknown> = {};
-    if (fields.platform !== undefined) data.platform = fields.platform;
-    if (fields.identifier !== undefined) data.identifier = fields.identifier;
-    if (fields.label !== undefined) data.label = fields.label;
-    if (fields.config !== undefined) data.config = fields.config;
-    if (fields.enabled !== undefined) data.enabled = fields.enabled;
-    if (Object.keys(data).length === 0) return false;
+    if (fields.platform !== undefined) {
+      data.platform = fields.platform;
+    }
+    if (fields.identifier !== undefined) {
+      data.identifier = fields.identifier;
+    }
+    if (fields.label !== undefined) {
+      data.label = fields.label;
+    }
+    if (fields.config !== undefined) {
+      data.config = fields.config;
+    }
+    if (fields.enabled !== undefined) {
+      data.enabled = fields.enabled;
+    }
+    if (Object.keys(data).length === 0) {
+      return false;
+    }
     data.updated_at = BigInt(now);
     const res = await this.db.sources.updateMany({ where: { id }, data });
     return res.count > 0;

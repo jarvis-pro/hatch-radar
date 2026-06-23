@@ -10,10 +10,18 @@ export function fmtDate(unixSec: number): string {
 /** Unix 秒 → 相对时间（30 天以上回退绝对日期） */
 export function timeAgo(unixSec: number): string {
   const diff = Math.floor(Date.now() / 1000) - unixSec;
-  if (diff < 60) return '刚刚';
-  if (diff < 3600) return `${Math.floor(diff / 60)} 分钟前`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)} 小时前`;
-  if (diff < 30 * 86400) return `${Math.floor(diff / 86400)} 天前`;
+  if (diff < 60) {
+    return '刚刚';
+  }
+  if (diff < 3600) {
+    return `${Math.floor(diff / 60)} 分钟前`;
+  }
+  if (diff < 86400) {
+    return `${Math.floor(diff / 3600)} 小时前`;
+  }
+  if (diff < 30 * 86400) {
+    return `${Math.floor(diff / 86400)} 天前`;
+  }
   return fmtDate(unixSec);
 }
 

@@ -17,13 +17,27 @@ import { logger } from '@/logger';
  * 映射收口在此处）。未知子类按客户端错误（400）兜底。
  */
 function domainStatus(e: DomainError): number {
-  if (e instanceof ValidationError) return 400;
-  if (e instanceof UnauthorizedError) return 401;
-  if (e instanceof ForbiddenError) return 403;
-  if (e instanceof NotFoundError) return 404;
-  if (e instanceof ConflictError) return 409;
-  if (e instanceof RateLimitError) return 429;
-  if (e instanceof ServiceUnavailableError) return 503;
+  if (e instanceof ValidationError) {
+    return 400;
+  }
+  if (e instanceof UnauthorizedError) {
+    return 401;
+  }
+  if (e instanceof ForbiddenError) {
+    return 403;
+  }
+  if (e instanceof NotFoundError) {
+    return 404;
+  }
+  if (e instanceof ConflictError) {
+    return 409;
+  }
+  if (e instanceof RateLimitError) {
+    return 429;
+  }
+  if (e instanceof ServiceUnavailableError) {
+    return 503;
+  }
   return 400;
 }
 

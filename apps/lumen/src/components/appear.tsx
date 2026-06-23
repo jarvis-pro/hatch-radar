@@ -2,7 +2,13 @@ import { DUR, EASE_OUT } from '@/lib/motion';
 import type { ReactNode } from 'react';
 import { useEffect } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
-import Animated, { interpolate, useAnimatedStyle, useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
+import Animated, {
+  interpolate,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withTiming,
+} from 'react-native-reanimated';
 
 /**
  * 入场动画：挂载时淡入 + 轻微位移。用 useSharedValue + useAnimatedStyle 实现

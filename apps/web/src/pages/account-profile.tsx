@@ -16,7 +16,9 @@ import { UserAvatar } from '@/components/user-avatar';
 /** 个人中心 · 资料：头像 + 邮箱（只读）+ 修改昵称。 */
 export function ProfilePage() {
   const { user } = useAuth();
-  if (!user) return null; // 受 ProtectedLayout 守卫，理论不达此
+  if (!user) {
+    return null;
+  } // 受 ProtectedLayout 守卫，理论不达此
   return (
     <div>
       <PageHeader title="资料" description="你的账户基本信息" />

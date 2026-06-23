@@ -35,7 +35,9 @@ export class ProcessesSeeder implements Seeder {
       [collect, '采集 · 每 30 分钟'],
       [recheck, '复查 · 每 30 分钟'],
     ] as const) {
-      if (!bp) continue;
+      if (!bp) {
+        continue;
+      }
       await this.processes.createProcess(
         {
           blueprintId: bp.id,

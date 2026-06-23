@@ -39,15 +39,20 @@ export class TaskStagesRepository {
    */
   async listStagesByTasks(taskIds: number[]): Promise<Map<number, TaskStageRow[]>> {
     const grouped = new Map<number, TaskStageRow[]>();
-    if (taskIds.length === 0) return grouped;
+    if (taskIds.length === 0) {
+      return grouped;
+    }
     const rows = await this.db.task_stages.findMany({
       where: { task_id: { in: taskIds } },
       orderBy: [{ task_id: 'asc' }, { seq: 'asc' }],
     });
     for (const r of rows) {
       const list = grouped.get(r.task_id);
-      if (list) list.push(toTaskStageRow(r));
-      else grouped.set(r.task_id, [toTaskStageRow(r)]);
+      if (list) {
+        list.push(toTaskStageRow(r));
+      } else {
+        grouped.set(r.task_id, [toTaskStageRow(r)]);
+      }
     }
     return grouped;
   }

@@ -32,8 +32,11 @@ export function PermissionEditor({
 
   const toggle = (k: PermissionKey): void => {
     const next = new Set(sel);
-    if (next.has(k)) next.delete(k);
-    else next.add(k);
+    if (next.has(k)) {
+      next.delete(k);
+    } else {
+      next.add(k);
+    }
     onChange([...next]);
   };
 

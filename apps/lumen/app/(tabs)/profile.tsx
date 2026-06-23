@@ -8,7 +8,15 @@ import { usePalette } from '@/lib/theme';
 import { useThemeMode, type ThemeMode } from '@/lib/theme-mode';
 import { cn } from '@/lib/utils';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Bell, Moon, RotateCcw, Smartphone, Sun, Vibrate, type LucideIcon } from 'lucide-react-native';
+import {
+  Bell,
+  Moon,
+  RotateCcw,
+  Smartphone,
+  Sun,
+  Vibrate,
+  type LucideIcon,
+} from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, {
@@ -30,8 +38,13 @@ function SectionLabel({ children }: { children: string }) {
   const palette = usePalette();
   return (
     <View className="mb-5 mt-11 px-7">
-      <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: palette.hairline }} className="mb-5" />
-      <Text className="text-[12px] font-sans-sb uppercase tracking-[2px] text-primary">{children}</Text>
+      <View
+        style={{ height: StyleSheet.hairlineWidth, backgroundColor: palette.hairline }}
+        className="mb-5"
+      />
+      <Text className="text-[12px] font-sans-sb uppercase tracking-[2px] text-primary">
+        {children}
+      </Text>
     </View>
   );
 }
@@ -80,8 +93,17 @@ function ThemeSegmented() {
             }}
             className="flex-1 flex-row items-center justify-center gap-1.5 py-2.5"
           >
-            <o.Icon size={15} color={active ? palette.primary : palette.mutedForeground} strokeWidth={2.3} />
-            <Text className={cn('text-[13px] font-sans-md', active ? 'text-primary' : 'text-muted-foreground')}>
+            <o.Icon
+              size={15}
+              color={active ? palette.primary : palette.mutedForeground}
+              strokeWidth={2.3}
+            />
+            <Text
+              className={cn(
+                'text-[13px] font-sans-md',
+                active ? 'text-primary' : 'text-muted-foreground',
+              )}
+            >
               {o.label}
             </Text>
           </Pressable>
@@ -100,7 +122,9 @@ function GlassSwitch({ value, onChange }: { value: boolean; onChange: (v: boolea
   const track = useAnimatedStyle(() => ({
     backgroundColor: interpolateColor(p.value, [0, 1], ['rgba(128,130,150,0.5)', palette.primary]),
   }));
-  const knob = useAnimatedStyle(() => ({ transform: [{ translateX: interpolate(p.value, [0, 1], [2, 20]) }] }));
+  const knob = useAnimatedStyle(() => ({
+    transform: [{ translateX: interpolate(p.value, [0, 1], [2, 20]) }],
+  }));
   return (
     <Pressable
       onPress={() => {
@@ -108,8 +132,12 @@ function GlassSwitch({ value, onChange }: { value: boolean; onChange: (v: boolea
         onChange(!value);
       }}
     >
-      <Animated.View style={[track, { width: 46, height: 28, borderRadius: 14, justifyContent: 'center' }]}>
-        <Animated.View style={[knob, { width: 24, height: 24, borderRadius: 12, backgroundColor: 'white' }]} />
+      <Animated.View
+        style={[track, { width: 46, height: 28, borderRadius: 14, justifyContent: 'center' }]}
+      >
+        <Animated.View
+          style={[knob, { width: 24, height: 24, borderRadius: 12, backgroundColor: 'white' }]}
+        />
       </Animated.View>
     </Pressable>
   );
@@ -176,9 +204,21 @@ export default function ProfileScreen() {
       {/* 统计 */}
       <View className="mt-8 flex-row items-start px-7">
         <Stat value={savedIds.length} label="收藏" />
-        <View style={{ width: StyleSheet.hairlineWidth, backgroundColor: palette.hairline, marginHorizontal: 16 }} />
+        <View
+          style={{
+            width: StyleSheet.hairlineWidth,
+            backgroundColor: palette.hairline,
+            marginHorizontal: 16,
+          }}
+        />
         <Stat value={dismissedIds.length} label="已跳过" />
-        <View style={{ width: StyleSheet.hairlineWidth, backgroundColor: palette.hairline, marginHorizontal: 16 }} />
+        <View
+          style={{
+            width: StyleSheet.hairlineWidth,
+            backgroundColor: palette.hairline,
+            marginHorizontal: 16,
+          }}
+        />
         <Stat value={OPPORTUNITIES.length} label="追踪机会" />
       </View>
 
@@ -191,16 +231,29 @@ export default function ProfileScreen() {
       {/* 偏好 */}
       <SectionLabel>偏好</SectionLabel>
       <View className="px-7">
-        <PrefRow icon={Bell} label="强信号提醒" hint="出现高强度机会时推送" value={notify} onChange={setNotify} />
+        <PrefRow
+          icon={Bell}
+          label="强信号提醒"
+          hint="出现高强度机会时推送"
+          value={notify}
+          onChange={setNotify}
+        />
         <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: palette.hairlineSoft }} />
-        <PrefRow icon={Vibrate} label="触感反馈" hint="交互时的轻微震动" value={haptics} onChange={setHaptics} />
+        <PrefRow
+          icon={Vibrate}
+          label="触感反馈"
+          hint="交互时的轻微震动"
+          value={haptics}
+          onChange={setHaptics}
+        />
       </View>
 
       {/* 关于 */}
       <SectionLabel>关于</SectionLabel>
       <View className="px-7">
         <Text className="text-[15px] leading-7 text-foreground">
-          Lumen 是一个 AI 产品灵感雷达的概念体验：持续扫描社区信号，把浮现中的产品机会与用户痛点提炼成可探索的卡片。
+          Lumen 是一个 AI
+          产品灵感雷达的概念体验：持续扫描社区信号，把浮现中的产品机会与用户痛点提炼成可探索的卡片。
         </Text>
         <Text className="mt-3 text-[13px] leading-6 text-muted-foreground">
           本应用的全部数据均为演示用 mock，不发起任何网络请求。

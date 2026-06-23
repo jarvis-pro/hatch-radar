@@ -102,7 +102,9 @@ export class AccountController {
     @Res({ passthrough: true }) res: Response,
   ): Promise<{ ok: true }> {
     const token = readSessionCookie(req);
-    if (token) await this.account.logout(token, user.id);
+    if (token) {
+      await this.account.logout(token, user.id);
+    }
     clearSessionCookie(res);
     return { ok: true };
   }

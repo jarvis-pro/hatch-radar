@@ -52,7 +52,9 @@ function SessionList() {
     a.current === b.current ? b.lastSeenAt - a.lastSeenAt : a.current ? -1 : 1,
   );
 
-  if (sessionsQ.isPending) return <Spinner className="size-5 text-muted-foreground" />;
+  if (sessionsQ.isPending) {
+    return <Spinner className="size-5 text-muted-foreground" />;
+  }
 
   return (
     <div className="max-w-xl space-y-3">

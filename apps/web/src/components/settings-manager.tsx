@@ -95,7 +95,9 @@ export interface SettingsData {
 function AzureUsageMeter() {
   const usageQ = useTranslationUsage();
   const u = usageQ.data;
-  if (!u) return null;
+  if (!u) {
+    return null;
+  }
   const pct =
     u.azureFreeLimit > 0
       ? Math.min(100, Math.round((u.azureCharsThisMonth / u.azureFreeLimit) * 100))
@@ -206,22 +208,32 @@ async function apiSend(
   const p = path.replace(/^\/api/, ''); // api 客户端再补 /api 前缀
   try {
     let data: ApiData | undefined;
-    if (method === 'GET') data = await api.get<ApiData>(p);
-    else if (method === 'POST') data = await api.post<ApiData>(p, body);
-    else if (method === 'PUT') data = await api.put<ApiData>(p, body);
-    else data = await api.del<ApiData>(p, body);
+    if (method === 'GET') {
+      data = await api.get<ApiData>(p);
+    } else if (method === 'POST') {
+      data = await api.post<ApiData>(p, body);
+    } else if (method === 'PUT') {
+      data = await api.put<ApiData>(p, body);
+    } else {
+      data = await api.del<ApiData>(p, body);
+    }
     return { ok: true, status: 200, data: data ?? {} };
   } catch (err) {
-    if (err instanceof ApiError)
+    if (err instanceof ApiError) {
       return { ok: false, status: err.status, data: { error: err.message } };
+    }
     return { ok: false, status: 0, data: { error: '网络错误' } };
   }
 }
 
 /** 一把 Key 的状态徽标（含冷却剩余时间） */
 function KeyStatusBadge({ k, now }: { k: ProviderKeyDTO; now: number }) {
-  if (!k.enabled) return <Badge variant="outline">已停用</Badge>;
-  if (k.status === 'invalid') return <Badge variant="destructive">失效</Badge>;
+  if (!k.enabled) {
+    return <Badge variant="outline">已停用</Badge>;
+  }
+  if (k.status === 'invalid') {
+    return <Badge variant="destructive">失效</Badge>;
+  }
   if (k.status === 'cooling') {
     const remain = k.cooldownUntil ? k.cooldownUntil - now : 0;
     return (
@@ -333,7 +345,9 @@ export function SettingsManager({
       inputPrice: ip === '' ? null : Number(ip),
       outputPrice: op === '' ? null : Number(op),
     };
-    if (form.apiKey.trim()) body.apiKey = form.apiKey.trim();
+    if (form.apiKey.trim()) {
+      body.apiKey = form.apiKey.trim();
+    }
     const res =
       editingId === null
         ? await apiSend('/api/settings/providers', 'POST', body)
@@ -453,7 +467,9 @@ export function SettingsManager({
   }
 
   async function saveKey() {
-    if (keyProviderId === null) return;
+    if (keyProviderId === null) {
+      return;
+    }
     if (editingKeyId === null && !keyForm.apiKey.trim()) {
       toast.error('请填写 API Key');
       return;
@@ -497,8 +513,11 @@ export function SettingsManager({
     const res = await apiSend(`/api/settings/providers/${providerId}/keys/${k.id}`, 'PUT', {
       enabled: !k.enabled,
     });
-    if (res.ok) onChanged();
-    else toast.error(res.data?.error ?? '操作失败');
+    if (res.ok) {
+      onChanged();
+    } else {
+      toast.error(res.data?.error ?? '操作失败');
+    }
   }
 
   async function resetKey(providerId: number, k: ProviderKeyDTO) {
@@ -517,16 +536,25 @@ export function SettingsManager({
     setTestingKeyId(k.id);
     const res = await apiSend(`/api/settings/providers/${providerId}/keys/${k.id}/test`, 'POST');
     setTestingKeyId(null);
-    if (res.ok && res.data?.ok) toast.success(`Key「${k.label || k.keyMasked}」连接正常`);
-    else toast.error(`Key 连接失败：${res.data?.error ?? res.status}`);
+    if (res.ok && res.data?.ok) {
+      toast.success(`Key「${k.label || k.keyMasked}」连接正常`);
+    } else {
+      toast.error(`Key 连接失败：${res.data?.error ?? res.status}`);
+    }
   }
 
   /** 执行受控确认弹窗里被确认的操作 */
   function runConfirm() {
-    if (!confirm) return;
-    if (confirm.kind === 'rebaseClear') void doSave();
-    else if (confirm.kind === 'deleteProvider') void removeProvider(confirm.provider);
-    else void removeKey(confirm.providerId, confirm.k);
+    if (!confirm) {
+      return;
+    }
+    if (confirm.kind === 'rebaseClear') {
+      void doSave();
+    } else if (confirm.kind === 'deleteProvider') {
+      void removeProvider(confirm.provider);
+    } else {
+      void removeKey(confirm.providerId, confirm.k);
+    }
   }
 
   return (

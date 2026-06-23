@@ -28,7 +28,9 @@ export function verifyDeviceSignature(
 ): boolean {
   try {
     const raw = Buffer.from(publicKeyB64, 'base64');
-    if (raw.length !== 32) return false;
+    if (raw.length !== 32) {
+      return false;
+    }
     const spki = Buffer.concat([ED25519_SPKI_PREFIX, raw]);
     const key = createPublicKey({ key: spki, format: 'der', type: 'spki' });
     return verifyOneShot(

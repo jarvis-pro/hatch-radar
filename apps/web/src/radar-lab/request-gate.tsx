@@ -147,8 +147,12 @@ function RequestGate() {
   const q = useLanes();
   const pauseLane = usePauseLane();
 
-  if (q.isError) return <LoadError onRetry={() => void q.refetch()} />;
-  if (q.isPending) return <Skeleton className="h-96 w-full" />;
+  if (q.isError) {
+    return <LoadError onRetry={() => void q.refetch()} />;
+  }
+  if (q.isPending) {
+    return <Skeleton className="h-96 w-full" />;
+  }
 
   const lanes = q.data;
   const anyPaused = lanes.some((l) => l.paused);

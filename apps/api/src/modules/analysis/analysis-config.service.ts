@@ -84,9 +84,13 @@ export class AnalysisConfigService {
   async getProcessorForProvider(providerId: number): Promise<PostProcessor | null> {
     await this.syncCacheVersion();
     const cached = this.processorCache.get(providerId);
-    if (cached) return cached;
+    if (cached) {
+      return cached;
+    }
     const provider = await this.providers.getProvider(providerId);
-    if (!provider || !provider.enabled) return null;
+    if (!provider || !provider.enabled) {
+      return null;
+    }
     // claude_cli 订阅模式无 Key：直接用引擎处理器（query() 复用本机登录态），不走多 Key 故障转移
     const processor: PostProcessor =
       provider.provider === 'claude_cli'
@@ -142,7 +146,9 @@ export class AnalysisConfigService {
         }
         return { result, keyId: key.id, switched };
       } catch (err) {
-        if (signal?.aborted) throw err; // job 超时：不再切换，直接冒泡
+        if (signal?.aborted) {
+          throw err;
+        } // job 超时：不再切换，直接冒泡
         const kind = classifyKeyError(err);
         const m = errMsg(err);
         if (kind === 'rate_limit') {
@@ -203,9 +209,13 @@ export class AnalysisConfigService {
    */
   async getActiveProvider(): Promise<ActiveProvider | null> {
     const id = await this.settings.getActiveProviderId();
-    if (id == null) return null;
+    if (id == null) {
+      return null;
+    }
     const row = await this.providers.getProvider(id);
-    if (!row || !row.enabled) return null;
+    if (!row || !row.enabled) {
+      return null;
+    }
     return { id: row.id, model: row.model, label: `${row.provider} (${row.model})` };
   }
 
@@ -236,7 +246,9 @@ export class AnalysisConfigService {
    */
   async getProviderInspectInfo(providerId: number): Promise<ResolveOutput | null> {
     const provider = await this.providers.getProvider(providerId);
-    if (!provider || !provider.enabled) return null;
+    if (!provider || !provider.enabled) {
+      return null;
+    }
     // claude_cli 订阅模式无 Key 池；API Key 模式实时数可用 Key（active/冷却已过）
     const usableKeyCount =
       provider.provider === 'claude_cli'
@@ -258,7 +270,9 @@ export class AnalysisConfigService {
    */
   async testProvider(providerId: number): Promise<{ ok: boolean; error?: string }> {
     const provider = await this.providers.getProvider(providerId);
-    if (!provider) return { ok: false, error: '模型配置不存在' };
+    if (!provider) {
+      return { ok: false, error: '模型配置不存在' };
+    }
     if (provider.provider === 'claude_cli') {
       try {
         await testClaudeAgent(provider.model);
@@ -268,7 +282,9 @@ export class AnalysisConfigService {
       }
     }
     const keys = await this.providers.listUsableKeys(providerId, nowSec());
-    if (keys.length === 0) return { ok: false, error: '无可用 API Key（请先添加或复位）' };
+    if (keys.length === 0) {
+      return { ok: false, error: '无可用 API Key（请先添加或复位）' };
+    }
     return this.runKeyTest(provider, keys[0]);
   }
 
@@ -278,9 +294,13 @@ export class AnalysisConfigService {
    */
   async testProviderKey(keyId: number): Promise<{ ok: boolean; error?: string }> {
     const key = await this.providers.getKey(keyId);
-    if (!key) return { ok: false, error: 'API Key 不存在' };
+    if (!key) {
+      return { ok: false, error: 'API Key 不存在' };
+    }
     const provider = await this.providers.getProvider(key.provider_id);
-    if (!provider) return { ok: false, error: '模型配置不存在' };
+    if (!provider) {
+      return { ok: false, error: '模型配置不存在' };
+    }
     return this.runKeyTest(provider, key);
   }
 
@@ -306,9 +326,13 @@ export class AnalysisConfigService {
     }
     const cfg = providerConfigWithKey(provider, plain);
     try {
-      if (cfg.provider === 'anthropic') await testAnthropic(cfg.apiKey, cfg.model);
-      else if (cfg.provider === 'claude_cli') await testClaudeAgent(cfg.model);
-      else await testOpenAICompatible(cfg);
+      if (cfg.provider === 'anthropic') {
+        await testAnthropic(cfg.apiKey, cfg.model);
+      } else if (cfg.provider === 'claude_cli') {
+        await testClaudeAgent(cfg.model);
+      } else {
+        await testOpenAICompatible(cfg);
+      }
       return { ok: true };
     } catch (err) {
       return { ok: false, error: errMsg(err) };

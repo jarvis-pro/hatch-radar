@@ -78,7 +78,9 @@ export function DeviceManager({
   }
 
   async function runKick(): Promise<void> {
-    if (!kick) return;
+    if (!kick) {
+      return;
+    }
     const id = kick.id;
     setError(null);
     setPending(true);
@@ -237,7 +239,9 @@ export function DeviceManager({
               size="icon"
               aria-label="复制激活码"
               onClick={() => {
-                if (!code) return;
+                if (!code) {
+                  return;
+                }
                 void navigator.clipboard.writeText(code);
                 toast.success('激活码已复制');
               }}

@@ -36,10 +36,18 @@ interface Coverage {
 /** 把数值化筛选拼成覆盖率查询串 */
 function coverageQs(f: ExportFilterBody): string {
   const qs = new URLSearchParams();
-  if (f.since) qs.set('since', String(f.since));
-  if (f.minIntensity) qs.set('minIntensity', f.minIntensity);
-  if (f.subreddit) qs.set('subreddit', f.subreddit);
-  if (f.limit) qs.set('limit', String(f.limit));
+  if (f.since) {
+    qs.set('since', String(f.since));
+  }
+  if (f.minIntensity) {
+    qs.set('minIntensity', f.minIntensity);
+  }
+  if (f.subreddit) {
+    qs.set('subreddit', f.subreddit);
+  }
+  if (f.limit) {
+    qs.set('limit', String(f.limit));
+  }
   const s = qs.toString();
   return s ? `?${s}` : '';
 }
@@ -72,10 +80,16 @@ export function ExportBatchButton({ subreddits }: { subreddits: string[] }) {
     if (days && Number.isFinite(d) && d > 0) {
       f.since = Math.floor(Date.now() / 1000) - Math.round(d * 86400);
     }
-    if (minIntensity) f.minIntensity = minIntensity;
-    if (subreddit.trim()) f.subreddit = subreddit.trim();
+    if (minIntensity) {
+      f.minIntensity = minIntensity;
+    }
+    if (subreddit.trim()) {
+      f.subreddit = subreddit.trim();
+    }
     const n = Number(limit);
-    if (limit && Number.isInteger(n) && n > 0) f.limit = n;
+    if (limit && Number.isInteger(n) && n > 0) {
+      f.limit = n;
+    }
     return f;
   }, [days, minIntensity, subreddit, limit]);
 
@@ -94,7 +108,9 @@ export function ExportBatchButton({ subreddits }: { subreddits: string[] }) {
 
   // 待翻清零即视为补翻完成，停止轮询
   useEffect(() => {
-    if (translating && cov && cov.untranslated === 0) setTranslating(false);
+    if (translating && cov && cov.untranslated === 0) {
+      setTranslating(false);
+    }
   }, [translating, cov]);
 
   const batchMut = useMutation({
@@ -117,10 +133,18 @@ export function ExportBatchButton({ subreddits }: { subreddits: string[] }) {
     setError(null);
     try {
       const qs = new URLSearchParams();
-      if (filter.since) qs.set('since', String(filter.since));
-      if (filter.minIntensity) qs.set('minIntensity', filter.minIntensity);
-      if (filter.subreddit) qs.set('subreddit', filter.subreddit);
-      if (filter.limit) qs.set('limit', String(filter.limit));
+      if (filter.since) {
+        qs.set('since', String(filter.since));
+      }
+      if (filter.minIntensity) {
+        qs.set('minIntensity', filter.minIntensity);
+      }
+      if (filter.subreddit) {
+        qs.set('subreddit', filter.subreddit);
+      }
+      if (filter.limit) {
+        qs.set('limit', String(filter.limit));
+      }
 
       const ts = Math.floor(Date.now() / 1000);
       const query = qs.toString() ? `?${qs.toString()}` : '';

@@ -17,30 +17,56 @@ const CLI_RE =
 
 /** 操作系统：mobile 标记用于选移动端图标。顺序敏感（移动端先于桌面端）。 */
 function detectOs(ua: string): { name: string; mobile: boolean } | null {
-  if (/iPhone|iPad|iPod/.test(ua)) return { name: 'iOS', mobile: true };
-  if (/Android/.test(ua)) return { name: 'Android', mobile: true };
-  if (/Windows NT/.test(ua)) return { name: 'Windows', mobile: false };
-  if (/Mac OS X|Macintosh/.test(ua)) return { name: 'macOS', mobile: false };
-  if (/Linux|X11/.test(ua)) return { name: 'Linux', mobile: false };
+  if (/iPhone|iPad|iPod/.test(ua)) {
+    return { name: 'iOS', mobile: true };
+  }
+  if (/Android/.test(ua)) {
+    return { name: 'Android', mobile: true };
+  }
+  if (/Windows NT/.test(ua)) {
+    return { name: 'Windows', mobile: false };
+  }
+  if (/Mac OS X|Macintosh/.test(ua)) {
+    return { name: 'macOS', mobile: false };
+  }
+  if (/Linux|X11/.test(ua)) {
+    return { name: 'Linux', mobile: false };
+  }
   return null;
 }
 
 /** 浏览器 / 应用：顺序敏感（Claude/Edge 的 UA 都含 Chrome，须先判）。 */
 function detectBrowser(ua: string): string {
-  if (/Claude\//.test(ua)) return 'Claude 桌面端';
-  if (/Edg\//.test(ua)) return 'Edge';
-  if (/OPR\/|Opera/.test(ua)) return 'Opera';
-  if (/Firefox\//.test(ua)) return 'Firefox';
-  if (/Chrome\//.test(ua)) return 'Chrome';
-  if (/Safari\//.test(ua)) return 'Safari';
+  if (/Claude\//.test(ua)) {
+    return 'Claude 桌面端';
+  }
+  if (/Edg\//.test(ua)) {
+    return 'Edge';
+  }
+  if (/OPR\/|Opera/.test(ua)) {
+    return 'Opera';
+  }
+  if (/Firefox\//.test(ua)) {
+    return 'Firefox';
+  }
+  if (/Chrome\//.test(ua)) {
+    return 'Chrome';
+  }
+  if (/Safari\//.test(ua)) {
+    return 'Safari';
+  }
   return '浏览器';
 }
 
 export function parseUserAgent(ua: string | null): ParsedUA {
-  if (!ua) return { label: '未知设备', kind: 'unknown' };
+  if (!ua) {
+    return { label: '未知设备', kind: 'unknown' };
+  }
 
   const cli = CLI_RE.exec(ua);
-  if (cli) return { label: cli[1].toLowerCase(), kind: 'cli' };
+  if (cli) {
+    return { label: cli[1].toLowerCase(), kind: 'cli' };
+  }
 
   const os = detectOs(ua);
   const browser = detectBrowser(ua);

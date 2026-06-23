@@ -7,7 +7,9 @@ import { postJson, type WorkstationConfig } from './workstation';
 /** 设备标识：首次访问时生成 UUID 并持久化（服务端审计与多设备区分用） */
 export function getDeviceId(): string {
   const existing = getMeta('device_id');
-  if (existing) return existing;
+  if (existing) {
+    return existing;
+  }
   const deviceId = Crypto.randomUUID();
   setMeta('device_id', deviceId);
   return deviceId;

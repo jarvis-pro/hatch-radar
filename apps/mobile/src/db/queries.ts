@@ -115,9 +115,13 @@ export function getPostTranslations(postId: string): PostTranslations {
   );
   const out: PostTranslations = { comments: {} };
   for (const r of rows) {
-    if (r.entity_kind === 'post_title') out.title = r.text;
-    else if (r.entity_kind === 'post_selftext') out.selftext = r.text;
-    else out.comments[r.entity_id] = r.text;
+    if (r.entity_kind === 'post_title') {
+      out.title = r.text;
+    } else if (r.entity_kind === 'post_selftext') {
+      out.selftext = r.text;
+    } else {
+      out.comments[r.entity_id] = r.text;
+    }
   }
   return out;
 }
@@ -152,16 +156,22 @@ export function getFunnel(): FunnelStats {
   let archived = 0;
   let pending = 0;
   for (const r of statusRows) {
-    if (r.s === 'shortlisted') shortlisted = r.n;
-    else if (r.s === 'archived') archived = r.n;
-    else pending = r.n;
+    if (r.s === 'shortlisted') {
+      shortlisted = r.n;
+    } else if (r.s === 'archived') {
+      archived = r.n;
+    } else {
+      pending = r.n;
+    }
   }
 
   const intensityRows = db.getAllSync<{ intensity: Intensity; n: number }>(
     `SELECT intensity, COUNT(*) n FROM insights GROUP BY intensity`,
   );
   const byIntensity: Record<Intensity, number> = { HIGH: 0, MEDIUM: 0, LOW: 0 };
-  for (const r of intensityRows) byIntensity[r.intensity] = r.n;
+  for (const r of intensityRows) {
+    byIntensity[r.intensity] = r.n;
+  }
 
   const sourceRows = db.getAllSync<{ source: string; subreddit: string; n: number }>(
     `SELECT source, subreddit, COUNT(*) n FROM insights

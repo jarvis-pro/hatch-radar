@@ -42,15 +42,23 @@ export function clearSessionCookie(res: Response): void {
  */
 export function readSessionCookie(req: Request): string | undefined {
   const header = req.headers?.cookie;
-  if (!header) return undefined;
+  if (!header) {
+    return undefined;
+  }
   let base: string | undefined;
   for (const part of header.split(';')) {
     const idx = part.indexOf('=');
-    if (idx < 0) continue;
+    if (idx < 0) {
+      continue;
+    }
     const key = part.slice(0, idx).trim();
     // __Host- 前缀名优先（Secure 部署）；回退裸名（dev / Secure 切换前的旧 cookie）。
-    if (key === HOST_COOKIE) return decodeURIComponent(part.slice(idx + 1).trim());
-    if (key === SESSION_COOKIE) base = decodeURIComponent(part.slice(idx + 1).trim());
+    if (key === HOST_COOKIE) {
+      return decodeURIComponent(part.slice(idx + 1).trim());
+    }
+    if (key === SESSION_COOKIE) {
+      base = decodeURIComponent(part.slice(idx + 1).trim());
+    }
   }
   return base;
 }

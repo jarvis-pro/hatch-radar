@@ -35,7 +35,9 @@ function recipeFromBlueprint(bp: BlueprintRow): StageRecipe {
 
 /** 据进程触发配置算下次到期时刻（epoch 秒）；once / 非 active 为 null。 */
 function computeNextRunAt(process: ProcessRow, now: number): number | null {
-  if (process.status !== 'active' || process.trigger_kind === 'once') return null;
+  if (process.status !== 'active' || process.trigger_kind === 'once') {
+    return null;
+  }
   const cfg = (process.trigger_config ?? {}) as { everySec?: unknown; expr?: unknown };
   if (process.trigger_kind === 'interval') {
     const everySec = typeof cfg.everySec === 'number' && cfg.everySec > 0 ? cfg.everySec : 1800;
@@ -87,7 +89,9 @@ export class PipelineService {
   /** 找或建一张指定 kind 的默认图纸（首次触发时惰性种子，免单独 seeder）。 */
   private async ensureBlueprint(kind: TaskKind, label: string): Promise<BlueprintRow> {
     const existing = (await this.blueprints.listBlueprints(kind))[0];
-    if (existing) return existing;
+    if (existing) {
+      return existing;
+    }
     return this.blueprints.createBlueprint({ kind, label }, nowSec());
   }
 
@@ -98,7 +102,9 @@ export class PipelineService {
    */
   async runAnalyzeSweep(triggerSource = 'cron'): Promise<AnalyzeSweepResult> {
     const active = await this.analysisConfig.getActiveProvider();
-    if (!active) return { active: null, runId: null, created: 0, pending: 0 };
+    if (!active) {
+      return { active: null, runId: null, created: 0, pending: 0 };
+    }
 
     const batch = await this.runtimeSettings.getAnalyzeBatchSize();
     const posts = await this.posts.getPostsToAnalyze(batch);
@@ -115,13 +121,15 @@ export class PipelineService {
 
     let created = 0;
     try {
-      const inputs = posts.map((p): NewTaskInput => ({
-        runId: run.id,
-        kind: 'analyze',
-        postId: p.id,
-        providerId: active.id,
-        model: active.model,
-      }));
+      const inputs = posts.map(
+        (p): NewTaskInput => ({
+          runId: run.id,
+          kind: 'analyze',
+          postId: p.id,
+          providerId: active.id,
+          model: active.model,
+        }),
+      );
       ({ created } = await this.tasks.createTasksBatchSameStages(inputs, ANALYZE_STAGES, nowSec()));
     } finally {
       // 收尾恒执行：即使派生循环中途抛错，也要让 sweep run 落终态——否则无任务的 run 会永久 running
@@ -146,7 +154,9 @@ export class PipelineService {
     const bp = process
       ? await this.blueprints.getBlueprint(process.blueprint_id)
       : await this.ensureBlueprint('collect', '采集');
-    if (!bp) throw new Error(`进程#${process?.id} 绑定的图纸不存在`);
+    if (!bp) {
+      throw new Error(`进程#${process?.id} 绑定的图纸不存在`);
+    }
     const recipe = recipeFromBlueprint(bp);
     const run = await this.runs.createRun(
       {
@@ -188,7 +198,9 @@ export class PipelineService {
     const bp = process
       ? await this.blueprints.getBlueprint(process.blueprint_id)
       : await this.ensureBlueprint('recheck', '复查');
-    if (!bp) throw new Error(`进程#${process?.id} 绑定的图纸不存在`);
+    if (!bp) {
+      throw new Error(`进程#${process?.id} 绑定的图纸不存在`);
+    }
     const recipe = recipeFromBlueprint(bp);
     const sweep = process
       ? await this.processes.bumpSweep(process.id)
@@ -207,13 +219,15 @@ export class PipelineService {
     const posts = await this.posts.getPostsToRecheck(sweep, RECHECK_BATCH);
     let created = 0;
     try {
-      const inputs = posts.map((p): NewTaskInput => ({
-        runId: run.id,
-        processId: process?.id ?? null,
-        kind: 'recheck',
-        postId: p.id,
-        params: { sweep },
-      }));
+      const inputs = posts.map(
+        (p): NewTaskInput => ({
+          runId: run.id,
+          processId: process?.id ?? null,
+          kind: 'recheck',
+          postId: p.id,
+          params: { sweep },
+        }),
+      );
       ({ created } = await this.tasks.createTasksBatchSameStages(
         inputs,
         buildStages('recheck', recipe),
@@ -241,7 +255,9 @@ export class PipelineService {
   async fireDueProcesses(): Promise<void> {
     const due = await this.processes.listDue(nowSec());
     for (const process of due) {
-      if (await this.runs.hasRunningRunForProcess(process.id)) continue;
+      if (await this.runs.hasRunningRunForProcess(process.id)) {
+        continue;
+      }
       // 单个进程触发失败不应中断整轮——隔离记错，余下到期进程照常触发。
       try {
         await this.fireProcess(process);
@@ -266,14 +282,19 @@ export class PipelineService {
     }
     const src = triggerSource ?? (process.trigger_kind === 'cron' ? 'cron' : 'interval');
     try {
-      if (bp.kind === 'collect') await this.runCollectSweep(src, process);
-      else await this.runRecheckSweep(src, process);
+      if (bp.kind === 'collect') {
+        await this.runCollectSweep(src, process);
+      } else {
+        await this.runRecheckSweep(src, process);
+      }
     } finally {
       // 记账恒执行：即使 sweep 抛错，也要 markFired + 重排——否则 next_run_at 停在过去，该进程会被
       // 反复当作到期触发，或被 hasRunningRunForProcess 永久挡住从此卡死。
       await this.processes.markFired(process.id, nowSec());
       // 空轮已收尾（进程无 running run）→ 立即重排；非空运行仍在跑 → 交 finalizeRunningRuns 完成后重排。
-      if (!(await this.runs.hasRunningRunForProcess(process.id))) await this.scheduleNext(process);
+      if (!(await this.runs.hasRunningRunForProcess(process.id))) {
+        await this.scheduleNext(process);
+      }
     }
   }
 
@@ -284,7 +305,9 @@ export class PipelineService {
       try {
         const counts = await this.tasks.countByRun(run.id);
         // 仍有未终结任务（含 paused 闸门停等）或运行暂无任务 → 继续等下一轮心跳
-        if (counts.total === 0 || counts.active > 0) continue;
+        if (counts.total === 0 || counts.active > 0) {
+          continue;
+        }
         const status = counts.failed > 0 ? 'failed' : 'completed';
         await this.runs.finishRun(
           run.id,
@@ -294,7 +317,9 @@ export class PipelineService {
         );
         if (run.process_id != null) {
           const proc = await this.processes.getProcess(run.process_id);
-          if (proc) await this.scheduleNext(proc);
+          if (proc) {
+            await this.scheduleNext(proc);
+          }
         }
       } catch (e) {
         // 单个 run 收尾失败不阻断其余 run（下一轮心跳重试本 run）。
@@ -323,7 +348,9 @@ export class PipelineService {
     providerId: number,
     model: string,
   ): Promise<{ enqueued: number }> {
-    if (postIds.length === 0) return { enqueued: 0 };
+    if (postIds.length === 0) {
+      return { enqueued: 0 };
+    }
     const bp = await this.ensureBlueprint('translate', '翻译');
     const run = await this.runs.createRun(
       {
@@ -336,13 +363,15 @@ export class PipelineService {
     );
     let enqueued = 0;
     try {
-      const inputs = [...new Set(postIds)].map((id): NewTaskInput => ({
-        runId: run.id,
-        kind: 'translate',
-        postId: id,
-        providerId,
-        model,
-      }));
+      const inputs = [...new Set(postIds)].map(
+        (id): NewTaskInput => ({
+          runId: run.id,
+          kind: 'translate',
+          postId: id,
+          providerId,
+          model,
+        }),
+      );
       ({ created: enqueued } = await this.tasks.createTasksBatchSameStages(
         inputs,
         buildStages('translate'),
@@ -352,7 +381,9 @@ export class PipelineService {
       // 收尾恒执行（同 analyze sweep）：派生抛错也让 run 落终态，免空 run 永久 running。
       await this.runs.incrementCounters(run.id, { total: enqueued });
       await this.runs.finishRun(run.id, 'completed', nowSec());
-      if (enqueued > 0) void this.dispatcher?.tryDispatch();
+      if (enqueued > 0) {
+        void this.dispatcher?.tryDispatch();
+      }
     }
     return { enqueued };
   }

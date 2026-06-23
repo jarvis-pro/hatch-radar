@@ -53,15 +53,20 @@ export class SettingsRepository {
    */
   async getActiveProviderId(): Promise<number | null> {
     const value = await this.getSetting(ACTIVE_PROVIDER_KEY);
-    if (value == null) return null;
+    if (value == null) {
+      return null;
+    }
     const n = Number(value);
     return Number.isInteger(n) ? n : null;
   }
 
   /** 设置（或清空）当前选用的模型配置 ID */
   async setActiveProviderId(id: number | null): Promise<void> {
-    if (id == null) await this.deleteSetting(ACTIVE_PROVIDER_KEY);
-    else await this.setSetting(ACTIVE_PROVIDER_KEY, String(id));
+    if (id == null) {
+      await this.deleteSetting(ACTIVE_PROVIDER_KEY);
+    } else {
+      await this.setSetting(ACTIVE_PROVIDER_KEY, String(id));
+    }
   }
 
   /**
@@ -70,15 +75,20 @@ export class SettingsRepository {
    */
   async getTranslationProviderId(): Promise<number | null> {
     const value = await this.getSetting(TRANSLATION_PROVIDER_KEY);
-    if (value == null) return null;
+    if (value == null) {
+      return null;
+    }
     const n = Number(value);
     return Number.isInteger(n) ? n : null;
   }
 
   /** 设置（或清空）翻译用模型配置 ID */
   async setTranslationProviderId(id: number | null): Promise<void> {
-    if (id == null) await this.deleteSetting(TRANSLATION_PROVIDER_KEY);
-    else await this.setSetting(TRANSLATION_PROVIDER_KEY, String(id));
+    if (id == null) {
+      await this.deleteSetting(TRANSLATION_PROVIDER_KEY);
+    } else {
+      await this.setSetting(TRANSLATION_PROVIDER_KEY, String(id));
+    }
   }
 
   /**
@@ -87,7 +97,9 @@ export class SettingsRepository {
    */
   async getConfigVersion(): Promise<number> {
     const value = await this.getSetting(CONFIG_VERSION_KEY);
-    if (value == null) return 0;
+    if (value == null) {
+      return 0;
+    }
     const n = Number(value);
     return Number.isFinite(n) ? n : 0;
   }

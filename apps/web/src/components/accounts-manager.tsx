@@ -118,7 +118,9 @@ export function AccountsManager({
   const lastSuper = (u: AdminUserRow) => u.role === 'super_admin' && activeSupers <= 1;
 
   async function runConfirm(): Promise<void> {
-    if (!confirm) return;
+    if (!confirm) {
+      return;
+    }
     const { kind, user } = confirm;
     setError(null);
     setPending(true);
@@ -312,7 +314,9 @@ export function AccountsManager({
               size="icon"
               aria-label="复制临时密码"
               onClick={() => {
-                if (!resetResult) return;
+                if (!resetResult) {
+                  return;
+                }
                 void navigator.clipboard.writeText(resetResult.tempPassword);
                 toast.success('临时密码已复制');
               }}

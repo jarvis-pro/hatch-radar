@@ -37,7 +37,9 @@ function crumbsFor(pathname: string): Crumb[] {
   let section: { label: string; to: string } | undefined;
   for (const g of NAV_GROUPS) {
     for (const it of g.items) {
-      if (it.match(pathname)) section = { label: it.label, to: it.to };
+      if (it.match(pathname)) {
+        section = { label: it.label, to: it.to };
+      }
     }
   }
   if (!section) {

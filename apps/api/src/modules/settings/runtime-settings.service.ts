@@ -63,7 +63,9 @@ export type RuntimeSettingsPatch = Partial<Record<RuntimeSettingKey, number>>;
 
 /** 解析一条原始库值：缺失 / 非整数 / 低于下界一律视作无效（返回 null，由调用方回落默认） */
 function parseOverride(raw: string | undefined, min: number): number | null {
-  if (raw == null) return null;
+  if (raw == null) {
+    return null;
+  }
   const n = Number(raw);
   return Number.isInteger(n) && n >= min ? n : null;
 }
@@ -163,11 +165,15 @@ export class RuntimeSettingsService {
     const changed: string[] = [];
     for (const key of Object.keys(patch) as RuntimeSettingKey[]) {
       const next = patch[key];
-      if (next === undefined) continue;
+      if (next === undefined) {
+        continue;
+      }
       await this.settings.setSetting(FIELDS[key].storageKey, String(next));
       changed.push(`${key}=${next}`);
     }
-    if (changed.length > 0) logger.info(`[设置] 运行期参数更新（即时生效）：${changed.join('、')}`);
+    if (changed.length > 0) {
+      logger.info(`[设置] 运行期参数更新（即时生效）：${changed.join('、')}`);
+    }
     return this.getOverview();
   }
 }

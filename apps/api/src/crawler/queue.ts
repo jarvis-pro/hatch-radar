@@ -120,7 +120,9 @@ export class TokenBucketQueue {
    * - 25ms 底线防止令牌将满时空转过密
    */
   private schedulePump(): void {
-    if (this.timer) return;
+    if (this.timer) {
+      return;
+    }
     const now = Date.now();
     const waitForPause = Math.max(0, this.pauseUntil - now);
     const waitForToken = this.tokens >= 1 ? 0 : Math.ceil((1 - this.tokens) / this.refillPerMs);

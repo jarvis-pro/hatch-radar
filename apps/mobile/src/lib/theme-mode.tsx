@@ -23,7 +23,9 @@ const ThemeModeContext = createContext<ThemeModeContextValue | null>(null);
 
 export function useThemeMode(): ThemeModeContextValue {
   const ctx = useContext(ThemeModeContext);
-  if (!ctx) throw new Error('useThemeMode 必须在 <ThemeModeProvider> 内使用');
+  if (!ctx) {
+    throw new Error('useThemeMode 必须在 <ThemeModeProvider> 内使用');
+  }
   return ctx;
 }
 
@@ -47,9 +49,13 @@ export function ThemeModeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     colorScheme.set(mode);
-    if (mode !== 'system') return;
+    if (mode !== 'system') {
+      return;
+    }
     const sub = AppState.addEventListener('change', (state) => {
-      if (state === 'active') colorScheme.set('system');
+      if (state === 'active') {
+        colorScheme.set('system');
+      }
     });
     return () => sub.remove();
   }, [mode]);

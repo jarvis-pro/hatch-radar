@@ -83,7 +83,12 @@ export class RunsRepository {
   }
 
   /** 收尾进程（completed / failed / canceled）+ 结束时间 + 可选错误。 */
-  async finishRun(id: number, status: RunStatus, now: number, error?: string | null): Promise<void> {
+  async finishRun(
+    id: number,
+    status: RunStatus,
+    now: number,
+    error?: string | null,
+  ): Promise<void> {
     await this.db.runs.update({
       where: { id },
       data: { status, finished_at: BigInt(now), error: error ?? null },
@@ -159,7 +164,9 @@ export class RunsRepository {
 
   /** 一批运行的 sweep 序号（id → sweep_seq），供帖子一生时间线标注复查轮次。 */
   async sweepSeqByRunIds(runIds: number[]): Promise<Map<number, number | null>> {
-    if (runIds.length === 0) return new Map();
+    if (runIds.length === 0) {
+      return new Map();
+    }
     const rows = await this.db.runs.findMany({
       where: { id: { in: runIds } },
       select: { id: true, sweep_seq: true },

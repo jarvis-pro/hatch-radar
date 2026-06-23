@@ -152,7 +152,9 @@ describe('流水线检视器：执行内核（runTask 闸门状态机）', () =>
       stages,
       nowSec(),
     );
-    if (!res.ok) throw new Error(res.error);
+    if (!res.ok) {
+      throw new Error(res.error);
+    }
     return res.taskId;
   }
 

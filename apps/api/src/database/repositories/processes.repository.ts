@@ -87,15 +87,21 @@ export class ProcessesRepository {
 
   async updateProcess(id: number, patch: UpdateProcessInput, now: number): Promise<void> {
     const data: Prisma.processesUpdateInput = { updated_at: BigInt(now) };
-    if (patch.label !== undefined) data.label = patch.label;
-    if (patch.triggerKind !== undefined) data.trigger_kind = patch.triggerKind;
+    if (patch.label !== undefined) {
+      data.label = patch.label;
+    }
+    if (patch.triggerKind !== undefined) {
+      data.trigger_kind = patch.triggerKind;
+    }
     if (patch.triggerConfig !== undefined) {
       data.trigger_config =
         patch.triggerConfig == null
           ? Prisma.JsonNull
           : (patch.triggerConfig as Prisma.InputJsonValue);
     }
-    if (patch.status !== undefined) data.status = patch.status;
+    if (patch.status !== undefined) {
+      data.status = patch.status;
+    }
     if (patch.nextRunAt !== undefined) {
       data.next_run_at = patch.nextRunAt == null ? null : BigInt(patch.nextRunAt);
     }

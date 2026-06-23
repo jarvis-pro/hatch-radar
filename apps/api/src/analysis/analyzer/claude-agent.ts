@@ -21,7 +21,9 @@ function linkAbort(signal: AbortSignal | undefined): {
   dispose: () => void;
 } {
   const controller = new AbortController();
-  if (!signal) return { controller, dispose: () => {} };
+  if (!signal) {
+    return { controller, dispose: () => {} };
+  }
   if (signal.aborted) {
     controller.abort();
     return { controller, dispose: () => {} };
@@ -50,7 +52,9 @@ interface ResultMessageView {
  * @returns 命中成功结果时返回 structured_output 对象；非 result 返回 null；异常 result 抛错
  */
 export function rawFromMessage(message: ResultMessageView): object | null {
-  if (message.type !== 'result') return null;
+  if (message.type !== 'result') {
+    return null;
+  }
   if (message.subtype === 'success' && message.structured_output !== undefined) {
     return message.structured_output as object;
   }
@@ -170,8 +174,12 @@ export async function testClaudeAgent(model: string): Promise<void> {
       settingSources: [],
     },
   })) {
-    if (message.type !== 'result') continue;
-    if (message.subtype === 'success') return;
+    if (message.type !== 'result') {
+      continue;
+    }
+    if (message.subtype === 'success') {
+      return;
+    }
     throw new Error(
       `Claude CLI 不可用（${message.subtype}${message.errors.length ? `：${message.errors.join('; ')}` : ''}）`,
     );

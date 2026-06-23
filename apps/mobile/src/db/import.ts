@@ -56,11 +56,15 @@ function assertVersion(version: number): void {
 
 /** 统计一组洞察 id 中已存在于本地库的数量（导入前调用，用于区分新增/更新） */
 function countExistingInsights(ids: number[]): number {
-  if (ids.length === 0) return 0;
+  if (ids.length === 0) {
+    return 0;
+  }
   const db = getDb();
   let existing = 0;
   for (const id of ids) {
-    if (db.getFirstSync<{ n: number }>(`SELECT 1 n FROM insights WHERE id = ?`, [id])) existing++;
+    if (db.getFirstSync<{ n: number }>(`SELECT 1 n FROM insights WHERE id = ?`, [id])) {
+      existing++;
+    }
   }
   return existing;
 }

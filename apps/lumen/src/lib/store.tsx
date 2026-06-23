@@ -37,7 +37,9 @@ function reducer(state: StoreState, action: Action): StoreState {
       };
     }
     case 'dismiss': {
-      if (state.dismissedIds.includes(action.id)) return state;
+      if (state.dismissedIds.includes(action.id)) {
+        return state;
+      }
       return { ...state, dismissedIds: [...state.dismissedIds, action.id] };
     }
     case 'restoreDeck':
@@ -88,6 +90,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
 export function useStore(): StoreValue {
   const ctx = useContext(StoreContext);
-  if (!ctx) throw new Error('useStore 必须在 <StoreProvider> 内使用');
+  if (!ctx) {
+    throw new Error('useStore 必须在 <StoreProvider> 内使用');
+  }
   return ctx;
 }

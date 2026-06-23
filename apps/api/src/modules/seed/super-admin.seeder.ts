@@ -22,8 +22,12 @@ export class SuperAdminSeeder implements Seeder {
 
   async run(ctx: SeedContext): Promise<SeedOutcome> {
     const sa = this.env.superAdmin;
-    if (!sa) return { status: 'skipped', reason: '未设置 SUPER_ADMIN_EMAIL/PASSWORD' };
-    if ((await this.users.count()) > 0) return { status: 'skipped', reason: 'users 表非空' };
+    if (!sa) {
+      return { status: 'skipped', reason: '未设置 SUPER_ADMIN_EMAIL/PASSWORD' };
+    }
+    if ((await this.users.count()) > 0) {
+      return { status: 'skipped', reason: 'users 表非空' };
+    }
     await this.users.create(
       {
         email: sa.email,

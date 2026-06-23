@@ -47,7 +47,9 @@ function InsightDetailView() {
       </>
     );
   }
-  if (q.isPending) return <Skeleton className="mx-auto h-96 max-w-5xl" />;
+  if (q.isPending) {
+    return <Skeleton className="mx-auto h-96 max-w-5xl" />;
+  }
 
   const d = q.data;
   const im = INTENSITY_META[d.intensity];

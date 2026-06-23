@@ -37,9 +37,9 @@ const importPathPlugin = {
         const fileDir = path.dirname(context.filename);
         const check = (node) => {
           const source = node.source;
-          if (!source || typeof source.value !== 'string') return;
+          if (!source || typeof source.value !== 'string') {return;}
           const value = source.value;
-          if (!value.startsWith('../')) return; // 只管父级跳转；同目录 ./ 不动
+          if (!value.startsWith('../')) {return;} // 只管父级跳转；同目录 ./ 不动
           const parts = path.relative(rootDirAbs, path.resolve(fileDir, value)).split(path.sep);
           const alias = [prefix, ...parts].filter(Boolean).join('/');
           // 解析后仍跳出别名根（出现 ..）则只报错不自动修，避免生成坏路径
@@ -70,6 +70,9 @@ export default tseslint.config(
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
       '@typescript-eslint/no-explicit-any': 'warn',
       'no-console': 'off',
+      // 强制控制流语句（if/else/for/while/do）一律带花括号，禁止无大括号单行式——
+      // 防后续加第二行语句漏加花括号导致 bug（参 Apple goto fail）。Prettier 不增删花括号，故此处可强制。
+      curly: ['error', 'all'],
     },
   },
   {

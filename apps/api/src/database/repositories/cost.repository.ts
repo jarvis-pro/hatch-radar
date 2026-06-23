@@ -36,7 +36,9 @@ function computeCost(
   outputPrice: number | null,
   t: TokenUsage,
 ): number | null {
-  if (inputPrice == null || outputPrice == null) return null;
+  if (inputPrice == null || outputPrice == null) {
+    return null;
+  }
   const m = CACHE_MULT[provider] ?? { write: 1, read: 1 };
   return (
     (t.inputTokens * inputPrice +
@@ -224,7 +226,9 @@ export class CostRepository {
             cacheReadTokens: r.cache_read_tokens,
           })
         : null;
-      if (cost != null) acc.cost = (acc.cost ?? 0) + cost;
+      if (cost != null) {
+        acc.cost = (acc.cost ?? 0) + cost;
+      }
       byDate.set(r.date, acc);
     }
     // 密集填充：无数据的日期补零（cost=null）

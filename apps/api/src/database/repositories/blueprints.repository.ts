@@ -84,15 +84,25 @@ export class BlueprintsRepository {
 
   async updateBlueprint(id: number, patch: UpdateBlueprintInput, now: number): Promise<void> {
     const data: Prisma.blueprintsUpdateInput = { updated_at: BigInt(now) };
-    if (patch.label !== undefined) data.label = patch.label;
-    if (patch.note !== undefined) data.note = patch.note;
-    if (patch.enabled !== undefined) data.enabled = patch.enabled;
-    if (patch.sources !== undefined) data.sources = patch.sources as Prisma.InputJsonValue;
+    if (patch.label !== undefined) {
+      data.label = patch.label;
+    }
+    if (patch.note !== undefined) {
+      data.note = patch.note;
+    }
+    if (patch.enabled !== undefined) {
+      data.enabled = patch.enabled;
+    }
+    if (patch.sources !== undefined) {
+      data.sources = patch.sources as Prisma.InputJsonValue;
+    }
     if (patch.params !== undefined) {
       data.params =
         patch.params == null ? Prisma.JsonNull : (patch.params as Prisma.InputJsonValue);
     }
-    if (patch.gates !== undefined) data.gates = patch.gates as Prisma.InputJsonValue;
+    if (patch.gates !== undefined) {
+      data.gates = patch.gates as Prisma.InputJsonValue;
+    }
     if (patch.enabledStages !== undefined) {
       data.enabled_stages = patch.enabledStages as Prisma.InputJsonValue;
     }

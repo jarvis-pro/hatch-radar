@@ -21,16 +21,41 @@ import Animated, {
 import { type EdgeInsets, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 /** 滚动过 intro 后淡入的迷你品牌头。 */
-function MiniHeader({ scrollY, height, insets }: { scrollY: SharedValue<number>; height: number; insets: EdgeInsets }) {
+function MiniHeader({
+  scrollY,
+  height,
+  insets,
+}: {
+  scrollY: SharedValue<number>;
+  height: number;
+  insets: EdgeInsets;
+}) {
   const palette = usePalette();
   const style = useAnimatedStyle(() => ({
-    opacity: interpolate(scrollY.value, [height * 0.55, height * 0.95], [0, 1], Extrapolation.CLAMP),
-    transform: [{ translateY: interpolate(scrollY.value, [height * 0.55, height * 0.95], [-10, 0], Extrapolation.CLAMP) }],
+    opacity: interpolate(
+      scrollY.value,
+      [height * 0.55, height * 0.95],
+      [0, 1],
+      Extrapolation.CLAMP,
+    ),
+    transform: [
+      {
+        translateY: interpolate(
+          scrollY.value,
+          [height * 0.55, height * 0.95],
+          [-10, 0],
+          Extrapolation.CLAMP,
+        ),
+      },
+    ],
   }));
   return (
     <Animated.View
       pointerEvents="none"
-      style={[{ position: 'absolute', top: insets.top + 8, left: 0, right: 0, alignItems: 'center' }, style]}
+      style={[
+        { position: 'absolute', top: insets.top + 8, left: 0, right: 0, alignItems: 'center' },
+        style,
+      ]}
     >
       <View className="flex-row items-center gap-2 rounded-full border border-border bg-foreground/5 px-3.5 py-1.5">
         <PulseDot color={palette.signal} size={6} />
@@ -41,7 +66,15 @@ function MiniHeader({ scrollY, height, insets }: { scrollY: SharedValue<number>;
 }
 
 /** 右侧进度轨的一颗：当前场景的点拉长提亮。 */
-function RailDot({ index, scrollY, height }: { index: number; scrollY: SharedValue<number>; height: number }) {
+function RailDot({
+  index,
+  scrollY,
+  height,
+}: {
+  index: number;
+  scrollY: SharedValue<number>;
+  height: number;
+}) {
   const palette = usePalette();
   const style = useAnimatedStyle(() => {
     const d = Math.abs(scrollY.value / height - index);
@@ -50,7 +83,11 @@ function RailDot({ index, scrollY, height }: { index: number; scrollY: SharedVal
       opacity: interpolate(d, [0, 1], [1, 0.3], Extrapolation.CLAMP),
     };
   });
-  return <Animated.View style={[{ width: 3, borderRadius: 2, backgroundColor: palette.foreground }, style]} />;
+  return (
+    <Animated.View
+      style={[{ width: 3, borderRadius: 2, backgroundColor: palette.foreground }, style]}
+    />
+  );
 }
 
 export default function RadarScreen() {
@@ -64,8 +101,14 @@ export default function RadarScreen() {
     scrollY.value = e.contentOffset.y;
   });
 
-  const featured = useMemo(() => [...OPPORTUNITIES].sort((a, b) => b.score - a.score).slice(0, 7), []);
-  const colors = useMemo(() => ['#6C63FF', ...featured.map((o) => INTENSITY_GLOW[o.intensity])], [featured]);
+  const featured = useMemo(
+    () => [...OPPORTUNITIES].sort((a, b) => b.score - a.score).slice(0, 7),
+    [],
+  );
+  const colors = useMemo(
+    () => ['#6C63FF', ...featured.map((o) => INTENSITY_GLOW[o.intensity])],
+    [featured],
+  );
 
   const open = (op: Opportunity) => {
     hapticSelect();
@@ -111,7 +154,17 @@ export default function RadarScreen() {
 
       <MiniHeader scrollY={scrollY} height={height} insets={insets} />
 
-      <View pointerEvents="none" style={{ position: 'absolute', right: 14, top: 0, bottom: 0, justifyContent: 'center', gap: 8 }}>
+      <View
+        pointerEvents="none"
+        style={{
+          position: 'absolute',
+          right: 14,
+          top: 0,
+          bottom: 0,
+          justifyContent: 'center',
+          gap: 8,
+        }}
+      >
         {Array.from({ length: featured.length + 1 }).map((_, i) => (
           <RailDot key={i} index={i} scrollY={scrollY} height={height} />
         ))}

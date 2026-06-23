@@ -78,7 +78,9 @@ export function TriageEditor({ triage, onChanged }: { triage: Triage; onChanged:
           variant="outline"
           value={triage.status}
           onValueChange={(value) => {
-            if (value) onStatus(value as TriageStatus);
+            if (value) {
+              onStatus(value as TriageStatus);
+            }
           }}
           className="w-full"
         >

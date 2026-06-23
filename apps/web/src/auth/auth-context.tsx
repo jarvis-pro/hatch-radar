@@ -72,7 +72,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 /** 取鉴权上下文（必须在 AuthProvider 内）。 */
 export function useAuth(): AuthContextValue {
   const ctx = use(AuthContext);
-  if (!ctx) throw new Error('useAuth 必须在 <AuthProvider> 内使用');
+  if (!ctx) {
+    throw new Error('useAuth 必须在 <AuthProvider> 内使用');
+  }
   return ctx;
 }
 

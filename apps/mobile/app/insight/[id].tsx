@@ -41,7 +41,9 @@ export default function InsightDetailScreen() {
 
   const data = useMemo(() => {
     const insight = getInsight(insightId);
-    if (!insight) return null;
+    if (!insight) {
+      return null;
+    }
     const post = getPost(insight.postId);
     const comments = post ? getComments(post.id) : [];
     const translations: PostTranslations = post ? getPostTranslations(post.id) : { comments: {} };

@@ -36,11 +36,17 @@ const ACTIVE = new Set(['queued', 'running', 'paused']);
 /** 当前最相关节点：运行中 > 失败 > 最近完成 > 第一个（决定面板默认聚焦）。 */
 function currentSeq(steps: InspectStepView[]): number {
   const running = steps.find((s) => s.status === 'running');
-  if (running) return running.seq;
+  if (running) {
+    return running.seq;
+  }
   const failed = steps.find((s) => s.status === 'failed');
-  if (failed) return failed.seq;
+  if (failed) {
+    return failed.seq;
+  }
   const done = steps.filter((s) => s.status === 'done');
-  if (done.length) return done[done.length - 1]!.seq;
+  if (done.length) {
+    return done[done.length - 1]!.seq;
+  }
   return steps[0]?.seq ?? 0;
 }
 
@@ -55,8 +61,12 @@ function InspectView() {
     // running/queued 快轮询（尤其 ai_call 进行中），paused 慢轮询，终态停轮询
     refetchInterval: (query) => {
       const s = query.state.data?.status;
-      if (s === 'running' || s === 'queued') return 1500;
-      if (s === 'paused') return 2500;
+      if (s === 'running' || s === 'queued') {
+        return 1500;
+      }
+      if (s === 'paused') {
+        return 2500;
+      }
       return false;
     },
   });
@@ -72,7 +82,9 @@ function InspectView() {
       />
     );
   }
-  if (q.isPending) return <Skeleton className="h-96 w-full" />;
+  if (q.isPending) {
+    return <Skeleton className="h-96 w-full" />;
+  }
 
   const job = q.data;
   const steps = job.steps;
@@ -86,7 +98,9 @@ function InspectView() {
     setBusy(true);
     try {
       await api.post(`/analysis/inspect/${jobId}/${path}`);
-      if (followCurrent) setPicked(null);
+      if (followCurrent) {
+        setPicked(null);
+      }
       await q.refetch();
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : '操作失败');

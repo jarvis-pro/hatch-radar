@@ -29,10 +29,16 @@ export class DeviceAuthService {
   /** 标记并检测重放：窗口内重复签名返回 true（拒绝）；否则记录、顺带懒清理过期项防无界增长。 */
   private isReplayed(sig: string, now: number): boolean {
     const exp = this.usedSigs.get(sig);
-    if (exp != null && exp > now) return true;
+    if (exp != null && exp > now) {
+      return true;
+    }
     this.usedSigs.set(sig, now + TS_WINDOW);
     if (this.usedSigs.size > 4096) {
-      for (const [k, e] of this.usedSigs) if (e <= now) this.usedSigs.delete(k);
+      for (const [k, e] of this.usedSigs) {
+        if (e <= now) {
+          this.usedSigs.delete(k);
+        }
+      }
     }
     return false;
   }
@@ -49,7 +55,9 @@ export class DeviceAuthService {
   }): Promise<{ credentialId: string } | null> {
     const code = input.code.trim();
     const publicKey = input.publicKey.trim();
-    if (!code || !publicKey) return null;
+    if (!code || !publicKey) {
+      return null;
+    }
     const now = nowSec();
     const enrollment = await this.db.device_enrollments.findUnique({
       where: { code_hash: sha256Hex(code) },
@@ -104,30 +112,44 @@ export class DeviceAuthService {
     const credentialId = header(req.headers, 'x-device-id');
     const ts = Number(header(req.headers, 'x-device-ts'));
     const sig = header(req.headers, 'x-device-sig');
-    if (!credentialId || !sig || !Number.isInteger(ts)) return null;
+    if (!credentialId || !sig || !Number.isInteger(ts)) {
+      return null;
+    }
     const now = nowSec();
-    if (Math.abs(now - ts) > TS_WINDOW) return null;
+    if (Math.abs(now - ts) > TS_WINDOW) {
+      return null;
+    }
 
     const cred = await this.db.device_credentials.findUnique({
       where: { id: credentialId },
       include: { user: { include: { permissions: true } } },
     });
-    if (!cred || cred.status !== 'active' || Number(cred.expires_at) <= now) return null;
+    if (!cred || cred.status !== 'active' || Number(cred.expires_at) <= now) {
+      return null;
+    }
 
     const method = (req.method ?? 'GET').toUpperCase();
     const path = (req.originalUrl ?? req.url ?? '').split('?')[0];
     // 签名覆盖请求体哈希：杜绝「保留合法签名头、替换 body 重放」——body 不在签名内是最严重的篡改面。
     const bodyHash = sha256Hex(req.rawBody?.toString('utf8') ?? '');
     const canonical = `${credentialId}.${ts}.${method}.${path}.${bodyHash}`;
-    if (!verifyDeviceSignature(cred.public_key, canonical, sig)) return null;
+    if (!verifyDeviceSignature(cred.public_key, canonical, sig)) {
+      return null;
+    }
     // 防重放：TS_WINDOW 内同一签名只接受一次（超窗重放已被上面的时间窗挡）。
-    if (this.isReplayed(sig, now)) return null;
+    if (this.isReplayed(sig, now)) {
+      return null;
+    }
 
     const user = cred.user;
-    if (!user || user.status !== 'active') return null;
+    if (!user || user.status !== 'active') {
+      return null;
+    }
     if (requiredPerm) {
       const perms = user.permissions.map((p) => p.permission);
-      if (!hasPermission(user.role as UserRole, perms, requiredPerm, true)) return null;
+      if (!hasPermission(user.role as UserRole, perms, requiredPerm, true)) {
+        return null;
+      }
     }
 
     await this.db.device_credentials

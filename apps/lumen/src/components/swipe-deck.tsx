@@ -10,7 +10,15 @@ import { useStore } from '@/lib/store';
 import { INTENSITY_GLOW, usePalette } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 import { useRouter } from 'expo-router';
-import { Bookmark, Maximize2, RotateCcw, TrendingDown, TrendingUp, X, type LucideIcon } from 'lucide-react-native';
+import {
+  Bookmark,
+  Maximize2,
+  RotateCcw,
+  TrendingDown,
+  TrendingUp,
+  X,
+  type LucideIcon,
+} from 'lucide-react-native';
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
 import Animated, {
@@ -34,19 +42,37 @@ interface SwipeCardHandle {
 const DECK_ORDER = () => [...OPPORTUNITIES].sort((a, b) => b.score - a.score);
 
 /** 编辑式卡面：卡内强度色场 + 巨型幽灵分数 + 超大标题；三向意图标签随拖拽浮现。 */
-function SwipeCardFace({ op, tx, ty }: { op: Opportunity; tx: SharedValue<number>; ty: SharedValue<number> }) {
+function SwipeCardFace({
+  op,
+  tx,
+  ty,
+}: {
+  op: Opportunity;
+  tx: SharedValue<number>;
+  ty: SharedValue<number>;
+}) {
   const palette = usePalette();
   const hue = INTENSITY_GLOW[op.intensity];
   const pp = op.painPoints[0];
   const up = op.momentum >= 0;
-  const saveStyle = useAnimatedStyle(() => ({ opacity: interpolate(tx.value, [20, 120], [0, 1], Extrapolation.CLAMP) }));
-  const skipStyle = useAnimatedStyle(() => ({ opacity: interpolate(tx.value, [-120, -20], [1, 0], Extrapolation.CLAMP) }));
-  const openStyle = useAnimatedStyle(() => ({ opacity: interpolate(ty.value, [-120, -30], [1, 0], Extrapolation.CLAMP) }));
+  const saveStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(tx.value, [20, 120], [0, 1], Extrapolation.CLAMP),
+  }));
+  const skipStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(tx.value, [-120, -20], [1, 0], Extrapolation.CLAMP),
+  }));
+  const openStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(ty.value, [-120, -30], [1, 0], Extrapolation.CLAMP),
+  }));
 
   return (
     <View
       className="flex-1 overflow-hidden rounded-[34px]"
-      style={{ backgroundColor: palette.card, borderWidth: StyleSheet.hairlineWidth, borderColor: `${hue}40` }}
+      style={{
+        backgroundColor: palette.card,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: `${hue}40`,
+      }}
     >
       {/* 卡内强度色场 */}
       <View pointerEvents="none" style={StyleSheet.absoluteFill}>
@@ -64,7 +90,15 @@ function SwipeCardFace({ op, tx, ty }: { op: Opportunity; tx: SharedValue<number
 
       {/* 巨型幽灵分数 */}
       <View pointerEvents="none" style={{ position: 'absolute', right: -16, bottom: -14 }}>
-        <Text style={{ fontFamily: 'JetBrainsMono_600SemiBold', fontSize: 200, lineHeight: 260, color: hue, opacity: 0.1 }}>
+        <Text
+          style={{
+            fontFamily: 'JetBrainsMono_600SemiBold',
+            fontSize: 200,
+            lineHeight: 260,
+            color: hue,
+            opacity: 0.1,
+          }}
+        >
           {op.score}
         </Text>
       </View>
@@ -82,7 +116,10 @@ function SwipeCardFace({ op, tx, ty }: { op: Opportunity; tx: SharedValue<number
       >
         <Text className="text-lg font-sans-bd text-intensity-high">跳过</Text>
       </Animated.View>
-      <Animated.View style={openStyle} className="absolute top-6 z-10 self-center rounded-xl border-2 border-primary px-3 py-1">
+      <Animated.View
+        style={openStyle}
+        className="absolute top-6 z-10 self-center rounded-xl border-2 border-primary px-3 py-1"
+      >
         <Text className="text-lg font-sans-bd text-primary">展开 ↑</Text>
       </Animated.View>
 
@@ -93,16 +130,23 @@ function SwipeCardFace({ op, tx, ty }: { op: Opportunity; tx: SharedValue<number
           <Text style={{ color: hue }} className="text-[12px] font-sans-sb">
             {INTENSITY_META[op.intensity].label}
           </Text>
-          <Text className="text-[12px] font-sans-md uppercase tracking-wider text-muted-foreground">· {op.category}</Text>
+          <Text className="text-[12px] font-sans-md uppercase tracking-wider text-muted-foreground">
+            · {op.category}
+          </Text>
         </View>
 
-        <Text className="mt-6 text-[30px] font-sans-bd leading-[1.3] text-foreground">{op.title}</Text>
+        <Text className="mt-6 text-[30px] font-sans-bd leading-[1.3] text-foreground">
+          {op.title}
+        </Text>
         <Text className="mt-4 text-[15px] leading-6 text-muted-foreground" numberOfLines={3}>
           {op.pitch}
         </Text>
 
         <View className="mt-6">
-          <Text className="text-[11px] font-sans-sb uppercase tracking-[1.5px]" style={{ color: hue }}>
+          <Text
+            className="text-[11px] font-sans-sb uppercase tracking-[1.5px]"
+            style={{ color: hue }}
+          >
             核心痛点
           </Text>
           <Text className="mt-2 text-[15px] leading-6 text-foreground" numberOfLines={2}>
@@ -125,7 +169,9 @@ function SwipeCardFace({ op, tx, ty }: { op: Opportunity; tx: SharedValue<number
             ) : (
               <TrendingDown size={15} color={palette.mutedForeground} strokeWidth={2.4} />
             )}
-            <Text className={`font-mono-sb text-sm ${up ? 'text-intensity-low' : 'text-muted-foreground'}`}>
+            <Text
+              className={`font-mono-sb text-sm ${up ? 'text-intensity-low' : 'text-muted-foreground'}`}
+            >
               {momentumLabel(op.momentum)}
             </Text>
           </View>
@@ -136,66 +182,71 @@ function SwipeCardFace({ op, tx, ty }: { op: Opportunity; tx: SharedValue<number
 }
 
 /** 顶层可拖拽卡：拥有自己的手势与飞出动画，飞出完成回调 onSwipe；上滑回调 onOpen。 */
-const SwipeCard = forwardRef<SwipeCardHandle, { op: Opportunity; onSwipe: (a: 'save' | 'skip') => void; onOpen: () => void }>(
-  function SwipeCard({ op, onSwipe, onOpen }, ref) {
-    const { width } = useWindowDimensions();
-    const tx = useSharedValue(0);
-    const ty = useSharedValue(0);
-    const mount = useSharedValue(0);
+const SwipeCard = forwardRef<
+  SwipeCardHandle,
+  { op: Opportunity; onSwipe: (a: 'save' | 'skip') => void; onOpen: () => void }
+>(function SwipeCard({ op, onSwipe, onOpen }, ref) {
+  const { width } = useWindowDimensions();
+  const tx = useSharedValue(0);
+  const ty = useSharedValue(0);
+  const mount = useSharedValue(0);
 
-    useEffect(() => {
-      mount.value = withSpring(1, SPRING);
-    }, [mount]);
+  useEffect(() => {
+    mount.value = withSpring(1, SPRING);
+  }, [mount]);
 
-    const flyOff = (dir: number) => {
-      'worklet';
-      tx.value = withTiming(dir * width * 1.5, { duration: 320 }, (finished) => {
-        if (finished) runOnJS(onSwipe)(dir > 0 ? 'save' : 'skip');
-      });
-      ty.value = withTiming(ty.value + 80, { duration: 320 });
-    };
+  const flyOff = (dir: number) => {
+    'worklet';
+    tx.value = withTiming(dir * width * 1.5, { duration: 320 }, (finished) => {
+      if (finished) {
+        runOnJS(onSwipe)(dir > 0 ? 'save' : 'skip');
+      }
+    });
+    ty.value = withTiming(ty.value + 80, { duration: 320 });
+  };
 
-    useImperativeHandle(ref, () => ({
-      swipeLeft: () => flyOff(-1),
-      swipeRight: () => flyOff(1),
-    }));
+  useImperativeHandle(ref, () => ({
+    swipeLeft: () => flyOff(-1),
+    swipeRight: () => flyOff(1),
+  }));
 
-    const pan = Gesture.Pan()
-      .onUpdate((e) => {
-        tx.value = e.translationX;
-        ty.value = e.translationY;
-      })
-      .onEnd((e) => {
-        const T = 110;
-        if (e.translationX > T) flyOff(1);
-        else if (e.translationX < -T) flyOff(-1);
-        else if (e.translationY < -T && Math.abs(e.translationX) < 80) {
-          tx.value = withSpring(0, SPRING_SOFT);
-          ty.value = withSpring(0, SPRING_SOFT);
-          runOnJS(onOpen)();
-        } else {
-          tx.value = withSpring(0, SPRING_SOFT);
-          ty.value = withSpring(0, SPRING_SOFT);
-        }
-      });
+  const pan = Gesture.Pan()
+    .onUpdate((e) => {
+      tx.value = e.translationX;
+      ty.value = e.translationY;
+    })
+    .onEnd((e) => {
+      const T = 110;
+      if (e.translationX > T) {
+        flyOff(1);
+      } else if (e.translationX < -T) {
+        flyOff(-1);
+      } else if (e.translationY < -T && Math.abs(e.translationX) < 80) {
+        tx.value = withSpring(0, SPRING_SOFT);
+        ty.value = withSpring(0, SPRING_SOFT);
+        runOnJS(onOpen)();
+      } else {
+        tx.value = withSpring(0, SPRING_SOFT);
+        ty.value = withSpring(0, SPRING_SOFT);
+      }
+    });
 
-    const cardStyle = useAnimatedStyle(() => ({
-      transform: [
-        { translateX: tx.value },
-        { translateY: ty.value },
-        { rotate: `${interpolate(tx.value, [-width, width], [-12, 12], Extrapolation.CLAMP)}deg` },
-        { scale: interpolate(mount.value, [0, 1], [0.95, 1]) },
-      ],
-    }));
-    return (
-      <GestureDetector gesture={pan}>
-        <Animated.View style={[StyleSheet.absoluteFill, cardStyle]}>
-          <SwipeCardFace op={op} tx={tx} ty={ty} />
-        </Animated.View>
-      </GestureDetector>
-    );
-  },
-);
+  const cardStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: tx.value },
+      { translateY: ty.value },
+      { rotate: `${interpolate(tx.value, [-width, width], [-12, 12], Extrapolation.CLAMP)}deg` },
+      { scale: interpolate(mount.value, [0, 1], [0.95, 1]) },
+    ],
+  }));
+  return (
+    <GestureDetector gesture={pan}>
+      <Animated.View style={[StyleSheet.absoluteFill, cardStyle]}>
+        <SwipeCardFace op={op} tx={tx} ty={ty} />
+      </Animated.View>
+    </GestureDetector>
+  );
+});
 
 /** 叠层预览卡：缩小下移、降透明，制造卡组纵深。 */
 function PreviewCard({ op, depth }: { op: Opportunity; depth: number }) {
@@ -205,20 +256,41 @@ function PreviewCard({ op, depth }: { op: Opportunity; depth: number }) {
       pointerEvents="none"
       style={[
         StyleSheet.absoluteFill,
-        { transform: [{ scale: 1 - depth * 0.05 }, { translateY: depth * 16 }], opacity: 1 - depth * 0.4, zIndex: -depth },
+        {
+          transform: [{ scale: 1 - depth * 0.05 }, { translateY: depth * 16 }],
+          opacity: 1 - depth * 0.4,
+          zIndex: -depth,
+        },
       ]}
     >
       <View
         className="flex-1 overflow-hidden rounded-[34px] p-7"
-        style={{ backgroundColor: palette.card, borderWidth: StyleSheet.hairlineWidth, borderColor: `${INTENSITY_GLOW[op.intensity]}33` }}
+        style={{
+          backgroundColor: palette.card,
+          borderWidth: StyleSheet.hairlineWidth,
+          borderColor: `${INTENSITY_GLOW[op.intensity]}33`,
+        }}
       >
         <View className="flex-row items-center gap-2.5">
-          <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: INTENSITY_GLOW[op.intensity] }} />
-          <Text style={{ color: INTENSITY_GLOW[op.intensity] }} className="text-[12px] font-sans-sb">
+          <View
+            style={{
+              width: 7,
+              height: 7,
+              borderRadius: 4,
+              backgroundColor: INTENSITY_GLOW[op.intensity],
+            }}
+          />
+          <Text
+            style={{ color: INTENSITY_GLOW[op.intensity] }}
+            className="text-[12px] font-sans-sb"
+          >
             {INTENSITY_META[op.intensity].label}
           </Text>
         </View>
-        <Text className="mt-6 text-[30px] font-sans-bd leading-[1.3] text-foreground" numberOfLines={2}>
+        <Text
+          className="mt-6 text-[30px] font-sans-bd leading-[1.3] text-foreground"
+          numberOfLines={2}
+        >
           {op.title}
         </Text>
       </View>
@@ -226,13 +298,42 @@ function PreviewCard({ op, depth }: { op: Opportunity; depth: number }) {
   );
 }
 
-const ACTIONS: Record<string, { Icon: LucideIcon; tone: string; ring: string; big: boolean; size: number }> = {
-  skip: { Icon: X, tone: 'bg-intensity-high/14', ring: 'border-intensity-high/35', big: true, size: 26 },
-  detail: { Icon: Maximize2, tone: 'bg-primary/14', ring: 'border-primary/35', big: false, size: 19 },
-  save: { Icon: Bookmark, tone: 'bg-intensity-low/14', ring: 'border-intensity-low/35', big: true, size: 23 },
+const ACTIONS: Record<
+  string,
+  { Icon: LucideIcon; tone: string; ring: string; big: boolean; size: number }
+> = {
+  skip: {
+    Icon: X,
+    tone: 'bg-intensity-high/14',
+    ring: 'border-intensity-high/35',
+    big: true,
+    size: 26,
+  },
+  detail: {
+    Icon: Maximize2,
+    tone: 'bg-primary/14',
+    ring: 'border-primary/35',
+    big: false,
+    size: 19,
+  },
+  save: {
+    Icon: Bookmark,
+    tone: 'bg-intensity-low/14',
+    ring: 'border-intensity-low/35',
+    big: true,
+    size: 23,
+  },
 };
 
-function ActionButton({ kind, color, onPress }: { kind: keyof typeof ACTIONS; color: string; onPress: () => void }) {
+function ActionButton({
+  kind,
+  color,
+  onPress,
+}: {
+  kind: keyof typeof ACTIONS;
+  color: string;
+  onPress: () => void;
+}) {
   const palette = usePalette();
   const c = ACTIONS[kind];
   return (
@@ -261,7 +362,10 @@ function ActionButton({ kind, color, onPress }: { kind: keyof typeof ACTIONS; co
 function DeckProgress({ value }: { value: number }) {
   return (
     <View className="h-1.5 w-24 overflow-hidden rounded-full bg-foreground/10">
-      <View className="h-full rounded-full bg-primary" style={{ width: `${Math.round(value * 100)}%` }} />
+      <View
+        className="h-full rounded-full bg-primary"
+        style={{ width: `${Math.round(value * 100)}%` }}
+      />
     </View>
   );
 }
@@ -270,12 +374,16 @@ function EmptyDeck({ onReshuffle, savedCount }: { onReshuffle: () => void; saved
   const palette = usePalette();
   return (
     <Appear from="none" duration={500} className="flex-1 items-center justify-center px-10">
-      <Text className="text-[64px] font-sans-bd leading-none text-foreground" style={{ opacity: 0.12 }}>
+      <Text
+        className="text-[64px] font-sans-bd leading-none text-foreground"
+        style={{ opacity: 0.12 }}
+      >
         ✓
       </Text>
       <Text className="mt-4 text-xl font-sans-bd text-foreground">本轮研判完成</Text>
       <Text className="mt-3 text-center text-[14px] leading-6 text-muted-foreground">
-        你已看完全部机会，收藏了 <Text className="font-mono-sb text-primary">{savedCount}</Text> 个。{'\n'}重新洗牌再来一轮。
+        你已看完全部机会，收藏了 <Text className="font-mono-sb text-primary">{savedCount}</Text>{' '}
+        个。{'\n'}重新洗牌再来一轮。
       </Text>
       <PressableScale scaleTo={0.94} onPress={onReshuffle} className="mt-7">
         <View className="flex-row items-center gap-2 rounded-full border border-primary/40 bg-primary/15 px-5 py-3">
@@ -325,7 +433,9 @@ export function SwipeDeck() {
   const handleSwipe = useCallback(
     (action: 'save' | 'skip', op: Opportunity) => {
       if (action === 'save') {
-        if (!savedIds.includes(op.id)) toggleSave(op.id);
+        if (!savedIds.includes(op.id)) {
+          toggleSave(op.id);
+        }
         hapticSuccess();
       } else {
         dismiss(op.id);
@@ -349,7 +459,9 @@ export function SwipeDeck() {
     setCursor(0);
   }, [restoreDeck]);
 
-  if (cursor >= total) return <EmptyDeck onReshuffle={reshuffle} savedCount={savedIds.length} />;
+  if (cursor >= total) {
+    return <EmptyDeck onReshuffle={reshuffle} savedCount={savedIds.length} />;
+  }
 
   const front = cards[cursor];
   const next = cards[cursor + 1];
@@ -383,9 +495,17 @@ export function SwipeDeck() {
       </View>
 
       <View className="flex-row items-center justify-center gap-6 pt-3">
-        <ActionButton kind="skip" color={palette.intensityHigh} onPress={() => cardRef.current?.swipeLeft()} />
+        <ActionButton
+          kind="skip"
+          color={palette.intensityHigh}
+          onPress={() => cardRef.current?.swipeLeft()}
+        />
         <ActionButton kind="detail" color={palette.primary} onPress={() => openDetail(front)} />
-        <ActionButton kind="save" color={palette.intensityLow} onPress={() => cardRef.current?.swipeRight()} />
+        <ActionButton
+          kind="save"
+          color={palette.intensityLow}
+          onPress={() => cardRef.current?.swipeRight()}
+        />
       </View>
     </View>
   );

@@ -30,7 +30,9 @@ interface HNItem {
 async function fetchItem(id: number): Promise<HNItem | null> {
   try {
     const res = await fetch(`${API_BASE}/item/${id}.json`);
-    if (!res.ok) return null;
+    if (!res.ok) {
+      return null;
+    }
     return (await res.json()) as HNItem | null;
   } catch {
     return null;
@@ -84,7 +86,9 @@ export function decodeEntities(text: string): string {
             ? Number.parseInt(body.slice(2), 16)
             : Number.parseInt(body.slice(1), 10);
         // 越界 / 非法码点（NaN、负数、超出 Unicode 上限）原样保留，避免抛错或产生替换符 U+FFFD
-        if (!Number.isInteger(codePoint) || codePoint < 0 || codePoint > 0x10ffff) return match;
+        if (!Number.isInteger(codePoint) || codePoint < 0 || codePoint > 0x10ffff) {
+          return match;
+        }
         try {
           return String.fromCodePoint(codePoint);
         } catch {
@@ -164,13 +168,17 @@ export async function collectHnComments(
     }
     // 总量预算不足以容纳整层时，只取放得下的部分，余下计为截断
     const level = frontier.length > room ? frontier.slice(0, room) : frontier;
-    if (level.length < frontier.length) hitCap = true;
+    if (level.length < frontier.length) {
+      hitCap = true;
+    }
 
     const parentById = new Map(level.map((f) => [f.id, f.parentId]));
     const items = await fetchItems(level.map((f) => f.id));
     const next: Array<{ id: number; parentId: string | null }> = [];
     for (const item of items) {
-      if (!item.text || !item.by) continue;
+      if (!item.text || !item.by) {
+        continue;
+      }
       const cid = `hn_${item.id}`;
       out.push({
         id: cid,
@@ -181,7 +189,9 @@ export async function collectHnComments(
         createdUtc: item.time ?? 0,
         depth,
       });
-      for (const kid of item.kids ?? []) next.push({ id: kid, parentId: cid });
+      for (const kid of item.kids ?? []) {
+        next.push({ id: kid, parentId: cid });
+      }
     }
     frontier = next;
   }
@@ -200,7 +210,9 @@ export async function collectHnComments(
 export class HackerNewsClient {
   private async fetchIds(endpoint: string): Promise<number[]> {
     const res = await fetch(`${API_BASE}/${endpoint}.json`);
-    if (!res.ok) throw new Error(`HN API 失败: ${res.status} GET /${endpoint}`);
+    if (!res.ok) {
+      throw new Error(`HN API 失败: ${res.status} GET /${endpoint}`);
+    }
     return (await res.json()) as number[];
   }
 
@@ -248,7 +260,9 @@ export class HackerNewsClient {
   async fetchComments(hnPostId: string, limit = HN_MAX_COMMENTS): Promise<CommentFetchResult> {
     const numericId = Number(hnPostId.replace('hn_', ''));
     const story = await fetchItem(numericId);
-    if (!story?.kids?.length) return { comments: [], dropped: 0 };
+    if (!story?.kids?.length) {
+      return { comments: [], dropped: 0 };
+    }
     return collectHnComments(
       { kids: story.kids, descendants: story.descendants ?? 0 },
       fetchBatch,

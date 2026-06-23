@@ -30,7 +30,9 @@ export class TxContext {
    * **可重入**：已在事务中则直接复用当前事务、不再嵌套开启（PG 不支持事务套事务）。
    */
   run<T>(fn: () => Promise<T>): Promise<T> {
-    if (this.als.getStore()) return fn();
+    if (this.als.getStore()) {
+      return fn();
+    }
     return this.handle.db.$transaction((tx) => this.als.run(tx, fn));
   }
 }

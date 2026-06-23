@@ -14,8 +14,12 @@ import { createHash } from 'node:crypto';
  * @returns sha256 十六进制；空白文本返回 null
  */
 export function contentHash(text: string | null | undefined): string | null {
-  if (text == null) return null;
+  if (text == null) {
+    return null;
+  }
   const normalized = text.trim();
-  if (normalized.length === 0) return null;
+  if (normalized.length === 0) {
+    return null;
+  }
   return createHash('sha256').update(normalized, 'utf8').digest('hex');
 }

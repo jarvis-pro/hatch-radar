@@ -57,7 +57,9 @@ export function decodeHtmlEntities(text: string): string {
             ? Number.parseInt(body.slice(2), 16)
             : Number.parseInt(body.slice(1), 10);
         // 越界 / 非法码点（NaN、负数、超出 Unicode 上限）原样保留，避免抛错或产生替换符 U+FFFD
-        if (!Number.isInteger(codePoint) || codePoint < 0 || codePoint > 0x10ffff) return match;
+        if (!Number.isInteger(codePoint) || codePoint < 0 || codePoint > 0x10ffff) {
+          return match;
+        }
         try {
           return String.fromCodePoint(codePoint);
         } catch {
@@ -125,28 +127,43 @@ export function buildContext(post: PostRow, comments: CommentRow[]): string {
   // ── 选取阶段（按得分）：决定哪些评论进预算——最有信号的优先入选，避免被 80 条 / 25 楼上限截断丢弃。
   const childrenByScore = new Map<string, CommentRow[]>();
   for (const c of comments) {
-    if (c.parent_id === null) continue;
+    if (c.parent_id === null) {
+      continue;
+    }
     const bucket = childrenByScore.get(c.parent_id);
-    if (bucket) bucket.push(c);
-    else childrenByScore.set(c.parent_id, [c]);
+    if (bucket) {
+      bucket.push(c);
+    } else {
+      childrenByScore.set(c.parent_id, [c]);
+    }
   }
-  for (const bucket of childrenByScore.values()) bucket.sort((a, b) => b.score - a.score);
+  for (const bucket of childrenByScore.values()) {
+    bucket.sort((a, b) => b.score - a.score);
+  }
   const topThreads = comments
     .filter(isRoot)
     .sort((a, b) => b.score - a.score)
     .slice(0, MAX_TOP_THREADS);
   const selected = new Set<string>();
   const select = (comment: CommentRow, depth: number): void => {
-    if (selected.size >= MAX_COMMENTS_RENDERED) return;
+    if (selected.size >= MAX_COMMENTS_RENDERED) {
+      return;
+    }
     selected.add(comment.id);
-    if (depth >= MAX_DEPTH_RENDERED) return;
+    if (depth >= MAX_DEPTH_RENDERED) {
+      return;
+    }
     for (const child of childrenByScore.get(comment.id) ?? []) {
-      if (selected.size >= MAX_COMMENTS_RENDERED) break;
+      if (selected.size >= MAX_COMMENTS_RENDERED) {
+        break;
+      }
       select(child, depth + 1);
     }
   };
   for (const root of topThreads) {
-    if (selected.size >= MAX_COMMENTS_RENDERED) break;
+    if (selected.size >= MAX_COMMENTS_RENDERED) {
+      break;
+    }
     select(root, 0);
   }
 
@@ -154,13 +171,19 @@ export function buildContext(post: PostRow, comments: CommentRow[]): string {
   // 让模型读到的讨论保持先后顺序；「选哪些」由上面的得分阶段决定，高信号不丢。
   const childrenByTime = new Map<string, CommentRow[]>();
   for (const c of comments) {
-    if (!selected.has(c.id) || c.parent_id === null || !selected.has(c.parent_id)) continue;
+    if (!selected.has(c.id) || c.parent_id === null || !selected.has(c.parent_id)) {
+      continue;
+    }
     const bucket = childrenByTime.get(c.parent_id);
-    if (bucket) bucket.push(c);
-    else childrenByTime.set(c.parent_id, [c]);
+    if (bucket) {
+      bucket.push(c);
+    } else {
+      childrenByTime.set(c.parent_id, [c]);
+    }
   }
-  for (const bucket of childrenByTime.values())
+  for (const bucket of childrenByTime.values()) {
     bucket.sort((a, b) => a.created_utc - b.created_utc);
+  }
   const rootsByTime = comments
     .filter((c) => selected.has(c.id) && isRoot(c))
     .sort((a, b) => a.created_utc - b.created_utc);
@@ -172,9 +195,13 @@ export function buildContext(post: PostRow, comments: CommentRow[]): string {
     commentLines.push(
       `${indent}${scoreTag}${comment.author ?? '[deleted]'}: ${truncate(normalizeBody(comment.body), MAX_COMMENT_CHARS)}`,
     );
-    for (const child of childrenByTime.get(comment.id) ?? []) renderNode(child, depth + 1);
+    for (const child of childrenByTime.get(comment.id) ?? []) {
+      renderNode(child, depth + 1);
+    }
   };
-  for (const root of rootsByTime) renderNode(root, 0);
+  for (const root of rootsByTime) {
+    renderNode(root, 0);
+  }
 
   const rendered = selected.size;
 

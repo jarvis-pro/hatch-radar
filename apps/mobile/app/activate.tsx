@@ -60,7 +60,9 @@ export default function ActivateScreen() {
   };
 
   const onScanned = (data: string) => {
-    if (scannedRef.current) return; // 取景中会连续回调，只取首帧
+    if (scannedRef.current) {
+      return;
+    } // 取景中会连续回调，只取首帧
     scannedRef.current = true;
     setCode(data.trim());
     setScanning(false);

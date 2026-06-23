@@ -60,8 +60,9 @@ const DEFAULT_SORT = 'time-desc';
 /** 解析 URL 上的 sort（`{key}-{dir}`）；非法或缺省回落到默认时间倒序。 */
 function parseSort(v: string | null): { key: SortKey; dir: SortDir } {
   const [k, d] = (v ?? '').split('-');
-  if (SORT_KEYS.includes(k as SortKey) && (d === 'asc' || d === 'desc'))
+  if (SORT_KEYS.includes(k as SortKey) && (d === 'asc' || d === 'desc')) {
     return { key: k as SortKey, dir: d };
+  }
   return { key: 'time', dir: 'desc' };
 }
 
@@ -200,12 +201,24 @@ function Harvest() {
     q: string;
   }): void => {
     const params = new URLSearchParams();
-    if (next.source) params.set('source', next.source);
-    if (next.subreddit) params.set('subreddit', next.subreddit);
-    if (next.intensity) params.set('intensity', next.intensity);
-    if (next.q.trim()) params.set('q', next.q.trim());
-    if (sort) params.set('sort', sort);
-    if (size !== DEFAULT_SIZE) params.set('size', String(size));
+    if (next.source) {
+      params.set('source', next.source);
+    }
+    if (next.subreddit) {
+      params.set('subreddit', next.subreddit);
+    }
+    if (next.intensity) {
+      params.set('intensity', next.intensity);
+    }
+    if (next.q.trim()) {
+      params.set('q', next.q.trim());
+    }
+    if (sort) {
+      params.set('sort', sort);
+    }
+    if (size !== DEFAULT_SIZE) {
+      params.set('size', String(size));
+    }
     const qStr = params.toString();
     navigate(qStr ? `/radar/insights?${qStr}` : '/radar/insights');
   };
@@ -216,12 +229,24 @@ function Harvest() {
     const dir: SortDir = sortKey === key && sortDir === 'desc' ? 'asc' : 'desc';
     const nextSort = `${key}-${dir}`;
     const params = new URLSearchParams();
-    if (source) params.set('source', source);
-    if (subreddit) params.set('subreddit', subreddit);
-    if (intensity) params.set('intensity', intensity);
-    if (q) params.set('q', q);
-    if (nextSort !== DEFAULT_SORT) params.set('sort', nextSort);
-    if (size !== DEFAULT_SIZE) params.set('size', String(size));
+    if (source) {
+      params.set('source', source);
+    }
+    if (subreddit) {
+      params.set('subreddit', subreddit);
+    }
+    if (intensity) {
+      params.set('intensity', intensity);
+    }
+    if (q) {
+      params.set('q', q);
+    }
+    if (nextSort !== DEFAULT_SORT) {
+      params.set('sort', nextSort);
+    }
+    if (size !== DEFAULT_SIZE) {
+      params.set('size', String(size));
+    }
     const qStr = params.toString();
     navigate(qStr ? `/radar/insights?${qStr}` : '/radar/insights');
   };

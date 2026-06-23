@@ -94,7 +94,9 @@ describe('进程调度（ProcessScheduler：fire / finalize / 重排）', () => 
     const { processId } = await makeProcess('collect');
     await svc.fireDueProcesses();
     const run = (await runs.listAllRecent(10)).find((r) => r.process_id === processId)!;
-    for (const t of await tasks.listByRun(run.id)) await tasks.succeedTask(t.id, nowSec());
+    for (const t of await tasks.listByRun(run.id)) {
+      await tasks.succeedTask(t.id, nowSec());
+    }
 
     await svc.finalizeRunningRuns();
 

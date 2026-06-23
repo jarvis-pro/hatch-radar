@@ -80,12 +80,18 @@ export class AdminService {
   async createUser(actor: AuthedUser, dto: CreateUserDto): Promise<{ id: string }> {
     const email = dto.email.trim().toLowerCase();
     const name = dto.name.trim();
-    if (!email || !name) throw new ValidationError('邮箱与姓名必填');
-    if (dto.password.length < 8) throw new ValidationError('初始密码至少 8 位');
+    if (!email || !name) {
+      throw new ValidationError('邮箱与姓名必填');
+    }
+    if (dto.password.length < 8) {
+      throw new ValidationError('初始密码至少 8 位');
+    }
     if (dto.role === 'super_admin' && actor.role !== 'super_admin') {
       throw new ForbiddenError('只有超级管理员能创建超级管理员');
     }
-    if (await this.users.findByEmail(email)) throw new ConflictError('该邮箱已存在');
+    if (await this.users.findByEmail(email)) {
+      throw new ConflictError('该邮箱已存在');
+    }
     const perms = dto.role === 'admin' ? this.sanitizePermissions(actor, dto.perms) : [];
     const id = await this.users.create(
       {
@@ -113,9 +119,13 @@ export class AdminService {
   /** 编辑管理员资料 / 角色 / 权限。 */
   async editUser(actor: AuthedUser, userId: string, dto: EditUserDto): Promise<void> {
     const name = dto.name.trim();
-    if (!name) throw new ValidationError('参数不完整');
+    if (!name) {
+      throw new ValidationError('参数不完整');
+    }
     const target = await this.users.findById(userId);
-    if (!target) throw new NotFoundError('账户不存在');
+    if (!target) {
+      throw new NotFoundError('账户不存在');
+    }
     this.assertCanManageTarget(actor, userId);
     if (dto.role === 'super_admin' && actor.role !== 'super_admin') {
       throw new ForbiddenError('只有超级管理员能授予超管角色');
@@ -147,7 +157,9 @@ export class AdminService {
   /** 重置某账户密码为随机临时密码，强制首登改密、踢下线。返回临时密码（仅此一次）。 */
   async resetPassword(actor: AuthedUser, userId: string): Promise<{ tempPassword: string }> {
     const target = await this.users.findById(userId);
-    if (!target) throw new NotFoundError('账户不存在');
+    if (!target) {
+      throw new NotFoundError('账户不存在');
+    }
     this.assertCanManageTarget(actor, userId);
     const pw = tempPassword();
     await this.users.updatePassword(userId, await hashPassword(pw), true, nowSec());
@@ -163,15 +175,21 @@ export class AdminService {
 
   /** 启用 / 停用账户（停用即踢下线）。 */
   async setStatus(actor: AuthedUser, userId: string, status: 'active' | 'disabled'): Promise<void> {
-    if (userId === actor.id) throw new ValidationError('不能停用 / 启用自己');
+    if (userId === actor.id) {
+      throw new ValidationError('不能停用 / 启用自己');
+    }
     const target = await this.users.findById(userId);
-    if (!target) throw new NotFoundError('账户不存在');
+    if (!target) {
+      throw new NotFoundError('账户不存在');
+    }
     this.assertCanManageTarget(actor, userId);
     if (status === 'disabled' && (await this.isLastActiveSuper(userId))) {
       throw new ValidationError('不能停用最后一个超级管理员');
     }
     await this.users.setStatus(userId, status, nowSec());
-    if (status === 'disabled') await this.sessions.deleteByUser(userId);
+    if (status === 'disabled') {
+      await this.sessions.deleteByUser(userId);
+    }
     await this.audit.write({
       actorId: actor.id,
       action: status === 'disabled' ? 'account.disable' : 'account.enable',
@@ -182,9 +200,13 @@ export class AdminService {
 
   /** 删除账户（级联清理其权限 / 会话 / 设备）。 */
   async deleteUser(actor: AuthedUser, userId: string): Promise<void> {
-    if (userId === actor.id) throw new ValidationError('不能删除自己');
+    if (userId === actor.id) {
+      throw new ValidationError('不能删除自己');
+    }
     const target = await this.users.findById(userId);
-    if (!target) throw new NotFoundError('账户不存在');
+    if (!target) {
+      throw new NotFoundError('账户不存在');
+    }
     this.assertCanManageTarget(actor, userId);
     if (await this.isLastActiveSuper(userId)) {
       throw new ValidationError('不能删除最后一个超级管理员');
@@ -209,10 +231,14 @@ export class AdminService {
     ttlDays: number,
   ): Promise<{ code: string }> {
     const name = deviceName.trim();
-    if (!name) throw new ValidationError('请填写设备名');
+    if (!name) {
+      throw new ValidationError('请填写设备名');
+    }
     const ttl = ALLOWED_TTL_DAYS.includes(ttlDays) ? ttlDays : 30;
     const target = await this.users.findById(userId);
-    if (!target) throw new NotFoundError('账户不存在');
+    if (!target) {
+      throw new NotFoundError('账户不存在');
+    }
     this.assertCanManageTarget(actor, userId);
     const code = generateEnrollmentCode();
     const now = nowSec();
@@ -238,7 +264,9 @@ export class AdminService {
   /** 强踢：吊销某设备凭据（下次验签即被拒）。 */
   async revokeDevice(actor: AuthedUser, credentialId: string): Promise<void> {
     const cred = await this.devices.findByIdWithOwnerRole(credentialId);
-    if (!cred) throw new NotFoundError('设备不存在');
+    if (!cred) {
+      throw new NotFoundError('设备不存在');
+    }
     this.assertCanManageTarget(actor, cred.userId);
     await this.devices.revoke(credentialId);
     await this.audit.write({
@@ -269,7 +297,9 @@ export class AdminService {
    * 的普通管理员重置其它管理员密码接管账户」这一越权（sanitizePermissions 只挡了授予越权、未挡操作平级）。
    */
   private assertCanManageTarget(actor: AuthedUser, targetUserId: string): void {
-    if (actor.role === 'super_admin') return; // 超管全通（仍受「最后一个超管」等单独校验约束）
+    if (actor.role === 'super_admin') {
+      return;
+    } // 超管全通（仍受「最后一个超管」等单独校验约束）
     if (targetUserId !== actor.id) {
       throw new ForbiddenError('只有超级管理员能管理其它账户');
     }
@@ -278,7 +308,9 @@ export class AdminService {
   /** 把请求的权限收敛为合法 key；非超管 actor 限制在其自身拥有的能力内（不能授予自己没有的）。 */
   private sanitizePermissions(actor: AuthedUser, requested: string[]): PermissionKey[] {
     const valid = requested.filter(isPermissionKey);
-    if (actor.role === 'super_admin') return [...new Set(valid)];
+    if (actor.role === 'super_admin') {
+      return [...new Set(valid)];
+    }
     const own = new Set(actor.permissions);
     return [...new Set(valid.filter((p) => own.has(p)))];
   }
@@ -286,7 +318,9 @@ export class AdminService {
   /** 目标是否为「最后一个启用中的超级管理员」（用于阻止停用/删除/降级）。 */
   private async isLastActiveSuper(userId: string): Promise<boolean> {
     const t = await this.users.findById(userId);
-    if (!t || t.role !== 'super_admin' || t.status !== 'active') return false;
+    if (!t || t.role !== 'super_admin' || t.status !== 'active') {
+      return false;
+    }
     return (await this.users.countActiveSupers()) <= 1;
   }
 }

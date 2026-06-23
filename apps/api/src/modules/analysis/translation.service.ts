@@ -49,10 +49,16 @@ export class TranslationService {
 
   /** 解析翻译 provider：缺失/不存在/停用/非可翻译类型即抛错（仅 claude_cli / azure）。 */
   private async resolveProvider(providerId: number | null): Promise<ProviderRow> {
-    if (providerId == null) throw new Error('翻译任务缺少 provider 配置');
+    if (providerId == null) {
+      throw new Error('翻译任务缺少 provider 配置');
+    }
     const provider = await this.providers.getProvider(providerId);
-    if (!provider) throw new Error('翻译 provider 配置不存在');
-    if (!provider.enabled) throw new Error('翻译 provider 已停用');
+    if (!provider) {
+      throw new Error('翻译 provider 配置不存在');
+    }
+    if (!provider.enabled) {
+      throw new Error('翻译 provider 已停用');
+    }
     if (provider.provider !== 'claude_cli' && provider.provider !== 'azure') {
       throw new Error(`翻译暂不支持 provider：${provider.provider}（仅 claude_cli / azure）`);
     }
@@ -73,7 +79,9 @@ export class TranslationService {
     const provider = await this.resolveProvider(providerId);
     const providerKind: TranslationProviderKind = provider.provider;
     const items = await this.translations.getUntranslatedItems(postId);
-    if (items.length === 0) return { translated: 0, skipped: 0, usage: null };
+    if (items.length === 0) {
+      return { translated: 0, skipped: 0, usage: null };
+    }
 
     const fieldByHash = new Map<string, TranslationField>();
     const toTranslate: TranslateItem[] = [];
@@ -107,7 +115,9 @@ export class TranslationService {
       for (const item of toTranslate) {
         const r = byKey.get(item.key);
         // 远端漏返回某条 → 不写 done 行，留待下次翻译任务补（避免落入「已翻」假象）
-        if (!r) continue;
+        if (!r) {
+          continue;
+        }
         upserts.push({
           contentHash: item.key,
           sourceField: fieldByHash.get(item.key) ?? 'comment_body',
@@ -178,7 +188,9 @@ export class TranslationService {
     try {
       return await translateItems(config, items, signal);
     } catch (err) {
-      if (signal?.aborted) throw err; // job 超时：直接冒泡
+      if (signal?.aborted) {
+        throw err;
+      } // job 超时：直接冒泡
       const m = errMsg(err);
       if (classifyKeyError(err) === 'auth') {
         await this.providers.markKeyInvalid(key.id, m, nowSec());

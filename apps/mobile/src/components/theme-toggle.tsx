@@ -59,7 +59,9 @@ function ThemeSheet({
   const translateY = useRef(new Animated.Value(24)).current;
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      return;
+    }
     translateY.setValue(24);
     Animated.timing(translateY, {
       toValue: 0,

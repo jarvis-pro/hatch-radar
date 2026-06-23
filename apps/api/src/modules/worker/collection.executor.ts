@@ -48,7 +48,9 @@ function redditSourceConfig(source: SourceRow): { sorts: ('hot' | 'new')[]; limi
 function readSweep(params: unknown): number {
   if (params && typeof params === 'object' && 'sweep' in params) {
     const s = (params as { sweep?: unknown }).sweep;
-    if (typeof s === 'number') return s;
+    if (typeof s === 'number') {
+      return s;
+    }
   }
   return 0;
 }
@@ -159,7 +161,9 @@ export class CollectionExecutor {
             added += r.added;
             updated += r.updated;
             sourcesFetched += 1;
-            for (const p of r.newPosts) newPostIds.push(p.id);
+            for (const p of r.newPosts) {
+              newPostIds.push(p.id);
+            }
           } catch (err) {
             logger.warn(`[采集] r/${source.identifier}/${sort} 失败: ${errMsg(err)}`);
           }
@@ -169,7 +173,9 @@ export class CollectionExecutor {
 
     for (const source of await this.sources.listEnabledByPlatform('hackernews')) {
       const endpoint = asHnEndpoint(source.identifier);
-      if (!endpoint) continue;
+      if (!endpoint) {
+        continue;
+      }
       const channel = source.label || endpoint;
       try {
         const posts = await this.gate.run(
@@ -180,7 +186,9 @@ export class CollectionExecutor {
         added += r.added;
         updated += r.updated;
         sourcesFetched += 1;
-        for (const p of r.newPosts) newPostIds.push(p.id);
+        for (const p of r.newPosts) {
+          newPostIds.push(p.id);
+        }
       } catch (err) {
         logger.warn(`[采集] HN/${channel} 失败: ${errMsg(err)}`);
       }
@@ -198,7 +206,9 @@ export class CollectionExecutor {
         added += r.added;
         updated += r.updated;
         sourcesFetched += 1;
-        for (const p of r.newPosts) newPostIds.push(p.id);
+        for (const p of r.newPosts) {
+          newPostIds.push(p.id);
+        }
       } catch (err) {
         logger.warn(`[采集] RSS/${name} 失败: ${errMsg(err)}`);
       }
@@ -238,10 +248,13 @@ export class CollectionExecutor {
         buildStages('collect', recipe),
         now,
       );
-      if (res.ok) collectSpawned += 1;
+      if (res.ok) {
+        collectSpawned += 1;
+      }
     }
-    if (collectSpawned > 0)
+    if (collectSpawned > 0) {
       await this.runs.incrementCounters(task.run_id, { total: collectSpawned });
+    }
     logger.info(`[采集] discover spawn：派生采集 ${collectSpawned}`);
     return { collectSpawned };
   }
@@ -387,7 +400,9 @@ export class CollectionExecutor {
     processId: number | null,
   ): Promise<boolean> {
     const active = await this.analysisConfig.getActiveProvider();
-    if (!active) return false;
+    if (!active) {
+      return false;
+    }
     const recipe = await this.recipeForRun(runId);
     const res = await this.tasks.createTaskWithStages(
       {
@@ -402,7 +417,9 @@ export class CollectionExecutor {
       buildStages('analyze', recipe),
       now,
     );
-    if (res.ok) await this.runs.incrementCounters(runId, { total: 1 });
+    if (res.ok) {
+      await this.runs.incrementCounters(runId, { total: 1 });
+    }
     return res.ok;
   }
 

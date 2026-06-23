@@ -24,7 +24,9 @@ function pctStr(a: number, b: number): string {
 }
 /** 成本（美元）紧凑展示。 */
 function fmtCost(c: number | null): string {
-  if (c == null) return '—';
+  if (c == null) {
+    return '—';
+  }
   return `$${c < 1 ? c.toFixed(4) : c.toFixed(2)}`;
 }
 

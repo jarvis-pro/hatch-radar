@@ -50,7 +50,9 @@ function buildHeaders(config: AzureTranslateConfig): Record<string, string> {
   };
   // Azure 区域头要的是区域代码（如 centralus），用户常误填显示名（Central US）→ 归一：小写、去空格
   const region = config.region?.trim().toLowerCase().replace(/\s+/g, '');
-  if (region) headers['Ocp-Apim-Subscription-Region'] = region;
+  if (region) {
+    headers['Ocp-Apim-Subscription-Region'] = region;
+  }
   return headers;
 }
 
@@ -91,7 +93,9 @@ export async function translateBatchWithAzure(
   signal?: AbortSignal,
 ): Promise<{ results: TranslatedItem[]; usage: TokenUsage | null }> {
   signal?.throwIfAborted();
-  if (items.length === 0) return { results: [], usage: null };
+  if (items.length === 0) {
+    return { results: [], usage: null };
+  }
   const resp = await callAzure(
     config,
     items.map((it) => it.text),
@@ -100,7 +104,9 @@ export async function translateBatchWithAzure(
   const results: TranslatedItem[] = [];
   for (let i = 0; i < items.length; i++) {
     const text = resp[i]?.translations?.[0]?.text;
-    if (text == null) continue; // 漏返回 → 跳过，下次翻译任务补
+    if (text == null) {
+      continue;
+    } // 漏返回 → 跳过，下次翻译任务补
     results.push({
       key: items[i].key,
       lang: resp[i]?.detectedLanguage?.language ?? '',

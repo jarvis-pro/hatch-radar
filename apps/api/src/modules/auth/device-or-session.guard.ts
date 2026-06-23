@@ -40,7 +40,9 @@ export class DeviceOrSessionGuard implements CanActivate {
     // 设备通道
     if (req.headers['x-device-id']) {
       const user = await this.deviceAuth.verifyRequest(req, requiredPerm);
-      if (!user) throw new UnauthorizedException('设备凭据无效或无权限');
+      if (!user) {
+        throw new UnauthorizedException('设备凭据无效或无权限');
+      }
       req.deviceUser = user;
       return true;
     }

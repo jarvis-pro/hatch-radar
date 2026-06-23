@@ -46,11 +46,17 @@ function RunsView() {
   const navigate = useNavigate();
   const q = useProcessRuns(id);
 
-  if (q.isError) return <LoadError onRetry={() => void q.refetch()} />;
-  if (q.isPending) return <Skeleton className="h-96 w-full" />;
+  if (q.isError) {
+    return <LoadError onRetry={() => void q.refetch()} />;
+  }
+  if (q.isPending) {
+    return <Skeleton className="h-96 w-full" />;
+  }
 
   const { process, runs } = q.data;
-  if (!process) return <EmptyState title="进程不存在" hint="它可能已被删除。返回指挥室看看。" />;
+  if (!process) {
+    return <EmptyState title="进程不存在" hint="它可能已被删除。返回指挥室看看。" />;
+  }
 
   const isRecheck = process.blueprintKind === 'recheck';
   const sorted = [...runs].sort((a, b) => b.startedAt - a.startedAt);

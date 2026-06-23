@@ -75,7 +75,9 @@ export function flattenRedditTree(children: ListingChild[]): CommentFetchResult 
         dropped += Number((child.data as { count?: unknown }).count ?? 0);
         continue;
       }
-      if (child.kind !== 't1') continue;
+      if (child.kind !== 't1') {
+        continue;
+      }
       const d = child.data;
       const id = String(d.id ?? '');
       out.push({
@@ -147,10 +149,13 @@ export class RedditClient {
         }),
       }),
     );
-    if (!res.ok) throw new Error(`Reddit OAuth 认证失败: ${res.status} ${await res.text()}`);
+    if (!res.ok) {
+      throw new Error(`Reddit OAuth 认证失败: ${res.status} ${await res.text()}`);
+    }
     const data = (await res.json()) as { access_token?: string; expires_in?: number };
-    if (!data.access_token)
+    if (!data.access_token) {
       throw new Error('Reddit OAuth 认证失败：响应中没有 access_token，请检查账号与应用配置');
+    }
     this.token = {
       value: data.access_token,
       expiresAt: Date.now() + ((data.expires_in ?? 3600) - 60) * 1000,
@@ -159,7 +164,9 @@ export class RedditClient {
   }
 
   private async ensureToken(): Promise<string> {
-    if (this.token && Date.now() < this.token.expiresAt) return this.token.value;
+    if (this.token && Date.now() < this.token.expiresAt) {
+      return this.token.value;
+    }
     return this.fetchToken();
   }
 
@@ -185,7 +192,9 @@ export class RedditClient {
           headers: { Authorization: `Bearer ${token}`, 'User-Agent': this.cfg.userAgent },
         }),
       );
-      if (res.ok) return (await res.json()) as T;
+      if (res.ok) {
+        return (await res.json()) as T;
+      }
 
       if (res.status === 401) {
         this.token = null;
@@ -194,7 +203,9 @@ export class RedditClient {
       if (res.status === 429 || res.status >= 500) {
         const retryAfter = Number(res.headers.get('retry-after'));
         const delay = retryAfter > 0 ? retryAfter * 1000 : Math.min(2 ** attempt * 1000, 60_000);
-        if (res.status === 429) this.queue.pause(delay);
+        if (res.status === 429) {
+          this.queue.pause(delay);
+        }
         logger.warn(
           `Reddit ${res.status}，${Math.round(delay / 1000)}s 后重试（${attempt}/${MAX_ATTEMPTS}）: ${path}`,
         );

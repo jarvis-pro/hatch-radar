@@ -28,7 +28,9 @@ import { radarKeys } from './query-keys';
 function qs(params: Record<string, string | number | undefined>): string {
   const sp = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) {
-    if (v !== undefined && v !== '') sp.set(k, String(v));
+    if (v !== undefined && v !== '') {
+      sp.set(k, String(v));
+    }
   }
   const s = sp.toString();
   return s ? `?${s}` : '';
@@ -78,7 +80,9 @@ export function useRun(runId: string) {
     queryFn: () => api.get<{ run: RunDTO; tasks: TaskDTO[] }>(`/radar/runs/${runId}`),
     refetchInterval: (q) => {
       const d = q.state.data;
-      if (!d) return false;
+      if (!d) {
+        return false;
+      }
       const active =
         d.run.status === 'running' ||
         d.tasks.some(

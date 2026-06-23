@@ -45,16 +45,27 @@ export function Pagination({
 }: PaginationProps) {
   const navigate = useNavigate();
   const showSize = !!(pageSizeOptions && pageSizeOptions.length > 0 && pageSize);
-  if (pageCount <= 1 && !showSize) return null;
+  if (pageCount <= 1 && !showSize) {
+    return null;
+  }
 
   /** 以当前筛选参数为基础叠加 overrides 构造 URL（空值删除该参数）。 */
   const build = (overrides: Record<string, string | undefined>): string => {
     const qs = new URLSearchParams();
-    for (const [k, v] of Object.entries(query)) if (v) qs.set(k, v);
-    if (showSize && pageSize) qs.set(sizeName, String(pageSize));
+    for (const [k, v] of Object.entries(query)) {
+      if (v) {
+        qs.set(k, v);
+      }
+    }
+    if (showSize && pageSize) {
+      qs.set(sizeName, String(pageSize));
+    }
     for (const [k, v] of Object.entries(overrides)) {
-      if (v) qs.set(k, v);
-      else qs.delete(k);
+      if (v) {
+        qs.set(k, v);
+      } else {
+        qs.delete(k);
+      }
     }
     const s = qs.toString();
     return s ? `${basePath}?${s}` : basePath;

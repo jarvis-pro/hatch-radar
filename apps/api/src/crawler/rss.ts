@@ -35,7 +35,9 @@ export async function fetchFeed(feed: RssSource, limit = 20): Promise<RedditPost
   const posts: RedditPost[] = [];
   for (const item of (result.items ?? []).slice(0, limit)) {
     const guid = item.guid || item.link || item.title || '';
-    if (!guid || !item.title) continue;
+    if (!guid || !item.title) {
+      continue;
+    }
     const raw = item.content || item.contentSnippet || '';
     posts.push({
       id: rssId(feed.name, guid),

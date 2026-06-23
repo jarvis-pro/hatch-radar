@@ -24,7 +24,9 @@ export const COOLDOWN_SECONDS = 300;
 export function classifyKeyError(err: unknown): KeyErrorKind {
   const status = (err as { status?: number })?.status;
   const m = errMsg(err);
-  if (status === 429 || /\b429\b|rate.?limit|too many requests/i.test(m)) return 'rate_limit';
+  if (status === 429 || /\b429\b|rate.?limit|too many requests/i.test(m)) {
+    return 'rate_limit';
+  }
   if (
     status === 401 ||
     status === 403 ||

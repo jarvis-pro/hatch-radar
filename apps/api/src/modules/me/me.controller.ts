@@ -25,7 +25,9 @@ export class MeController {
   /** 双通道取用户 id：设备优先，回退会话；守卫已放行故二者必有其一。 */
   private resolveUserId(device?: DeviceUserContext, session?: AuthedUser): string {
     const id = device?.id ?? session?.id;
-    if (!id) throw new HttpException('无法识别当前用户', 401);
+    if (!id) {
+      throw new HttpException('无法识别当前用户', 401);
+    }
     return id;
   }
 
@@ -36,7 +38,9 @@ export class MeController {
     @AuthUser() session?: AuthedUser,
   ): Promise<{ user: CurrentUser }> {
     const user = await this.account.getProfile(this.resolveUserId(device, session));
-    if (!user) throw new HttpException('用户不存在', 404);
+    if (!user) {
+      throw new HttpException('用户不存在', 404);
+    }
     return { user };
   }
 

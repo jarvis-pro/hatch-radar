@@ -54,14 +54,18 @@ export class WorkerService {
   /** 启动执行器（对应 NestJS onApplicationBootstrap）：回收遗留任务 + 起僵死回收定时器。 */
   async start(): Promise<void> {
     const orphaned = await this.tasks.reclaimRunningTasks(nowSec(), null);
-    if (orphaned > 0) logger.warn(`[worker] 启动回收 ${orphaned} 个遗留 running 任务`);
+    if (orphaned > 0) {
+      logger.warn(`[worker] 启动回收 ${orphaned} 个遗留 running 任务`);
+    }
 
     // 每轮实时读取回收阈值——设置页改 workerStaleSeconds 后下一轮即生效（含独立 worker 进程）
     this.reclaimTimer = setInterval(() => {
       void (async () => {
         const { staleSeconds } = await this.runtimeSettings.getWorkerTuning();
         const n = await this.tasks.reclaimRunningTasks(nowSec(), staleSeconds);
-        if (n > 0) logger.warn(`[worker] 回收 ${n} 个僵死任务（心跳超 ${staleSeconds}s）`);
+        if (n > 0) {
+          logger.warn(`[worker] 回收 ${n} 个僵死任务（心跳超 ${staleSeconds}s）`);
+        }
       })();
     }, RECLAIM_INTERVAL_MS);
 
@@ -73,7 +77,9 @@ export class WorkerService {
 
   /** 停止执行器（对应 NestJS onApplicationShutdown）：停回收定时器 + 排空在途任务。 */
   async stop(): Promise<void> {
-    if (this.reclaimTimer) clearInterval(this.reclaimTimer);
+    if (this.reclaimTimer) {
+      clearInterval(this.reclaimTimer);
+    }
     await Promise.allSettled(this.activeJobPromises);
   }
 
@@ -103,7 +109,9 @@ export class WorkerService {
    */
   private async runTask(taskId: number, onProgress?: (id: number) => void): Promise<void> {
     const task = await this.tasks.getTask(taskId);
-    if (!task) return; // 任务已不存在（被清理）
+    if (!task) {
+      return;
+    } // 任务已不存在（被清理）
     const post =
       task.post_id != null ? ((await this.posts.getPostById(task.post_id)) ?? null) : null;
     if (task.kind === 'analyze' && !post) {
@@ -155,7 +163,9 @@ export class WorkerService {
         next.output = (output ?? null) as TaskStageRow['output'];
         // 闸门 / 收尾决策前实时回读任务（取消 / 外部改状态即时生效）
         const fresh = await this.tasks.getTask(task.id);
-        if (!fresh || fresh.status !== 'running') return;
+        if (!fresh || fresh.status !== 'running') {
+          return;
+        }
         const isLast = next.seq === stages[stages.length - 1].seq;
         if (isLast) {
           await this.finalizeTaskSuccess(task, post, stages);
@@ -186,7 +196,9 @@ export class WorkerService {
   ): Promise<unknown> {
     switch (task.kind) {
       case 'analyze':
-        if (!post) return Promise.reject(new Error('analyze 任务缺少帖子'));
+        if (!post) {
+          return Promise.reject(new Error('analyze 任务缺少帖子'));
+        }
         return this.analyze.runNode(
           stageName,
           task.provider_id,
@@ -198,13 +210,19 @@ export class WorkerService {
       case 'discover':
         return this.collection.runDiscoverStage(stageName, task, stages);
       case 'collect':
-        if (!post) return Promise.reject(new Error('collect 任务缺少帖子'));
+        if (!post) {
+          return Promise.reject(new Error('collect 任务缺少帖子'));
+        }
         return this.collection.runCollectStage(stageName, task, post, stages);
       case 'recheck':
-        if (!post) return Promise.reject(new Error('recheck 任务缺少帖子'));
+        if (!post) {
+          return Promise.reject(new Error('recheck 任务缺少帖子'));
+        }
         return this.collection.runRecheckStage(stageName, task, post, stages);
       case 'translate':
-        if (!post) return Promise.reject(new Error('translate 任务缺少帖子'));
+        if (!post) {
+          return Promise.reject(new Error('translate 任务缺少帖子'));
+        }
         // 译文按 content_hash 落 translations 表；产物含 usage 供成本回填。
         return this.translation.translatePost(post.id, task.provider_id, signal);
       default: {
@@ -221,7 +239,9 @@ export class WorkerService {
     post: PostRow | null,
     stages: StageLike[],
   ): Promise<void> {
-    if (task.kind === 'analyze' && post) await this.posts.markAnalyzed(post.id, nowSec());
+    if (task.kind === 'analyze' && post) {
+      await this.posts.markAnalyzed(post.id, nowSec());
+    }
     await this.tasks.succeedTask(task.id, nowSec(), usageFromSteps(stages));
     await this.runs.incrementCounters(task.run_id, { done: 1 });
     logger.info(`  ✓ [task#${task.id} ${task.kind}] 完成`);
@@ -229,6 +249,8 @@ export class WorkerService {
 
   /** 任务失败善后（按 kind）：analyze 累加 analyze_attempts（与旧路径一致，达上限不再自动重分析）。 */
   private async onTaskError(task: TaskRow, post: PostRow | null): Promise<void> {
-    if (task.kind === 'analyze' && post) await this.posts.bumpAnalyzeAttempts(post.id);
+    if (task.kind === 'analyze' && post) {
+      await this.posts.bumpAnalyzeAttempts(post.id);
+    }
   }
 }

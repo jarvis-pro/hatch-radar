@@ -59,9 +59,12 @@ export function triggerToRepo(t: TriggerConfig): {
   triggerKind: TriggerConfig['kind'];
   triggerConfig: unknown;
 } {
-  if (t.kind === 'interval')
+  if (t.kind === 'interval') {
     return { triggerKind: 'interval', triggerConfig: { everySec: t.everySec } };
-  if (t.kind === 'cron') return { triggerKind: 'cron', triggerConfig: { expr: t.expr } };
+  }
+  if (t.kind === 'cron') {
+    return { triggerKind: 'cron', triggerConfig: { expr: t.expr } };
+  }
   return { triggerKind: 'once', triggerConfig: null };
 }
 
@@ -108,9 +111,13 @@ export function toRunDTO(
 /** 环节 lane：fetch:'source'→帖来源、fetch:'ai'→ai、本地环节→null（按 STAGE_TEMPLATES 推导）。 */
 export function stageLane(kind: TaskKind, name: string, source: string | null): RadarLaneId | null {
   const def = STAGE_TEMPLATES[kind]?.find((s) => s.name === name);
-  if (def?.fetch === 'ai') return 'ai';
+  if (def?.fetch === 'ai') {
+    return 'ai';
+  }
   if (def?.fetch === 'source') {
-    if (source === 'reddit' || source === 'hackernews' || source === 'rss') return source;
+    if (source === 'reddit' || source === 'hackernews' || source === 'rss') {
+      return source;
+    }
     return null;
   }
   return null;
@@ -131,9 +138,15 @@ export function summarizeStage(name: string, output: unknown): string | null {
     case 'recrawl':
       return `评论 ${num('commentCount')}`;
     case 'persist':
-      if ('changed' in o) return o.changed ? '有变化 → 重新分析' : '无变化 · 退避';
-      if ('analyzeSpawned' in o) return o.analyzeSpawned ? '落库 · 派生分析' : '落库';
-      if ('saved' in o) return o.saved ? '洞察已落库' : '无信号 · 未落库';
+      if ('changed' in o) {
+        return o.changed ? '有变化 → 重新分析' : '无变化 · 退避';
+      }
+      if ('analyzeSpawned' in o) {
+        return o.analyzeSpawned ? '落库 · 派生分析' : '落库';
+      }
+      if ('saved' in o) {
+        return o.saved ? '洞察已落库' : '无信号 · 未落库';
+      }
       return '落库';
     case 'ai_call':
       return 'AI 响应已落检查点';
@@ -196,8 +209,11 @@ export function buildCommentTree(
   for (const r of rows) {
     const node = byId.get(r.id)!;
     const parent = r.parent_id ? byId.get(r.parent_id) : undefined;
-    if (parent) parent.children.push(node);
-    else roots.push(node);
+    if (parent) {
+      parent.children.push(node);
+    } else {
+      roots.push(node);
+    }
   }
   return roots;
 }

@@ -131,7 +131,9 @@ describe('采集执行器（CollectionExecutor：逐环节 discover → collect 
       buildStages(kind),
       nowSec(),
     );
-    if (!res.ok) throw new Error(res.error);
+    if (!res.ok) {
+      throw new Error(res.error);
+    }
     return (await tasks.getTask(res.taskId))!;
   }
 

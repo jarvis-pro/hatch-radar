@@ -86,10 +86,18 @@ function LibraryView() {
   /** 把一组条件写进 URL（回第 1 页；保留非默认的每页条数这一浏览偏好）。 */
   const apply = (next: { source: string; status: string; q: string }): void => {
     const params = new URLSearchParams();
-    if (next.source) params.set('source', next.source);
-    if (next.status) params.set('status', next.status);
-    if (next.q.trim()) params.set('q', next.q.trim());
-    if (size !== DEFAULT_SIZE) params.set('size', String(size));
+    if (next.source) {
+      params.set('source', next.source);
+    }
+    if (next.status) {
+      params.set('status', next.status);
+    }
+    if (next.q.trim()) {
+      params.set('q', next.q.trim());
+    }
+    if (size !== DEFAULT_SIZE) {
+      params.set('size', String(size));
+    }
     const qStr = params.toString();
     navigate(qStr ? `/radar/posts?${qStr}` : '/radar/posts');
   };

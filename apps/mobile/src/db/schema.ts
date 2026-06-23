@@ -47,7 +47,9 @@ let db: SQLite.SQLiteDatabase | null = null;
  * 与服务器同为标准 SQLite 文件格式，批次 .sqlite 可直接 ATTACH 合并。
  */
 export function getDb(): SQLite.SQLiteDatabase {
-  if (db) return db;
+  if (db) {
+    return db;
+  }
   db = SQLite.openDatabaseSync('radar.db');
   db.execSync('PRAGMA journal_mode = WAL;');
   db.execSync('PRAGMA foreign_keys = ON;');

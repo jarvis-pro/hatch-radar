@@ -33,12 +33,16 @@ export class LocalDispatcher implements Dispatcher {
 
   /** 入队后 / 任务完成后 / 兜底周期触发：尽量把并发名额填满。 */
   async tryDispatch(): Promise<void> {
-    if (this.draining || this.pumping) return; // 排空中不再认领；单飞：认领循环不可并发重入
+    if (this.draining || this.pumping) {
+      return;
+    } // 排空中不再认领；单飞：认领循环不可并发重入
     this.pumping = true;
     try {
       while (this.inFlight < this.concurrency) {
         const task = await this.tasks.claimNextTask(nowSec());
-        if (!task) break; // 队列空
+        if (!task) {
+          break;
+        } // 队列空
         // 先占名额再起执行：inFlight++ 紧邻 runClaimed（其同步建立 .finally 归还链），中间无
         // await，故不存在「占了名额却没挂归还回调」的泄漏窗口。
         this.inFlight++;
@@ -56,7 +60,9 @@ export class LocalDispatcher implements Dispatcher {
       .catch((err: unknown) => logger.error(`[dispatch] task#${taskId} 顶层异常: ${String(err)}`))
       .finally(() => {
         this.inFlight--;
-        if (!this.draining) void this.tryDispatch(); // 腾名额补位；排空期不补，在途跑完即真正排空
+        if (!this.draining) {
+          void this.tryDispatch();
+        } // 腾名额补位；排空期不补，在途跑完即真正排空
       });
   }
 
@@ -71,6 +77,8 @@ export class LocalDispatcher implements Dispatcher {
    */
   stop(): void {
     this.draining = true;
-    if (this.fallbackTimer) clearInterval(this.fallbackTimer);
+    if (this.fallbackTimer) {
+      clearInterval(this.fallbackTimer);
+    }
   }
 }

@@ -19,7 +19,11 @@ function SavedRow({ op, index, onPress }: { op: Opportunity; index: number; onPr
   const hue = INTENSITY_GLOW[op.intensity];
   const up = op.momentum >= 0;
   return (
-    <Pressable onPress={onPress} className="px-7 py-6" style={{ borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.hairlineSoft }}>
+    <Pressable
+      onPress={onPress}
+      className="px-7 py-6"
+      style={{ borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.hairlineSoft }}
+    >
       <View className="mb-3 flex-row items-center gap-3">
         <Text style={{ color: hue }} className="font-mono-sb text-[13px]">
           {pad(index)}
@@ -28,7 +32,9 @@ function SavedRow({ op, index, onPress }: { op: Opportunity; index: number; onPr
         <Text style={{ color: hue }} className="text-[12px] font-sans-sb">
           {INTENSITY_META[op.intensity].label}
         </Text>
-        <Text className="text-[12px] font-sans-md uppercase tracking-wider text-muted-foreground">· {op.category}</Text>
+        <Text className="text-[12px] font-sans-md uppercase tracking-wider text-muted-foreground">
+          · {op.category}
+        </Text>
         <View className="flex-1" />
         <Text style={{ color: hue }} className="font-mono-sb text-[24px] leading-[1.3]">
           {op.score}

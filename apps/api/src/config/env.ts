@@ -17,7 +17,9 @@ export interface HttpConfig {
  * 用作下方 schema 的 `z.preprocess` 前置，确保空串语义统一。
  */
 export function stripEmptyEnv(raw: unknown): unknown {
-  if (!raw || typeof raw !== 'object') return raw;
+  if (!raw || typeof raw !== 'object') {
+    return raw;
+  }
   const out: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
     out[key] = typeof value === 'string' && value.trim() === '' ? undefined : value;
@@ -89,7 +91,9 @@ export function isProd(): boolean {
  */
 export function cookieSecure(): boolean {
   const override = process.env.COOKIE_SECURE?.trim();
-  if (override) return override === 'true';
+  if (override) {
+    return override === 'true';
+  }
   return isProd();
 }
 

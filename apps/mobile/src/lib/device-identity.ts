@@ -41,7 +41,9 @@ function getOrCreateKeyPair(): DeviceKeyPair {
       sk = legacy;
     }
   }
-  if (sk && pk) return { publicKeyB64: pk, secretKey: naclUtil.decodeBase64(sk) };
+  if (sk && pk) {
+    return { publicKeyB64: pk, secretKey: naclUtil.decodeBase64(sk) };
+  }
   const kp = nacl.sign.keyPair();
   const publicKeyB64 = naclUtil.encodeBase64(kp.publicKey);
   SecureStore.setItem(SECRET_STORE_KEY, naclUtil.encodeBase64(kp.secretKey));
@@ -76,10 +78,16 @@ export async function enrollDevice(
       body: JSON.stringify({ code: code.trim(), deviceName, publicKey: publicKeyB64 }),
       signal: controller.signal,
     });
-    if (res.status === 401) throw new Error('激活码无效或已过期');
-    if (!res.ok) throw new Error(`工作台返回 ${res.status}`);
+    if (res.status === 401) {
+      throw new Error('激活码无效或已过期');
+    }
+    if (!res.ok) {
+      throw new Error(`工作台返回 ${res.status}`);
+    }
     const data = (await res.json()) as { credentialId?: string };
-    if (!data.credentialId) throw new Error('激活响应异常');
+    if (!data.credentialId) {
+      throw new Error('激活响应异常');
+    }
     setMeta(CREDENTIAL_ID, data.credentialId);
   } catch (err) {
     if (err instanceof Error && err.name === 'AbortError') {
@@ -109,7 +117,9 @@ export async function buildDeviceHeaders(
   body = '',
 ): Promise<Record<string, string>> {
   const credentialId = getCredentialId();
-  if (!credentialId) return {};
+  if (!credentialId) {
+    return {};
+  }
   const { secretKey } = getOrCreateKeyPair();
   const ts = Math.floor(Date.now() / 1000);
   // body 哈希纳入签名：与服务端按 req.rawBody 算的 sha256 hex 对齐，防「换 body 重放」。

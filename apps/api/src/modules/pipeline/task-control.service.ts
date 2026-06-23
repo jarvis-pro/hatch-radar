@@ -44,7 +44,9 @@ export class TaskControlService {
   /** 找或建一张指定 kind 的默认图纸（首次触发时惰性种子，免单独 seeder）。 */
   private async ensureBlueprint(kind: TaskKind, label: string): Promise<BlueprintRow> {
     const existing = (await this.blueprints.listBlueprints(kind))[0];
-    if (existing) return existing;
+    if (existing) {
+      return existing;
+    }
     return this.blueprints.createBlueprint({ kind, label }, nowSec());
   }
 
@@ -59,10 +61,16 @@ export class TaskControlService {
     stepGate: boolean,
   ): Promise<{ taskId: number }> {
     const provider = await this.providers.getProvider(providerId);
-    if (!provider) throw new ValidationError('模型配置不存在');
-    if (!provider.enabled) throw new ValidationError('该模型已停用');
+    if (!provider) {
+      throw new ValidationError('模型配置不存在');
+    }
+    if (!provider.enabled) {
+      throw new ValidationError('该模型已停用');
+    }
     const post = await this.posts.getPostById(postId);
-    if (!post) throw new ValidationError('帖子不存在');
+    if (!post) {
+      throw new ValidationError('帖子不存在');
+    }
 
     const bp = await this.ensureBlueprint('analyze', '自动分析');
     const run = await this.runs.createRun(
@@ -93,7 +101,9 @@ export class TaskControlService {
   /** 取检视任务视图：任务元信息 + 各环节轨迹（InspectJobView 形状，时间戳 number、output 已解析）。 */
   async getInspectView(taskId: number): Promise<InspectJobView | null> {
     const task = await this.tasks.getTask(taskId);
-    if (!task) return null;
+    if (!task) {
+      return null;
+    }
     const [stages, post, provider] = await Promise.all([
       this.taskStages.listStages(taskId),
       task.post_id != null ? this.posts.getPostById(task.post_id) : Promise.resolve(null),
@@ -132,7 +142,9 @@ export class TaskControlService {
   /** 放行下一环节：paused→queued + 派发。返回 false = 当前并非暂停态。 */
   async resumeInspect(taskId: number): Promise<boolean> {
     const ok = await this.tasks.resumeTask(taskId);
-    if (ok) void this.dispatcher?.tryDispatch();
+    if (ok) {
+      void this.dispatcher?.tryDispatch();
+    }
     return ok;
   }
 
@@ -149,11 +161,17 @@ export class TaskControlService {
    */
   async retryInspectStep(taskId: number): Promise<void> {
     const task = await this.tasks.getTask(taskId);
-    if (!task) throw new ValidationError('任务不存在');
-    if (task.status !== 'failed') throw new ValidationError('当前不可重试（任务并非失败态）');
+    if (!task) {
+      throw new ValidationError('任务不存在');
+    }
+    if (task.status !== 'failed') {
+      throw new ValidationError('当前不可重试（任务并非失败态）');
+    }
     await this.taskStages.resetStageToPending(taskId, task.current_seq);
     const ok = await this.tasks.requeueFailedTask(taskId);
-    if (!ok) throw new ValidationError('当前不可重试');
+    if (!ok) {
+      throw new ValidationError('当前不可重试');
+    }
     void this.dispatcher?.tryDispatch();
   }
 

@@ -23,7 +23,9 @@ export class AuthController {
   @Post('enroll')
   async enroll(@Body(new ZodValidationPipe(enrollSchema)) body: z.infer<typeof enrollSchema>) {
     const result = await this.deviceAuth.enroll(body);
-    if (!result) throw new UnauthorizedException('激活码无效或已过期');
+    if (!result) {
+      throw new UnauthorizedException('激活码无效或已过期');
+    }
     return result;
   }
 }

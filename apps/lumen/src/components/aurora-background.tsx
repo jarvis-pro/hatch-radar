@@ -25,9 +25,33 @@ interface Geo {
 
 function blobGeometry(w: number, h: number): Geo[] {
   return [
-    { size: w * 1.15, x0: -w * 0.3, x1: -w * 0.12, y0: -h * 0.08, y1: h * 0.02, dur: 11000, delay: 0 },
-    { size: w * 1.0, x0: w * 0.42, x1: w * 0.58, y0: h * 0.08, y1: h * 0.2, dur: 14000, delay: 900 },
-    { size: w * 1.05, x0: w * 0.0, x1: w * 0.16, y0: h * 0.5, y1: h * 0.62, dur: 17000, delay: 1800 },
+    {
+      size: w * 1.15,
+      x0: -w * 0.3,
+      x1: -w * 0.12,
+      y0: -h * 0.08,
+      y1: h * 0.02,
+      dur: 11000,
+      delay: 0,
+    },
+    {
+      size: w * 1.0,
+      x0: w * 0.42,
+      x1: w * 0.58,
+      y0: h * 0.08,
+      y1: h * 0.2,
+      dur: 14000,
+      delay: 900,
+    },
+    {
+      size: w * 1.05,
+      x0: w * 0.0,
+      x1: w * 0.16,
+      y0: h * 0.5,
+      y1: h * 0.62,
+      dur: 17000,
+      delay: 1800,
+    },
   ];
 }
 

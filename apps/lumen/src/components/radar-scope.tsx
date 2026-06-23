@@ -33,10 +33,23 @@ function polar(cx: number, cy: number, angleDeg: number, r: number) {
 }
 
 /** 中心向外扩散的脉冲环（雷达「ping」）。 */
-function Ping({ size, color, delay, period }: { size: number; color: string; delay: number; period: number }) {
+function Ping({
+  size,
+  color,
+  delay,
+  period,
+}: {
+  size: number;
+  color: string;
+  delay: number;
+  period: number;
+}) {
   const t = useSharedValue(0);
   useEffect(() => {
-    t.value = withDelay(delay, withRepeat(withTiming(1, { duration: period, easing: Easing.out(Easing.ease) }), -1, false));
+    t.value = withDelay(
+      delay,
+      withRepeat(withTiming(1, { duration: period, easing: Easing.out(Easing.ease) }), -1, false),
+    );
   }, [t, delay, period]);
   const style = useAnimatedStyle(() => ({
     transform: [{ scale: interpolate(t.value, [0, 1], [0.12, 1]) }],
@@ -157,13 +170,30 @@ export function RadarScope({ size, opportunities, onSelectBlip }: RadarScopeProp
           </Defs>
           <Path d={beamPath} fill="url(#radar-beam)" />
           <G>
-            <Line x1={R} y1={R} x2={lead.x} y2={lead.y} stroke={palette.signal} strokeWidth={1.6} strokeOpacity={0.85} />
+            <Line
+              x1={R}
+              y1={R}
+              x2={lead.x}
+              y2={lead.y}
+              stroke={palette.signal}
+              strokeWidth={1.6}
+              strokeOpacity={0.85}
+            />
           </G>
         </Svg>
       </Animated.View>
 
       {/* 层 3：中心脉冲环 + 核 */}
-      <View pointerEvents="none" style={{ position: 'absolute', width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+      <View
+        pointerEvents="none"
+        style={{
+          position: 'absolute',
+          width: size,
+          height: size,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
         <Ping size={rOut * 2} color={palette.signal} delay={0} period={3200} />
         <Ping size={rOut * 2} color={palette.signal} delay={1600} period={3200} />
         <Animated.View
@@ -187,8 +217,13 @@ export function RadarScope({ size, opportunities, onSelectBlip }: RadarScopeProp
             hitSlop={8}
             style={{ position: 'absolute', left: p.x - blip / 2, top: p.y - blip / 2 }}
           >
-            <View style={{ width: blip, height: blip, alignItems: 'center', justifyContent: 'center' }}>
-              <IntensityDot intensity={op.intensity} size={op.intensity === 'high' ? 11 : op.intensity === 'medium' ? 9 : 7} />
+            <View
+              style={{ width: blip, height: blip, alignItems: 'center', justifyContent: 'center' }}
+            >
+              <IntensityDot
+                intensity={op.intensity}
+                size={op.intensity === 'high' ? 11 : op.intensity === 'medium' ? 9 : 7}
+              />
             </View>
           </PressableScale>
         );

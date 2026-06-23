@@ -2,17 +2,27 @@ import type { Intensity, SourceKind } from '@/data/types';
 
 /** 分钟差 → 相对时间。 */
 export function agoLabel(minutes: number): string {
-  if (minutes < 1) return '刚刚';
-  if (minutes < 60) return `${minutes} 分钟前`;
+  if (minutes < 1) {
+    return '刚刚';
+  }
+  if (minutes < 60) {
+    return `${minutes} 分钟前`;
+  }
   const h = Math.floor(minutes / 60);
-  if (h < 24) return `${h} 小时前`;
+  if (h < 24) {
+    return `${h} 小时前`;
+  }
   return `${Math.floor(h / 24)} 天前`;
 }
 
 /** 紧凑计数：1284 → 1.3k，1200000 → 1.2M。 */
 export function compact(n: number): string {
-  if (n < 1000) return String(n);
-  if (n < 1_000_000) return `${(n / 1000).toFixed(n < 10_000 ? 1 : 0)}k`;
+  if (n < 1000) {
+    return String(n);
+  }
+  if (n < 1_000_000) {
+    return `${(n / 1000).toFixed(n < 10_000 ? 1 : 0)}k`;
+  }
   return `${(n / 1_000_000).toFixed(1)}M`;
 }
 

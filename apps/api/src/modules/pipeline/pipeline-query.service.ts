@@ -97,7 +97,9 @@ export class PipelineQueryService {
   /** 单进程详情：进程 + 任务树（每任务含其环节）。不存在返回 null。 */
   async runDetail(id: number) {
     const run = await this.runs.getRun(id);
-    if (!run) return null;
+    if (!run) {
+      return null;
+    }
     const bp = await this.blueprints.getBlueprint(run.blueprint_id);
     const tasks = await this.tasks.listByRun(id);
     const stagesByTask = await this.taskStages.listStagesByTasks(tasks.map((t) => t.id));

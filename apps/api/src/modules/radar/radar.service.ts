@@ -76,7 +76,9 @@ export class RadarService {
   /** 运行详情：运行 + 任务树（每任务含环节，lane / 产物摘要已合成）。 */
   async runDetail(id: number): Promise<{ run: RunDTO; tasks: TaskDTO[] } | null> {
     const run = await this.runs.getRun(id);
-    if (!run) return null;
+    if (!run) {
+      return null;
+    }
     const [bp, proc, tasks] = await Promise.all([
       this.blueprints.getBlueprint(run.blueprint_id),
       run.process_id != null ? this.processSvc.getProcess(run.process_id) : Promise.resolve(null),
@@ -191,7 +193,9 @@ export class RadarService {
     // 每进程的进行中运行（复用 listRunningRuns 结果，已是 RunRow）
     const runningByProcess = new Map<number, RunRow>();
     for (const r of runningRuns) {
-      if (r.process_id != null) runningByProcess.set(r.process_id, r);
+      if (r.process_id != null) {
+        runningByProcess.set(r.process_id, r);
+      }
     }
     const processes = procDtos.map((p) => {
       const run = runningByProcess.get(p.id);
@@ -266,7 +270,9 @@ export class RadarService {
   /** 单条洞察详情（痛点 / 机会 / 人工研判全展开 + 译文标题 + 源帖是否仍在库）。 */
   async insightDetail(id: number): Promise<RadarInsightDetailDTO | null> {
     const r = await this.insights.getRawById(id);
-    if (!r) return null;
+    if (!r) {
+      return null;
+    }
     const [triageRow, postExists, titleZhByPost] = await Promise.all([
       this.insights.getTriageByInsightId(id),
       this.posts.exists(r.post_id),
@@ -366,7 +372,9 @@ export class RadarService {
 
   async postDetail(id: string): Promise<RadarPostDetailDTO | null> {
     const p = await this.posts.getRawById(id);
-    if (!p) return null;
+    if (!p) {
+      return null;
+    }
     const [commentRows, taskRows, insightRow, zhByHash] = await Promise.all([
       this.comments.listRawForPost(id),
       this.tasks.listByPost(id),
@@ -445,7 +453,9 @@ export class RadarService {
     const out = new Map<string, string>();
     for (const [postId, hash] of hashByPost) {
       const zh = hash ? zhByHash.get(hash) : undefined;
-      if (zh) out.set(postId, zh);
+      if (zh) {
+        out.set(postId, zh);
+      }
     }
     return out;
   }

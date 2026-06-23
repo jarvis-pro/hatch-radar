@@ -60,7 +60,9 @@ async function postChat(
   let lastErr: unknown;
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     outerSignal?.throwIfAborted(); // job 超时后不再重试，立即冒泡
-    if (attempt > 0) await sleep(2 ** attempt * 500);
+    if (attempt > 0) {
+      await sleep(2 ** attempt * 500);
+    }
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
     // 单次请求超时控制器与外部中止信号（job 超时）合并：任一触发即 abort 本次请求
@@ -80,12 +82,16 @@ async function postChat(
       });
     } catch (err) {
       lastErr = err; // 网络层错误或超时中止，重试
-      if (outerSignal?.aborted) throw err; // 外部中止（job 超时）：不再重试，直接冒泡
+      if (outerSignal?.aborted) {
+        throw err;
+      } // 外部中止（job 超时）：不再重试，直接冒泡
       continue;
     } finally {
       clearTimeout(timer);
     }
-    if (res.ok) return (await res.json()) as ChatCompletion;
+    if (res.ok) {
+      return (await res.json()) as ChatCompletion;
+    }
     if (res.status === 429 || res.status >= 500) {
       lastErr = new Error(`${cfg.provider} 返回 ${res.status}`);
       continue;

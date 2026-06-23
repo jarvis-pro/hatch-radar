@@ -160,16 +160,24 @@ export class SourceConnectorsRepository {
    */
   async updateConnector(id: number, fields: ConnectorUpdate, now: number): Promise<boolean> {
     const data: Record<string, unknown> = {};
-    if (fields.label !== undefined) data.label = fields.label;
-    if (fields.priority !== undefined) data.priority = fields.priority;
-    if (fields.enabled !== undefined) data.enabled = fields.enabled;
+    if (fields.label !== undefined) {
+      data.label = fields.label;
+    }
+    if (fields.priority !== undefined) {
+      data.priority = fields.priority;
+    }
+    if (fields.enabled !== undefined) {
+      data.enabled = fields.enabled;
+    }
     if (fields.secret !== undefined) {
       data.secret = encryptSecret(JSON.stringify(fields.secret));
       data.last_check_ok = null;
       data.last_check_at = null;
       data.last_check_error = null;
     }
-    if (Object.keys(data).length === 0) return false;
+    if (Object.keys(data).length === 0) {
+      return false;
+    }
     data.updated_at = BigInt(now);
     const res = await this.db.source_connectors.updateMany({ where: { id }, data });
     return res.count > 0;

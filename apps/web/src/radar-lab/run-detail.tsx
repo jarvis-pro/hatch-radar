@@ -118,14 +118,24 @@ function pick(task: TaskDTO | undefined, names: string[]): StageDTO[] {
 
 /** 段状态 = 覆盖环节的归并（活跃态优先于完成态）。 */
 function segStatusOf(stages: StageDTO[], task: TaskDTO | undefined): SegStatus {
-  if (!task || stages.length === 0) return 'todo';
-  if (stages.some((s) => s.status === 'failed')) return 'failed';
-  if (stages.some((s) => s.status === 'running')) return 'running';
-  if (stages.some((s) => s.status === 'waiting')) return 'waiting';
-  if (task.status === 'paused' && stages.some((s) => s.status === 'pending' && s.gate))
+  if (!task || stages.length === 0) {
+    return 'todo';
+  }
+  if (stages.some((s) => s.status === 'failed')) {
+    return 'failed';
+  }
+  if (stages.some((s) => s.status === 'running')) {
+    return 'running';
+  }
+  if (stages.some((s) => s.status === 'waiting')) {
+    return 'waiting';
+  }
+  if (task.status === 'paused' && stages.some((s) => s.status === 'pending' && s.gate)) {
     return 'gate';
-  if (stages.every((s) => s.status === 'done' || s.status === 'skipped'))
+  }
+  if (stages.every((s) => s.status === 'done' || s.status === 'skipped')) {
     return stages.some((s) => s.status === 'done') ? 'done' : 'skipped';
+  }
   return 'todo';
 }
 
@@ -220,8 +230,12 @@ function rowStateOf(
   insight: boolean,
   main: TaskDTO,
 ): { tone: RowTone; label: string } {
-  if (insight) return { tone: 'insight', label: '已出洞察' };
-  if (!active) return { tone: 'muted', label: '—' };
+  if (insight) {
+    return { tone: 'insight', label: '已出洞察' };
+  }
+  if (!active) {
+    return { tone: 'muted', label: '—' };
+  }
   switch (active.status) {
     case 'paused': {
       const g = active.stages.find((s) => s.status === 'pending' && s.gate);
@@ -233,15 +247,20 @@ function rowStateOf(
     }
     case 'running': {
       const cur = currentStage(active);
-      if (cur?.status === 'waiting')
+      if (cur?.status === 'waiting') {
         return { tone: 'wait', label: `等 ${cur.lane ? LANE_META[cur.lane].label : ''} 闸` };
-      if (cur) return { tone: 'run', label: `${stageLabel(cur.name)}…` };
+      }
+      if (cur) {
+        return { tone: 'run', label: `${stageLabel(cur.name)}…` };
+      }
       return { tone: 'run', label: '运行中' };
     }
     case 'queued':
       return { tone: 'muted', label: '排队' };
     case 'skipped': {
-      if (main.kind === 'recheck') return { tone: 'muted', label: '无变化 · 已退避' };
+      if (main.kind === 'recheck') {
+        return { tone: 'muted', label: '无变化 · 已退避' };
+      }
       return { tone: 'muted', label: '略过' };
     }
     case 'succeeded':
@@ -322,8 +341,11 @@ function selectRun(
   // 一帖一行：collect/recheck 为主，analyze 按 parentTaskId 合并。
   // analyze 先按 parentTaskId 建索引，避免逐帖 find 退化成 O(帖 × 任务)。
   const analyzeByParent = new Map<number, TaskDTO>();
-  for (const t of tasks)
-    if (t.kind === 'analyze' && t.parentTaskId != null) analyzeByParent.set(t.parentTaskId, t);
+  for (const t of tasks) {
+    if (t.kind === 'analyze' && t.parentTaskId != null) {
+      analyzeByParent.set(t.parentTaskId, t);
+    }
+  }
   const mains = tasks
     .filter((t) => t.kind === 'collect' || t.kind === 'recheck')
     .sort((a, b) => a.enqueuedAt - b.enqueuedAt);
@@ -335,11 +357,15 @@ function selectRun(
     const insight = hasInsight(analyze);
     const st = rowStateOf(active, insight, main);
     const groups = [{ label: main.kind === 'collect' ? '采集' : '复查', task: main }];
-    if (analyze) groups.push({ label: '分析', task: analyze });
+    if (analyze) {
+      groups.push({ label: '分析', task: analyze });
+    }
     let cat: RowCat;
-    if (st.tone === 'fail') cat = 'failed';
-    else if (insight) cat = 'done';
-    else {
+    if (st.tone === 'fail') {
+      cat = 'failed';
+    } else if (insight) {
+      cat = 'done';
+    } else {
       const s = active?.status;
       cat = s === 'succeeded' || s === 'skipped' || s === 'canceled' ? 'done' : 'running';
     }
@@ -399,8 +425,11 @@ function selectRun(
         break;
       default: {
         const s = r.activeTask?.status;
-        if (s === 'skipped' || s === 'canceled' || s === 'succeeded') bucket.skipped += 1;
-        else bucket.pending += 1;
+        if (s === 'skipped' || s === 'canceled' || s === 'succeeded') {
+          bucket.skipped += 1;
+        } else {
+          bucket.pending += 1;
+        }
       }
     }
   }
@@ -413,7 +442,9 @@ function selectRun(
 
   // 帖子列表：按状态筛选 + 分页（只切当页 → DOM 恒有界，几百上千帖同样跑得动）
   const counts = { all: rows.length, running: 0, done: 0, failed: 0 };
-  for (const r of rows) counts[r.cat] += 1;
+  for (const r of rows) {
+    counts[r.cat] += 1;
+  }
   const filteredRows =
     filters.status === 'running' || filters.status === 'done' || filters.status === 'failed'
       ? rows.filter((r) => r.cat === filters.status)
@@ -461,7 +492,9 @@ function Stat({ label, value, accent }: { label: string; value: ReactNode; accen
 }
 
 function StatusBar({ bucket, total }: { bucket: Bucket; total: number }) {
-  if (total === 0) return <div className="h-2 rounded-full bg-muted" />;
+  if (total === 0) {
+    return <div className="h-2 rounded-full bg-muted" />;
+  }
   const seg = (n: number, cls: string, key: string) =>
     n > 0 ? <div key={key} className={cls} style={{ width: `${(n / total) * 100}%` }} /> : null;
   return (
@@ -478,37 +511,46 @@ function StatusBar({ bucket, total }: { bucket: Bucket; total: number }) {
 
 function Legend({ bucket }: { bucket: Bucket }) {
   const items: { c: string; t: string; cls: string }[] = [];
-  if (bucket.insight)
+  if (bucket.insight) {
     items.push({ c: 'bg-signal', t: `出洞察 ${bucket.insight}`, cls: 'text-signal' });
-  if (bucket.running)
+  }
+  if (bucket.running) {
     items.push({ c: 'bg-primary signal-pulse', t: `在跑 ${bucket.running}`, cls: 'text-primary' });
-  if (bucket.waiting)
+  }
+  if (bucket.waiting) {
     items.push({
       c: 'bg-intensity-medium',
       t: `等闸 ${bucket.waiting}`,
       cls: 'text-intensity-medium',
     });
-  if (bucket.paused)
+  }
+  if (bucket.paused) {
     items.push({
       c: 'bg-intensity-medium/60',
       t: `挂闸 ${bucket.paused}`,
       cls: 'text-intensity-medium',
     });
-  if (bucket.failed)
+  }
+  if (bucket.failed) {
     items.push({ c: 'bg-intensity-high', t: `失败 ${bucket.failed}`, cls: 'text-destructive' });
-  if (bucket.skipped)
+  }
+  if (bucket.skipped) {
     items.push({
       c: 'bg-muted-foreground/40',
       t: `无变化/略过 ${bucket.skipped}`,
       cls: 'text-muted-foreground',
     });
-  if (bucket.pending)
+  }
+  if (bucket.pending) {
     items.push({
       c: 'bg-muted-foreground/30',
       t: `待处理 ${bucket.pending}`,
       cls: 'text-muted-foreground',
     });
-  if (items.length === 0) return null;
+  }
+  if (items.length === 0) {
+    return null;
+  }
   return (
     <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
       {items.map((x, i) => (
@@ -529,12 +571,18 @@ function Summary({ data }: { data: RunData }) {
   const num = (n: number) => <span className="font-medium tabular-nums text-foreground">{n}</span>;
 
   const live: ReactNode[] = [];
-  if (bucket.running) live.push(<span className="text-primary">{bucket.running} 帖在跑</span>);
-  if (bucket.waiting)
+  if (bucket.running) {
+    live.push(<span className="text-primary">{bucket.running} 帖在跑</span>);
+  }
+  if (bucket.waiting) {
     live.push(<span className="text-intensity-medium">{bucket.waiting} 帖等闸</span>);
-  if (bucket.paused)
+  }
+  if (bucket.paused) {
     live.push(<span className="text-intensity-medium">{bucket.paused} 帖被你挂闸</span>);
-  if (bucket.failed) live.push(<span className="text-destructive">{bucket.failed} 帖失败</span>);
+  }
+  if (bucket.failed) {
+    live.push(<span className="text-destructive">{bucket.failed} 帖失败</span>);
+  }
   const liveTail =
     isRunning && live.length > 0 ? (
       <>
@@ -814,7 +862,7 @@ function Controls({
   onCancel: (taskId: number) => void;
   busy: boolean;
 }) {
-  if (task.status === 'paused')
+  if (task.status === 'paused') {
     return (
       <div className="space-y-1.5">
         <div className="flex flex-wrap gap-2">
@@ -833,7 +881,8 @@ function Controls({
         </p>
       </div>
     );
-  if (task.status === 'failed')
+  }
+  if (task.status === 'failed') {
     return (
       <div className="flex flex-wrap gap-2">
         <Button size="sm" disabled={busy} onClick={() => onRetry(task.id)}>
@@ -844,12 +893,14 @@ function Controls({
         </Button>
       </div>
     );
-  if (task.status === 'running' || task.status === 'queued')
+  }
+  if (task.status === 'running' || task.status === 'queued') {
     return (
       <Button size="sm" variant="ghost" disabled={busy} onClick={() => onCancel(task.id)}>
         取消
       </Button>
     );
+  }
   return null;
 }
 
@@ -1000,14 +1051,17 @@ function RunDetailView() {
     busy,
   };
 
-  if (q.isPending) return <Skeleton className="h-96 w-full" />;
-  if (q.isError)
+  if (q.isPending) {
+    return <Skeleton className="h-96 w-full" />;
+  }
+  if (q.isError) {
     return (
       <LoadError
         message={q.error instanceof ApiError ? q.error.message : undefined}
         onRetry={() => void q.refetch()}
       />
     );
+  }
 
   const { run, tasks } = q.data;
   const status = sp.get('status') ?? '';
@@ -1022,8 +1076,12 @@ function RunDetailView() {
   /** 切状态筛选：回第 1 页，保留每页条数偏好。 */
   const applyStatus = (s: string): void => {
     const params = new URLSearchParams();
-    if (s) params.set('status', s);
-    if (size !== DEFAULT_SIZE) params.set('size', String(size));
+    if (s) {
+      params.set('status', s);
+    }
+    if (size !== DEFAULT_SIZE) {
+      params.set('size', String(size));
+    }
     const qStr = params.toString();
     navigate(qStr ? `/radar/runs/${runId}?${qStr}` : `/radar/runs/${runId}`);
   };

@@ -6,7 +6,12 @@ import { cn } from '@/lib/utils';
 import { Bookmark, Radar, Sparkles, User, type LucideIcon } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import Animated, { interpolate, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
+import Animated, {
+  interpolate,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const ICONS: Record<string, LucideIcon> = {
@@ -36,7 +41,10 @@ function TabIcon({ Icon, focused, color }: { Icon: LucideIcon; focused: boolean;
     s.value = withSpring(focused ? 1 : 0, SPRING);
   }, [focused, s]);
   const style = useAnimatedStyle(() => ({
-    transform: [{ translateY: interpolate(s.value, [0, 1], [0, -1]) }, { scale: interpolate(s.value, [0, 1], [1, 1.1]) }],
+    transform: [
+      { translateY: interpolate(s.value, [0, 1], [0, -1]) },
+      { scale: interpolate(s.value, [0, 1], [1, 1.1]) },
+    ],
   }));
   return (
     <Animated.View style={style}>
@@ -65,7 +73,13 @@ export function TabBar({ state, descriptors, navigation }: TabBarProps) {
   return (
     <View
       pointerEvents="box-none"
-      style={{ position: 'absolute', left: 0, right: 0, bottom: insets.bottom + 10, alignItems: 'center' }}
+      style={{
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        bottom: insets.bottom + 10,
+        alignItems: 'center',
+      }}
     >
       <View
         onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
@@ -82,7 +96,10 @@ export function TabBar({ state, descriptors, navigation }: TabBarProps) {
           <Animated.View
             pointerEvents="none"
             className="rounded-full border border-primary/30 bg-primary/15"
-            style={[{ position: 'absolute', top: PAD, bottom: PAD, left: PAD, width: tabW }, pillStyle]}
+            style={[
+              { position: 'absolute', top: PAD, bottom: PAD, left: PAD, width: tabW },
+              pillStyle,
+            ]}
           />
         ) : null}
 
@@ -93,7 +110,11 @@ export function TabBar({ state, descriptors, navigation }: TabBarProps) {
           const Icon = ICONS[route.name] ?? Radar;
 
           const onPress = () => {
-            const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
+            const event = navigation.emit({
+              type: 'tabPress',
+              target: route.key,
+              canPreventDefault: true,
+            });
             if (!focused && !event.defaultPrevented) {
               hapticSelect();
               navigation.navigate(route.name);
@@ -101,9 +122,22 @@ export function TabBar({ state, descriptors, navigation }: TabBarProps) {
           };
 
           return (
-            <Pressable key={route.key} onPress={onPress} className="flex-1 items-center justify-center gap-1 py-2.5">
-              <TabIcon Icon={Icon} focused={focused} color={focused ? palette.primary : palette.mutedForeground} />
-              <Text className={cn('text-[10px] font-sans-md', focused ? 'text-primary' : 'text-muted-foreground')}>
+            <Pressable
+              key={route.key}
+              onPress={onPress}
+              className="flex-1 items-center justify-center gap-1 py-2.5"
+            >
+              <TabIcon
+                Icon={Icon}
+                focused={focused}
+                color={focused ? palette.primary : palette.mutedForeground}
+              />
+              <Text
+                className={cn(
+                  'text-[10px] font-sans-md',
+                  focused ? 'text-primary' : 'text-muted-foreground',
+                )}
+              >
                 {label}
               </Text>
             </Pressable>

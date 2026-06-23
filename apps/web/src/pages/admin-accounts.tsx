@@ -10,7 +10,9 @@ import { LoadError } from '@/components/empty';
 /** 按 userId 分组（设备 / 待激活面板用）。 */
 function groupByUser<T extends { userId: string }>(items: T[]): Record<string, T[]> {
   const out: Record<string, T[]> = {};
-  for (const it of items) (out[it.userId] ??= []).push(it);
+  for (const it of items) {
+    (out[it.userId] ??= []).push(it);
+  }
   return out;
 }
 

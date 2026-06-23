@@ -37,9 +37,13 @@ export interface DbHandle {
  */
 export function createDb(connectionString: string, opts: CreateDbOptions = {}): DbHandle {
   const poolConfig: PoolConfig = { connectionString };
-  if (opts.max != null) poolConfig.max = opts.max;
+  if (opts.max != null) {
+    poolConfig.max = opts.max;
+  }
   // 连接级只读：libpq 启动参数，对该连接所有事务生效（web 纵深防御）
-  if (opts.readonly) poolConfig.options = '-c default_transaction_read_only=on';
+  if (opts.readonly) {
+    poolConfig.options = '-c default_transaction_read_only=on';
+  }
   const adapter = new PrismaPg(poolConfig);
   const db = new PrismaClient({ adapter });
   return { db, close: () => db.$disconnect() };

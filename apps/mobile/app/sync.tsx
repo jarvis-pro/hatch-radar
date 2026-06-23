@@ -113,9 +113,13 @@ export default function SyncScreen() {
     run('正在推送研判…', async () => {
       const summary = await pushOutbox(cfgFromInputs());
       setPending(pendingSyncCount());
-      if (summary.total === 0) return '没有待同步的研判操作。';
+      if (summary.total === 0) {
+        return '没有待同步的研判操作。';
+      }
       const parts = [`同步完成：共 ${summary.total} 条，应用 ${summary.applied}`];
-      if (summary.duplicate > 0) parts.push(`重复跳过 ${summary.duplicate}`);
+      if (summary.duplicate > 0) {
+        parts.push(`重复跳过 ${summary.duplicate}`);
+      }
       if (summary.rejected > 0) {
         const reasons = [...new Set(summary.rejections.map((r) => r.reason ?? '原因见工作台日志'))];
         parts.push(`拒绝 ${summary.rejected}（${reasons.join('；')}）`);
@@ -130,7 +134,9 @@ export default function SyncScreen() {
         copyToCacheDirectory: true,
         multiple: false,
       });
-      if (picked.canceled) return '已取消选择。';
+      if (picked.canceled) {
+        return '已取消选择。';
+      }
       const asset = picked.assets[0];
       const name = asset.name.toLowerCase();
       if (name.endsWith('.json')) {

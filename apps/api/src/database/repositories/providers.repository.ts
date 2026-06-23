@@ -166,8 +166,11 @@ export class ProvidersRepository {
     const byProvider = new Map<number, ProviderApiKeyRow[]>();
     for (const k of allKeys) {
       const arr = byProvider.get(k.provider_id);
-      if (arr) arr.push(k);
-      else byProvider.set(k.provider_id, [k]);
+      if (arr) {
+        arr.push(k);
+      } else {
+        byProvider.set(k.provider_id, [k]);
+      }
     }
     return providers.map((provider) => ({ provider, keys: byProvider.get(provider.id) ?? [] }));
   }
@@ -175,7 +178,9 @@ export class ProvidersRepository {
   /** 取单条模型配置及其 Key 池；不存在时返回 undefined */
   async getProviderWithKeys(id: number): Promise<ProviderWithKeys | undefined> {
     const provider = await this.getProvider(id);
-    if (!provider) return undefined;
+    if (!provider) {
+      return undefined;
+    }
     return { provider, keys: await this.listKeysForProvider(id) };
   }
 
@@ -233,15 +238,33 @@ export class ProvidersRepository {
    */
   async updateProvider(id: number, fields: Partial<ProviderInput>, now: number): Promise<boolean> {
     const data: Record<string, unknown> = {};
-    if (fields.provider !== undefined) data.provider = fields.provider;
-    if (fields.label !== undefined) data.label = fields.label;
-    if (fields.baseUrl !== undefined) data.base_url = fields.baseUrl ?? null;
-    if (fields.region !== undefined) data.region = fields.region ? fields.region : null;
-    if (fields.model !== undefined) data.model = fields.model;
-    if (fields.enabled !== undefined) data.enabled = fields.enabled;
-    if (fields.inputPrice !== undefined) data.input_price = fields.inputPrice;
-    if (fields.outputPrice !== undefined) data.output_price = fields.outputPrice;
-    if (Object.keys(data).length === 0) return false;
+    if (fields.provider !== undefined) {
+      data.provider = fields.provider;
+    }
+    if (fields.label !== undefined) {
+      data.label = fields.label;
+    }
+    if (fields.baseUrl !== undefined) {
+      data.base_url = fields.baseUrl ?? null;
+    }
+    if (fields.region !== undefined) {
+      data.region = fields.region ? fields.region : null;
+    }
+    if (fields.model !== undefined) {
+      data.model = fields.model;
+    }
+    if (fields.enabled !== undefined) {
+      data.enabled = fields.enabled;
+    }
+    if (fields.inputPrice !== undefined) {
+      data.input_price = fields.inputPrice;
+    }
+    if (fields.outputPrice !== undefined) {
+      data.output_price = fields.outputPrice;
+    }
+    if (Object.keys(data).length === 0) {
+      return false;
+    }
     data.updated_at = BigInt(now);
     const res = await this.db.model_providers.updateMany({ where: { id }, data });
     return res.count > 0;
@@ -260,16 +283,34 @@ export class ProvidersRepository {
   ): Promise<boolean> {
     return this.db.$transaction(async (tx) => {
       const data: Record<string, unknown> = { updated_at: BigInt(now) };
-      if (fields.provider !== undefined) data.provider = fields.provider;
-      if (fields.label !== undefined) data.label = fields.label;
-      if (fields.baseUrl !== undefined) data.base_url = fields.baseUrl ?? null;
-      if (fields.region !== undefined) data.region = fields.region ? fields.region : null;
-      if (fields.model !== undefined) data.model = fields.model;
-      if (fields.enabled !== undefined) data.enabled = fields.enabled;
-      if (fields.inputPrice !== undefined) data.input_price = fields.inputPrice;
-      if (fields.outputPrice !== undefined) data.output_price = fields.outputPrice;
+      if (fields.provider !== undefined) {
+        data.provider = fields.provider;
+      }
+      if (fields.label !== undefined) {
+        data.label = fields.label;
+      }
+      if (fields.baseUrl !== undefined) {
+        data.base_url = fields.baseUrl ?? null;
+      }
+      if (fields.region !== undefined) {
+        data.region = fields.region ? fields.region : null;
+      }
+      if (fields.model !== undefined) {
+        data.model = fields.model;
+      }
+      if (fields.enabled !== undefined) {
+        data.enabled = fields.enabled;
+      }
+      if (fields.inputPrice !== undefined) {
+        data.input_price = fields.inputPrice;
+      }
+      if (fields.outputPrice !== undefined) {
+        data.output_price = fields.outputPrice;
+      }
       const res = await tx.model_providers.updateMany({ where: { id }, data });
-      if (res.count === 0) return false;
+      if (res.count === 0) {
+        return false;
+      }
       await tx.provider_api_keys.deleteMany({ where: { provider_id: id } });
       await tx.provider_api_keys.create({
         data: {
@@ -351,15 +392,23 @@ export class ProvidersRepository {
    */
   async updateKey(keyId: number, fields: KeyUpdate, now: number): Promise<boolean> {
     const data: Record<string, unknown> = {};
-    if (fields.label !== undefined) data.label = fields.label;
-    if (fields.priority !== undefined) data.priority = fields.priority;
-    if (fields.enabled !== undefined) data.enabled = fields.enabled;
+    if (fields.label !== undefined) {
+      data.label = fields.label;
+    }
+    if (fields.priority !== undefined) {
+      data.priority = fields.priority;
+    }
+    if (fields.enabled !== undefined) {
+      data.enabled = fields.enabled;
+    }
     if (fields.reset) {
       data.status = 'active';
       data.cooldown_until = null;
       data.last_error = null;
     }
-    if (Object.keys(data).length === 0) return false;
+    if (Object.keys(data).length === 0) {
+      return false;
+    }
     data.updated_at = BigInt(now);
     const res = await this.db.provider_api_keys.updateMany({ where: { id: keyId }, data });
     return res.count > 0;

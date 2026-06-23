@@ -33,9 +33,13 @@ export class SessionAuthenticator {
     }
 
     const token = readSessionCookie(req);
-    if (!token) throw new UnauthorizedException(noTokenMessage);
+    if (!token) {
+      throw new UnauthorizedException(noTokenMessage);
+    }
     const user = await this.account.resolveSession(token);
-    if (!user) throw new UnauthorizedException('会话无效或已过期');
+    if (!user) {
+      throw new UnauthorizedException('会话无效或已过期');
+    }
 
     if (
       requiredPerm &&

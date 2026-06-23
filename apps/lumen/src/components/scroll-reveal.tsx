@@ -31,7 +31,12 @@ export function ScrollScaleItem({
 
   const animatedStyle = useAnimatedStyle(() => {
     const top = y.value - scrollY.value; // 距视口顶部的距离
-    const scale = interpolate(top, [-h.value, 0, viewportH - 150, viewportH], [0.92, 1, 1, 0.92], Extrapolation.CLAMP);
+    const scale = interpolate(
+      top,
+      [-h.value, 0, viewportH - 150, viewportH],
+      [0.92, 1, 1, 0.92],
+      Extrapolation.CLAMP,
+    );
     const opacity = interpolate(
       top,
       [-h.value, -h.value * 0.3, viewportH - 90, viewportH],

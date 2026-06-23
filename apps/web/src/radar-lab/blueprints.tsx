@@ -93,9 +93,12 @@ const PHASE_NOTE: Record<TaskKind, { fanout: string; spawn?: string }> = {
 
 /** 图纸态下该环节经请求闸时走哪些 lane（source 类按图纸数据源推导，ai 类固定 ai）。 */
 function stageLanes(def: StageDef, blueprint: BlueprintDTO): RadarLaneId[] {
-  if (def.fetch === 'ai') return ['ai'];
-  if (def.fetch === 'source')
+  if (def.fetch === 'ai') {
+    return ['ai'];
+  }
+  if (def.fetch === 'source') {
     return [...new Set(blueprint.sources.map((s) => sourceToLane(s.kind)))];
+  }
   return [];
 }
 
@@ -571,8 +574,11 @@ function BlueprintsView() {
   const procByBp = new Map<number, ProcessDTO[]>();
   for (const p of processes) {
     const arr = procByBp.get(p.blueprintId);
-    if (arr) arr.push(p);
-    else procByBp.set(p.blueprintId, [p]);
+    if (arr) {
+      arr.push(p);
+    } else {
+      procByBp.set(p.blueprintId, [p]);
+    }
   }
   const selected = blueprints.find((b) => b.id === selectedId) ?? blueprints[0] ?? null;
   const procs = selected ? (procByBp.get(selected.id) ?? []) : [];

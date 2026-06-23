@@ -84,7 +84,9 @@ const GROUPS = [...new Set(FIELD_META.map((f) => f.group))];
 /** 由有效态生成草稿：每项填入当前 DB 值（这些参数已首启播种，始终有值） */
 function seedDraft(data: RuntimeSettingsData): Record<RuntimeSettingKey, string> {
   const out = {} as Record<RuntimeSettingKey, string>;
-  for (const f of FIELD_META) out[f.key] = String(data[f.key].value);
+  for (const f of FIELD_META) {
+    out[f.key] = String(data[f.key].value);
+  }
   return out;
 }
 
@@ -109,7 +111,9 @@ export function RuntimeSettingsManager({
 
   // 重新拉取（保存后 / 切换）时把草稿同步到最新有效态；编辑期间 initial 引用稳定，不打断输入
   useEffect(() => {
-    if (initial) setDraft(seedDraft(initial));
+    if (initial) {
+      setDraft(seedDraft(initial));
+    }
   }, [initial]);
 
   if (loadError || !initial) {
@@ -125,7 +129,9 @@ export function RuntimeSettingsManager({
     const patch: Partial<Record<RuntimeSettingKey, number>> = {};
     for (const f of FIELD_META) {
       const cur = draft[f.key].trim();
-      if (cur === String(data[f.key].value)) continue; // 相对当前态无改动 → 不提交
+      if (cur === String(data[f.key].value)) {
+        continue;
+      } // 相对当前态无改动 → 不提交
       const n = Number(cur);
       if (cur === '' || !Number.isInteger(n) || n < f.min) {
         toast.error(`「${f.label}」需为 ≥ ${f.min} 的整数`);

@@ -34,7 +34,9 @@ type InspectFlowNode = Node<NodeData, 'inspect'>;
 
 /** 节点耗时（秒，整数）。时间戳为整数秒，毫秒级节点显示「0s」。 */
 function stepDuration(s: InspectStepView): string | null {
-  if (s.startedAt == null || s.finishedAt == null) return null;
+  if (s.startedAt == null || s.finishedAt == null) {
+    return null;
+  }
   return `${Math.max(0, s.finishedAt - s.startedAt)}s`;
 }
 
@@ -74,9 +76,15 @@ function iconClass(status: string): string {
 
 /** 副文本：running「运行中…」/ done 耗时 / failed「失败」/ pending「待执行」。 */
 function subLabel(step: InspectStepView): string {
-  if (step.status === 'running') return '运行中…';
-  if (step.status === 'failed') return '失败';
-  if (step.status === 'done') return stepDuration(step) ?? '完成';
+  if (step.status === 'running') {
+    return '运行中…';
+  }
+  if (step.status === 'failed') {
+    return '失败';
+  }
+  if (step.status === 'done') {
+    return stepDuration(step) ?? '完成';
+  }
   return '待执行';
 }
 

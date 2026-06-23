@@ -69,7 +69,9 @@ export function AppSidebar({ user }: { user: CurrentUser }) {
           const items = group.items.filter((it) =>
             hasPermission(user.role, user.permissions, it.perm),
           );
-          if (items.length === 0) return null;
+          if (items.length === 0) {
+            return null;
+          }
           return (
             <SidebarGroup key={group.label}>
               <SidebarGroupLabel>{group.label}</SidebarGroupLabel>

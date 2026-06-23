@@ -31,7 +31,9 @@ export class DeviceCredentialsRepository {
       where: { id },
       include: { user: { select: { role: true } } },
     });
-    if (!cred) return null;
+    if (!cred) {
+      return null;
+    }
     return { id: cred.id, userId: cred.user_id, ownerRole: cred.user.role as UserRole };
   }
 

@@ -137,8 +137,11 @@ function ProcessRow({ p, blueprints }: { p: CRProcess; blueprints: BlueprintDTO[
   const [delOpen, setDelOpen] = useState(false);
 
   const open = (): void => {
-    if (run) navigate(`/radar/runs/${run.id}`);
-    else navigate(`/radar/processes/${p.id}/runs`);
+    if (run) {
+      navigate(`/radar/runs/${run.id}`);
+    } else {
+      navigate(`/radar/processes/${p.id}/runs`);
+    }
   };
 
   return (

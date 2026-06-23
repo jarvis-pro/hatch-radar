@@ -67,9 +67,13 @@ export class AnalyzeExecutor {
 
   /** 节点 0 resolve：解析模型配置（幂等）。 */
   private async nodeResolve(providerId: number | null) {
-    if (providerId == null) throw new Error('任务未绑定模型（provider_id 为空）');
+    if (providerId == null) {
+      throw new Error('任务未绑定模型（provider_id 为空）');
+    }
     const info = await this.analysisConfig.getProviderInspectInfo(providerId);
-    if (!info) throw new Error('模型配置不存在或已停用');
+    if (!info) {
+      throw new Error('模型配置不存在或已停用');
+    }
     return info;
   }
 
@@ -104,11 +108,17 @@ export class AnalyzeExecutor {
     stages: StageLike[],
     signal: AbortSignal,
   ): Promise<AiCallOutput> {
-    if (providerId == null) throw new Error('任务未绑定模型（provider_id 为空）');
+    if (providerId == null) {
+      throw new Error('任务未绑定模型（provider_id 为空）');
+    }
     const ctx = stepOutput<ContextOutput>(stages, 'context');
-    if (!ctx?.contextText) throw new Error('上游 context 节点产物缺失，无法调用 AI');
+    if (!ctx?.contextText) {
+      throw new Error('上游 context 节点产物缺失，无法调用 AI');
+    }
     const processor = await this.analysisConfig.getProcessorForProvider(providerId);
-    if (!processor) throw new Error('模型配置不存在或已停用');
+    if (!processor) {
+      throw new Error('模型配置不存在或已停用');
+    }
     const raw = await processor.callRaw(ctx.contextText, signal);
     return {
       raw: raw.raw,
@@ -121,7 +131,9 @@ export class AnalyzeExecutor {
   /** 节点 4 normalize：读 ai_call 检查点 → 归一化（纯函数）+ 统计归一化丢弃的非法条目。 */
   private nodeNormalize(stages: StageLike[]): NormalizeOutput {
     const ai = stepOutput<AiCallOutput>(stages, 'ai_call');
-    if (ai?.raw == null) throw new Error('上游 ai_call 节点产物缺失，无法归一化');
+    if (ai?.raw == null) {
+      throw new Error('上游 ai_call 节点产物缺失，无法归一化');
+    }
     const parsed = typeof ai.raw === 'string' ? parseLooseJson(ai.raw) : ai.raw;
     const insight = normalizeInsight(parsed);
     const p = parsed as { pain_points?: unknown[]; opportunities?: unknown[] };
@@ -141,7 +153,9 @@ export class AnalyzeExecutor {
     stages: StageLike[],
   ): Promise<PersistOutput> {
     const norm = stepOutput<NormalizeOutput>(stages, 'normalize');
-    if (!norm?.insight) throw new Error('上游 normalize 节点产物缺失，无法落库');
+    if (!norm?.insight) {
+      throw new Error('上游 normalize 节点产物缺失，无法落库');
+    }
     const { saved } = await this.analysis.persistInsight(post, model, norm.insight);
     return {
       saved,
