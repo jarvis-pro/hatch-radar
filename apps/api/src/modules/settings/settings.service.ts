@@ -46,6 +46,7 @@ export type ProviderUpdateInput = {
 /** '' / 仅空白的 baseUrl 归一化为 undefined（不存空串）。 */
 function normalizeBaseUrl(v: string | undefined): string | undefined {
   const t = v?.trim();
+
   return t ? t : undefined;
 }
 
@@ -102,10 +103,12 @@ export class SettingsService {
       if (!dto.apiKey) {
         throw new ValidationError('该模型必须提供 API Key');
       }
+
       if (!isSecretConfigured()) {
         throw new ValidationError('未配置 SETTINGS_SECRET，无法加密入库，请先在 .env 设置');
       }
     }
+
     const { apiKey, baseUrl, ...rest } = dto;
     // claude_cli 订阅模式：无 base_url、无 Key（复用本机已登录的 claude）
     const input: ProviderInput = { ...rest, baseUrl: isCli ? null : normalizeBaseUrl(baseUrl) };
@@ -116,6 +119,7 @@ export class SettingsService {
     );
     await this.analysisConfig.reloadAnalysisConfig();
     logger.info(`[设置] 新增模型 #${id}：${dto.provider} (${dto.model})`);
+
     return { id };
   }
 
@@ -127,6 +131,7 @@ export class SettingsService {
     if (dto.apiKey && !isSecretConfigured()) {
       throw new ValidationError('未配置 SETTINGS_SECRET，无法加密新密钥');
     }
+
     const existing = await this.providers.getProvider(id);
     if (!existing) {
       throw new NotFoundError('模型配置不存在');
@@ -138,24 +143,31 @@ export class SettingsService {
       if (dto.provider !== undefined) {
         fields.provider = dto.provider;
       }
+
       if (dto.label !== undefined) {
         fields.label = dto.label;
       }
+
       if (dto.model !== undefined) {
         fields.model = dto.model;
       }
+
       if (dto.enabled !== undefined) {
         fields.enabled = dto.enabled;
       }
+
       if (dto.inputPrice !== undefined) {
         fields.inputPrice = dto.inputPrice;
       }
+
       if (dto.outputPrice !== undefined) {
         fields.outputPrice = dto.outputPrice;
       }
+
       await this.providers.updateProvider(id, fields, nowSec());
       await this.analysisConfig.reloadAnalysisConfig();
       logger.info(`[设置] 更新模型 #${id}（订阅模式）`);
+
       return;
     }
 
@@ -167,12 +179,15 @@ export class SettingsService {
         if (!isSecretConfigured()) {
           throw new ValidationError('未配置 SETTINGS_SECRET，无法加密新密钥');
         }
+
         await this.providers.updateProviderAndResetKeys(id, fields, azureKey, nowSec());
       } else if (Object.keys(fields).length > 0) {
         await this.providers.updateProvider(id, fields, nowSec());
       }
+
       await this.analysisConfig.reloadAnalysisConfig();
       logger.info(`[设置] 更新 Azure 翻译模型 #${id}${azureKey ? '（已更换 Key）' : ''}`);
+
       return;
     }
 
@@ -192,10 +207,12 @@ export class SettingsService {
           '修改 baseUrl 时必须同时重新填写 API Key（旧 Key 将被清空，避免被发往新地址）',
         );
       }
+
       await this.providers.updateProviderAndResetKeys(id, fields, apiKey, nowSec());
     } else if (Object.keys(fields).length > 0) {
       await this.providers.updateProvider(id, fields, nowSec());
     }
+
     await this.analysisConfig.reloadAnalysisConfig();
     logger.info(`[设置] 更新模型 #${id}${baseUrlChanged ? '（baseUrl 变更，Key 池已重置）' : ''}`);
   }
@@ -206,9 +223,11 @@ export class SettingsService {
     if (!removed) {
       throw new NotFoundError('模型配置不存在');
     }
+
     if ((await this.settings.getActiveProviderId()) === id) {
       await this.settings.setActiveProviderId(null);
     }
+
     await this.analysisConfig.reloadAnalysisConfig();
     logger.info(`[设置] 删除模型 #${id}`);
   }
@@ -225,18 +244,23 @@ export class SettingsService {
     if (!isSecretConfigured()) {
       throw new ValidationError('未配置 SETTINGS_SECRET，无法加密入库，请先在 .env 设置');
     }
+
     const provider = await this.providers.getProvider(providerId);
     if (!provider) {
       throw new NotFoundError('模型配置不存在');
     }
+
     if (provider.provider === 'claude_cli') {
       throw new ValidationError('订阅模式（Claude CLI）复用本机登录态，无需也不支持 API Key');
     }
+
     if (provider.provider === 'azure') {
       throw new ValidationError('Azure 翻译仅用单把 Key，请用「编辑模型」更换，不走多 Key 池');
     }
+
     const id = await this.providers.createKey(providerId, input, nowSec());
     logger.info(`[设置] 模型 #${providerId} 新增 Key #${id}`);
+
     return { id };
   }
 
@@ -246,6 +270,7 @@ export class SettingsService {
     if (!key || key.provider_id !== providerId) {
       throw new NotFoundError('API Key 不存在');
     }
+
     if (Object.keys(patch).length > 0) {
       await this.providers.updateKey(keyId, patch, nowSec());
     }
@@ -257,6 +282,7 @@ export class SettingsService {
     if (!key || key.provider_id !== providerId) {
       throw new NotFoundError('API Key 不存在');
     }
+
     await this.providers.deleteKey(keyId);
     logger.info(`[设置] 模型 #${providerId} 删除 Key #${keyId}`);
   }
@@ -267,6 +293,7 @@ export class SettingsService {
     if (!key || key.provider_id !== providerId) {
       throw new NotFoundError('API Key 不存在');
     }
+
     return this.analysisConfig.testProviderKey(keyId);
   }
 
@@ -281,12 +308,15 @@ export class SettingsService {
       if (!row) {
         throw new NotFoundError('模型配置不存在');
       }
+
       if (!row.enabled) {
         throw new ValidationError('该模型已停用，无法设为 active');
       }
+
       if (row.provider === 'azure') {
         throw new ValidationError('azure（机翻）仅用于翻译，不能设为分析 active 模型');
       }
+
       // 订阅模式（claude_cli）无 Key；其余 provider 须有可用 Key 才能设为 active
       if (
         row.provider !== 'claude_cli' &&
@@ -295,11 +325,13 @@ export class SettingsService {
         throw new ValidationError('该模型无可用 API Key，请先添加或复位后再设为启用');
       }
     }
+
     await this.settings.setActiveProviderId(providerId);
     await this.analysisConfig.reloadAnalysisConfig();
     // 即时生效：选用后立刻派生一轮 analyze 任务（归属 run/blueprint），无需等下一次定时调度。
     const round = await this.pipeline.runAnalyzeSweep('manual');
     logger.info(`[设置] active 模型 → ${providerId ?? '（清空）'}；即时入队 ${round.created} 篇`);
+
     return { activeProviderId: providerId, enqueued: round.created };
   }
 
@@ -312,12 +344,15 @@ export class SettingsService {
       if (!row) {
         throw new NotFoundError('模型配置不存在');
       }
+
       if (!row.enabled) {
         throw new ValidationError('该模型已停用，无法用于翻译');
       }
+
       if (row.provider !== 'claude_cli' && row.provider !== 'azure') {
         throw new ValidationError('翻译暂仅支持 claude_cli（订阅）/ azure（机翻）');
       }
+
       if (
         row.provider === 'azure' &&
         (await this.providers.countUsableKeys(providerId, nowSec())) === 0
@@ -325,8 +360,10 @@ export class SettingsService {
         throw new ValidationError('该 Azure 翻译模型无可用 API Key，请先添加或复位');
       }
     }
+
     await this.settings.setTranslationProviderId(providerId);
     logger.info(`[设置] 翻译 provider → ${providerId ?? '（清空，回落 active）'}`);
+
     return { translationProviderId: providerId };
   }
 }

@@ -44,6 +44,7 @@ cssInterop(IconImpl, {
  */
 function Icon({ as: IconComponent, className, size = 14, ...props }: IconProps) {
   const textClass = React.useContext(TextClassContext);
+
   return (
     <IconImpl
       as={IconComponent}

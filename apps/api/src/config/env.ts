@@ -20,10 +20,12 @@ export function stripEmptyEnv(raw: unknown): unknown {
   if (!raw || typeof raw !== 'object') {
     return raw;
   }
+
   const out: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
     out[key] = typeof value === 'string' && value.trim() === '' ? undefined : value;
   }
+
   return out;
 }
 
@@ -55,6 +57,7 @@ export function parseEnv<S extends z.ZodTypeAny>(schema: S): z.infer<S> {
       .join('\n');
     throw new Error(`环境变量校验失败，请先 cp .env.example .env 并填写：\n${messages}`);
   }
+
   return result.data;
 }
 
@@ -94,6 +97,7 @@ export function cookieSecure(): boolean {
   if (override) {
     return override === 'true';
   }
+
   return isProd();
 }
 

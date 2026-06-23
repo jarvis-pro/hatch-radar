@@ -62,6 +62,7 @@ export class RequestsController {
       this.queue.laneCounts(nowSec() - RECENT_WINDOW_SEC),
     ]);
     const countByLane = new Map(counts.map((c) => [c.lane, c]));
+
     return {
       lanes: lanes.map((l) => toLaneView(l, countByLane.get(l.lane))),
       recent: recent.map(toRequestView),
@@ -73,6 +74,7 @@ export class RequestsController {
   async pause(@Param('lane') lane: string) {
     await this.lanes.setPaused(lane, true, nowSec());
     logger.info(`[请求闸] 暂停 lane=${lane}`);
+
     return { ok: true };
   }
 
@@ -81,6 +83,7 @@ export class RequestsController {
   async resume(@Param('lane') lane: string) {
     await this.lanes.setPaused(lane, false, nowSec());
     logger.info(`[请求闸] 恢复 lane=${lane}`);
+
     return { ok: true };
   }
 }

@@ -40,6 +40,7 @@ export function PasswordInput({
   icon?: LucideIcon;
 }) {
   const [show, setShow] = useState(false);
+
   return (
     <IconInput
       icon={icon}

@@ -50,6 +50,7 @@ const ALL = '__all__';
 function intervalLabel(misses: number): string {
   return misses <= 0 ? '每轮查' : `隔 ${Math.min(2 ** (misses - 1), CAP)} 轮`;
 }
+
 /** URL 上的 status 须在白名单内才算数，否则视为「全部」。 */
 function validStatus(v: string | null): string {
   return STATUS_OPTIONS.some((s) => s.value === v) ? (v as string) : '';
@@ -89,18 +90,23 @@ function LibraryView() {
     if (next.source) {
       params.set('source', next.source);
     }
+
     if (next.status) {
       params.set('status', next.status);
     }
+
     if (next.q.trim()) {
       params.set('q', next.q.trim());
     }
+
     if (size !== DEFAULT_SIZE) {
       params.set('size', String(size));
     }
+
     const qStr = params.toString();
     navigate(qStr ? `/radar/posts?${qStr}` : '/radar/posts');
   };
+
   const reset = (): void => apply({ source: '', status: '', q: '' });
 
   return (
@@ -197,6 +203,7 @@ function LibraryView() {
                   const srcMeta = SOURCE_META[post.source as RadarSourceKind];
                   const SrcIcon = srcMeta?.icon;
                   const translated = !!post.titleZh;
+
                   return (
                     <TableRow
                       key={post.id}

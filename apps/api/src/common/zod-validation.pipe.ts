@@ -18,6 +18,7 @@ export class ZodValidationPipe<T> implements PipeTransform {
         .join('; ');
       throw new BadRequestException(`请求非法：${msg}`);
     }
+
     return result.data;
   }
 }

@@ -29,6 +29,7 @@ module.exports = function withExpoImportAccessLevel(config) {
         'public import Expo',
       );
     }
+
     return config;
   });
 };

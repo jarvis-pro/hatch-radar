@@ -19,6 +19,7 @@ export class SourcesSeeder implements Seeder {
     if ((await this.sources.countSources()) > 0) {
       return { status: 'skipped', reason: 'sources 表非空' };
     }
+
     for (const sub of SUBREDDITS) {
       await this.sources.createSource(
         {
@@ -30,18 +31,21 @@ export class SourcesSeeder implements Seeder {
         ctx.now,
       );
     }
+
     for (const hn of HN_SECTIONS) {
       await this.sources.createSource(
         { platform: 'hackernews', identifier: hn.endpoint, label: hn.channel },
         ctx.now,
       );
     }
+
     for (const feed of RSS_FEEDS) {
       await this.sources.createSource(
         { platform: 'rss', identifier: feed.url, label: feed.name },
         ctx.now,
       );
     }
+
     return {
       status: 'seeded',
       detail: `reddit ${SUBREDDITS.length} / hackernews ${HN_SECTIONS.length} / rss ${RSS_FEEDS.length}`,

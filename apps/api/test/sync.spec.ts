@@ -24,6 +24,7 @@ async function seedInsight(db: AppDatabase): Promise<number> {
     },
     select: { id: true },
   });
+
   return row.id;
 }
 

@@ -79,12 +79,14 @@ export class UsersRepository {
   /** 会话解析用：按 id 取用户 + 已加载权限，含密码哈希。不存在返回 null。 */
   async resolveWithPermissions(id: string): Promise<UserAuthView | null> {
     const u = await this.db.users.findUnique({ where: { id }, include: { permissions: true } });
+
     return u ? toAuthView(u) : null;
   }
 
   /** 登录用：按邮箱取用户 + 已加载权限，含密码哈希。不存在返回 null。 */
   async findAuthViewByEmail(email: string): Promise<UserAuthView | null> {
     const u = await this.db.users.findUnique({ where: { email }, include: { permissions: true } });
+
     return u ? toAuthView(u) : null;
   }
 
@@ -160,6 +162,7 @@ export class UsersRepository {
           : undefined,
       },
     });
+
     return user.id;
   }
 
@@ -204,6 +207,7 @@ export class UsersRepository {
       include: { permissions: true, _count: { select: { devices: true } } },
       orderBy: [{ role: 'asc' }, { created_at: 'asc' }],
     });
+
     return rows.map((r) => ({
       id: r.id,
       email: r.email,

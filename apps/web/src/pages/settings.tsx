@@ -33,6 +33,7 @@ function SettingsView() {
       (prev) => {
         const next = new URLSearchParams(prev);
         next.set('tab', v);
+
         return next;
       },
       { replace: true },

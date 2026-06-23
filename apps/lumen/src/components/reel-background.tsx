@@ -27,6 +27,7 @@ function SceneGlow({
       Extrapolation.CLAMP,
     ),
   }));
+
   return (
     <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, style]}>
       <Svg width="100%" height="100%">

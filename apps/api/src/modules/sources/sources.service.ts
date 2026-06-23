@@ -38,6 +38,7 @@ export class SourcesService {
       this.connectors.listConnectors(),
       this.connectors.hasUsableConnector('reddit'),
     ]);
+
     return {
       sources: sourceRows,
       connectors: connectorRows.map(toConnectorDTO),
@@ -50,6 +51,7 @@ export class SourcesService {
     await this.assertRedditEnable(input.platform, input.enabled !== false);
     const id = await this.sources.createSource(input, nowSec());
     logger.info(`[数据来源] 新增 #${id}：${input.platform}/${input.identifier}`);
+
     return { id };
   }
 
@@ -58,9 +60,11 @@ export class SourcesService {
     if (!existing) {
       throw new NotFoundError('来源不存在');
     }
+
     if (fields.enabled === true) {
       await this.assertRedditEnable(existing.platform, true);
     }
+
     if (Object.keys(fields).length > 0) {
       await this.sources.updateSource(id, fields, nowSec());
     }
@@ -70,6 +74,7 @@ export class SourcesService {
     if (!(await this.sources.deleteSource(id))) {
       throw new NotFoundError('来源不存在');
     }
+
     logger.info(`[数据来源] 删除 #${id}`);
   }
 
@@ -92,8 +97,10 @@ export class SourcesService {
     if (!isSecretConfigured()) {
       throw new ValidationError('未配置 SETTINGS_SECRET，无法加密入库，请先在 .env 设置');
     }
+
     const id = await this.connectors.createConnector(input, nowSec());
     logger.info(`[采集连接器] 新增 #${id}：${input.platform}/${input.authKind}`);
+
     return { id };
   }
 
@@ -101,12 +108,15 @@ export class SourcesService {
     if (fields.secret && !isSecretConfigured()) {
       throw new ValidationError('未配置 SETTINGS_SECRET，无法加密新凭据');
     }
+
     if (!(await this.connectors.getConnector(id))) {
       throw new NotFoundError('连接器不存在');
     }
+
     if (Object.keys(fields).length > 0) {
       await this.connectors.updateConnector(id, fields, nowSec());
     }
+
     logger.info(`[采集连接器] 更新 #${id}`);
   }
 
@@ -114,6 +124,7 @@ export class SourcesService {
     if (!(await this.connectors.deleteConnector(id))) {
       throw new NotFoundError('连接器不存在');
     }
+
     logger.info(`[采集连接器] 删除 #${id}`);
   }
 

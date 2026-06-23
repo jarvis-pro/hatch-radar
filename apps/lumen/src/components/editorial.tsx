@@ -4,6 +4,7 @@ import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 /** 整屏强度色场（静态径向光晕，单色屏用：详情 / 探索）。叠在极光之上。 */
 export function HueWash({ color, opacity = 0.5 }: { color: string; opacity?: number }) {
   const id = `wash-${color.replace('#', '')}`;
+
   return (
     <View pointerEvents="none" style={StyleSheet.absoluteFill}>
       <Svg width="100%" height="100%">

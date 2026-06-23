@@ -41,19 +41,23 @@ function getOrCreateKeyPair(): DeviceKeyPair {
       sk = legacy;
     }
   }
+
   if (sk && pk) {
     return { publicKeyB64: pk, secretKey: naclUtil.decodeBase64(sk) };
   }
+
   const kp = nacl.sign.keyPair();
   const publicKeyB64 = naclUtil.encodeBase64(kp.publicKey);
   SecureStore.setItem(SECRET_STORE_KEY, naclUtil.encodeBase64(kp.secretKey));
   setMeta(PUBLIC_KEY, publicKeyB64);
+
   return { publicKeyB64, secretKey: kp.secretKey };
 }
 
 /** 当前设备凭据 id（激活后才有；用作 x-device-id）。 */
 export function getCredentialId(): string | null {
   const id = getMeta(CREDENTIAL_ID);
+
   return id ? id : null;
 }
 
@@ -81,18 +85,22 @@ export async function enrollDevice(
     if (res.status === 401) {
       throw new Error('激活码无效或已过期');
     }
+
     if (!res.ok) {
       throw new Error(`工作台返回 ${res.status}`);
     }
+
     const data = (await res.json()) as { credentialId?: string };
     if (!data.credentialId) {
       throw new Error('激活响应异常');
     }
+
     setMeta(CREDENTIAL_ID, data.credentialId);
   } catch (err) {
     if (err instanceof Error && err.name === 'AbortError') {
       throw new Error('连接超时：请确认与工作台在同一局域网', { cause: err });
     }
+
     throw err;
   } finally {
     clearTimeout(timer);
@@ -120,12 +128,14 @@ export async function buildDeviceHeaders(
   if (!credentialId) {
     return {};
   }
+
   const { secretKey } = getOrCreateKeyPair();
   const ts = Math.floor(Date.now() / 1000);
   // body 哈希纳入签名：与服务端按 req.rawBody 算的 sha256 hex 对齐，防「换 body 重放」。
   const bodyHash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, body);
   const canonical = `${credentialId}.${ts}.${method.toUpperCase()}.${path.split('?')[0]}.${bodyHash}`;
   const sig = nacl.sign.detached(naclUtil.decodeUTF8(canonical), secretKey);
+
   return {
     'x-device-id': credentialId,
     'x-device-ts': String(ts),

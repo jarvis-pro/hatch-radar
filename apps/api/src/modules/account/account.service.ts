@@ -87,15 +87,20 @@ export class AccountService {
     if (!session) {
       return null;
     }
+
     if (Number(session.expires_at) <= now) {
       await this.sessions.deleteById(session.id);
+
       return null;
     }
+
     const user = await this.users.resolveWithPermissions(session.user_id);
     if (!user || user.status !== 'active') {
       await this.sessions.deleteById(session.id);
+
       return null;
     }
+
     if (now - Number(session.last_seen_at) >= SLIDE_THROTTLE) {
       const { idleDays, absoluteDays } = await this.runtimeSettings.getSessionConfig();
       const nextExpiry = Math.min(
@@ -104,6 +109,7 @@ export class AccountService {
       );
       await this.sessions.touch(session.id, now, nextExpiry);
     }
+
     return { ...stripHash(user), sessionId: session.id };
   }
 
@@ -112,6 +118,7 @@ export class AccountService {
     if (!email || !password) {
       throw new ValidationError('请输入邮箱和密码');
     }
+
     try {
       const now = nowSec();
       const lock = await this.lockRemaining(email, now);
@@ -123,6 +130,7 @@ export class AccountService {
         });
         throw new RateLimitError(`尝试过于频繁，请约 ${Math.ceil(lock / 60)} 分钟后再试`);
       }
+
       const view = await this.users.findAuthViewByEmail(email);
       const ok =
         !!view && view.status === 'active' && (await verifyPassword(password, view.passwordHash));
@@ -135,6 +143,7 @@ export class AccountService {
         });
         throw new UnauthorizedError('邮箱或密码不正确');
       }
+
       const { idleDays, absoluteDays } = await this.runtimeSettings.getSessionConfig();
       const token = generateSessionToken();
       const tokenHash = hashSessionToken(token);
@@ -153,12 +162,14 @@ export class AccountService {
         await this.users.updateLastLogin(view.id, now);
       });
       await this.audit.write({ actorId: view.id, action: 'auth.login', ip: meta.ip ?? null });
+
       return { token, user: stripHash(view), absoluteDays };
     } catch (e) {
       // 业务失败（限流 / 凭据错）原样冒泡；意外错误（DB 抖动等）记根因后才转 503
       if (e instanceof DomainError) {
         throw e;
       }
+
       logUnexpected('login', e);
       throw new ServiceUnavailableError('登录失败：服务暂时不可用，请稍后再试');
     }
@@ -182,14 +193,17 @@ export class AccountService {
     if (next.length < 8) {
       throw new ValidationError('新密码至少 8 位');
     }
+
     if (next !== confirm) {
       throw new ValidationError('两次输入的新密码不一致');
     }
+
     try {
       const row = await this.users.findById(user.id);
       if (!row || !(await verifyPassword(current, row.password_hash))) {
         throw new ValidationError('当前密码不正确');
       }
+
       const newHash = await hashPassword(next);
       // 改密与「踢其余会话」必须同生共死：崩在两步之间会留下「密码已改、旧会话仍有效」的窗口。
       await this.tx.run(async () => {
@@ -201,6 +215,7 @@ export class AccountService {
       if (e instanceof DomainError) {
         throw e;
       }
+
       logUnexpected('changePassword', e);
       throw new ServiceUnavailableError('修改失败：服务暂时不可用，请稍后再试');
     }
@@ -212,12 +227,14 @@ export class AccountService {
     if (!trimmed) {
       throw new ValidationError('姓名不能为空');
     }
+
     try {
       await this.users.updateName(user.id, trimmed, nowSec());
     } catch (e) {
       if (e instanceof DomainError) {
         throw e;
       }
+
       logUnexpected('updateOwnName', e);
       throw new ServiceUnavailableError('保存失败：服务暂时不可用');
     }
@@ -226,6 +243,7 @@ export class AccountService {
   /** 取指定用户的当前态（设备/会话双通道的 /api/me 用）。 */
   async getProfile(userId: string): Promise<CurrentUser | null> {
     const view = await this.users.resolveWithPermissions(userId);
+
     return view ? stripHash(view) : null;
   }
 
@@ -242,6 +260,7 @@ export class AccountService {
       if (e instanceof DomainError) {
         throw e;
       }
+
       logUnexpected('updateAvatarById', e);
       throw new ServiceUnavailableError('保存失败：服务暂时不可用');
     }
@@ -250,6 +269,7 @@ export class AccountService {
   /** 个人中心：未过期会话列表（标记当前会话）。 */
   async listSessions(user: AuthedUser): Promise<SessionInfo[]> {
     const rows = await this.sessions.listActiveByUser(user.id, nowSec());
+
     return rows.map((s) => ({ ...s, current: s.id === user.sessionId }));
   }
 
@@ -271,7 +291,9 @@ export class AccountService {
     if (!row || row.locked_until == null) {
       return 0;
     }
+
     const remaining = Number(row.locked_until) - now;
+
     return remaining > 0 ? remaining : 0;
   }
 

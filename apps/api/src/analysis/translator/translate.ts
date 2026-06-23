@@ -43,7 +43,9 @@ export function looksChinese(text: string): boolean {
   if (han === 0) {
     return false;
   }
+
   const latin = (text.match(/[A-Za-z]/g) ?? []).length;
+
   return han >= latin;
 }
 
@@ -61,12 +63,15 @@ function chunk(items: TranslateItem[]): TranslateItem[][] {
       cur = [];
       curChars = 0;
     }
+
     cur.push(it);
     curChars += it.text.length;
   }
+
   if (cur.length > 0) {
     batches.push(cur);
   }
+
   return batches;
 }
 
@@ -117,5 +122,6 @@ export async function translateItems(
       usageAcc = usageAcc ? addUsage(usageAcc, usage) : usage;
     }
   }
+
   return { results, usage: usageAcc };
 }

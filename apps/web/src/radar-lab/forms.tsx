@@ -84,13 +84,17 @@ function splitInterval(everySec: number): { value: number; unit: IntervalUnit } 
   if (everySec > 0 && everySec % 3600 === 0) {
     return { value: everySec / 3600, unit: 'hour' };
   }
+
   if (everySec > 0 && everySec % 60 === 0) {
     return { value: everySec / 60, unit: 'min' };
   }
+
   return { value: everySec, unit: 'sec' };
 }
+
 const cronTimeOf = (expr: string): string => {
   const m = /(\d{1,2}):(\d{2})/.exec(expr);
+
   return m ? `${pad2(Number(m[1]))}:${m[2]}` : '09:00';
 };
 
@@ -104,6 +108,7 @@ function useOpenKey(open: boolean): number {
       setKey((k) => k + 1);
     }
   }
+
   return key;
 }
 
@@ -148,6 +153,7 @@ function initSources(editing?: BlueprintDTO): SourceDraft {
   } else {
     base.reddit = { enabled: true, channels: '' };
   }
+
   return base;
 }
 
@@ -158,18 +164,23 @@ function readCollect(editing?: BlueprintDTO): CollectParams {
   if (editing?.kind !== 'collect') {
     return DEFAULT_COLLECT_PARAMS;
   }
+
   const p = editing.params;
+
   return {
     limit: num(p.limit, DEFAULT_COLLECT_PARAMS.limit),
     stopAfterKnown: num(p.stopAfterKnown, DEFAULT_COLLECT_PARAMS.stopAfterKnown),
     commentBudget: num(p.commentBudget, DEFAULT_COLLECT_PARAMS.commentBudget),
   };
 }
+
 function readRecheck(editing?: BlueprintDTO): RecheckParams {
   if (editing?.kind !== 'recheck') {
     return DEFAULT_RECHECK_PARAMS;
   }
+
   const p = editing.params;
+
   return {
     batchSize: num(p.batchSize, DEFAULT_RECHECK_PARAMS.batchSize),
     batchIntervalSec: num(p.batchIntervalSec, DEFAULT_RECHECK_PARAMS.batchIntervalSec),
@@ -203,6 +214,7 @@ function BlueprintBody({
       channels: enabled.some((k) => !sources[k].channels.trim()),
     };
   }
+
   const e = tried ? errs() : {};
 
   function submit(): void {
@@ -211,6 +223,7 @@ function BlueprintBody({
     if (x.label || x.sources || x.channels) {
       return;
     }
+
     const selected = enabled.map((k) => ({
       kind: k,
       channels: sources[k].channels
@@ -282,6 +295,7 @@ function BlueprintBody({
             {(['collect', 'recheck'] as BlueprintKind[]).map((k) => {
               const m = KIND_META[k];
               const active = kind === k;
+
               return (
                 <button
                   key={k}
@@ -318,6 +332,7 @@ function BlueprintBody({
             const fm = SOURCE_FORM[k];
             const d = sources[k];
             const cErr = tried && d.enabled && !d.channels.trim();
+
             return (
               <div key={k} className="rounded-lg border p-3">
                 <div className="flex items-center justify-between">
@@ -461,6 +476,7 @@ export function BlueprintFormDialog({
 }): ReactNode {
   const k = useOpenKey(open);
   const isMobile = useIsMobile();
+
   return (
     <Drawer open={open} onOpenChange={onOpenChange} direction={isMobile ? 'bottom' : 'right'}>
       <DrawerContent className="data-[vaul-drawer-direction=right]:sm:max-w-lg">
@@ -472,6 +488,7 @@ export function BlueprintFormDialog({
               if (id != null) {
                 onCreated?.(id);
               }
+
               onOpenChange(false);
             }}
           />
@@ -514,9 +531,11 @@ function ProcessBody({
     if (tk === 'once') {
       return { kind: 'once' };
     }
+
     if (tk === 'cron') {
       return { kind: 'cron', expr: `每天 ${cronTime || '09:00'}` };
     }
+
     return {
       kind: 'interval',
       everySec: Math.max(5, Math.round(intervalValue) * UNIT_SEC[intervalUnit]),
@@ -527,6 +546,7 @@ function ProcessBody({
     if (!blueprint) {
       return;
     }
+
     const trigger = buildTrigger();
     const finalLabel = label.trim() || `${blueprint.label} · ${triggerSummary(trigger)}`;
     if (editing) {
@@ -590,6 +610,7 @@ function ProcessBody({
               {(['once', 'interval', 'cron'] as TriggerKind[]).map((k, i) => {
                 const m = TRIGGER_META[k];
                 const active = tk === k;
+
                 return (
                   <button
                     key={k}
@@ -693,6 +714,7 @@ export function ProcessFormDialog({
 }): ReactNode {
   const k = useOpenKey(open);
   const isMobile = useIsMobile();
+
   return (
     <Drawer open={open} onOpenChange={onOpenChange} direction={isMobile ? 'bottom' : 'right'}>
       <DrawerContent className="data-[vaul-drawer-direction=right]:sm:max-w-lg">

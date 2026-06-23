@@ -32,10 +32,13 @@ export function ProtectedLayout() {
       </div>
     );
   }
+
   if (status === 'anon' || !user) {
     const next = encodeURIComponent(location.pathname + location.search);
+
     return <Navigate to={`/login?next=${next}`} replace />;
   }
+
   if (user.mustChangePassword && location.pathname !== '/account/password') {
     return <Navigate to="/account/password" replace />;
   }

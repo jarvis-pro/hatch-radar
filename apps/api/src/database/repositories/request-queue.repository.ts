@@ -46,6 +46,7 @@ export class RequestQueueRepository {
         started_at: BigInt(now),
       },
     });
+
     return row.id;
   }
 
@@ -69,6 +70,7 @@ export class RequestQueueRepository {
   /** 最近请求（id 倒序），供控制台展示。 */
   async listRecent(limit: number): Promise<RequestQueueRow[]> {
     const rows = await this.db.request_queue.findMany({ orderBy: { id: 'desc' }, take: limit });
+
     return rows.map((r: RequestQueuePg) => toRequestQueueRow(r));
   }
 

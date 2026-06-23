@@ -59,11 +59,13 @@ export class ProcessesRepository {
         updated_at: BigInt(now),
       },
     });
+
     return toProcessRow(row);
   }
 
   async getProcess(id: number): Promise<ProcessRow | null> {
     const row = await this.db.processes.findUnique({ where: { id } });
+
     return row ? toProcessRow(row) : null;
   }
 
@@ -73,6 +75,7 @@ export class ProcessesRepository {
       where: blueprintId != null ? { blueprint_id: blueprintId } : {},
       orderBy: { id: 'desc' },
     });
+
     return rows.map((r: ProcessPg) => toProcessRow(r));
   }
 
@@ -82,6 +85,7 @@ export class ProcessesRepository {
       where: { status: 'active', next_run_at: { not: null, lte: BigInt(now) } },
       orderBy: { next_run_at: 'asc' },
     });
+
     return rows.map((r: ProcessPg) => toProcessRow(r));
   }
 
@@ -90,21 +94,26 @@ export class ProcessesRepository {
     if (patch.label !== undefined) {
       data.label = patch.label;
     }
+
     if (patch.triggerKind !== undefined) {
       data.trigger_kind = patch.triggerKind;
     }
+
     if (patch.triggerConfig !== undefined) {
       data.trigger_config =
         patch.triggerConfig == null
           ? Prisma.JsonNull
           : (patch.triggerConfig as Prisma.InputJsonValue);
     }
+
     if (patch.status !== undefined) {
       data.status = patch.status;
     }
+
     if (patch.nextRunAt !== undefined) {
       data.next_run_at = patch.nextRunAt == null ? null : BigInt(patch.nextRunAt);
     }
+
     await this.db.processes.update({ where: { id }, data });
   }
 
@@ -143,6 +152,7 @@ export class ProcessesRepository {
       where: { id },
       data: { sweep_seq: { increment: 1 } },
     });
+
     return row.sweep_seq;
   }
 

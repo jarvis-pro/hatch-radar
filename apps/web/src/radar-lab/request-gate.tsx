@@ -38,6 +38,7 @@ function ReqRow({ req }: { req: RequestRowDTO }) {
     req.status === 'running' && req.startedAt != null
       ? `${Math.max(0, Math.round(nowSec - req.startedAt))}s`
       : '';
+
   return (
     <div className="flex items-center gap-2 py-1 text-xs">
       <span
@@ -150,6 +151,7 @@ function RequestGate() {
   if (q.isError) {
     return <LoadError onRetry={() => void q.refetch()} />;
   }
+
   if (q.isPending) {
     return <Skeleton className="h-96 w-full" />;
   }

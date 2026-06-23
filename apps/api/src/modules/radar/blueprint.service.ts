@@ -24,6 +24,7 @@ export class BlueprintService {
 
   async getBlueprint(id: number): Promise<BlueprintDTO | null> {
     const b = await this.blueprints.getBlueprint(id);
+
     return b ? toBlueprintDTO(b) : null;
   }
 
@@ -37,6 +38,7 @@ export class BlueprintService {
     enabledStages?: string[];
   }): Promise<BlueprintDTO> {
     const b = await this.blueprints.createBlueprint(input, nowSec());
+
     return toBlueprintDTO(b);
   }
 
@@ -60,6 +62,7 @@ export class BlueprintService {
     if (used) {
       throw new ValidationError('该图纸仍被进程引用，请先删除其进程');
     }
+
     await this.blueprints.deleteBlueprint(id);
   }
 }

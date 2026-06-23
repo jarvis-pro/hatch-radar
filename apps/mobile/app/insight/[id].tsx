@@ -44,9 +44,11 @@ export default function InsightDetailScreen() {
     if (!insight) {
       return null;
     }
+
     const post = getPost(insight.postId);
     const comments = post ? getComments(post.id) : [];
     const translations: PostTranslations = post ? getPostTranslations(post.id) : { comments: {} };
+
     return { insight, post, comments, translations };
   }, [insightId]);
 
@@ -66,6 +68,7 @@ export default function InsightDetailScreen() {
       </View>
     );
   }
+
   const { insight, post, comments, translations } = data;
   const hasTr =
     !!translations.title ||

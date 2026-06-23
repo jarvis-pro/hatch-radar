@@ -21,6 +21,7 @@ function mk(name: string, order: number, critical: boolean, run: Seeder['run']):
 function runner(a: Seeder, b: Seeder, c: Seeder): SeedRunner {
   // 额外两个位置（blueprints / processes）用 order 极大的 no-op mock 占位：跑在最后、不入断言序列。
   const pad = (): Seeder => mk('pad', 999, false, async () => skipped());
+
   return new SeedRunner(
     a as unknown as SourcesSeeder,
     b as unknown as SuperAdminSeeder,
@@ -35,14 +36,17 @@ describe('SeedRunner', () => {
     const calls: string[] = [];
     const a = mk('a', 20, false, async () => {
       calls.push('a');
+
       return skipped();
     });
     const b = mk('b', 10, false, async () => {
       calls.push('b');
+
       return skipped();
     });
     const c = mk('c', 30, false, async () => {
       calls.push('c');
+
       return skipped();
     });
     await runner(a, b, c).run(NOW);
@@ -54,10 +58,12 @@ describe('SeedRunner', () => {
     const crit = mk('crit', 10, true, () => Promise.reject(new Error('boom')));
     const after = mk('after', 20, false, async () => {
       calls.push('after');
+
       return skipped();
     });
     const last = mk('last', 30, false, async () => {
       calls.push('last');
+
       return skipped();
     });
     await expect(runner(crit, after, last).run(NOW)).rejects.toThrow('boom');
@@ -69,10 +75,12 @@ describe('SeedRunner', () => {
     const bad = mk('bad', 10, false, () => Promise.reject(new Error('x')));
     const good = mk('good', 20, false, async () => {
       calls.push('good');
+
       return skipped();
     });
     const more = mk('more', 30, false, async () => {
       calls.push('more');
+
       return skipped();
     });
     await runner(bad, good, more).run(NOW);
@@ -83,8 +91,10 @@ describe('SeedRunner', () => {
     const nows: number[] = [];
     const push = async (ctx: SeedContext): Promise<SeedOutcome> => {
       nows.push(ctx.now);
+
       return skipped();
     };
+
     await runner(mk('a', 10, false, push), mk('b', 20, false, push), mk('c', 30, false, push)).run(
       NOW,
     );

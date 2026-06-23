@@ -35,6 +35,7 @@ export class StatsRepository {
         (SELECT count(*) FROM posts WHERE ${PENDING_ANALYSIS_PREDICATE}) AS pending,
         (SELECT count(*) FROM insights) AS insights
     `;
+
     return {
       posts: Number(row?.posts ?? 0),
       comments: Number(row?.comments ?? 0),
@@ -54,6 +55,7 @@ export class StatsRepository {
         take: 8,
       }),
     ]);
+
     return {
       byIntensity: intensity.map((i) => ({ name: i.intensity, count: i._count._all })),
       topSubreddits: subs.map((s) => ({ name: s.subreddit, count: s._count._all })),
@@ -110,6 +112,7 @@ export class StatsRepository {
         LIMIT 12
       `,
     ]);
+
     return {
       funnel: {
         collected: Number(funnelRow?.collected ?? 0),

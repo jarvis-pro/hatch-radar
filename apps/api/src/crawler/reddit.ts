@@ -75,9 +75,11 @@ export function flattenRedditTree(children: ListingChild[]): CommentFetchResult 
         dropped += Number((child.data as { count?: unknown }).count ?? 0);
         continue;
       }
+
       if (child.kind !== 't1') {
         continue;
       }
+
       const d = child.data;
       const id = String(d.id ?? '');
       out.push({
@@ -95,7 +97,9 @@ export function flattenRedditTree(children: ListingChild[]): CommentFetchResult 
       }
     }
   };
+
   walk(children, 0, null);
+
   return {
     comments: out.filter((c) => c.id && c.body && c.body !== '[deleted]' && c.body !== '[removed]'),
     dropped,
@@ -152,14 +156,17 @@ export class RedditClient {
     if (!res.ok) {
       throw new Error(`Reddit OAuth 认证失败: ${res.status} ${await res.text()}`);
     }
+
     const data = (await res.json()) as { access_token?: string; expires_in?: number };
     if (!data.access_token) {
       throw new Error('Reddit OAuth 认证失败：响应中没有 access_token，请检查账号与应用配置');
     }
+
     this.token = {
       value: data.access_token,
       expiresAt: Date.now() + ((data.expires_in ?? 3600) - 60) * 1000,
     };
+
     return data.access_token;
   }
 
@@ -167,6 +174,7 @@ export class RedditClient {
     if (this.token && Date.now() < this.token.expiresAt) {
       return this.token.value;
     }
+
     return this.fetchToken();
   }
 
@@ -200,20 +208,24 @@ export class RedditClient {
         this.token = null;
         continue;
       }
+
       if (res.status === 429 || res.status >= 500) {
         const retryAfter = Number(res.headers.get('retry-after'));
         const delay = retryAfter > 0 ? retryAfter * 1000 : Math.min(2 ** attempt * 1000, 60_000);
         if (res.status === 429) {
           this.queue.pause(delay);
         }
+
         logger.warn(
           `Reddit ${res.status}，${Math.round(delay / 1000)}s 后重试（${attempt}/${MAX_ATTEMPTS}）: ${path}`,
         );
         await sleep(delay + Math.floor(Math.random() * 250));
         continue;
       }
+
       throw new Error(`Reddit GET ${path} 失败: ${res.status} ${await res.text()}`);
     }
+
     throw new Error(`Reddit GET ${path}: 重试 ${MAX_ATTEMPTS} 次后仍失败`);
   }
 
@@ -226,6 +238,7 @@ export class RedditClient {
    */
   async fetchListing(subreddit: string, sort: 'hot' | 'new', limit = 25): Promise<RedditPost[]> {
     const data = await this.get<ListingResponse>(`/r/${subreddit}/${sort}`, { limit });
+
     return (data.data?.children ?? [])
       .filter((child) => child.kind === 't3')
       .map((child) => mapPost(child.data, subreddit))
@@ -255,6 +268,7 @@ export class RedditClient {
       limit,
       sort: 'top',
     });
+
     return flattenRedditTree(data[1]?.data?.children ?? []);
   }
 }

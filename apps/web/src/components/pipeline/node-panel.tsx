@@ -29,6 +29,7 @@ function StatusBadge({ status }: { status: string }) {
     skipped: { label: '跳过', variant: 'outline' },
   };
   const m = meta[status] ?? meta.pending;
+
   return <Badge variant={m.variant}>{m.label}</Badge>;
 }
 
@@ -59,6 +60,7 @@ function CodeBlock({ text, label }: { text: string; label?: string }) {
 /** 可折叠区块（用于完整 system prompt 等）。 */
 function Foldable({ title, children }: { title: string; children: ReactNode }) {
   const [open, setOpen] = useState(false);
+
   return (
     <div className="space-y-1">
       <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => setOpen((o) => !o)}>
@@ -79,6 +81,7 @@ function rawText(raw: string | object): string {
       return raw;
     }
   }
+
   return JSON.stringify(raw, null, 2);
 }
 
@@ -155,6 +158,7 @@ function AiCallPanel({ o }: { o: AiCallOutput }) {
 
 function NormalizePanel({ o }: { o: NormalizeOutput }) {
   const { insight } = o;
+
   return (
     <div className="space-y-3 text-sm">
       <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
@@ -239,6 +243,7 @@ export function NodePanel({ step, postId }: { step: InspectStepView; postId: str
     if (step.status === 'pending') {
       return <p className="text-sm text-muted-foreground">尚未执行。</p>;
     }
+
     if (step.status === 'running') {
       return (
         <p className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -246,6 +251,7 @@ export function NodePanel({ step, postId }: { step: InspectStepView; postId: str
         </p>
       );
     }
+
     if (step.status === 'failed') {
       return (
         <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
@@ -253,11 +259,13 @@ export function NodePanel({ step, postId }: { step: InspectStepView; postId: str
         </div>
       );
     }
+
     // done：按节点类型渲染产物
     const out = step.output;
     if (out == null) {
       return <p className="text-sm text-muted-foreground">无产物。</p>;
     }
+
     switch (step.name as InspectStepName) {
       case 'resolve':
         return <ResolvePanel o={out as ResolveOutput} />;

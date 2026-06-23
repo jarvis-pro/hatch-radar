@@ -77,6 +77,7 @@ function SessionList() {
         {ordered.map((s) => {
           const ua = parseUserAgent(s.userAgent);
           const Icon = DEVICE_ICON[ua.kind];
+
           return (
             <div
               key={s.id}

@@ -25,6 +25,7 @@ export class SessionAuthGuard implements CanActivate {
       [context.getHandler(), context.getClass()],
     );
     req.user = await this.authenticator.authenticate(req, requiredPerm);
+
     return true;
   }
 }

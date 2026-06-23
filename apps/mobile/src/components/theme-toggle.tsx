@@ -62,6 +62,7 @@ function ThemeSheet({
     if (!open) {
       return;
     }
+
     translateY.setValue(24);
     Animated.timing(translateY, {
       toValue: 0,
@@ -90,6 +91,7 @@ function ThemeSheet({
           </Text>
           {OPTIONS.map((o) => {
             const active = mode === o.value;
+
             return (
               <Pressable
                 key={o.value}

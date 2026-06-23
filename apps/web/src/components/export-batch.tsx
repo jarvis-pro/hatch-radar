@@ -39,16 +39,21 @@ function coverageQs(f: ExportFilterBody): string {
   if (f.since) {
     qs.set('since', String(f.since));
   }
+
   if (f.minIntensity) {
     qs.set('minIntensity', f.minIntensity);
   }
+
   if (f.subreddit) {
     qs.set('subreddit', f.subreddit);
   }
+
   if (f.limit) {
     qs.set('limit', String(f.limit));
   }
+
   const s = qs.toString();
+
   return s ? `?${s}` : '';
 }
 
@@ -80,16 +85,20 @@ export function ExportBatchButton({ subreddits }: { subreddits: string[] }) {
     if (days && Number.isFinite(d) && d > 0) {
       f.since = Math.floor(Date.now() / 1000) - Math.round(d * 86400);
     }
+
     if (minIntensity) {
       f.minIntensity = minIntensity;
     }
+
     if (subreddit.trim()) {
       f.subreddit = subreddit.trim();
     }
+
     const n = Number(limit);
     if (limit && Number.isInteger(n) && n > 0) {
       f.limit = n;
     }
+
     return f;
   }, [days, minIntensity, subreddit, limit]);
 
@@ -118,8 +127,10 @@ export function ExportBatchButton({ subreddits }: { subreddits: string[] }) {
     onSuccess: (r) => {
       if (r.posts === 0) {
         toast.info('这批没有需要补翻的内容');
+
         return;
       }
+
       setTranslating(true);
       toast.success(`已入队翻译 ${r.enqueued} 篇，完成后覆盖率会自动更新，再导出即带中文`);
       void qc.invalidateQueries({ queryKey: ['translation-coverage', filter] });
@@ -136,12 +147,15 @@ export function ExportBatchButton({ subreddits }: { subreddits: string[] }) {
       if (filter.since) {
         qs.set('since', String(filter.since));
       }
+
       if (filter.minIntensity) {
         qs.set('minIntensity', filter.minIntensity);
       }
+
       if (filter.subreddit) {
         qs.set('subreddit', filter.subreddit);
       }
+
       if (filter.limit) {
         qs.set('limit', String(filter.limit));
       }

@@ -25,9 +25,11 @@ export class SuperAdminSeeder implements Seeder {
     if (!sa) {
       return { status: 'skipped', reason: '未设置 SUPER_ADMIN_EMAIL/PASSWORD' };
     }
+
     if ((await this.users.count()) > 0) {
       return { status: 'skipped', reason: 'users 表非空' };
     }
+
     await this.users.create(
       {
         email: sa.email,
@@ -41,6 +43,7 @@ export class SuperAdminSeeder implements Seeder {
       },
       ctx.now,
     );
+
     return { status: 'seeded', detail: `已创建首个超级管理员 ${sa.email}（首登强制改密）` };
   }
 }

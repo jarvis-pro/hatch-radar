@@ -11,6 +11,7 @@ const MAX_SELFTEXT_CHARS = 4000;
 
 function truncate(text: string, max: number): string {
   const trimmed = text.trim();
+
   return trimmed.length <= max ? trimmed : `${trimmed.slice(0, max)}…`;
 }
 
@@ -60,12 +61,14 @@ export function decodeHtmlEntities(text: string): string {
         if (!Number.isInteger(codePoint) || codePoint < 0 || codePoint > 0x10ffff) {
           return match;
         }
+
         try {
           return String.fromCodePoint(codePoint);
         } catch {
           return match;
         }
       }
+
       return NAMED_ENTITIES[body] ?? match;
     },
   );
@@ -116,6 +119,7 @@ export function buildContext(post: PostRow, comments: CommentRow[]): string {
 
   if (comments.length === 0) {
     lines.push('', '（暂无评论）');
+
     return lines.join('\n');
   }
 
@@ -130,6 +134,7 @@ export function buildContext(post: PostRow, comments: CommentRow[]): string {
     if (c.parent_id === null) {
       continue;
     }
+
     const bucket = childrenByScore.get(c.parent_id);
     if (bucket) {
       bucket.push(c);
@@ -137,9 +142,11 @@ export function buildContext(post: PostRow, comments: CommentRow[]): string {
       childrenByScore.set(c.parent_id, [c]);
     }
   }
+
   for (const bucket of childrenByScore.values()) {
     bucket.sort((a, b) => b.score - a.score);
   }
+
   const topThreads = comments
     .filter(isRoot)
     .sort((a, b) => b.score - a.score)
@@ -149,21 +156,26 @@ export function buildContext(post: PostRow, comments: CommentRow[]): string {
     if (selected.size >= MAX_COMMENTS_RENDERED) {
       return;
     }
+
     selected.add(comment.id);
     if (depth >= MAX_DEPTH_RENDERED) {
       return;
     }
+
     for (const child of childrenByScore.get(comment.id) ?? []) {
       if (selected.size >= MAX_COMMENTS_RENDERED) {
         break;
       }
+
       select(child, depth + 1);
     }
   };
+
   for (const root of topThreads) {
     if (selected.size >= MAX_COMMENTS_RENDERED) {
       break;
     }
+
     select(root, 0);
   }
 
@@ -174,6 +186,7 @@ export function buildContext(post: PostRow, comments: CommentRow[]): string {
     if (!selected.has(c.id) || c.parent_id === null || !selected.has(c.parent_id)) {
       continue;
     }
+
     const bucket = childrenByTime.get(c.parent_id);
     if (bucket) {
       bucket.push(c);
@@ -181,9 +194,11 @@ export function buildContext(post: PostRow, comments: CommentRow[]): string {
       childrenByTime.set(c.parent_id, [c]);
     }
   }
+
   for (const bucket of childrenByTime.values()) {
     bucket.sort((a, b) => a.created_utc - b.created_utc);
   }
+
   const rootsByTime = comments
     .filter((c) => selected.has(c.id) && isRoot(c))
     .sort((a, b) => a.created_utc - b.created_utc);
@@ -199,6 +214,7 @@ export function buildContext(post: PostRow, comments: CommentRow[]): string {
       renderNode(child, depth + 1);
     }
   };
+
   for (const root of rootsByTime) {
     renderNode(root, 0);
   }

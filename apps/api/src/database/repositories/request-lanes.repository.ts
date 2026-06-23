@@ -20,6 +20,7 @@ export class RequestLanesRepository {
   /** 取一条 lane 配置；不存在返回 null。 */
   async getLane(lane: string): Promise<RequestLaneRow | null> {
     const row = await this.db.request_lanes.findUnique({ where: { lane } });
+
     return row ? toRequestLaneRow(row) : null;
   }
 
@@ -29,12 +30,14 @@ export class RequestLanesRepository {
       where: { lane },
       select: { paused: true },
     });
+
     return row?.paused ?? false;
   }
 
   /** 列出全部 lane（lane 升序），供控制台展示。 */
   async listLanes(): Promise<RequestLaneRow[]> {
     const rows = await this.db.request_lanes.findMany({ orderBy: { lane: 'asc' } });
+
     return rows.map((r: RequestLanePg) => toRequestLaneRow(r));
   }
 

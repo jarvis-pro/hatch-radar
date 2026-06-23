@@ -22,11 +22,13 @@ const RANGES: { key: BoardRange; label: string }[] = [
 function pctStr(a: number, b: number): string {
   return b > 0 ? `${((a / b) * 100).toFixed(1)}%` : '—';
 }
+
 /** 成本（美元）紧凑展示。 */
 function fmtCost(c: number | null): string {
   if (c == null) {
     return '—';
   }
+
   return `$${c < 1 ? c.toFixed(4) : c.toFixed(2)}`;
 }
 
@@ -82,6 +84,7 @@ function TrendBars({ points }: { points: FunnelTrendPoint[] }) {
   const max = Math.max(1, ...points.map((p) => p.insights));
   const last = points.length - 1;
   const peak = points.reduce((m, p) => Math.max(m, p.insights), 0);
+
   return (
     <div className="flex h-40 items-end gap-1.5">
       {points.map((p, i) => (
@@ -152,6 +155,7 @@ function BoardView() {
       </>
     );
   }
+
   if (q.isPending) {
     return (
       <>
@@ -284,6 +288,7 @@ function BoardView() {
               ) : (
                 intensity.map((x) => {
                   const meta = INTENSITY[x.name] ?? { label: x.name, fill: 'bg-primary' };
+
                   return (
                     <BarRow
                       key={x.name}

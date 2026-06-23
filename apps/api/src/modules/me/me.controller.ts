@@ -28,6 +28,7 @@ export class MeController {
     if (!id) {
       throw new HttpException('无法识别当前用户', 401);
     }
+
     return id;
   }
 
@@ -41,6 +42,7 @@ export class MeController {
     if (!user) {
       throw new HttpException('用户不存在', 404);
     }
+
     return { user };
   }
 
@@ -52,6 +54,7 @@ export class MeController {
     @AuthUser() session?: AuthedUser,
   ): Promise<{ ok: true }> {
     await this.account.updateAvatarById(this.resolveUserId(device, session), dto.avatar);
+
     return { ok: true };
   }
 }

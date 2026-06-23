@@ -67,6 +67,7 @@ export class AuditLogsRepository {
         })
       : [];
     const emailById = new Map(actors.map((a) => [a.id, a.email]));
+
     return {
       items: rows.map((r) => ({
         id: r.id,

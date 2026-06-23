@@ -140,6 +140,7 @@ export function TranslationButton({ t }: { t: ReturnType<typeof usePostTranslati
   if (!toggle && !action) {
     return null;
   }
+
   return (
     <div className="space-y-1">
       <div className="flex flex-wrap items-center gap-2">

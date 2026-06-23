@@ -41,6 +41,7 @@ function readCache(): Profile | null {
   if (!raw) {
     return null;
   }
+
   try {
     return JSON.parse(raw) as Profile;
   } catch {
@@ -69,8 +70,10 @@ export default function ProfileScreen() {
     const c = loadWorkstationConfig();
     if (!c || !isEnrolled()) {
       setError('本机未激活。在「激活设备」后即可查看与同步账户资料。');
+
       return;
     }
+
     setLoading(true);
     setError(null);
     try {
@@ -98,8 +101,10 @@ export default function ProfileScreen() {
       if (!prev) {
         return prev;
       }
+
       const next = { ...prev, avatar };
       setMeta(CACHE_KEY, JSON.stringify(next));
+
       return next;
     });
   }, []);

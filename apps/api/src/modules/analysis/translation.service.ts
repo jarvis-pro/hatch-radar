@@ -52,16 +52,20 @@ export class TranslationService {
     if (providerId == null) {
       throw new Error('翻译任务缺少 provider 配置');
     }
+
     const provider = await this.providers.getProvider(providerId);
     if (!provider) {
       throw new Error('翻译 provider 配置不存在');
     }
+
     if (!provider.enabled) {
       throw new Error('翻译 provider 已停用');
     }
+
     if (provider.provider !== 'claude_cli' && provider.provider !== 'azure') {
       throw new Error(`翻译暂不支持 provider：${provider.provider}（仅 claude_cli / azure）`);
     }
+
     return provider;
   }
 
@@ -118,6 +122,7 @@ export class TranslationService {
         if (!r) {
           continue;
         }
+
         upserts.push({
           contentHash: item.key,
           sourceField: fieldByHash.get(item.key) ?? 'comment_body',
@@ -138,6 +143,7 @@ export class TranslationService {
     logger.info(
       `  ✓ 翻译 ${postId}：新译 ${translated} / 跳过(中文) ${skipped} / 待续 ${toTranslate.length - translated}`,
     );
+
     return { translated, skipped, usage };
   }
 
@@ -150,9 +156,11 @@ export class TranslationService {
     if (provider.provider === 'claude_cli') {
       return translateItems({ provider: 'claude_cli', model: provider.model }, items, signal);
     }
+
     if (provider.provider === 'azure') {
       return this.translateWithAzureKey(provider, items, signal);
     }
+
     // resolveProvider 已挡掉其余类型，此处仅为兜底
     throw new Error(`翻译不支持的 provider：${provider.provider}`);
   }
@@ -172,6 +180,7 @@ export class TranslationService {
         `翻译 provider「${provider.label}」无可用 API Key（已失效或停用），请在设置页更换 Key`,
       );
     }
+
     let plain: string;
     try {
       plain = decryptSecret(key.api_key);
@@ -179,6 +188,7 @@ export class TranslationService {
       await this.providers.markKeyInvalid(key.id, `密钥解密失败：${errMsg(err)}`, nowSec());
       throw new Error(`翻译 provider「${provider.label}」密钥解密失败，请重设 Key`, { cause: err });
     }
+
     const config: TranslateConfig = {
       provider: 'azure',
       apiKey: plain,
@@ -191,12 +201,14 @@ export class TranslationService {
       if (signal?.aborted) {
         throw err;
       } // job 超时：直接冒泡
+
       const m = errMsg(err);
       if (classifyKeyError(err) === 'auth') {
         await this.providers.markKeyInvalid(key.id, m, nowSec());
         logger.warn(`[translation] Azure「${provider.label}」鉴权失败/额度耗尽，已标记 Key 失效`);
         throw new Error(`Azure 翻译鉴权失败或额度耗尽（${provider.label}）：${m}`, { cause: err });
       }
+
       throw err; // 限流/网络等：冒泡给 worker 重试
     }
   }

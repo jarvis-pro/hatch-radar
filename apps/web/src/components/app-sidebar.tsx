@@ -72,6 +72,7 @@ export function AppSidebar({ user }: { user: CurrentUser }) {
           if (items.length === 0) {
             return null;
           }
+
           return (
             <SidebarGroup key={group.label}>
               <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
@@ -80,6 +81,7 @@ export function AppSidebar({ user }: { user: CurrentUser }) {
                   {items.map((it) => {
                     const active = it.match(pathname);
                     const Icon = it.icon;
+
                     return (
                       <SidebarMenuItem key={it.to}>
                         <SidebarMenuButton asChild isActive={active} tooltip={it.label}>

@@ -48,9 +48,11 @@ export function triggerOf(p: ProcessRow): TriggerConfig {
   if (p.trigger_kind === 'interval') {
     return { kind: 'interval', everySec: typeof cfg.everySec === 'number' ? cfg.everySec : 0 };
   }
+
   if (p.trigger_kind === 'cron') {
     return { kind: 'cron', expr: typeof cfg.expr === 'string' ? cfg.expr : '' };
   }
+
   return { kind: 'once' };
 }
 
@@ -62,9 +64,11 @@ export function triggerToRepo(t: TriggerConfig): {
   if (t.kind === 'interval') {
     return { triggerKind: 'interval', triggerConfig: { everySec: t.everySec } };
   }
+
   if (t.kind === 'cron') {
     return { triggerKind: 'cron', triggerConfig: { expr: t.expr } };
   }
+
   return { triggerKind: 'once', triggerConfig: null };
 }
 
@@ -114,12 +118,15 @@ export function stageLane(kind: TaskKind, name: string, source: string | null): 
   if (def?.fetch === 'ai') {
     return 'ai';
   }
+
   if (def?.fetch === 'source') {
     if (source === 'reddit' || source === 'hackernews' || source === 'rss') {
       return source;
     }
+
     return null;
   }
+
   return null;
 }
 
@@ -141,12 +148,15 @@ export function summarizeStage(name: string, output: unknown): string | null {
       if ('changed' in o) {
         return o.changed ? '有变化 → 重新分析' : '无变化 · 退避';
       }
+
       if ('analyzeSpawned' in o) {
         return o.analyzeSpawned ? '落库 · 派生分析' : '落库';
       }
+
       if ('saved' in o) {
         return o.saved ? '洞察已落库' : '无信号 · 未落库';
       }
+
       return '落库';
     case 'ai_call':
       return 'AI 响应已落检查点';
@@ -176,6 +186,7 @@ export function firstPainPoint(painPoints: unknown, fallback: string): string {
     description?: string;
     title?: string;
   } | null;
+
   return first?.description ?? first?.title ?? fallback;
 }
 
@@ -205,6 +216,7 @@ export function buildCommentTree(
       children: [],
     });
   }
+
   const roots: RadarCommentDTO[] = [];
   for (const r of rows) {
     const node = byId.get(r.id)!;
@@ -215,5 +227,6 @@ export function buildCommentTree(
       roots.push(node);
     }
   }
+
   return roots;
 }

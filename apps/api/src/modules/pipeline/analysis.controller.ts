@@ -33,6 +33,7 @@ function parseJobId(raw: string): number {
   if (!Number.isInteger(id) || id <= 0) {
     throw new BadRequestException('jobId 非法');
   }
+
   return id;
 }
 
@@ -61,6 +62,7 @@ export class AnalysisController {
   @Get('providers')
   async providerOptions() {
     const list = await this.providers.listProviders();
+
     return {
       providers: list.filter((p) => p.enabled).map((p) => ({ id: p.id, label: p.label })),
       activeProviderId: await this.settings.getActiveProviderId(),
@@ -81,6 +83,7 @@ export class AnalysisController {
     logger.info(
       `[检视] 发起 task#${taskId}（post=${dto.postId} provider#${dto.providerId} gate=${dto.stepGate}）`,
     );
+
     return { jobId: taskId };
   }
 
@@ -91,6 +94,7 @@ export class AnalysisController {
     if (!view) {
       throw new NotFoundException('检视任务不存在');
     }
+
     return view;
   }
 
@@ -102,6 +106,7 @@ export class AnalysisController {
     if (!ok) {
       throw new BadRequestException('当前不可放行（任务并非暂停态）');
     }
+
     return { ok: true };
   }
 
@@ -110,6 +115,7 @@ export class AnalysisController {
   @HttpCode(200)
   async inspectRunToEnd(@Param('jobId') jobIdRaw: string) {
     await this.taskControl.runInspectToEnd(parseJobId(jobIdRaw));
+
     return { ok: true };
   }
 
@@ -118,6 +124,7 @@ export class AnalysisController {
   @HttpCode(200)
   async inspectRetryStep(@Param('jobId') jobIdRaw: string) {
     await this.taskControl.retryInspectStep(parseJobId(jobIdRaw));
+
     return { ok: true };
   }
 
@@ -129,6 +136,7 @@ export class AnalysisController {
     if (!ok) {
       throw new BadRequestException('当前不可取消（任务已是终态）');
     }
+
     return { ok: true };
   }
 }

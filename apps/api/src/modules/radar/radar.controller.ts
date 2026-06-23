@@ -112,6 +112,7 @@ export class BlueprintsController {
     if (!bp) {
       throw new NotFoundException('图纸不存在');
     }
+
     return bp;
   }
 
@@ -122,6 +123,7 @@ export class BlueprintsController {
   ) {
     const bp = await this.blueprints.createBlueprint(dto);
     logger.info(`[图纸] 新建 #${bp.id}：${bp.kind}/${bp.label}`);
+
     return bp;
   }
 
@@ -134,7 +136,9 @@ export class BlueprintsController {
     if (!(await this.blueprints.getBlueprint(id))) {
       throw new NotFoundException('图纸不存在');
     }
+
     await this.blueprints.updateBlueprint(id, dto);
+
     return { ok: true };
   }
 
@@ -143,6 +147,7 @@ export class BlueprintsController {
   async remove(@Param('id', ParseIntPipe) id: number) {
     await this.blueprints.deleteBlueprint(id);
     logger.info(`[图纸] 删除 #${id}`);
+
     return { ok: true };
   }
 }
@@ -168,6 +173,7 @@ export class ProcessesController {
     if (!p) {
       throw new NotFoundException('进程不存在');
     }
+
     return p;
   }
 
@@ -183,6 +189,7 @@ export class ProcessesController {
   ) {
     const res = await this.processes.createProcess(dto);
     logger.info(`[进程] 新建 #${res.id}：${res.label}`);
+
     return res;
   }
 
@@ -195,7 +202,9 @@ export class ProcessesController {
     if (!(await this.processes.getProcess(id))) {
       throw new NotFoundException('进程不存在');
     }
+
     await this.processes.updateProcess(id, dto);
+
     return { ok: true };
   }
 
@@ -204,6 +213,7 @@ export class ProcessesController {
   @RequirePermission('pipeline:control')
   async pause(@Param('id', ParseIntPipe) id: number) {
     await this.processes.pauseProcess(id);
+
     return { ok: true };
   }
 
@@ -212,6 +222,7 @@ export class ProcessesController {
   @RequirePermission('pipeline:control')
   async resume(@Param('id', ParseIntPipe) id: number) {
     await this.processes.resumeProcess(id);
+
     return { ok: true };
   }
 
@@ -220,6 +231,7 @@ export class ProcessesController {
   async trigger(@Param('id', ParseIntPipe) id: number) {
     await this.processes.triggerProcess(id);
     logger.info(`[进程] 手动触发 #${id}`);
+
     return { ok: true };
   }
 
@@ -229,8 +241,10 @@ export class ProcessesController {
     if (!(await this.processes.getProcess(id))) {
       throw new NotFoundException('进程不存在');
     }
+
     await this.processes.deleteProcess(id);
     logger.info(`[进程] 删除 #${id}`);
+
     return { ok: true };
   }
 }
@@ -263,6 +277,7 @@ export class RadarController {
     if (!res) {
       throw new NotFoundException('运行不存在');
     }
+
     return res;
   }
 
@@ -282,6 +297,7 @@ export class RadarController {
     const intensity = INTENSITIES.includes(q.intensity as RadarIntensity)
       ? (q.intensity as RadarIntensity)
       : undefined;
+
     return this.radar.listInsights({
       source: q.source || undefined,
       subreddit: q.subreddit || undefined,
@@ -300,6 +316,7 @@ export class RadarController {
     if (!res) {
       throw new NotFoundException('洞察不存在');
     }
+
     return res;
   }
 
@@ -308,6 +325,7 @@ export class RadarController {
   posts(@Query() q: Record<string, string>) {
     const status =
       q.status === 'due' || q.status === 'quiet' || q.status === 'new' ? q.status : undefined;
+
     return this.radar.listPosts({
       source: q.source || undefined,
       subreddit: q.subreddit || undefined,
@@ -325,6 +343,7 @@ export class RadarController {
     if (!res) {
       throw new NotFoundException('帖子不存在');
     }
+
     return res;
   }
 }

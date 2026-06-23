@@ -25,6 +25,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, onTimeout?: () => void)
       reject(new Error(`job 处理超时（>${ms}ms）`));
     }, ms);
   });
+
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
@@ -80,6 +81,7 @@ export class WorkerService {
     if (this.reclaimTimer) {
       clearInterval(this.reclaimTimer);
     }
+
     await Promise.allSettled(this.activeJobPromises);
   }
 
@@ -112,13 +114,16 @@ export class WorkerService {
     if (!task) {
       return;
     } // 任务已不存在（被清理）
+
     const post =
       task.post_id != null ? ((await this.posts.getPostById(task.post_id)) ?? null) : null;
     if (task.kind === 'analyze' && !post) {
       await this.tasks.failTask(task.id, '帖子不存在或已归档', nowSec());
       await this.runs.incrementCounters(task.run_id, { failed: 1 });
+
       return;
     }
+
     const heartbeat = setInterval(() => {
       // 心跳写入失败需可观测：连接池打满 / DB 抖动致心跳停摆，会让任务被误判僵死回收 → 重复执行。
       void this.tasks
@@ -138,8 +143,10 @@ export class WorkerService {
         const next = stages.find((s) => s.status === 'pending');
         if (!next) {
           await this.finalizeTaskSuccess(task, post, stages); // 兜底：无 pending（理论不发生）
+
           return;
         }
+
         await this.taskStages.markStageRunning(task.id, next.seq, null, nowSec());
         await this.tasks.setCurrentSeq(task.id, next.seq);
         let output: unknown;
@@ -156,8 +163,10 @@ export class WorkerService {
           await this.onTaskError(task, post);
           await this.runs.incrementCounters(task.run_id, { failed: 1 });
           logger.error(`  ✗ [task#${task.id} ${task.kind}] 环节 ${next.name} 失败: ${msg}`);
+
           return;
         }
+
         await this.taskStages.markStageDone(task.id, next.seq, output ?? null, nowSec());
         next.status = 'done';
         next.output = (output ?? null) as TaskStageRow['output'];
@@ -166,16 +175,20 @@ export class WorkerService {
         if (!fresh || fresh.status !== 'running') {
           return;
         }
+
         const isLast = next.seq === stages[stages.length - 1].seq;
         if (isLast) {
           await this.finalizeTaskSuccess(task, post, stages);
+
           return;
         }
+
         if (next.gate) {
           // 内存里闸门是开的——暂停前回读 DB 确认未被「运行到底」清闸（清闸对执行中的任务即时生效，
           // 对齐旧 step_gate 实时回读语义）。非检视任务 next.gate=false，走不到这里、零额外查询。
           if (await this.taskStages.isStageGated(task.id, next.seq)) {
             await this.tasks.pauseTask(task.id); // 静停于闸门，等放行重认领续跑
+
             return;
           }
         }
@@ -199,6 +212,7 @@ export class WorkerService {
         if (!post) {
           return Promise.reject(new Error('analyze 任务缺少帖子'));
         }
+
         return this.analyze.runNode(
           stageName,
           task.provider_id,
@@ -213,21 +227,25 @@ export class WorkerService {
         if (!post) {
           return Promise.reject(new Error('collect 任务缺少帖子'));
         }
+
         return this.collection.runCollectStage(stageName, task, post, stages);
       case 'recheck':
         if (!post) {
           return Promise.reject(new Error('recheck 任务缺少帖子'));
         }
+
         return this.collection.runRecheckStage(stageName, task, post, stages);
       case 'translate':
         if (!post) {
           return Promise.reject(new Error('translate 任务缺少帖子'));
         }
+
         // 译文按 content_hash 落 translations 表；产物含 usage 供成本回填。
         return this.translation.translatePost(post.id, task.provider_id, signal);
       default: {
         // 穷尽性守卫：task.kind 现为 task_kind 枚举联合，新增 kind 未在此分支处理即编译失败。
         const _exhaustive: never = task.kind;
+
         return Promise.reject(new Error(`未实现的任务类型环节执行: ${String(_exhaustive)}`));
       }
     }
@@ -242,6 +260,7 @@ export class WorkerService {
     if (task.kind === 'analyze' && post) {
       await this.posts.markAnalyzed(post.id, nowSec());
     }
+
     await this.tasks.succeedTask(task.id, nowSec(), usageFromSteps(stages));
     await this.runs.incrementCounters(task.run_id, { done: 1 });
     logger.info(`  ✓ [task#${task.id} ${task.kind}] 完成`);

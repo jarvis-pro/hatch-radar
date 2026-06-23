@@ -32,7 +32,9 @@ export class SchedulerService {
     if (this.running.has('heartbeat')) {
       return Promise.resolve();
     }
+
     this.running.add('heartbeat');
+
     return (async () => {
       try {
         await this.pipeline.fireDueProcesses();
@@ -49,8 +51,10 @@ export class SchedulerService {
   private async guard(name: string, fn: () => Promise<void>): Promise<void> {
     if (this.running.has(name)) {
       logger.warn(`[${name}] 上一轮仍在执行，跳过本轮`);
+
       return;
     }
+
     this.running.add(name);
     const started = Date.now();
     try {

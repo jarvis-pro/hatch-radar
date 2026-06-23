@@ -65,6 +65,7 @@ function fakeFetcher(tree: Record<number, FakeItem>) {
   return async (ids: number[]) =>
     ids.map((id) => tree[id]).filter((x): x is FakeItem => Boolean(x));
 }
+
 // 链：1→[2,3]，2→[4]，4→[5]（c1 d0；c2/c3 d1；c4 d2；c5 d3），共 5 条
 const HN_TREE: Record<number, FakeItem> = {
   1: { id: 1, type: 'comment', by: 'u1', text: 'c1', time: 1, kids: [2, 3] },
@@ -144,6 +145,7 @@ function mkPost(overrides: Partial<PostRow> = {}): PostRow {
     ...overrides,
   };
 }
+
 function cm(
   id: string,
   parent_id: string | null,

@@ -12,6 +12,7 @@ function genKeys(): { publicKeyB64: string; privateKey: KeyObject } {
   const { publicKey, privateKey } = generateKeyPairSync('ed25519');
   const der = publicKey.export({ type: 'spki', format: 'der' }); // 44B = 12B SPKI 前缀 + 32B raw
   const raw = der.subarray(der.length - 32);
+
   return { publicKeyB64: raw.toString('base64'), privateKey };
 }
 

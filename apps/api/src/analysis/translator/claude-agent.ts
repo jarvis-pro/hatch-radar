@@ -23,12 +23,16 @@ function linkAbort(signal: AbortSignal | undefined): {
   if (!signal) {
     return { controller, dispose: () => {} };
   }
+
   if (signal.aborted) {
     controller.abort();
+
     return { controller, dispose: () => {} };
   }
+
   const onAbort = () => controller.abort();
   signal.addEventListener('abort', onAbort, { once: true });
+
   return { controller, dispose: () => signal.removeEventListener('abort', onAbort) };
 }
 
@@ -53,9 +57,11 @@ export function translationFromMessage(message: ResultMessageView): TranslatedIt
   if (message.type !== 'result') {
     return null;
   }
+
   if (message.subtype === 'success' && message.structured_output !== undefined) {
     return normalizeTranslationItems(message.structured_output);
   }
+
   const detail =
     message.subtype === 'success'
       ? '缺少 structured_output'
@@ -104,6 +110,7 @@ export async function translateBatchWithClaudeAgent(
             };
           }
         ).usage;
+
         return {
           results,
           usage: u
@@ -117,6 +124,7 @@ export async function translateBatchWithClaudeAgent(
         };
       }
     }
+
     throw new Error('Claude 订阅模式翻译 query 结束但未收到 result 消息');
   } finally {
     dispose();

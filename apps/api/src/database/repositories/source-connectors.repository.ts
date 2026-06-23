@@ -67,8 +67,10 @@ function summarize(row: SourceConnectorRow): string {
       const cid = String(s.clientId ?? '');
       const masked = cid.length <= 6 ? '••••' : `${cid.slice(0, 3)}…${cid.slice(-3)}`;
       const user = s.username ? ` · u/${String(s.username)}` : '';
+
       return `clientId ${masked}${user}`;
     }
+
     return '已配置';
   } catch {
     return '(无法解密，请重填)';
@@ -106,12 +108,14 @@ export class SourceConnectorsRepository {
     const rows = await this.db.source_connectors.findMany({
       orderBy: [{ platform: 'asc' }, { priority: 'asc' }, { id: 'asc' }],
     });
+
     return rows.map(toSourceConnectorRow);
   }
 
   /** 按 ID 取单个连接器 */
   async getConnector(id: number): Promise<SourceConnectorRow | undefined> {
     const row = await this.db.source_connectors.findUnique({ where: { id } });
+
     return row ? toSourceConnectorRow(row) : undefined;
   }
 
@@ -124,6 +128,7 @@ export class SourceConnectorsRepository {
       where: { platform, enabled: true, last_check_ok: true },
       orderBy: [{ priority: 'asc' }, { id: 'asc' }],
     });
+
     return row ? toSourceConnectorRow(row) : undefined;
   }
 
@@ -132,6 +137,7 @@ export class SourceConnectorsRepository {
     const count = await this.db.source_connectors.count({
       where: { platform, enabled: true, last_check_ok: true },
     });
+
     return count > 0;
   }
 
@@ -150,6 +156,7 @@ export class SourceConnectorsRepository {
       },
       select: { id: true },
     });
+
     return row.id;
   }
 
@@ -163,29 +170,36 @@ export class SourceConnectorsRepository {
     if (fields.label !== undefined) {
       data.label = fields.label;
     }
+
     if (fields.priority !== undefined) {
       data.priority = fields.priority;
     }
+
     if (fields.enabled !== undefined) {
       data.enabled = fields.enabled;
     }
+
     if (fields.secret !== undefined) {
       data.secret = encryptSecret(JSON.stringify(fields.secret));
       data.last_check_ok = null;
       data.last_check_at = null;
       data.last_check_error = null;
     }
+
     if (Object.keys(data).length === 0) {
       return false;
     }
+
     data.updated_at = BigInt(now);
     const res = await this.db.source_connectors.updateMany({ where: { id }, data });
+
     return res.count > 0;
   }
 
   /** 删除连接器 */
   async deleteConnector(id: number): Promise<boolean> {
     const res = await this.db.source_connectors.deleteMany({ where: { id } });
+
     return res.count > 0;
   }
 

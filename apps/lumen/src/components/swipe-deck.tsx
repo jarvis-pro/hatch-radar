@@ -239,6 +239,7 @@ const SwipeCard = forwardRef<
       { scale: interpolate(mount.value, [0, 1], [0.95, 1]) },
     ],
   }));
+
   return (
     <GestureDetector gesture={pan}>
       <Animated.View style={[StyleSheet.absoluteFill, cardStyle]}>
@@ -251,6 +252,7 @@ const SwipeCard = forwardRef<
 /** 叠层预览卡：缩小下移、降透明，制造卡组纵深。 */
 function PreviewCard({ op, depth }: { op: Opportunity; depth: number }) {
   const palette = usePalette();
+
   return (
     <Animated.View
       pointerEvents="none"
@@ -336,6 +338,7 @@ function ActionButton({
 }) {
   const palette = usePalette();
   const c = ACTIONS[kind];
+
   return (
     <PressableScale
       scaleTo={0.86}
@@ -372,6 +375,7 @@ function DeckProgress({ value }: { value: number }) {
 
 function EmptyDeck({ onReshuffle, savedCount }: { onReshuffle: () => void; savedCount: number }) {
   const palette = usePalette();
+
   return (
     <Appear from="none" duration={500} className="flex-1 items-center justify-center px-10">
       <Text
@@ -403,6 +407,7 @@ function DeckGlow({ color }: { color: string }) {
   }, [o]);
   const style = useAnimatedStyle(() => ({ opacity: o.value }));
   const id = `deck-glow-${color.replace('#', '')}`;
+
   return (
     <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, style]}>
       <Svg width="100%" height="100%">
@@ -436,10 +441,12 @@ export function SwipeDeck() {
         if (!savedIds.includes(op.id)) {
           toggleSave(op.id);
         }
+
         hapticSuccess();
       } else {
         dismiss(op.id);
       }
+
       setCursor((c) => c + 1);
     },
     [toggleSave, dismiss, savedIds],

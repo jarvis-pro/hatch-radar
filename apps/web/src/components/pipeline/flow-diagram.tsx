@@ -37,6 +37,7 @@ function stepDuration(s: InspectStepView): string | null {
   if (s.startedAt == null || s.finishedAt == null) {
     return null;
   }
+
   return `${Math.max(0, s.finishedAt - s.startedAt)}s`;
 }
 
@@ -79,12 +80,15 @@ function subLabel(step: InspectStepView): string {
   if (step.status === 'running') {
     return '运行中…';
   }
+
   if (step.status === 'failed') {
     return '失败';
   }
+
   if (step.status === 'done') {
     return stepDuration(step) ?? '完成';
   }
+
   return '待执行';
 }
 
@@ -100,6 +104,7 @@ const HANDLE_STYLE = {
 function InspectNode({ data }: NodeProps<InspectFlowNode>) {
   const { step, selected, index, onSelect } = data;
   const label = INSPECT_STEP_LABELS[step.name as InspectStepName] ?? step.name;
+
   return (
     <div
       role="button"
@@ -172,6 +177,7 @@ function buildEdges(steps: InspectStepView[]): Edge[] {
       },
     });
   }
+
   return edges;
 }
 

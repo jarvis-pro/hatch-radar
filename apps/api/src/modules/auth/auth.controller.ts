@@ -26,6 +26,7 @@ export class AuthController {
     if (!result) {
       throw new UnauthorizedException('激活码无效或已过期');
     }
+
     return result;
   }
 }

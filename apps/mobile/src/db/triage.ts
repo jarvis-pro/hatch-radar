@@ -18,6 +18,7 @@ export function getTriage(insightId: number): Triage {
   const row = getDb().getFirstSync<TriageRow>(`SELECT * FROM triage WHERE insight_id = ?`, [
     insightId,
   ]);
+
   return row ? rowToTriage(row) : emptyTriage(insightId);
 }
 

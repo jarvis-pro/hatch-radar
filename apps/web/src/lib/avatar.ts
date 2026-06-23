@@ -21,6 +21,7 @@ export function avatarDataUri(seed: string): string {
     uri = createAvatar(adventurerNeutral, { seed }).toDataUri();
     cache.set(seed, uri);
   }
+
   return uri;
 }
 
@@ -43,5 +44,6 @@ export function commentAvatarDataUri(seed: string): string {
     uri = createAvatar(toonHead, { seed }).toDataUri();
     commentCache.set(seed, uri);
   }
+
   return uri;
 }

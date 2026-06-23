@@ -41,6 +41,7 @@ function redditSourceConfig(source: SourceRow): { sorts: ('hot' | 'new')[]; limi
     ? (cfg.sorts.filter((s) => s === 'hot' || s === 'new') as ('hot' | 'new')[])
     : [];
   const limit = typeof cfg.limit === 'number' && cfg.limit > 0 ? cfg.limit : 25;
+
   return { sorts: sorts.length > 0 ? sorts : ['hot', 'new'], limit };
 }
 
@@ -52,6 +53,7 @@ function readSweep(params: unknown): number {
       return s;
     }
   }
+
   return 0;
 }
 
@@ -61,6 +63,7 @@ type StageLike = { name: string; output: unknown };
 /** 取某上游环节已落库的产物（检查点）；未跑 / 无产物为 undefined。 */
 function stageOutput<T>(stages: readonly StageLike[], name: string): T | undefined {
   const out = stages.find((s) => s.name === name)?.output;
+
   return (out ?? undefined) as T | undefined;
 }
 
@@ -176,6 +179,7 @@ export class CollectionExecutor {
       if (!endpoint) {
         continue;
       }
+
       const channel = source.label || endpoint;
       try {
         const posts = await this.gate.run(
@@ -217,12 +221,14 @@ export class CollectionExecutor {
     logger.info(
       `[采集] discover fetch_listing：来源 ${sourcesFetched}，新增 ${added}，更新 ${updated}`,
     );
+
     return { newPostIds, added, updated, sourcesFetched };
   }
 
   /** dedup：读 fetch_listing 检查点，候选 = 新帖 id（活跃任务去重交 createTaskWithStages 兜底）。 */
   private discoverDedup(stages: readonly StageLike[]): DiscoverDedupOutput {
     const listing = stageOutput<DiscoverListingOutput>(stages, 'fetch_listing');
+
     return { toSpawn: listing?.newPostIds ?? [] };
   }
 
@@ -252,10 +258,13 @@ export class CollectionExecutor {
         collectSpawned += 1;
       }
     }
+
     if (collectSpawned > 0) {
       await this.runs.incrementCounters(task.run_id, { total: collectSpawned });
     }
+
     logger.info(`[采集] discover spawn：派生采集 ${collectSpawned}`);
+
     return { collectSpawned };
   }
 
@@ -299,6 +308,7 @@ export class CollectionExecutor {
     logger.info(
       `[采集] collect ${post.id}：评论 ${comments.length}，派生分析 ${analyzeSpawned ? '是' : '否'}`,
     );
+
     return { commentCount: comments.length, dropped: fetched?.dropped ?? 0, analyzeSpawned };
   }
 
@@ -358,9 +368,11 @@ export class CollectionExecutor {
         lastRecheckedAt: now,
       });
     }
+
     logger.info(
       `[复查] ${post.id} sweep#${sweep}：${changed ? '有变化→重抓+重新分析' : '无变化→退避'}`,
     );
+
     return { changed, analyzeSpawned };
   }
 
@@ -383,6 +395,7 @@ export class CollectionExecutor {
         );
       }
     }
+
     return {
       source: post.source,
       commentCount: result?.comments.length ?? 0,
@@ -403,6 +416,7 @@ export class CollectionExecutor {
     if (!active) {
       return false;
     }
+
     const recipe = await this.recipeForRun(runId);
     const res = await this.tasks.createTaskWithStages(
       {
@@ -420,6 +434,7 @@ export class CollectionExecutor {
     if (res.ok) {
       await this.runs.incrementCounters(runId, { total: 1 });
     }
+
     return res.ok;
   }
 
@@ -429,6 +444,7 @@ export class CollectionExecutor {
     const p = (run?.params ?? {}) as { gates?: unknown; enabledStages?: unknown };
     const arr = (v: unknown): string[] =>
       Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+
     return { gates: arr(p.gates), enabledStages: arr(p.enabledStages) };
   }
 }

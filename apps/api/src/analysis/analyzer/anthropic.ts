@@ -54,6 +54,7 @@ export async function callRawAnthropic(
   if (!textBlock) {
     throw new Error(`模型未返回文本内容 (stop_reason=${response.stop_reason})`);
   }
+
   return {
     raw: textBlock.text,
     usage: {
@@ -88,6 +89,7 @@ export async function analyzeWithAnthropic(
     buildContext(post, comments),
     signal,
   );
+
   return { insight: normalizeRawOutput(raw), usage };
 }
 

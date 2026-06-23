@@ -121,6 +121,7 @@ export function AccountsManager({
     if (!confirm) {
       return;
     }
+
     const { kind, user } = confirm;
     setError(null);
     setPending(true);
@@ -137,6 +138,7 @@ export function AccountsManager({
           status: kind === 'disable' ? 'disabled' : 'active',
         });
       }
+
       setConfirm(null);
       invalidate();
     } catch (err) {
@@ -317,6 +319,7 @@ export function AccountsManager({
                 if (!resetResult) {
                   return;
                 }
+
                 void navigator.clipboard.writeText(resetResult.tempPassword);
                 toast.success('临时密码已复制');
               }}
@@ -389,6 +392,7 @@ function AccountForm({
           perms: effectivePerms,
         });
       }
+
       onSuccess();
     } catch (err) {
       setError(errText(err, isEdit ? '保存失败' : '创建失败'));

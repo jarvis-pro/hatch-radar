@@ -11,6 +11,7 @@ const KEY = 'theme_mode';
 /** 读持久化的主题模式；未设或非法值回退「跟随系统」 */
 function readThemeMode(): ThemeMode {
   const v = getMeta(KEY);
+
   return v === 'light' || v === 'dark' ? v : 'system';
 }
 
@@ -26,6 +27,7 @@ export function useThemeMode(): ThemeModeContextValue {
   if (!ctx) {
     throw new Error('useThemeMode 必须在 <ThemeModeProvider> 内使用');
   }
+
   return ctx;
 }
 
@@ -44,6 +46,7 @@ export function ThemeModeProvider({ children }: { children: ReactNode }) {
   const [mode, setModeState] = useState<ThemeMode>(() => {
     const m = readThemeMode();
     colorScheme.set(m); // 首帧前同步应用，避免「系统色 → 偏好色」闪烁
+
     return m;
   });
 
@@ -52,11 +55,13 @@ export function ThemeModeProvider({ children }: { children: ReactNode }) {
     if (mode !== 'system') {
       return;
     }
+
     const sub = AppState.addEventListener('change', (state) => {
       if (state === 'active') {
         colorScheme.set('system');
       }
     });
+
     return () => sub.remove();
   }, [mode]);
 

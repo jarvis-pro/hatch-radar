@@ -43,8 +43,10 @@ function useDebounced<T>(value: T, ms: number): T {
   const [debounced, setDebounced] = useState(value);
   useEffect(() => {
     const t = setTimeout(() => setDebounced(value), ms);
+
     return () => clearTimeout(t);
   }, [value, ms]);
+
   return debounced;
 }
 
@@ -80,7 +82,9 @@ export function CommandPalette({
         onOpenChange(!open);
       }
     };
+
     window.addEventListener('keydown', onKey);
+
     return () => window.removeEventListener('keydown', onKey);
   }, [open, onOpenChange]);
 
@@ -94,6 +98,7 @@ export function CommandPalette({
         canInsights ? api.get<Paged<Insight>>(`/insights?q=${q}`) : Promise.resolve(null),
         canPosts ? api.get<Paged<PostRow>>(`/posts?q=${q}`) : Promise.resolve(null),
       ]);
+
       return {
         insights: insights?.items.slice(0, 5) ?? [],
         posts: posts?.items.slice(0, 5) ?? [],
@@ -105,13 +110,16 @@ export function CommandPalette({
     if (!o) {
       setSearch('');
     }
+
     onOpenChange(o);
   };
+
   const go = (to: string): void => {
     onOpenChange(false);
     setSearch('');
     navigate(to);
   };
+
   const pickTheme = (t: Theme): void => {
     onOpenChange(false);
     setSearch('');
@@ -175,6 +183,7 @@ export function CommandPalette({
           if (items.length === 0) {
             return null;
           }
+
           return (
             <CommandGroup key={group.label} heading={group.label}>
               {items.map((it) => (

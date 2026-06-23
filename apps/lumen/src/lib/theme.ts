@@ -81,6 +81,7 @@ const PALETTE: Record<'light' | 'dark', Palette> = {
 /** 当前明暗下的 JS 调色板（随 colorScheme 切换重解析）。 */
 export function usePalette(): Palette {
   const { colorScheme } = useColorScheme();
+
   return PALETTE[colorScheme === 'dark' ? 'dark' : 'light'];
 }
 

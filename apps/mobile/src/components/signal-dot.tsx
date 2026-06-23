@@ -30,13 +30,16 @@ export function SignalDot({ online = true, size = 10 }: { online?: boolean; size
     if (!online || reduceMotion) {
       cancelAnimation(scale);
       scale.value = 1;
+
       return;
     }
+
     scale.value = withRepeat(
       withTiming(0.68, { duration: 900, easing: Easing.inOut(Easing.ease) }),
       -1,
       true,
     );
+
     return () => cancelAnimation(scale);
   }, [online, reduceMotion, scale]);
 

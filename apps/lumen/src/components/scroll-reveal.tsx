@@ -43,6 +43,7 @@ export function ScrollScaleItem({
       [0, 1, 1, 0.45],
       Extrapolation.CLAMP,
     );
+
     return { opacity, transform: [{ scale }] };
   });
 

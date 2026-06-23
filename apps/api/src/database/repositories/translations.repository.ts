@@ -79,6 +79,7 @@ export class TranslationsRepository {
       WHERE t.id IS NULL
       ORDER BY h.content_hash
     `;
+
     return rows.map((r) => ({
       contentHash: r.content_hash,
       sourceField: r.source_field,
@@ -113,6 +114,7 @@ export class TranslationsRepository {
         untranslated += n;
       }
     }
+
     return { total: translated + untranslated, translated, untranslated };
   }
 
@@ -132,6 +134,7 @@ export class TranslationsRepository {
         SELECT body_hash FROM comments WHERE post_id = ${postId} AND body_hash IS NOT NULL
       )
     `;
+
     return Object.fromEntries(rows.map((r) => [r.content_hash, r.text]));
   }
 
@@ -144,6 +147,7 @@ export class TranslationsRepository {
     if (rows.length === 0) {
       return;
     }
+
     const ts = BigInt(now);
     const values = Prisma.join(
       rows.map(
@@ -177,6 +181,7 @@ export class TranslationsRepository {
     if (postIds.length === 0) {
       return [];
     }
+
     const ids = Prisma.join(postIds);
     const rows = await this.db.$queryRaw<{ post_id: string }[]>`
       SELECT e.post_id
@@ -192,6 +197,7 @@ export class TranslationsRepository {
       GROUP BY e.post_id
       HAVING count(DISTINCT e.content_hash) FILTER (WHERE t.id IS NULL) > 0
     `;
+
     return rows.map((r) => r.post_id);
   }
 
@@ -205,10 +211,12 @@ export class TranslationsRepository {
     if (uniq.length === 0) {
       return new Map();
     }
+
     const rows = await this.db.translations.findMany({
       where: { content_hash: { in: uniq }, status: 'done', text: { not: null } },
       select: { content_hash: true, text: true },
     });
+
     return new Map(rows.map((r) => [r.content_hash, r.text as string]));
   }
 
@@ -229,6 +237,7 @@ export class TranslationsRepository {
         AND provider_kind = ${providerKind}::provider_kind
         AND created_at >= ${BigInt(sinceSec)}
     `;
+
     return Number(rows[0]?.total ?? 0);
   }
 }

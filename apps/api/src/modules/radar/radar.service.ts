@@ -79,6 +79,7 @@ export class RadarService {
     if (!run) {
       return null;
     }
+
     const [bp, proc, tasks] = await Promise.all([
       this.blueprints.getBlueprint(run.blueprint_id),
       run.process_id != null ? this.processSvc.getProcess(run.process_id) : Promise.resolve(null),
@@ -90,6 +91,7 @@ export class RadarService {
     const stagesByTask = await this.taskStages.listStagesByTasks(tasks.map((t) => t.id));
     const taskViews: TaskDTO[] = tasks.map((t) => {
       const post = t.post_id != null ? postById.get(t.post_id) : undefined;
+
       return this.toTaskDTO(
         t,
         stagesByTask.get(t.id) ?? [],
@@ -97,6 +99,7 @@ export class RadarService {
         post?.title ?? null,
       );
     });
+
     return {
       run: toRunDTO(run, bp?.label ?? null, proc?.label ?? null),
       tasks: taskViews,
@@ -110,6 +113,7 @@ export class RadarService {
     postTitle: string | null,
   ): TaskDTO {
     const kind = t.kind as TaskKind;
+
     return {
       id: t.id,
       runId: t.run_id,
@@ -156,10 +160,12 @@ export class RadarService {
         recentByLane.set(r.lane, list);
       }
     }
+
     return lanes.map((l) => {
       const c = countByLane.get(l.lane);
       const depth = c?.running ?? 0;
       const rate = c?.recent ?? 0;
+
       return {
         id: l.lane,
         label: l.lane,
@@ -197,8 +203,10 @@ export class RadarService {
         runningByProcess.set(r.process_id, r);
       }
     }
+
     const processes = procDtos.map((p) => {
       const run = runningByProcess.get(p.id);
+
       return {
         ...p,
         activeRun: run
@@ -239,6 +247,7 @@ export class RadarService {
       this.posts.countRecheckDue(sweep),
       this.posts.recheckMissesDistribution(),
     ]);
+
     return { sweep, dueNow, dist };
   }
 
@@ -264,6 +273,7 @@ export class RadarService {
       oppCount: Array.isArray(r.opportunities) ? (r.opportunities as unknown[]).length : 0,
       createdAt: Number(r.created_at),
     }));
+
     return { items, total, page, pageCount };
   }
 
@@ -273,6 +283,7 @@ export class RadarService {
     if (!r) {
       return null;
     }
+
     const [triageRow, postExists, titleZhByPost] = await Promise.all([
       this.insights.getTriageByInsightId(id),
       this.posts.exists(r.post_id),
@@ -280,10 +291,13 @@ export class RadarService {
     ]);
     const toIntensity = (v: unknown): RadarIntensity => {
       const s = String(v).toLowerCase();
+
       return s === 'high' || s === 'medium' ? s : 'low';
     };
+
     const painPoints = (Array.isArray(r.pain_points) ? r.pain_points : []).map((p) => {
       const o = asRecord(p);
+
       return {
         description: typeof o.description === 'string' ? o.description : '',
         evidence: typeof o.evidence === 'string' ? o.evidence : '',
@@ -292,12 +306,14 @@ export class RadarService {
     });
     const opportunities = (Array.isArray(r.opportunities) ? r.opportunities : []).map((p) => {
       const o = asRecord(p);
+
       return {
         title: typeof o.title === 'string' ? o.title : '',
         description: typeof o.description === 'string' ? o.description : '',
         targetUser: typeof o.target_user === 'string' ? o.target_user : '',
       };
     });
+
     return {
       id: r.id,
       postId: r.post_id,
@@ -331,6 +347,7 @@ export class RadarService {
       this.insights.distinctSources(),
       this.insights.distinctSubreddits(),
     ]);
+
     return { sources, subreddits };
   }
 
@@ -365,6 +382,7 @@ export class RadarService {
       lastRecheckedAt: p.last_rechecked_at == null ? null : Number(p.last_rechecked_at),
       analyzed: p.analyzed_at != null,
     }));
+
     return { items, total, page, pageCount };
   }
 
@@ -375,6 +393,7 @@ export class RadarService {
     if (!p) {
       return null;
     }
+
     const [commentRows, taskRows, insightRow, zhByHash] = await Promise.all([
       this.comments.listRawForPost(id),
       this.tasks.listByPost(id),
@@ -434,6 +453,7 @@ export class RadarService {
           },
         ]
       : [];
+
     return { post, comments: buildCommentTree(commentRows), events, insights };
   }
 
@@ -457,6 +477,7 @@ export class RadarService {
         out.set(postId, zh);
       }
     }
+
     return out;
   }
 }

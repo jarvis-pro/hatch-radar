@@ -37,6 +37,7 @@ export function IntensityDot({
     if (!pulse) {
       return;
     }
+
     t.value = withRepeat(
       withTiming(1, { duration: 2200, easing: Easing.out(Easing.ease) }),
       -1,

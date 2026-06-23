@@ -42,6 +42,7 @@ export function UserMenu({ user }: { user: CurrentUser }) {
     } catch {
       // 即便登出请求失败也清本地态并跳登录页
     }
+
     setUser(null);
     navigate('/login', { replace: true });
   }

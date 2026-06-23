@@ -43,15 +43,19 @@ export class ExportService {
     if (filter.since) {
       conds.push(Prisma.sql`created_at > ${BigInt(filter.since)}`);
     }
+
     if (filter.minIntensity === 'HIGH') {
       conds.push(Prisma.sql`intensity::text = 'HIGH'`);
     }
+
     if (filter.minIntensity === 'MEDIUM') {
       conds.push(Prisma.sql`intensity::text IN ('HIGH', 'MEDIUM')`);
     }
+
     if (filter.subreddit) {
       conds.push(Prisma.sql`lower(subreddit) = lower(${filter.subreddit})`);
     }
+
     return conds;
   }
 
@@ -73,12 +77,14 @@ export class ExportService {
     if (ids.length === 0) {
       return [];
     }
+
     // 过滤到现存帖（30 天归档后仅余洞察、无可译原文）；保留导出顺序
     const present = await this.db.posts.findMany({
       where: { id: { in: ids } },
       select: { id: true },
     });
     const presentSet = new Set(present.map((p) => p.id));
+
     return ids.filter((id) => presentSet.has(id));
   }
 
@@ -160,11 +166,13 @@ export class ExportService {
       if (tZh != null) {
         translations.push({ entity_kind: 'post_title', entity_id: p.id, text: tZh });
       }
+
       const sZh = p.selftext_hash ? zhByHash.get(p.selftext_hash) : undefined;
       if (sZh != null) {
         translations.push({ entity_kind: 'post_selftext', entity_id: p.id, text: sZh });
       }
     }
+
     for (const c of commentRows) {
       const bZh = c.body_hash ? zhByHash.get(c.body_hash) : undefined;
       if (bZh != null) {

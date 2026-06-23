@@ -49,6 +49,7 @@ function MiniHeader({
       },
     ],
   }));
+
   return (
     <Animated.View
       pointerEvents="none"
@@ -78,11 +79,13 @@ function RailDot({
   const palette = usePalette();
   const style = useAnimatedStyle(() => {
     const d = Math.abs(scrollY.value / height - index);
+
     return {
       height: interpolate(d, [0, 1], [22, 7], Extrapolation.CLAMP),
       opacity: interpolate(d, [0, 1], [1, 0.3], Extrapolation.CLAMP),
     };
   });
+
   return (
     <Animated.View
       style={[{ width: 3, borderRadius: 2, backgroundColor: palette.foreground }, style]}

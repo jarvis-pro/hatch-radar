@@ -66,7 +66,9 @@ function parseOverride(raw: string | undefined, min: number): number | null {
   if (raw == null) {
     return null;
   }
+
   const n = Number(raw);
+
   return Number.isInteger(n) && n >= min ? n : null;
 }
 
@@ -96,6 +98,7 @@ export class RuntimeSettingsService {
         String(DEFAULT_RUNTIME_SETTINGS[key]),
       );
     }
+
     return inserted;
   }
 
@@ -103,6 +106,7 @@ export class RuntimeSettingsService {
   private async readField(key: RuntimeSettingKey): Promise<number> {
     const spec = FIELDS[key];
     const value = parseOverride(await this.settings.getSetting(spec.storageKey), spec.min);
+
     return value ?? DEFAULT_RUNTIME_SETTINGS[key];
   }
 
@@ -117,6 +121,7 @@ export class RuntimeSettingsService {
       this.readField('sessionIdleDays'),
       this.readField('sessionAbsoluteDays'),
     ]);
+
     return { idleDays, absoluteDays };
   }
 
@@ -133,6 +138,7 @@ export class RuntimeSettingsService {
       this.readField('workerStaleSeconds'),
     ]);
     const minStale = Math.ceil(jobTimeoutMs / 1000) + STALE_OVER_TIMEOUT_BUFFER_SEC;
+
     return { jobTimeoutMs, staleSeconds: Math.max(staleRaw, minStale) };
   }
 
@@ -150,9 +156,11 @@ export class RuntimeSettingsService {
         const value = parseOverride(await this.settings.getSetting(spec.storageKey), spec.min);
         const defaultValue = DEFAULT_RUNTIME_SETTINGS[key];
         const state: RuntimeFieldState = { value: value ?? defaultValue, defaultValue };
+
         return [key, state] as const;
       }),
     );
+
     return Object.fromEntries(entries) as RuntimeSettingsOverview;
   }
 
@@ -168,12 +176,15 @@ export class RuntimeSettingsService {
       if (next === undefined) {
         continue;
       }
+
       await this.settings.setSetting(FIELDS[key].storageKey, String(next));
       changed.push(`${key}=${next}`);
     }
+
     if (changed.length > 0) {
       logger.info(`[设置] 运行期参数更新（即时生效）：${changed.join('、')}`);
     }
+
     return this.getOverview();
   }
 }

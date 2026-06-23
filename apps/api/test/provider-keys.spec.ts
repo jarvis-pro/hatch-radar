@@ -36,6 +36,7 @@ describe('ProvidersRepository（多 Key 池 / 可用性选取）', () => {
       nowSec(),
     );
     const [primary] = await repo.listKeysForProvider(providerId);
+
     return { providerId, primaryId: primary.id };
   }
 

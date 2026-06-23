@@ -34,6 +34,7 @@ export class ProcessService {
       this.blueprints.listBlueprints(),
     ]);
     const kindById = new Map(bps.map((b) => [b.id, b.kind as BlueprintKind]));
+
     return procs.map((p) => toProcessDTO(p, kindById.get(p.blueprint_id) ?? 'collect'));
   }
 
@@ -42,7 +43,9 @@ export class ProcessService {
     if (!p) {
       return null;
     }
+
     const bp = await this.blueprints.getBlueprint(p.blueprint_id);
+
     return toProcessDTO(p, (bp?.kind as BlueprintKind) ?? 'collect');
   }
 
@@ -55,6 +58,7 @@ export class ProcessService {
     if (!bp) {
       throw new ValidationError('绑定的图纸不存在');
     }
+
     const { triggerKind, triggerConfig } = triggerToRepo(input.trigger);
     // once 不自动触发；interval/cron 稍后即到期（首个心跳触发）
     const nextRunAt = input.trigger.kind === 'once' ? null : nowSec();
@@ -62,6 +66,7 @@ export class ProcessService {
       { blueprintId: input.blueprintId, label: input.label, triggerKind, triggerConfig, nextRunAt },
       nowSec(),
     );
+
     return toProcessDTO(p, bp.kind as BlueprintKind);
   }
 
@@ -73,6 +78,7 @@ export class ProcessService {
     if (patch.label !== undefined) {
       repoPatch.label = patch.label;
     }
+
     if (patch.trigger) {
       const { triggerKind, triggerConfig } = triggerToRepo(patch.trigger);
       repoPatch.triggerKind = triggerKind;
@@ -83,6 +89,7 @@ export class ProcessService {
         repoPatch.nextRunAt = patch.trigger.kind === 'once' ? null : nowSec();
       }
     }
+
     await this.processes.updateProcess(id, repoPatch, nowSec());
   }
 
@@ -98,6 +105,7 @@ export class ProcessService {
     if (!p) {
       return;
     }
+
     await this.processes.setStatus(id, 'active', nowSec());
     await this.processes.setNextRunAt(id, p.trigger_kind === 'once' ? null : nowSec(), nowSec());
   }
@@ -108,9 +116,11 @@ export class ProcessService {
     if (!p) {
       throw new ValidationError('进程不存在');
     }
+
     if (await this.runs.hasRunningRunForProcess(id)) {
       throw new ValidationError('该进程已有进行中的运行');
     }
+
     await this.pipeline.fireProcess(p, 'manual');
   }
 
@@ -123,6 +133,7 @@ export class ProcessService {
     const process = await this.getProcess(processId);
     const rows = await this.runs.listByProcess(processId, PROCESS_RUNS_LIMIT);
     const bp = process ? await this.blueprints.getBlueprint(process.blueprintId) : null;
+
     return {
       process,
       runs: rows.map((r) => toRunDTO(r, bp?.label ?? null, process?.label ?? null)),

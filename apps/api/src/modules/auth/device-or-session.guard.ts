@@ -43,12 +43,15 @@ export class DeviceOrSessionGuard implements CanActivate {
       if (!user) {
         throw new UnauthorizedException('设备凭据无效或无权限');
       }
+
       req.deviceUser = user;
+
       return true;
     }
 
     // 会话通道（web 用户带 cookie 也能导出 / 同步）
     req.user = await this.authenticator.authenticate(req, requiredPerm, '未登录或缺少设备签名');
+
     return true;
   }
 }

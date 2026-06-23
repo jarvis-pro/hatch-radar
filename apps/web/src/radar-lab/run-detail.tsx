@@ -121,21 +121,27 @@ function segStatusOf(stages: StageDTO[], task: TaskDTO | undefined): SegStatus {
   if (!task || stages.length === 0) {
     return 'todo';
   }
+
   if (stages.some((s) => s.status === 'failed')) {
     return 'failed';
   }
+
   if (stages.some((s) => s.status === 'running')) {
     return 'running';
   }
+
   if (stages.some((s) => s.status === 'waiting')) {
     return 'waiting';
   }
+
   if (task.status === 'paused' && stages.some((s) => s.status === 'pending' && s.gate)) {
     return 'gate';
   }
+
   if (stages.every((s) => s.status === 'done' || s.status === 'skipped')) {
     return stages.some((s) => s.status === 'done') ? 'done' : 'skipped';
   }
+
   return 'todo';
 }
 
@@ -170,10 +176,12 @@ function buildSegments(main: TaskDTO, analyze: TaskDTO | undefined): Seg[] {
       },
     ];
   }
+
   // recheck：detect 判无变化 → 余环节 skipped、不派生 analyze
   const noChange = main.status === 'skipped';
   const aStatus = (names: string[]): SegStatus =>
     analyze ? segStatusOf(pick(analyze, names), analyze) : noChange ? 'skipped' : 'todo';
+
   return [
     { key: 'probe', label: '探测', status: segStatusOf(pick(main, ['probe']), main) },
     { key: 'detect', label: '比对', status: segStatusOf(pick(main, ['detect']), main) },
@@ -233,36 +241,47 @@ function rowStateOf(
   if (insight) {
     return { tone: 'insight', label: '已出洞察' };
   }
+
   if (!active) {
     return { tone: 'muted', label: '—' };
   }
+
   switch (active.status) {
     case 'paused': {
       const g = active.stages.find((s) => s.status === 'pending' && s.gate);
+
       return { tone: 'gate', label: g ? `挂在「${stageLabel(g.name)}」前` : '挂闸待放行' };
     }
+
     case 'failed': {
       const f = active.stages.find((s) => s.status === 'failed');
+
       return { tone: 'fail', label: f ? `${stageLabel(f.name)}失败` : '失败' };
     }
+
     case 'running': {
       const cur = currentStage(active);
       if (cur?.status === 'waiting') {
         return { tone: 'wait', label: `等 ${cur.lane ? LANE_META[cur.lane].label : ''} 闸` };
       }
+
       if (cur) {
         return { tone: 'run', label: `${stageLabel(cur.name)}…` };
       }
+
       return { tone: 'run', label: '运行中' };
     }
+
     case 'queued':
       return { tone: 'muted', label: '排队' };
     case 'skipped': {
       if (main.kind === 'recheck') {
         return { tone: 'muted', label: '无变化 · 已退避' };
       }
+
       return { tone: 'muted', label: '略过' };
     }
+
     case 'succeeded':
       return { tone: 'muted', label: '已完成' };
     default:
@@ -274,16 +293,20 @@ function discoverStateOf(t: TaskDTO): { tone: RowTone; label: string } {
   switch (t.status) {
     case 'running': {
       const c = currentStage(t);
+
       return { tone: 'run', label: c ? `${stageLabel(c.name)}…` : '运行中' };
     }
+
     case 'paused':
       return { tone: 'gate', label: '挂闸待放行' };
     case 'failed':
       return { tone: 'fail', label: '发现失败' };
     case 'succeeded': {
       const sp = t.stages.find((s) => s.name === 'spawn');
+
       return { tone: 'muted', label: sp?.output ?? '已派生采集' };
     }
+
     default:
       return { tone: 'muted', label: '排队' };
   }
@@ -304,6 +327,7 @@ function selectRun(
   const discoverRow: RowModel | null = discoverTask
     ? (() => {
         const st = discoverStateOf(discoverTask);
+
         return {
           key: String(discoverTask.id),
           kind: 'discover' as const,
@@ -346,6 +370,7 @@ function selectRun(
       analyzeByParent.set(t.parentTaskId, t);
     }
   }
+
   const mains = tasks
     .filter((t) => t.kind === 'collect' || t.kind === 'recheck')
     .sort((a, b) => a.enqueuedAt - b.enqueuedAt);
@@ -360,6 +385,7 @@ function selectRun(
     if (analyze) {
       groups.push({ label: '分析', task: analyze });
     }
+
     let cat: RowCat;
     if (st.tone === 'fail') {
       cat = 'failed';
@@ -369,6 +395,7 @@ function selectRun(
       const s = active?.status;
       cat = s === 'succeeded' || s === 'skipped' || s === 'canceled' ? 'done' : 'running';
     }
+
     return {
       key: String(main.id),
       kind: main.kind,
@@ -410,6 +437,7 @@ function selectRun(
       bucket.insight += 1;
       continue;
     }
+
     switch (r.rowTone) {
       case 'fail':
         bucket.failed += 1;
@@ -445,6 +473,7 @@ function selectRun(
   for (const r of rows) {
     counts[r.cat] += 1;
   }
+
   const filteredRows =
     filters.status === 'running' || filters.status === 'done' || filters.status === 'failed'
       ? rows.filter((r) => r.cat === filters.status)
@@ -495,8 +524,10 @@ function StatusBar({ bucket, total }: { bucket: Bucket; total: number }) {
   if (total === 0) {
     return <div className="h-2 rounded-full bg-muted" />;
   }
+
   const seg = (n: number, cls: string, key: string) =>
     n > 0 ? <div key={key} className={cls} style={{ width: `${(n / total) * 100}%` }} /> : null;
+
   return (
     <div className="flex h-2 overflow-hidden rounded-full bg-muted">
       {seg(bucket.insight, 'bg-signal', 'i')}
@@ -514,9 +545,11 @@ function Legend({ bucket }: { bucket: Bucket }) {
   if (bucket.insight) {
     items.push({ c: 'bg-signal', t: `出洞察 ${bucket.insight}`, cls: 'text-signal' });
   }
+
   if (bucket.running) {
     items.push({ c: 'bg-primary signal-pulse', t: `在跑 ${bucket.running}`, cls: 'text-primary' });
   }
+
   if (bucket.waiting) {
     items.push({
       c: 'bg-intensity-medium',
@@ -524,6 +557,7 @@ function Legend({ bucket }: { bucket: Bucket }) {
       cls: 'text-intensity-medium',
     });
   }
+
   if (bucket.paused) {
     items.push({
       c: 'bg-intensity-medium/60',
@@ -531,9 +565,11 @@ function Legend({ bucket }: { bucket: Bucket }) {
       cls: 'text-intensity-medium',
     });
   }
+
   if (bucket.failed) {
     items.push({ c: 'bg-intensity-high', t: `失败 ${bucket.failed}`, cls: 'text-destructive' });
   }
+
   if (bucket.skipped) {
     items.push({
       c: 'bg-muted-foreground/40',
@@ -541,6 +577,7 @@ function Legend({ bucket }: { bucket: Bucket }) {
       cls: 'text-muted-foreground',
     });
   }
+
   if (bucket.pending) {
     items.push({
       c: 'bg-muted-foreground/30',
@@ -548,9 +585,11 @@ function Legend({ bucket }: { bucket: Bucket }) {
       cls: 'text-muted-foreground',
     });
   }
+
   if (items.length === 0) {
     return null;
   }
+
   return (
     <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
       {items.map((x, i) => (
@@ -574,15 +613,19 @@ function Summary({ data }: { data: RunData }) {
   if (bucket.running) {
     live.push(<span className="text-primary">{bucket.running} 帖在跑</span>);
   }
+
   if (bucket.waiting) {
     live.push(<span className="text-intensity-medium">{bucket.waiting} 帖等闸</span>);
   }
+
   if (bucket.paused) {
     live.push(<span className="text-intensity-medium">{bucket.paused} 帖被你挂闸</span>);
   }
+
   if (bucket.failed) {
     live.push(<span className="text-destructive">{bucket.failed} 帖失败</span>);
   }
+
   const liveTail =
     isRunning && live.length > 0 ? (
       <>
@@ -624,6 +667,7 @@ function Summary({ data }: { data: RunData }) {
       </>
     );
   }
+
   return <p className="text-sm leading-relaxed text-muted-foreground">{body}</p>;
 }
 
@@ -722,6 +766,7 @@ function Pipeline({ segments }: { segments: Seg[] }) {
     <div className="flex flex-wrap items-center gap-y-1 text-xs">
       {segments.map((s, i) => {
         const payoffDone = s.payoff && s.status === 'done';
+
         return (
           <div key={s.key} className="flex items-center">
             <span
@@ -773,6 +818,7 @@ function StageLine({
   gateBusy: boolean;
 }) {
   const canGate = stage.status === 'pending';
+
   return (
     <div
       className={cn(
@@ -882,6 +928,7 @@ function Controls({
       </div>
     );
   }
+
   if (task.status === 'failed') {
     return (
       <div className="flex flex-wrap gap-2">
@@ -894,6 +941,7 @@ function Controls({
       </div>
     );
   }
+
   if (task.status === 'running' || task.status === 'queued') {
     return (
       <Button size="sm" variant="ghost" disabled={busy} onClick={() => onCancel(task.id)}>
@@ -901,6 +949,7 @@ function Controls({
       </Button>
     );
   }
+
   return null;
 }
 
@@ -1054,6 +1103,7 @@ function RunDetailView() {
   if (q.isPending) {
     return <Skeleton className="h-96 w-full" />;
   }
+
   if (q.isError) {
     return (
       <LoadError
@@ -1079,9 +1129,11 @@ function RunDetailView() {
     if (s) {
       params.set('status', s);
     }
+
     if (size !== DEFAULT_SIZE) {
       params.set('size', String(size));
     }
+
     const qStr = params.toString();
     navigate(qStr ? `/radar/runs/${runId}?${qStr}` : `/radar/runs/${runId}`);
   };
@@ -1136,6 +1188,7 @@ function RunDetailView() {
               {STATUS_TABS.map((t) => {
                 const n = t.key === '' ? counts.all : counts[t.key];
                 const active = status === t.key;
+
                 return (
                   <button
                     key={t.key || 'all'}

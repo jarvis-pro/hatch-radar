@@ -33,6 +33,7 @@ async function fetchItem(id: number): Promise<HNItem | null> {
     if (!res.ok) {
       return null;
     }
+
     return (await res.json()) as HNItem | null;
   } catch {
     return null;
@@ -89,12 +90,14 @@ export function decodeEntities(text: string): string {
         if (!Number.isInteger(codePoint) || codePoint < 0 || codePoint > 0x10ffff) {
           return match;
         }
+
         try {
           return String.fromCodePoint(codePoint);
         } catch {
           return match;
         }
       }
+
       return NAMED_ENTITIES[body] ?? match;
     },
   );
@@ -113,6 +116,7 @@ export function decodeHtml(html: string): string {
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<a\s+href="([^"]+)"[^>]*>([^<]+)<\/a>/gi, '$2 ($1)')
     .replace(/<[^>]+>/g, '');
+
   return decodeEntities(withoutTags).trim();
 }
 
@@ -127,6 +131,7 @@ async function fetchBatch(ids: number[]): Promise<HNItem[]> {
       }
     }
   }
+
   return out;
 }
 
@@ -161,11 +166,13 @@ export async function collectHnComments(
       hitCap = true; // 还有未抓的更深层级
       break;
     }
+
     const room = maxComments - out.length;
     if (room <= 0) {
       hitCap = true;
       break;
     }
+
     // 总量预算不足以容纳整层时，只取放得下的部分，余下计为截断
     const level = frontier.length > room ? frontier.slice(0, room) : frontier;
     if (level.length < frontier.length) {
@@ -179,6 +186,7 @@ export async function collectHnComments(
       if (!item.text || !item.by) {
         continue;
       }
+
       const cid = `hn_${item.id}`;
       out.push({
         id: cid,
@@ -193,10 +201,12 @@ export async function collectHnComments(
         next.push({ id: kid, parentId: cid });
       }
     }
+
     frontier = next;
   }
 
   const dropped = hitCap ? Math.max(0, (root.descendants ?? 0) - out.length) : 0;
+
   return { comments: out, dropped };
 }
 
@@ -213,6 +223,7 @@ export class HackerNewsClient {
     if (!res.ok) {
       throw new Error(`HN API 失败: ${res.status} GET /${endpoint}`);
     }
+
     return (await res.json()) as number[];
   }
 
@@ -230,6 +241,7 @@ export class HackerNewsClient {
   ): Promise<RedditPost[]> {
     const ids = await this.fetchIds(endpoint);
     const items = await fetchBatch(ids.slice(0, limit));
+
     return items
       .filter((item) => item.title && item.type !== 'comment')
       .map((item) => ({
@@ -263,6 +275,7 @@ export class HackerNewsClient {
     if (!story?.kids?.length) {
       return { comments: [], dropped: 0 };
     }
+
     return collectHnComments(
       { kids: story.kids, descendants: story.descendants ?? 0 },
       fetchBatch,

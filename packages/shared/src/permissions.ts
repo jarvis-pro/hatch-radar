@@ -134,8 +134,10 @@ export function hasPermission(
   if (!active) {
     return false;
   }
+
   if (role === 'super_admin') {
     return true;
   }
+
   return granted.includes(key);
 }

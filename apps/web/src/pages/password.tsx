@@ -5,6 +5,7 @@ import { ChangePasswordForm } from '@/components/change-password-form';
 /** 改密页：首登 / 被重置后强制改密在此完成（ProtectedLayout 放行本页避免死循环）。 */
 export function PasswordPage() {
   const { user } = useAuth();
+
   return (
     <div className="mx-auto max-w-sm space-y-4">
       <h1 className="text-lg font-semibold">修改密码</h1>

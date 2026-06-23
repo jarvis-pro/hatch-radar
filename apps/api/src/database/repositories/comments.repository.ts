@@ -82,6 +82,7 @@ export class CommentsRepository {
           comments_changed_at = ${changed ? Prisma.sql`${BigInt(fetchedAt)}` : Prisma.sql`comments_changed_at`}
         WHERE id = ${postId}
       `;
+
       return { changed };
     });
   }
@@ -95,6 +96,7 @@ export class CommentsRepository {
       where: { post_id: postId },
       orderBy: [{ depth: 'asc' }, { score: 'desc' }],
     });
+
     return rows.map(toCommentRow);
   }
 

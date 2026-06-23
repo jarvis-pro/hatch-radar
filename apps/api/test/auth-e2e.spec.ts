@@ -56,12 +56,15 @@ describe('鉴权契约 e2e（真实 AppModule + HTTP）', () => {
     if (opts.body !== undefined) {
       headers['content-type'] = 'application/json';
     }
+
     if (opts.cookie) {
       headers['cookie'] = opts.cookie;
     }
+
     if (opts.csrf) {
       headers['x-radar-csrf'] = '1';
     }
+
     return fetch(`${base}${path}`, {
       method,
       headers,

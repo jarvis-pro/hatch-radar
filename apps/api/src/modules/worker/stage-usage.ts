@@ -13,6 +13,7 @@ export type StageLike = { name: string; output: unknown };
 /** 取某环节已落库的产物并按目标形状读取（上游检查点；未跑/无产物为 undefined）。 */
 export function stepOutput<T>(stages: readonly StageLike[], name: string): T | undefined {
   const out = stages.find((s) => s.name === name)?.output;
+
   return (out ?? undefined) as T | undefined;
 }
 
@@ -30,5 +31,6 @@ export function usageFromSteps(stages: readonly StageLike[]): StageUsage | null 
   if (fromAi) {
     return fromAi;
   }
+
   return stepOutput<{ usage: StageUsage | null }>(stages, 'translate')?.usage ?? null;
 }

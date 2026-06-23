@@ -23,6 +23,7 @@ export function PulseDot({ color, size = 7 }: { color: string; size?: number }) 
     transform: [{ scale: interpolate(t.value, [0, 1], [1, 3]) }],
     opacity: interpolate(t.value, [0, 1], [0.5, 0]),
   }));
+
   return (
     <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
       <Animated.View

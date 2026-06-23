@@ -63,6 +63,7 @@ function Carousel({
     if (!api) {
       return;
     }
+
     setCanScrollPrev(api.canScrollPrev());
     setCanScrollNext(api.canScrollNext());
   }, []);
@@ -92,6 +93,7 @@ function Carousel({
     if (!api || !setApi) {
       return;
     }
+
     setApi(api);
   }, [api, setApi]);
 
@@ -99,6 +101,7 @@ function Carousel({
     if (!api) {
       return;
     }
+
     onSelect(api);
     api.on('reInit', onSelect);
     api.on('select', onSelect);

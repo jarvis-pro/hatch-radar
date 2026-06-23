@@ -28,8 +28,10 @@ const FIELD_LABEL: Record<string, string> = {
 export function buildTranslationPrompt(items: TranslateItem[]): string {
   const blocks = items.map((it, i) => {
     const label = FIELD_LABEL[it.field] ?? '文本';
+
     return `【条目 ${i + 1}】\nkey: ${it.key}\n类型: ${label}\n原文:\n${it.text}`;
   });
+
   return `请把下列 ${items.length} 个条目分别翻译成简体中文，逐条按 key 返回。\n\n${blocks.join('\n\n———\n\n')}`;
 }
 
@@ -41,6 +43,7 @@ export function buildTranslationPrompt(items: TranslateItem[]): string {
 export function normalizeTranslationItems(raw: unknown): TranslatedItem[] {
   const data = (raw ?? {}) as Record<string, unknown>;
   const items = Array.isArray(data.items) ? data.items : [];
+
   return items
     .map((it: Record<string, unknown>) => ({
       key: String(it?.key ?? '').trim(),

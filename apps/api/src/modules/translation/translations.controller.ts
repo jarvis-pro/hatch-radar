@@ -96,6 +96,7 @@ export class TranslationsController {
       subreddit: dto.subreddit,
       limit: dto.limit,
     };
+
     return this.translations.enqueueBatch(actor.id, filter, dto.providerId);
   }
 

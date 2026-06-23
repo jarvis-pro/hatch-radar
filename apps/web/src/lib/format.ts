@@ -4,6 +4,7 @@ import type { TriageStatus } from '@hatch-radar/shared';
 export function fmtDate(unixSec: number): string {
   const d = new Date(unixSec * 1000);
   const pad = (n: number) => String(n).padStart(2, '0');
+
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
@@ -13,15 +14,19 @@ export function timeAgo(unixSec: number): string {
   if (diff < 60) {
     return '刚刚';
   }
+
   if (diff < 3600) {
     return `${Math.floor(diff / 60)} 分钟前`;
   }
+
   if (diff < 86400) {
     return `${Math.floor(diff / 3600)} 小时前`;
   }
+
   if (diff < 30 * 86400) {
     return `${Math.floor(diff / 86400)} 天前`;
   }
+
   return fmtDate(unixSec);
 }
 
@@ -31,9 +36,11 @@ export function fmtDuration(sec: number): string {
   if (s < 60) {
     return `${s} 秒`;
   }
+
   if (s < 3600) {
     return `${Math.floor(s / 60)} 分 ${s % 60} 秒`;
   }
+
   return `${Math.floor(s / 3600)} 时 ${Math.floor((s % 3600) / 60)} 分`;
 }
 
@@ -53,14 +60,17 @@ export function decodeEntities(text: string): string {
   if (!text || !text.includes('&')) {
     return text;
   }
+
   const cached = entityCache.get(text);
   if (cached !== undefined) {
     return cached;
   }
+
   const el = (entityDecoder ??= document.createElement('textarea'));
   el.innerHTML = text;
   const out = el.value;
   entityCache.set(text, out);
+
   return out;
 }
 
@@ -79,5 +89,6 @@ export const TRIAGE_STATUS_LABELS: Record<TriageStatus, string> = {
 /** 解析查询串中的页码；非法值回退第 1 页 */
 export function parsePage(value: string | undefined | null): number {
   const n = Number(value);
+
   return Number.isInteger(n) && n > 0 ? n : 1;
 }

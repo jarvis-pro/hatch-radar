@@ -115,6 +115,7 @@ function DistRow({
   mono?: boolean;
 }) {
   const pct = value > 0 ? Math.max((value / max) * 100, 5) : 0;
+
   return (
     <View className="flex-row items-center gap-3">
       <Text

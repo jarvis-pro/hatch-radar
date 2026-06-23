@@ -12,17 +12,21 @@ export function parseExportFilter(q: Record<string, string | undefined>): Export
   if (Number.isInteger(since) && since > 0) {
     filter.since = since;
   }
+
   const limit = Number(q.limit);
   if (Number.isInteger(limit) && limit > 0) {
     filter.limit = limit;
   }
+
   const intensity = q.minIntensity?.toUpperCase();
   if (intensity === 'HIGH' || intensity === 'MEDIUM' || intensity === 'LOW') {
     filter.minIntensity = intensity as Intensity;
   }
+
   const subreddit = q.subreddit?.trim();
   if (subreddit) {
     filter.subreddit = subreddit;
   }
+
   return filter;
 }

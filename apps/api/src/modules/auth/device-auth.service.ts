@@ -15,6 +15,7 @@ function nowSec(): number {
 
 function header(headers: Record<string, string | string[] | undefined>, name: string): string {
   const v = headers[name];
+
   return Array.isArray(v) ? (v[0] ?? '') : (v ?? '');
 }
 
@@ -32,6 +33,7 @@ export class DeviceAuthService {
     if (exp != null && exp > now) {
       return true;
     }
+
     this.usedSigs.set(sig, now + TS_WINDOW);
     if (this.usedSigs.size > 4096) {
       for (const [k, e] of this.usedSigs) {
@@ -40,6 +42,7 @@ export class DeviceAuthService {
         }
       }
     }
+
     return false;
   }
 
@@ -58,6 +61,7 @@ export class DeviceAuthService {
     if (!code || !publicKey) {
       return null;
     }
+
     const now = nowSec();
     const enrollment = await this.db.device_enrollments.findUnique({
       where: { code_hash: sha256Hex(code) },
@@ -65,6 +69,7 @@ export class DeviceAuthService {
     if (!enrollment || enrollment.status !== 'pending' || Number(enrollment.expires_at) <= now) {
       return null;
     }
+
     const cred = await this.db.$transaction(async (tx) => {
       const created = await tx.device_credentials.create({
         data: {
@@ -82,6 +87,7 @@ export class DeviceAuthService {
         where: { id: enrollment.id },
         data: { status: 'consumed', consumed_at: BigInt(now) },
       });
+
       return created;
     });
     await this.recordAudit({
@@ -91,6 +97,7 @@ export class DeviceAuthService {
       targetId: cred.id,
       metadata: { user_id: enrollment.user_id },
     });
+
     return { credentialId: cred.id };
   }
 
@@ -115,6 +122,7 @@ export class DeviceAuthService {
     if (!credentialId || !sig || !Number.isInteger(ts)) {
       return null;
     }
+
     const now = nowSec();
     if (Math.abs(now - ts) > TS_WINDOW) {
       return null;
@@ -136,6 +144,7 @@ export class DeviceAuthService {
     if (!verifyDeviceSignature(cred.public_key, canonical, sig)) {
       return null;
     }
+
     // 防重放：TS_WINDOW 内同一签名只接受一次（超窗重放已被上面的时间窗挡）。
     if (this.isReplayed(sig, now)) {
       return null;
@@ -145,6 +154,7 @@ export class DeviceAuthService {
     if (!user || user.status !== 'active') {
       return null;
     }
+
     if (requiredPerm) {
       const perms = user.permissions.map((p) => p.permission);
       if (!hasPermission(user.role as UserRole, perms, requiredPerm, true)) {

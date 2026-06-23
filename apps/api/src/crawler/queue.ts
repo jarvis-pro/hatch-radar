@@ -101,14 +101,17 @@ export class TokenBucketQueue {
   private pump(): void {
     if (Date.now() < this.pauseUntil) {
       this.schedulePump();
+
       return;
     }
+
     this.refill();
     while (this.queue.length > 0 && this.tokens >= 1) {
       this.tokens -= 1;
       const task = this.queue.shift()!;
       task.run().then(task.resolve, task.reject);
     }
+
     if (this.queue.length > 0) {
       this.schedulePump();
     }
@@ -123,6 +126,7 @@ export class TokenBucketQueue {
     if (this.timer) {
       return;
     }
+
     const now = Date.now();
     const waitForPause = Math.max(0, this.pauseUntil - now);
     const waitForToken = this.tokens >= 1 ? 0 : Math.ceil((1 - this.tokens) / this.refillPerMs);

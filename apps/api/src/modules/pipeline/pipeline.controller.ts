@@ -21,6 +21,7 @@ function parseId(raw: string): number {
   if (!Number.isInteger(id) || id <= 0) {
     throw new BadRequestException('id 非法');
   }
+
   return id;
 }
 
@@ -46,6 +47,7 @@ export class PipelineController {
   async runCollect() {
     const { runId } = await this.pipeline.runCollectSweep('manual');
     logger.info(`[采集] 手动触发 collect 进程#${runId}`);
+
     return { runId };
   }
 
@@ -55,6 +57,7 @@ export class PipelineController {
   async runRecheck() {
     const { runId, sweep, due } = await this.pipeline.runRecheckSweep('manual');
     logger.info(`[复查] 手动触发 recheck sweep#${sweep} 进程#${runId}（${due} 到期）`);
+
     return { runId, sweep, due };
   }
 
@@ -77,6 +80,7 @@ export class PipelineController {
     if (!res) {
       throw new NotFoundException('进程不存在');
     }
+
     return res;
   }
 
@@ -90,6 +94,7 @@ export class PipelineController {
     if (!ok) {
       throw new BadRequestException('当前不可放行（任务并非暂停态）');
     }
+
     return { ok: true };
   }
 
@@ -98,6 +103,7 @@ export class PipelineController {
   @HttpCode(200)
   async runTaskToEnd(@Param('id') idRaw: string) {
     await this.taskControl.runInspectToEnd(parseId(idRaw));
+
     return { ok: true };
   }
 
@@ -106,6 +112,7 @@ export class PipelineController {
   @HttpCode(200)
   async retryTask(@Param('id') idRaw: string) {
     await this.taskControl.retryInspectStep(parseId(idRaw));
+
     return { ok: true };
   }
 
@@ -117,6 +124,7 @@ export class PipelineController {
     if (!ok) {
       throw new BadRequestException('当前不可取消（任务已是终态）');
     }
+
     return { ok: true };
   }
 
@@ -132,10 +140,12 @@ export class PipelineController {
     if (!Number.isInteger(seq) || seq < 0) {
       throw new BadRequestException('seq 非法');
     }
+
     const ok = await this.taskControl.toggleStageGate(parseId(idRaw), seq, body.gate === true);
     if (!ok) {
       throw new BadRequestException('当前不可设置暂停点（环节非待执行）');
     }
+
     return { ok: true };
   }
 }

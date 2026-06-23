@@ -38,6 +38,7 @@ export async function fetchFeed(feed: RssSource, limit = 20): Promise<RedditPost
     if (!guid || !item.title) {
       continue;
     }
+
     const raw = item.content || item.contentSnippet || '';
     posts.push({
       id: rssId(feed.name, guid),
@@ -55,5 +56,6 @@ export async function fetchFeed(feed: RssSource, limit = 20): Promise<RedditPost
       stickied: false,
     });
   }
+
   return posts;
 }

@@ -70,11 +70,14 @@ export function FilterBar({
         params.set(s.name, v);
       }
     }
+
     const qv = searchName in overrides ? overrides[searchName] : (searchValue ?? '');
     if (qv) {
       params.set(searchName, qv);
     }
+
     const qs = params.toString();
+
     return qs ? `${basePath}?${qs}` : basePath;
   }
 

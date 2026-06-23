@@ -28,6 +28,7 @@ export class ExportController {
     logger.info(
       `[导出] HTTP 批次：洞察 ${batch.meta.counts.insights} / 帖子 ${batch.meta.counts.posts} / 评论 ${batch.meta.counts.comments}`,
     );
+
     return batch;
   }
 
@@ -42,6 +43,7 @@ export class ExportController {
     const { size } = statSync(file);
     const stream = createReadStream(file);
     stream.on('close', () => rmSync(dir, { recursive: true, force: true }));
+
     return new StreamableFile(stream, {
       type: 'application/vnd.sqlite3',
       disposition: `attachment; filename="${name}"`,

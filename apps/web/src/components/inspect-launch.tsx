@@ -74,6 +74,7 @@ export function InspectLaunchButton({
     if (!resolvedProviderId) {
       return;
     }
+
     setBusy(true);
     try {
       const { jobId } = await api.post<{ jobId: number }>('/analysis/inspect', {

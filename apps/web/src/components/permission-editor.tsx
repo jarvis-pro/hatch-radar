@@ -37,6 +37,7 @@ export function PermissionEditor({
     } else {
       next.add(k);
     }
+
     onChange([...next]);
   };
 
@@ -71,6 +72,7 @@ export function PermissionEditor({
           <div className="text-xs font-medium text-muted-foreground">{group}</div>
           {PERMISSION_CATALOG.filter((c) => c.group === group).map((c) => {
             const blocked = allowed != null && !allowed.has(c.key);
+
             return (
               <label
                 key={c.key}

@@ -20,6 +20,7 @@ type TranslationState = 'none' | 'first' | 'incremental' | 'translating' | 'done
 /** 当月起点（UTC）的 Unix 秒——Azure 免费档按自然月重置，用量统计据此取窗。 */
 function startOfMonthSec(): number {
   const d = new Date();
+
   return Math.floor(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1) / 1000);
 }
 
@@ -66,6 +67,7 @@ export class TranslationOrchestrator {
           : progress.translated === 0
             ? 'first'
             : 'incremental';
+
     return { ...progress, active, state, lastError };
   }
 
@@ -89,6 +91,7 @@ export class TranslationOrchestrator {
       (await this.settings.getTranslationProviderId()) ??
       (await this.settings.getActiveProviderId());
     const defaultId = usable.some((p) => p.id === resolved) ? resolved : null;
+
     return {
       defaultId,
       providers: usable.map((p) => ({
@@ -122,6 +125,7 @@ export class TranslationOrchestrator {
       targetId: postId,
       metadata: { providerId: provider.id, model: provider.model },
     });
+
     return { enqueued: enqueued > 0 };
   }
 
@@ -134,6 +138,7 @@ export class TranslationOrchestrator {
   ): Promise<{ posts: number; translated: number; untranslated: number }> {
     const ids = await this.exportSvc.selectPostIds(filter);
     const needing = await this.translations.getPostIdsNeedingTranslation(ids);
+
     return {
       posts: ids.length,
       translated: ids.length - needing.length,
@@ -165,6 +170,7 @@ export class TranslationOrchestrator {
       targetId: null,
       metadata: { providerId: provider.id, model: provider.model, posts: needing.length, enqueued },
     });
+
     return { enqueued, posts: needing.length };
   }
 
@@ -177,6 +183,7 @@ export class TranslationOrchestrator {
       'azure',
       startOfMonthSec(),
     );
+
     return { azureCharsThisMonth, azureFreeLimit: AZURE_FREE_CHARS_PER_MONTH };
   }
 
@@ -192,15 +199,18 @@ export class TranslationOrchestrator {
     if (providerId == null) {
       throw new ValidationError('未配置翻译模型，请在弹窗中选择，或在设置页设定翻译/active 模型');
     }
+
     const provider = await this.providers.getProvider(providerId);
     if (!provider || !provider.enabled) {
       throw new ValidationError('翻译模型不存在或已停用');
     }
+
     if (provider.provider !== 'claude_cli' && provider.provider !== 'azure') {
       throw new ValidationError(
         `翻译暂仅支持 claude_cli（订阅）/ azure（机翻），当前为 ${provider.provider}`,
       );
     }
+
     return provider;
   }
 }

@@ -63,6 +63,7 @@ function parseSort(v: string | null): { key: SortKey; dir: SortDir } {
   if (SORT_KEYS.includes(k as SortKey) && (d === 'asc' || d === 'desc')) {
     return { key: k as SortKey, dir: d };
   }
+
   return { key: 'time', dir: 'desc' };
 }
 
@@ -86,6 +87,7 @@ function SortHeader({
 }) {
   const active = activeKey === sortKey;
   const Icon = !active ? ChevronsUpDown : dir === 'desc' ? ArrowDown : ArrowUp;
+
   return (
     <TableHead className={className}>
       <button
@@ -111,6 +113,7 @@ function InsightRow({ insight, onClick }: { insight: RadarInsightDTO; onClick: (
   const im = INTENSITY_META[insight.intensity];
   const srcMeta = SOURCE_META[insight.source as RadarSourceKind];
   const SrcIcon = srcMeta?.icon;
+
   return (
     <TableRow className="cursor-pointer" onClick={onClick}>
       <TableCell className="hidden font-mono text-xs text-muted-foreground/70 xl:table-cell">
@@ -204,24 +207,31 @@ function Harvest() {
     if (next.source) {
       params.set('source', next.source);
     }
+
     if (next.subreddit) {
       params.set('subreddit', next.subreddit);
     }
+
     if (next.intensity) {
       params.set('intensity', next.intensity);
     }
+
     if (next.q.trim()) {
       params.set('q', next.q.trim());
     }
+
     if (sort) {
       params.set('sort', sort);
     }
+
     if (size !== DEFAULT_SIZE) {
       params.set('size', String(size));
     }
+
     const qStr = params.toString();
     navigate(qStr ? `/radar/insights?${qStr}` : '/radar/insights');
   };
+
   const reset = (): void => apply({ source: '', subreddit: '', intensity: '', q: '' });
 
   /** 列头点击排序（即时，作用于已提交的筛选；回第 1 页，同列切方向、换列以倒序起步）。 */
@@ -232,21 +242,27 @@ function Harvest() {
     if (source) {
       params.set('source', source);
     }
+
     if (subreddit) {
       params.set('subreddit', subreddit);
     }
+
     if (intensity) {
       params.set('intensity', intensity);
     }
+
     if (q) {
       params.set('q', q);
     }
+
     if (nextSort !== DEFAULT_SORT) {
       params.set('sort', nextSort);
     }
+
     if (size !== DEFAULT_SIZE) {
       params.set('size', String(size));
     }
+
     const qStr = params.toString();
     navigate(qStr ? `/radar/insights?${qStr}` : '/radar/insights');
   };

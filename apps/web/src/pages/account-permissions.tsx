@@ -15,6 +15,7 @@ export function PermissionsPage() {
   if (!user) {
     return null;
   } // 受 ProtectedLayout 守卫，理论不达此
+
   return (
     <div>
       <PageHeader title="我的权限" description="你在本控制台拥有的能力" />
@@ -31,6 +32,7 @@ function MyPermissions({ user }: { user: CurrentUser }) {
       </p>
     );
   }
+
   return (
     <div className="grid gap-3">
       {PERMISSION_GROUPS.map((group) => (
@@ -38,6 +40,7 @@ function MyPermissions({ user }: { user: CurrentUser }) {
           <div className="text-xs font-medium text-muted-foreground">{group}</div>
           {PERMISSION_CATALOG.filter((c) => c.group === group).map((c) => {
             const granted = hasPermission(user.role, user.permissions, c.key);
+
             return (
               <div key={c.key} className="flex items-center gap-2 text-sm">
                 {granted ? (

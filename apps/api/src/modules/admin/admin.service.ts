@@ -83,15 +83,19 @@ export class AdminService {
     if (!email || !name) {
       throw new ValidationError('邮箱与姓名必填');
     }
+
     if (dto.password.length < 8) {
       throw new ValidationError('初始密码至少 8 位');
     }
+
     if (dto.role === 'super_admin' && actor.role !== 'super_admin') {
       throw new ForbiddenError('只有超级管理员能创建超级管理员');
     }
+
     if (await this.users.findByEmail(email)) {
       throw new ConflictError('该邮箱已存在');
     }
+
     const perms = dto.role === 'admin' ? this.sanitizePermissions(actor, dto.perms) : [];
     const id = await this.users.create(
       {
@@ -113,6 +117,7 @@ export class AdminService {
       targetId: id,
       metadata: { email, role: dto.role, permissions: perms },
     });
+
     return { id };
   }
 
@@ -122,14 +127,17 @@ export class AdminService {
     if (!name) {
       throw new ValidationError('参数不完整');
     }
+
     const target = await this.users.findById(userId);
     if (!target) {
       throw new NotFoundError('账户不存在');
     }
+
     this.assertCanManageTarget(actor, userId);
     if (dto.role === 'super_admin' && actor.role !== 'super_admin') {
       throw new ForbiddenError('只有超级管理员能授予超管角色');
     }
+
     if (
       target.role === 'super_admin' &&
       dto.role !== 'super_admin' &&
@@ -137,6 +145,7 @@ export class AdminService {
     ) {
       throw new ValidationError('不能降级最后一个超级管理员');
     }
+
     const perms = dto.role === 'admin' ? this.sanitizePermissions(actor, dto.perms) : [];
     await this.users.updateProfileAndPermissions(
       userId,
@@ -160,6 +169,7 @@ export class AdminService {
     if (!target) {
       throw new NotFoundError('账户不存在');
     }
+
     this.assertCanManageTarget(actor, userId);
     const pw = tempPassword();
     await this.users.updatePassword(userId, await hashPassword(pw), true, nowSec());
@@ -170,6 +180,7 @@ export class AdminService {
       targetType: 'user',
       targetId: userId,
     });
+
     return { tempPassword: pw };
   }
 
@@ -178,18 +189,22 @@ export class AdminService {
     if (userId === actor.id) {
       throw new ValidationError('不能停用 / 启用自己');
     }
+
     const target = await this.users.findById(userId);
     if (!target) {
       throw new NotFoundError('账户不存在');
     }
+
     this.assertCanManageTarget(actor, userId);
     if (status === 'disabled' && (await this.isLastActiveSuper(userId))) {
       throw new ValidationError('不能停用最后一个超级管理员');
     }
+
     await this.users.setStatus(userId, status, nowSec());
     if (status === 'disabled') {
       await this.sessions.deleteByUser(userId);
     }
+
     await this.audit.write({
       actorId: actor.id,
       action: status === 'disabled' ? 'account.disable' : 'account.enable',
@@ -203,14 +218,17 @@ export class AdminService {
     if (userId === actor.id) {
       throw new ValidationError('不能删除自己');
     }
+
     const target = await this.users.findById(userId);
     if (!target) {
       throw new NotFoundError('账户不存在');
     }
+
     this.assertCanManageTarget(actor, userId);
     if (await this.isLastActiveSuper(userId)) {
       throw new ValidationError('不能删除最后一个超级管理员');
     }
+
     await this.users.delete(userId);
     await this.audit.write({
       actorId: actor.id,
@@ -234,11 +252,13 @@ export class AdminService {
     if (!name) {
       throw new ValidationError('请填写设备名');
     }
+
     const ttl = ALLOWED_TTL_DAYS.includes(ttlDays) ? ttlDays : 30;
     const target = await this.users.findById(userId);
     if (!target) {
       throw new NotFoundError('账户不存在');
     }
+
     this.assertCanManageTarget(actor, userId);
     const code = generateEnrollmentCode();
     const now = nowSec();
@@ -258,6 +278,7 @@ export class AdminService {
       targetId: userId,
       metadata: { enrollmentId: id, deviceName: name, ttlDays: ttl },
     });
+
     return { code };
   }
 
@@ -267,6 +288,7 @@ export class AdminService {
     if (!cred) {
       throw new NotFoundError('设备不存在');
     }
+
     this.assertCanManageTarget(actor, cred.userId);
     await this.devices.revoke(credentialId);
     await this.audit.write({
@@ -300,6 +322,7 @@ export class AdminService {
     if (actor.role === 'super_admin') {
       return;
     } // 超管全通（仍受「最后一个超管」等单独校验约束）
+
     if (targetUserId !== actor.id) {
       throw new ForbiddenError('只有超级管理员能管理其它账户');
     }
@@ -311,7 +334,9 @@ export class AdminService {
     if (actor.role === 'super_admin') {
       return [...new Set(valid)];
     }
+
     const own = new Set(actor.permissions);
+
     return [...new Set(valid.filter((p) => own.has(p)))];
   }
 
@@ -321,6 +346,7 @@ export class AdminService {
     if (!t || t.role !== 'super_admin' || t.status !== 'active') {
       return false;
     }
+
     return (await this.users.countActiveSupers()) <= 1;
   }
 }

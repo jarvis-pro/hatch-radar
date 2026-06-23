@@ -41,6 +41,7 @@ async function request<T>(
   if (body !== undefined) {
     headers['content-type'] = 'application/json';
   }
+
   const res = await fetch(`${API_BASE}${path}`, {
     method,
     headers,
@@ -50,21 +51,27 @@ async function request<T>(
     if (!opts?.skipAuthHandler) {
       unauthorizedHandler?.();
     }
+
     throw new ApiError(401, await errorMessage(res, '未登录或会话已过期'));
   }
+
   if (!res.ok) {
     throw new ApiError(res.status, await errorMessage(res, res.statusText));
   }
+
   if (res.status === 204) {
     return undefined as T;
   }
+
   const text = await res.text();
+
   return (text ? JSON.parse(text) : undefined) as T;
 }
 
 async function errorMessage(res: Response, fallback: string): Promise<string> {
   try {
     const data = (await res.json()) as { error?: string };
+
     return data?.error ?? fallback;
   } catch {
     return fallback;
@@ -97,11 +104,14 @@ export async function downloadBlob(
     unauthorizedHandler?.();
     throw new ApiError(401, '未登录或会话已过期');
   }
+
   if (!res.ok) {
     throw new ApiError(res.status, await errorMessage(res, res.statusText));
   }
+
   const blob = await res.blob();
   const disposition = res.headers.get('content-disposition') ?? '';
   const match = /filename="?([^"]+)"?/.exec(disposition);
+
   return { blob, filename: match?.[1] ?? fallbackName };
 }

@@ -40,6 +40,7 @@ function useToggleGroupContext() {
       'ToggleGroup compound components cannot be rendered outside the ToggleGroup component',
     );
   }
+
   return context;
 }
 
@@ -96,6 +97,7 @@ function ToggleGroupItem({
 
 function ToggleGroupIcon({ className, ...props }: React.ComponentProps<typeof Icon>) {
   const textClass = React.useContext(TextClassContext);
+
   return <Icon className={cn('size-4 shrink-0', textClass, className)} {...props} />;
 }
 

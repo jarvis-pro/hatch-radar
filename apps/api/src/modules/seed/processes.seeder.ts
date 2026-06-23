@@ -25,11 +25,13 @@ export class ProcessesSeeder implements Seeder {
     if ((await this.processes.listProcesses()).length > 0) {
       return { status: 'skipped', reason: 'processes 表非空' };
     }
+
     const collect = (await this.blueprints.listBlueprints('collect'))[0];
     const recheck = (await this.blueprints.listBlueprints('recheck'))[0];
     if (!collect && !recheck) {
       return { status: 'skipped', reason: '无可绑定的采集 / 复查图纸' };
     }
+
     let created = 0;
     for (const [bp, label] of [
       [collect, '采集 · 每 30 分钟'],
@@ -38,6 +40,7 @@ export class ProcessesSeeder implements Seeder {
       if (!bp) {
         continue;
       }
+
       await this.processes.createProcess(
         {
           blueprintId: bp.id,
@@ -51,6 +54,7 @@ export class ProcessesSeeder implements Seeder {
       );
       created += 1;
     }
+
     return { status: 'seeded', detail: `${created} 个 interval 进程（采集 / 复查）` };
   }
 }

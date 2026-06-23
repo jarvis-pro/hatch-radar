@@ -11,12 +11,15 @@ export function relPast(ms: number, now: number): string {
   if (d < MIN) {
     return '刚刚';
   }
+
   if (d < HOUR) {
     return `${Math.floor(d / MIN)} 分钟前`;
   }
+
   if (d < DAY) {
     return `${Math.floor(d / HOUR)} 小时前`;
   }
+
   return `${Math.floor(d / DAY)} 天前`;
 }
 
@@ -26,12 +29,15 @@ export function relFuture(ms: number, now: number): string {
   if (d <= 0) {
     return '即将';
   }
+
   if (d < MIN) {
     return `${Math.ceil(d / 1000)} 秒后`;
   }
+
   if (d < HOUR) {
     return `${Math.ceil(d / MIN)} 分钟后`;
   }
+
   return `${Math.ceil(d / HOUR)} 小时后`;
 }
 
@@ -41,8 +47,10 @@ export function fmtDur(ms: number): string {
   if (s < 60) {
     return `${s}s`;
   }
+
   const m = Math.floor(s / 60);
   const r = s % 60;
+
   return r ? `${m}m ${r}s` : `${m}m`;
 }
 
@@ -51,6 +59,7 @@ export function tText(original: string, zh: string | undefined, preferOriginal: 
   if (preferOriginal) {
     return original;
   }
+
   return zh && zh.length > 0 ? zh : original;
 }
 
@@ -64,12 +73,15 @@ export function triggerSummary(t: TriggerConfig): string {
   if (t.kind === 'once') {
     return '单次';
   }
+
   if (t.kind === 'cron') {
     return t.expr;
   }
+
   const sec = t.everySec;
   if (sec % 3600 === 0) {
     return `每 ${sec / 3600} 小时`;
   }
+
   return `每 ${Math.round(sec / 60)} 分`;
 }

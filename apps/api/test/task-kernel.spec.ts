@@ -47,6 +47,7 @@ function stubConfig(callRaw: () => Promise<RawModelOutput>): AnalysisConfigServi
     analyze: () => Promise.reject(new Error('stub analyze 不应被任务内核调用')),
     callRaw,
   };
+
   return {
     getProviderInspectInfo: (providerId: number): Promise<ResolveOutput> =>
       Promise.resolve({
@@ -134,6 +135,7 @@ describe('图纸生命周期：通用任务执行内核（runTask + task_stages 
       new CommentsRepository(db),
       new PostsRepository(db),
     );
+
     return new WorkerService(
       tasks,
       taskStages,
@@ -161,6 +163,7 @@ describe('图纸生命周期：通用任务执行内核（runTask + task_stages 
     if (!res.ok) {
       throw new Error(res.error);
     }
+
     return { runId: run.id, taskId: res.taskId };
   }
 
@@ -232,6 +235,7 @@ describe('图纸生命周期：通用任务执行内核（runTask + task_stages 
     let attempt = 0;
     const worker = makeWorker(() => {
       attempt += 1;
+
       return attempt === 1 ? Promise.reject(new Error('限流 boom')) : Promise.resolve(RAW);
     });
     const { taskId } = await createAnalyzeTask(false);

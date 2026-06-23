@@ -35,6 +35,7 @@ function migrate(database: SQLite.SQLiteDatabase): void {
   if (!cols.has('comments_changed_at')) {
     database.execSync(`ALTER TABLE posts ADD COLUMN comments_changed_at INTEGER`);
   }
+
   if (!cols.has('export_locked_at')) {
     database.execSync(`ALTER TABLE posts ADD COLUMN export_locked_at INTEGER`);
   }
@@ -50,6 +51,7 @@ export function getDb(): SQLite.SQLiteDatabase {
   if (db) {
     return db;
   }
+
   db = SQLite.openDatabaseSync('radar.db');
   db.execSync('PRAGMA journal_mode = WAL;');
   db.execSync('PRAGMA foreign_keys = ON;');
@@ -59,6 +61,7 @@ export function getDb(): SQLite.SQLiteDatabase {
   // 译文表（content 按 entity_kind+entity_id 寻址）：新表，对存量库无痛、无需 ALTER
   db.execSync(TRANSLATIONS_EXPORT_DDL);
   migrate(db);
+
   return db;
 }
 
@@ -67,6 +70,7 @@ export function getMeta(key: string): string | null {
   const row = getDb().getFirstSync<{ value: string }>(`SELECT value FROM meta WHERE key = ?`, [
     key,
   ]);
+
   return row?.value ?? null;
 }
 

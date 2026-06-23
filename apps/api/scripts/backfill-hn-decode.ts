@@ -39,6 +39,7 @@ interface Stats {
 /** 抽样展示用：压成单行并截断，避免刷屏 */
 function preview(text: string): string {
   const oneLine = text.replace(/\s+/g, ' ').trim();
+
   return oneLine.length > 100 ? `${oneLine.slice(0, 100)}…` : oneLine;
 }
 
@@ -57,6 +58,7 @@ async function backfillPosts(db: AppDatabase, apply: boolean): Promise<Stats> {
     if (rows.length === 0) {
       break;
     }
+
     cursor = rows[rows.length - 1].id;
 
     const updates = [];
@@ -66,18 +68,22 @@ async function backfillPosts(db: AppDatabase, apply: boolean): Promise<Stats> {
       if (after === row.selftext) {
         continue;
       }
+
       stats.changed++;
       if (stats.samples.length < SAMPLE) {
         stats.samples.push({ id: row.id, before: row.selftext, after });
       }
+
       if (apply) {
         updates.push(db.posts.update({ where: { id: row.id }, data: { selftext: after } }));
       }
     }
+
     if (updates.length > 0) {
       await db.$transaction(updates);
     }
   }
+
   return stats;
 }
 
@@ -96,6 +102,7 @@ async function backfillComments(db: AppDatabase, apply: boolean): Promise<Stats>
     if (rows.length === 0) {
       break;
     }
+
     cursor = rows[rows.length - 1].id;
 
     const updates = [];
@@ -105,18 +112,22 @@ async function backfillComments(db: AppDatabase, apply: boolean): Promise<Stats>
       if (after === row.body) {
         continue;
       }
+
       stats.changed++;
       if (stats.samples.length < SAMPLE) {
         stats.samples.push({ id: row.id, before: row.body, after });
       }
+
       if (apply) {
         updates.push(db.comments.update({ where: { id: row.id }, data: { body: after } }));
       }
     }
+
     if (updates.length > 0) {
       await db.$transaction(updates);
     }
   }
+
   return stats;
 }
 

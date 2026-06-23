@@ -29,6 +29,7 @@ function reducer(state: StoreState, action: Action): StoreState {
   switch (action.type) {
     case 'toggleSave': {
       const has = state.savedIds.includes(action.id);
+
       return {
         ...state,
         savedIds: has
@@ -36,12 +37,15 @@ function reducer(state: StoreState, action: Action): StoreState {
           : [action.id, ...state.savedIds],
       };
     }
+
     case 'dismiss': {
       if (state.dismissedIds.includes(action.id)) {
         return state;
       }
+
       return { ...state, dismissedIds: [...state.dismissedIds, action.id] };
     }
+
     case 'restoreDeck':
       return { ...state, dismissedIds: [] };
     case 'reset':
@@ -69,6 +73,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<StoreValue>(() => {
     const byId = new Map(OPPORTUNITIES.map((o) => [o.id, o] as const));
+
     return {
       ...state,
       toggleSave: (id) => dispatch({ type: 'toggleSave', id }),
@@ -93,5 +98,6 @@ export function useStore(): StoreValue {
   if (!ctx) {
     throw new Error('useStore 必须在 <StoreProvider> 内使用');
   }
+
   return ctx;
 }

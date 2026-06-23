@@ -67,6 +67,7 @@ export class DashboardController {
       costStats.totals.cost != null && board.funnel.insights > 0
         ? costStats.totals.cost / board.funnel.insights
         : null;
+
     return { ...board, roi: { costPerInsight } };
   }
 }

@@ -46,6 +46,7 @@ export function OpportunityScene({
   // 三层视差：标题 > 正文 > （巨型数字最大，单独算）
   const titleStyle = useAnimatedStyle(() => {
     const rel = scrollY.value / height - sceneIndex;
+
     return {
       opacity: interpolate(
         rel,
@@ -58,6 +59,7 @@ export function OpportunityScene({
   });
   const bodyStyle = useAnimatedStyle(() => {
     const rel = scrollY.value / height - sceneIndex;
+
     return {
       opacity: interpolate(
         rel,
@@ -70,6 +72,7 @@ export function OpportunityScene({
   });
   const numberStyle = useAnimatedStyle(() => {
     const rel = scrollY.value / height - sceneIndex;
+
     return {
       opacity: interpolate(rel, [-1, -0.5, 0, 0.5, 1], [0, 0.55, 1, 0.55, 0], Extrapolation.CLAMP),
       transform: [

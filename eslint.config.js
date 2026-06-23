@@ -37,9 +37,16 @@ const importPathPlugin = {
         const fileDir = path.dirname(context.filename);
         const check = (node) => {
           const source = node.source;
-          if (!source || typeof source.value !== 'string') {return;}
+          if (!source || typeof source.value !== 'string') {
+            return;
+          }
+
+          // 只管父级跳转；同目录 ./ 不动
           const value = source.value;
-          if (!value.startsWith('../')) {return;} // 只管父级跳转；同目录 ./ 不动
+          if (!value.startsWith('../')) {
+            return;
+          }
+
           const parts = path.relative(rootDirAbs, path.resolve(fileDir, value)).split(path.sep);
           const alias = [prefix, ...parts].filter(Boolean).join('/');
           // 解析后仍跳出别名根（出现 ..）则只报错不自动修，避免生成坏路径
@@ -51,6 +58,7 @@ const importPathPlugin = {
             fix: canFix ? (fixer) => fixer.replaceText(source, `'${alias}'`) : null,
           });
         };
+
         return {
           ImportDeclaration: check, // import ... from '../x'
           ExportNamedDeclaration: check, // export { x } from '../x'
@@ -73,6 +81,14 @@ export default tseslint.config(
       // 强制控制流语句（if/else/for/while/do）一律带花括号，禁止无大括号单行式——
       // 防后续加第二行语句漏加花括号导致 bug（参 Apple goto fail）。Prettier 不增删花括号，故此处可强制。
       curly: ['error', 'all'],
+      // 强制垂直留白：块语句（含卫语句 if 块）后空一行、return 前空一行——
+      // 异常路径与主逻辑视觉分段。Prettier 只收敛多余空行、不强制「该空处必空」，故由此规则补位。
+      // 核心 stylistic 规则在 ESLint 10 标记 deprecated 但仍可用且可 autofix；如未来移除再迁 @stylistic。
+      'padding-line-between-statements': [
+        'error',
+        { blankLine: 'always', prev: 'block-like', next: '*' },
+        { blankLine: 'always', prev: '*', next: 'return' },
+      ],
     },
   },
   {

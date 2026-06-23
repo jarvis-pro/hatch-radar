@@ -93,6 +93,7 @@ export interface ProviderWithKeys {
 function maskKey(cipher: string): string {
   try {
     const plain = decryptSecret(cipher);
+
     return plain.length <= 8 ? '••••' : `${plain.slice(0, 4)}…${plain.slice(-4)}`;
   } catch {
     return '(无法解密，请重填)';
@@ -146,12 +147,14 @@ export class ProvidersRepository {
   /** 列出全部模型配置（标量，不含 Key） */
   async listProviders(): Promise<ProviderRow[]> {
     const rows = await this.db.model_providers.findMany({ orderBy: { id: 'asc' } });
+
     return rows.map(toProviderRow);
   }
 
   /** 按 ID 取单条模型配置（标量） */
   async getProvider(id: number): Promise<ProviderRow | undefined> {
     const row = await this.db.model_providers.findUnique({ where: { id } });
+
     return row ? toProviderRow(row) : undefined;
   }
 
@@ -172,6 +175,7 @@ export class ProvidersRepository {
         byProvider.set(k.provider_id, [k]);
       }
     }
+
     return providers.map((provider) => ({ provider, keys: byProvider.get(provider.id) ?? [] }));
   }
 
@@ -181,6 +185,7 @@ export class ProvidersRepository {
     if (!provider) {
       return undefined;
     }
+
     return { provider, keys: await this.listKeysForProvider(id) };
   }
 
@@ -228,6 +233,7 @@ export class ProvidersRepository {
           },
         });
       }
+
       return row.id;
     });
   }
@@ -241,32 +247,42 @@ export class ProvidersRepository {
     if (fields.provider !== undefined) {
       data.provider = fields.provider;
     }
+
     if (fields.label !== undefined) {
       data.label = fields.label;
     }
+
     if (fields.baseUrl !== undefined) {
       data.base_url = fields.baseUrl ?? null;
     }
+
     if (fields.region !== undefined) {
       data.region = fields.region ? fields.region : null;
     }
+
     if (fields.model !== undefined) {
       data.model = fields.model;
     }
+
     if (fields.enabled !== undefined) {
       data.enabled = fields.enabled;
     }
+
     if (fields.inputPrice !== undefined) {
       data.input_price = fields.inputPrice;
     }
+
     if (fields.outputPrice !== undefined) {
       data.output_price = fields.outputPrice;
     }
+
     if (Object.keys(data).length === 0) {
       return false;
     }
+
     data.updated_at = BigInt(now);
     const res = await this.db.model_providers.updateMany({ where: { id }, data });
+
     return res.count > 0;
   }
 
@@ -286,31 +302,40 @@ export class ProvidersRepository {
       if (fields.provider !== undefined) {
         data.provider = fields.provider;
       }
+
       if (fields.label !== undefined) {
         data.label = fields.label;
       }
+
       if (fields.baseUrl !== undefined) {
         data.base_url = fields.baseUrl ?? null;
       }
+
       if (fields.region !== undefined) {
         data.region = fields.region ? fields.region : null;
       }
+
       if (fields.model !== undefined) {
         data.model = fields.model;
       }
+
       if (fields.enabled !== undefined) {
         data.enabled = fields.enabled;
       }
+
       if (fields.inputPrice !== undefined) {
         data.input_price = fields.inputPrice;
       }
+
       if (fields.outputPrice !== undefined) {
         data.output_price = fields.outputPrice;
       }
+
       const res = await tx.model_providers.updateMany({ where: { id }, data });
       if (res.count === 0) {
         return false;
       }
+
       await tx.provider_api_keys.deleteMany({ where: { provider_id: id } });
       await tx.provider_api_keys.create({
         data: {
@@ -324,6 +349,7 @@ export class ProvidersRepository {
           updated_at: BigInt(now),
         },
       });
+
       return true;
     });
   }
@@ -331,6 +357,7 @@ export class ProvidersRepository {
   /** 删除模型配置（其 Key 池随外键级联删除） */
   async deleteProvider(id: number): Promise<boolean> {
     const res = await this.db.model_providers.deleteMany({ where: { id } });
+
     return res.count > 0;
   }
 
@@ -342,12 +369,14 @@ export class ProvidersRepository {
       where: { provider_id: providerId },
       orderBy: [{ priority: 'asc' }, { id: 'asc' }],
     });
+
     return rows.map(toProviderApiKeyRow);
   }
 
   /** 按 ID 取单把 Key（含密文，仅内部用） */
   async getKey(keyId: number): Promise<ProviderApiKeyRow | undefined> {
     const row = await this.db.provider_api_keys.findUnique({ where: { id: keyId } });
+
     return row ? toProviderApiKeyRow(row) : undefined;
   }
 
@@ -365,6 +394,7 @@ export class ProvidersRepository {
       },
       orderBy: [{ priority: 'asc' }, { id: 'asc' }],
     });
+
     return rows.map(toProviderApiKeyRow);
   }
 
@@ -383,6 +413,7 @@ export class ProvidersRepository {
       },
       select: { id: true },
     });
+
     return row.id;
   }
 
@@ -395,28 +426,35 @@ export class ProvidersRepository {
     if (fields.label !== undefined) {
       data.label = fields.label;
     }
+
     if (fields.priority !== undefined) {
       data.priority = fields.priority;
     }
+
     if (fields.enabled !== undefined) {
       data.enabled = fields.enabled;
     }
+
     if (fields.reset) {
       data.status = 'active';
       data.cooldown_until = null;
       data.last_error = null;
     }
+
     if (Object.keys(data).length === 0) {
       return false;
     }
+
     data.updated_at = BigInt(now);
     const res = await this.db.provider_api_keys.updateMany({ where: { id: keyId }, data });
+
     return res.count > 0;
   }
 
   /** 删除一把 Key */
   async deleteKey(keyId: number): Promise<boolean> {
     const res = await this.db.provider_api_keys.deleteMany({ where: { id: keyId } });
+
     return res.count > 0;
   }
 

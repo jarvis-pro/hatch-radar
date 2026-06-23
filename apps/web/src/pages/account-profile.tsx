@@ -19,6 +19,7 @@ export function ProfilePage() {
   if (!user) {
     return null;
   } // 受 ProtectedLayout 守卫，理论不达此
+
   return (
     <div>
       <PageHeader title="资料" description="你的账户基本信息" />

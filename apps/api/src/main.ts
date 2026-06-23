@@ -19,6 +19,7 @@ function lanAddresses(): string[] {
       }
     }
   }
+
   return result;
 }
 
@@ -27,10 +28,13 @@ function parseTrustProxy(raw: string): boolean | number | string {
   if (raw === 'true') {
     return true;
   }
+
   if (raw === 'false') {
     return false;
   }
+
   const n = Number(raw);
+
   return Number.isInteger(n) && n >= 0 ? n : raw;
 }
 
@@ -87,14 +91,17 @@ async function bootstrap(): Promise<void> {
   if (env.trustProxy) {
     app.set('trust proxy', parseTrustProxy(env.trustProxy));
   }
+
   // 跨源放行：web 与 api 不同源部署时必填白名单（带凭据）；同源 / 反代留空即不开（浏览器同源策略足矣）。
   if (env.corsOrigins.length > 0) {
     app.enableCors({ origin: env.corsOrigins, credentials: true });
   }
+
   // 交互式 API 文档（Swagger UI @ /docs）：仅非生产环境挂载（静态文档页公开，实际调用仍走守卫）。
   if (!isProd()) {
     mountApiDocs(app);
   }
+
   // 绑 0.0.0.0：监听本机所有网卡，使本进程同时经 localhost 与局域网 IP 可达。
   // web（独立部署，经 /api 调本服务）与 mobile 共用这一监听；mobile 必须走局域网 IP
   // （手机是 LAN 上的另一台设备），故不能只绑回环——这才是对外开放的原因。

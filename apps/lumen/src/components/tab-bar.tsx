@@ -46,6 +46,7 @@ function TabIcon({ Icon, focused, color }: { Icon: LucideIcon; focused: boolean;
       { scale: interpolate(s.value, [0, 1], [1, 1.1]) },
     ],
   }));
+
   return (
     <Animated.View style={style}>
       <Icon size={22} color={color} strokeWidth={focused ? 2.5 : 2} />

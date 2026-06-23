@@ -63,6 +63,7 @@ export class PostsRepository {
     if (items.length === 0) {
       return { added: 0, updated: 0, newPosts: [] };
     }
+
     return this.db.$transaction(async (tx) => {
       const ids = items.map((p) => p.id);
       const existingRows = await tx.posts.findMany({
@@ -117,6 +118,7 @@ export class PostsRepository {
       ORDER BY (comments_fetched_at IS NOT NULL), created_utc DESC
       LIMIT ${limit}
     `;
+
     return rows.map(toPostRow);
   }
 
@@ -133,6 +135,7 @@ export class PostsRepository {
       ORDER BY (score + num_comments) DESC
       LIMIT ${limit}
     `;
+
     return rows.map(toPostRow);
   }
 
@@ -143,6 +146,7 @@ export class PostsRepository {
    */
   async getPostById(id: string): Promise<PostRow | undefined> {
     const row = await this.db.posts.findUnique({ where: { id } });
+
     return row ? toPostRow(row) : undefined;
   }
 
@@ -185,6 +189,7 @@ export class PostsRepository {
       ORDER BY recheck_due_sweep ASC, (score + num_comments) DESC
       LIMIT ${limit}
     `;
+
     return rows.map(toPostRow);
   }
 
@@ -221,11 +226,13 @@ export class PostsRepository {
       if (old.length === 0) {
         return { posts: 0, comments: 0 };
       }
+
       const ids = old.map((p) => p.id);
       const deletedComments = await tx.comments.deleteMany({ where: { post_id: { in: ids } } });
       const deletedPosts = await tx.posts.deleteMany({
         where: { created_utc: { lt: BigInt(cutoff) } },
       });
+
       return { posts: deletedPosts.count, comments: deletedComments.count };
     });
   }
@@ -258,6 +265,7 @@ export class PostsRepository {
       where: { source: { not: 'rss' }, comment_pass: { gte: 1 } },
       _count: { _all: true },
     });
+
     return rows
       .map((r) => ({ misses: r.recheck_misses, count: r._count._all }))
       .sort((a, b) => a.misses - b.misses);
@@ -272,12 +280,15 @@ export class PostsRepository {
     if (f.source) {
       where.source = f.source;
     }
+
     if (f.subreddit) {
       where.subreddit = f.subreddit;
     }
+
     if (f.q) {
       where.title = { contains: f.q, mode: 'insensitive' };
     }
+
     if (f.status === 'new') {
       where.last_rechecked_at = null;
     } else if (f.status === 'quiet') {
@@ -289,6 +300,7 @@ export class PostsRepository {
         recheck_due_sweep: { lte: sweep },
       });
     }
+
     return where;
   }
 
@@ -320,6 +332,7 @@ export class PostsRepository {
   /** 帖子是否在库（含 30 天归档后已删除则不在）。供洞察详情标注源帖是否仍存在。 */
   async exists(id: string): Promise<boolean> {
     const row = await this.db.posts.findUnique({ where: { id }, select: { id: true } });
+
     return row != null;
   }
 
@@ -329,10 +342,12 @@ export class PostsRepository {
     if (uniq.length === 0) {
       return new Map();
     }
+
     const rows = await this.db.posts.findMany({
       where: { id: { in: uniq } },
       select: { id: true, title_hash: true },
     });
+
     return new Map(rows.map((p) => [p.id, p.title_hash]));
   }
 
@@ -341,6 +356,7 @@ export class PostsRepository {
     if (ids.length === 0) {
       return [];
     }
+
     return this.db.posts.findMany({
       where: { id: { in: ids } },
       select: { id: true, source: true, title: true },

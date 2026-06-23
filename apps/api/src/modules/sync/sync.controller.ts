@@ -40,6 +40,7 @@ export class SyncController {
         metadata: { ops: body.ops.length },
       });
     }
+
     return result;
   }
 }

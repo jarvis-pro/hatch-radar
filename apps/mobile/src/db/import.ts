@@ -47,6 +47,7 @@ function assertVersion(version: number): void {
   if (!Number.isInteger(version) || version < 1) {
     throw new Error('批次缺少有效的格式版本，可能不是 hatch-radar 导出文件');
   }
+
   if (version > EXPORT_FORMAT_VERSION) {
     throw new Error(
       `批次格式版本 ${version} 高于 App 支持的 ${EXPORT_FORMAT_VERSION}，请先升级 App`,
@@ -59,6 +60,7 @@ function countExistingInsights(ids: number[]): number {
   if (ids.length === 0) {
     return 0;
   }
+
   const db = getDb();
   let existing = 0;
   for (const id of ids) {
@@ -66,6 +68,7 @@ function countExistingInsights(ids: number[]): number {
       existing++;
     }
   }
+
   return existing;
 }
 
@@ -80,6 +83,7 @@ export function importBatch(batch: ExportBatch): ImportResult {
   if (!batch?.meta || !Array.isArray(batch.insights)) {
     throw new Error('批次结构不完整，可能不是 hatch-radar 导出文件');
   }
+
   assertVersion(batch.meta.formatVersion);
 
   const db = getDb();
@@ -109,6 +113,7 @@ export function importBatch(batch: ExportBatch): ImportResult {
         p.analyze_attempts,
       ]);
     }
+
     for (const c of comments) {
       db.runSync(INSERT_COMMENT, [
         c.id,
@@ -122,6 +127,7 @@ export function importBatch(batch: ExportBatch): ImportResult {
         c.fetched_at,
       ]);
     }
+
     for (const i of insights) {
       db.runSync(INSERT_INSIGHT, [
         i.id,
@@ -138,6 +144,7 @@ export function importBatch(batch: ExportBatch): ImportResult {
         i.created_at,
       ]);
     }
+
     // 译文（v2+；v1 批次无此字段 → 跳过）：按实体 id 贴中文，移动端中文优先渲染用
     for (const t of batch.translations ?? []) {
       db.runSync(INSERT_TRANSLATION, [t.entity_kind, t.entity_id, t.text]);
@@ -145,6 +152,7 @@ export function importBatch(batch: ExportBatch): ImportResult {
   });
 
   markImported();
+
   return {
     added: insights.length - existing,
     updated: existing,
@@ -197,6 +205,7 @@ export function importSqliteFile(path: string): ImportResult {
     });
 
     markImported();
+
     return {
       added: ids.length - existing,
       updated: existing,

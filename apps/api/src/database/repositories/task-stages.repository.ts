@@ -30,6 +30,7 @@ export class TaskStagesRepository {
       where: { task_id: taskId },
       orderBy: { seq: 'asc' },
     });
+
     return rows.map((r: TaskStagePg) => toTaskStageRow(r));
   }
 
@@ -42,6 +43,7 @@ export class TaskStagesRepository {
     if (taskIds.length === 0) {
       return grouped;
     }
+
     const rows = await this.db.task_stages.findMany({
       where: { task_id: { in: taskIds } },
       orderBy: [{ task_id: 'asc' }, { seq: 'asc' }],
@@ -54,6 +56,7 @@ export class TaskStagesRepository {
         grouped.set(r.task_id, [toTaskStageRow(r)]);
       }
     }
+
     return grouped;
   }
 
@@ -110,6 +113,7 @@ export class TaskStagesRepository {
       where: { task_id: taskId, seq },
       select: { gate: true },
     });
+
     return row?.gate ?? false;
   }
 
@@ -124,6 +128,7 @@ export class TaskStagesRepository {
       where: { task_id: taskId, seq, status: 'pending' },
       data: { gate },
     });
+
     return res.count > 0;
   }
 

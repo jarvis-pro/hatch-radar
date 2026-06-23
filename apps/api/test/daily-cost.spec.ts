@@ -42,6 +42,7 @@ describe('CostRepository.getDailyCost（每日 token 用量 + 成本走势）', 
         updated_at: BigInt(0),
       },
     });
+
     return p.id;
   }
 

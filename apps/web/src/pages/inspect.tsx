@@ -39,14 +39,17 @@ function currentSeq(steps: InspectStepView[]): number {
   if (running) {
     return running.seq;
   }
+
   const failed = steps.find((s) => s.status === 'failed');
   if (failed) {
     return failed.seq;
   }
+
   const done = steps.filter((s) => s.status === 'done');
   if (done.length) {
     return done[done.length - 1]!.seq;
   }
+
   return steps[0]?.seq ?? 0;
 }
 
@@ -64,15 +67,18 @@ function InspectView() {
       if (s === 'running' || s === 'queued') {
         return 1500;
       }
+
       if (s === 'paused') {
         return 2500;
       }
+
       return false;
     },
   });
 
   if (q.isError) {
     const status = q.error instanceof ApiError ? q.error.status : 0;
+
     return status === 404 ? (
       <EmptyState title="检视任务不存在" hint="任务可能已被清理。回到队列查看其它任务。" />
     ) : (
@@ -82,6 +88,7 @@ function InspectView() {
       />
     );
   }
+
   if (q.isPending) {
     return <Skeleton className="h-96 w-full" />;
   }
@@ -101,6 +108,7 @@ function InspectView() {
       if (followCurrent) {
         setPicked(null);
       }
+
       await q.refetch();
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : '操作失败');

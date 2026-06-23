@@ -23,6 +23,7 @@ export function avatarSvg(seed: string): string {
     svg = createAvatar(adventurerNeutral, { seed }).toString();
     cache.set(seed, svg);
   }
+
   return svg;
 }
 

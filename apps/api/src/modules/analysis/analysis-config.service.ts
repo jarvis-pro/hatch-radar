@@ -87,10 +87,12 @@ export class AnalysisConfigService {
     if (cached) {
       return cached;
     }
+
     const provider = await this.providers.getProvider(providerId);
     if (!provider || !provider.enabled) {
       return null;
     }
+
     // claude_cli 订阅模式无 Key：直接用引擎处理器（query() 复用本机登录态），不走多 Key 故障转移
     const processor: PostProcessor =
       provider.provider === 'claude_cli'
@@ -103,6 +105,7 @@ export class AnalysisConfigService {
             callRaw: (context, signal) => this.callRawWithFailover(provider, context, signal),
           };
     this.processorCache.set(providerId, processor);
+
     return processor;
   }
 
@@ -125,6 +128,7 @@ export class AnalysisConfigService {
         `模型「${provider.label}」无可用 API Key（全部停用/限流/失效），请在设置页补充或复位`,
       );
     }
+
     let lastErr: unknown;
     let switched = false; // 一旦越过某把 Key（解密失败 / 限流 / 鉴权失败）即记为发生过切换
     for (const key of keys) {
@@ -138,17 +142,20 @@ export class AnalysisConfigService {
         switched = true;
         continue;
       }
+
       const underlying = createProcessor(providerConfigWithKey(provider, plain));
       try {
         const result = await run(underlying);
         if (key.status !== 'active') {
           await this.providers.updateKey(key.id, { reset: true }, nowSec()); // 冷却后恢复，自愈为 active
         }
+
         return { result, keyId: key.id, switched };
       } catch (err) {
         if (signal?.aborted) {
           throw err;
         } // job 超时：不再切换，直接冒泡
+
         const kind = classifyKeyError(err);
         const m = errMsg(err);
         if (kind === 'rate_limit') {
@@ -160,6 +167,7 @@ export class AnalysisConfigService {
           switched = true;
           continue;
         }
+
         if (kind === 'auth') {
           await this.providers.markKeyInvalid(key.id, m, nowSec());
           logger.warn(
@@ -169,9 +177,11 @@ export class AnalysisConfigService {
           switched = true;
           continue;
         }
+
         throw err; // 非 Key 问题：冒泡给 worker（provider 已内部退避）
       }
     }
+
     throw new Error(`模型「${provider.label}」所有可用 API Key 均失败：${errMsg(lastErr)}`);
   }
 
@@ -185,6 +195,7 @@ export class AnalysisConfigService {
     const { result } = await this.withKeyFailover(provider, signal, (u) =>
       u.analyze(post, comments, signal),
     );
+
     return result;
   }
 
@@ -200,6 +211,7 @@ export class AnalysisConfigService {
     const { result, keyId, switched } = await this.withKeyFailover(provider, signal, (u) =>
       u.callRaw(context, signal),
     );
+
     return { ...result, keyId, keySwitched: switched };
   }
 
@@ -212,10 +224,12 @@ export class AnalysisConfigService {
     if (id == null) {
       return null;
     }
+
     const row = await this.providers.getProvider(id);
     if (!row || !row.enabled) {
       return null;
     }
+
     return { id: row.id, model: row.model, label: `${row.provider} (${row.model})` };
   }
 
@@ -249,11 +263,13 @@ export class AnalysisConfigService {
     if (!provider || !provider.enabled) {
       return null;
     }
+
     // claude_cli 订阅模式无 Key 池；API Key 模式实时数可用 Key（active/冷却已过）
     const usableKeyCount =
       provider.provider === 'claude_cli'
         ? 0
         : (await this.providers.listUsableKeys(providerId, nowSec())).length;
+
     return {
       providerId: provider.id,
       label: provider.label,
@@ -273,18 +289,22 @@ export class AnalysisConfigService {
     if (!provider) {
       return { ok: false, error: '模型配置不存在' };
     }
+
     if (provider.provider === 'claude_cli') {
       try {
         await testClaudeAgent(provider.model);
+
         return { ok: true };
       } catch (err) {
         return { ok: false, error: errMsg(err) };
       }
     }
+
     const keys = await this.providers.listUsableKeys(providerId, nowSec());
     if (keys.length === 0) {
       return { ok: false, error: '无可用 API Key（请先添加或复位）' };
     }
+
     return this.runKeyTest(provider, keys[0]);
   }
 
@@ -297,10 +317,12 @@ export class AnalysisConfigService {
     if (!key) {
       return { ok: false, error: 'API Key 不存在' };
     }
+
     const provider = await this.providers.getProvider(key.provider_id);
     if (!provider) {
       return { ok: false, error: '模型配置不存在' };
     }
+
     return this.runKeyTest(provider, key);
   }
 
@@ -315,15 +337,18 @@ export class AnalysisConfigService {
     } catch (err) {
       return { ok: false, error: `密钥解密失败：${errMsg(err)}` };
     }
+
     // azure（机翻）：不走 AnalysisConfig，直接探测 Translator（校验 key + region）
     if (provider.provider === 'azure') {
       try {
         await testAzureTranslator(plain, provider.region, provider.base_url);
+
         return { ok: true };
       } catch (err) {
         return { ok: false, error: errMsg(err) };
       }
     }
+
     const cfg = providerConfigWithKey(provider, plain);
     try {
       if (cfg.provider === 'anthropic') {
@@ -333,6 +358,7 @@ export class AnalysisConfigService {
       } else {
         await testOpenAICompatible(cfg);
       }
+
       return { ok: true };
     } catch (err) {
       return { ok: false, error: errMsg(err) };

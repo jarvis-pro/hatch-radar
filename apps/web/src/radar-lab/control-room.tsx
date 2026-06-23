@@ -77,6 +77,7 @@ function LaneRow({ lane }: { lane: LaneDTO }) {
   const Icon = meta.icon;
   const pauseLane = usePauseLane();
   const util = lane.ratePerMin > 0 ? Math.min(100, (lane.rate / lane.ratePerMin) * 100) : 0;
+
   return (
     <div className="flex items-center gap-3 py-2">
       <span
@@ -295,6 +296,7 @@ function ControlRoom() {
       </>
     );
   }
+
   if (q.isPending) {
     return (
       <>

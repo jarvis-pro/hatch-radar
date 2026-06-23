@@ -57,9 +57,11 @@ export function Pagination({
         qs.set(k, v);
       }
     }
+
     if (showSize && pageSize) {
       qs.set(sizeName, String(pageSize));
     }
+
     for (const [k, v] of Object.entries(overrides)) {
       if (v) {
         qs.set(k, v);
@@ -67,9 +69,12 @@ export function Pagination({
         qs.delete(k);
       }
     }
+
     const s = qs.toString();
+
     return s ? `${basePath}?${s}` : basePath;
   };
+
   const pageHref = (p: number): string => build({ page: p > 1 ? String(p) : undefined });
 
   const navBtn = (target: number, label: string, icon: ReactNode, enabled: boolean): ReactNode =>

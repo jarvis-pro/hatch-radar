@@ -85,6 +85,7 @@ export function AvatarPickerDialog({ user }: { user: CurrentUser }) {
         <div className="grid grid-cols-4 gap-3">
           {seeds.map((seed) => {
             const active = seed === selected;
+
             return (
               <button
                 key={seed}

@@ -34,7 +34,9 @@ function readStoredTheme(storageKey: string, fallback: Theme): Theme {
   if (typeof window === 'undefined') {
     return fallback;
   }
+
   const stored = window.localStorage.getItem(storageKey);
+
   return stored === 'light' || stored === 'dark' || stored === 'system' ? stored : fallback;
 }
 
@@ -65,12 +67,15 @@ export function ThemeProvider({
       root.classList.toggle('dark', dark);
       setResolvedTheme(dark ? 'dark' : 'light');
     };
+
     apply();
     if (theme !== 'system') {
       return;
     }
+
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
     mq.addEventListener('change', apply);
+
     return () => mq.removeEventListener('change', apply);
   }, [theme]);
 
@@ -81,6 +86,7 @@ export function ThemeProvider({
       } catch {
         // localStorage 不可用（隐私模式 / 禁用）时仅内存生效，不阻断
       }
+
       setThemeState(next);
     },
     [storageKey],
@@ -100,5 +106,6 @@ export function useTheme(): ThemeContextValue {
   if (!ctx) {
     throw new Error('useTheme 必须在 <ThemeProvider> 内使用');
   }
+
   return ctx;
 }

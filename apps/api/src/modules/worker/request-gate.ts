@@ -72,6 +72,7 @@ export class RequestGate {
     try {
       const result = await fn();
       await this.queue.finishRequest(id, 'done', null, nowSec()); // 成功收尾
+
       return result;
     } catch (err) {
       // 失败也必须收尾（存错因），再把异常冒泡给调用方处理重试 / 退避
@@ -90,6 +91,7 @@ export class RequestGate {
     if (at != null && now - at < ENSURE_LANE_TTL_SEC) {
       return;
     }
+
     await this.lanes.ensureLane(lane, now);
     this.ensured.set(lane, now);
   }
@@ -104,9 +106,11 @@ export class RequestGate {
       if (waited >= this.maxPauseWaitMs) {
         throw new Error(`请求闸 lane=${lane} 持续暂停超时，放弃本次抓取`);
       }
+
       if (waited === 0) {
         logger.info(`[请求闸] lane=${lane} 已暂停，等待恢复…`);
       }
+
       // ±20% 抖动：多个并发抓取协程不再同相位轮询，避免同时醒来打 DB、lane 恢复瞬间齐发成对外尖峰。
       const delay = this.pausePollMs * (0.8 + Math.random() * 0.4);
       await sleep(delay);

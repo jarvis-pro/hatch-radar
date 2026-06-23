@@ -36,6 +36,7 @@ function intervalLabel(misses: number): string {
   if (misses <= 0) {
     return '每轮查';
   }
+
   return `隔 ${Math.min(2 ** (misses - 1), CAP)} 轮`;
 }
 
@@ -44,28 +45,36 @@ function eventLabel(ev: PostLifecycleEvent): string {
   if (ev.kind === 'collect') {
     return '采集入库';
   }
+
   if (ev.kind === 'analyze') {
     if (ev.status === 'failed') {
       return 'AI 分析失败';
     }
+
     if (ev.status === 'succeeded') {
       return 'AI 分析 → 产出洞察';
     }
+
     return 'AI 分析中';
   }
+
   if (ev.kind === 'recheck') {
     const s = ev.sweepSeq != null ? `复查 #${ev.sweepSeq}` : '复查';
     if (ev.status === 'skipped') {
       return `${s} · 未变化（退避）`;
     }
+
     if (ev.status === 'succeeded') {
       return `${s} · 有变化 → 重抓`;
     }
+
     if (ev.status === 'failed') {
       return `${s} · 失败`;
     }
+
     return `${s} · 进行中`;
   }
+
   return ev.kind;
 }
 
@@ -74,6 +83,7 @@ function countComments(nodes: RadarCommentDTO[]): number {
   for (const x of nodes) {
     n += 1 + (x.children ? countComments(x.children) : 0);
   }
+
   return n;
 }
 
@@ -81,6 +91,7 @@ function countComments(nodes: RadarCommentDTO[]): number {
 function CommentNode({ c }: { c: RadarCommentDTO }) {
   const tv = useTranslationView();
   const body = (tv.showZh ? tv.get(c.bodyHash) : undefined) ?? c.body;
+
   return (
     <div className="space-y-1.5">
       <div className="flex items-center gap-2 text-xs">
@@ -129,6 +140,7 @@ function PostDetailView() {
       </>
     );
   }
+
   if (queryResult.isPending) {
     return (
       <>

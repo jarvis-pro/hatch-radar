@@ -42,28 +42,36 @@ function crumbsFor(pathname: string): Crumb[] {
       }
     }
   }
+
   if (!section) {
     if (pathname.startsWith('/account')) {
       const sub = ACCOUNT_SUB[pathname];
+
       return sub ? [{ label: '个人中心' }, { label: sub }] : [{ label: '个人中心' }];
     }
+
     return [];
   }
+
   // radar 运行历史 /radar/processes/:id/runs
   if (/^\/radar\/processes\/[^/]+\/runs$/.test(pathname)) {
     return [{ label: section.label, to: section.to }, { label: '运行记录' }];
   }
+
   // radar 运行详情 /radar/runs/:id
   if (/^\/radar\/runs\/[^/]+/.test(pathname)) {
     return [{ label: section.label, to: section.to }, { label: '运行详情' }];
   }
+
   // radar 帖子详情 /radar/posts/:id —— 嵌到「帖子库」下级，可点面包屑回退
   if (/^\/radar\/posts\/[^/]+/.test(pathname)) {
     return [{ label: section.label, to: section.to }, { label: '帖子详情' }];
   }
+
   if (/^\/insights\/[^/]+/.test(pathname) || /^\/posts\/[^/]+/.test(pathname)) {
     return [{ label: section.label, to: section.to }, { label: '详情' }];
   }
+
   return [{ label: section.label }];
 }
 
@@ -88,6 +96,7 @@ export function TopBar({ user }: { user: CurrentUser }) {
             <BreadcrumbList className="gap-1 sm:gap-1.5">
               {crumbs.map((c, i) => {
                 const last = i === crumbs.length - 1;
+
                 return (
                   <Fragment key={c.label}>
                     <BreadcrumbItem>

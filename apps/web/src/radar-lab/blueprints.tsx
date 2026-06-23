@@ -74,6 +74,7 @@ function paramChips(b: BlueprintDTO): { label: string; value: number }[] {
       { label: '评论预算', value: p.commentBudget ?? 0 },
     ];
   }
+
   return [
     { label: '每批帖数', value: p.batchSize ?? 0 },
     { label: '批间冷却(s)', value: p.batchIntervalSec ?? 0 },
@@ -96,9 +97,11 @@ function stageLanes(def: StageDef, blueprint: BlueprintDTO): RadarLaneId[] {
   if (def.fetch === 'ai') {
     return ['ai'];
   }
+
   if (def.fetch === 'source') {
     return [...new Set(blueprint.sources.map((s) => sourceToLane(s.kind)))];
   }
+
   return [];
 }
 
@@ -124,6 +127,7 @@ function StageNode({
         : [...blueprint.enabledStages, key];
       update.mutate({ id: blueprint.id, enabledStages: next });
     };
+
     return (
       <button
         type="button"
@@ -176,9 +180,11 @@ function StageNode({
     const next = gated ? blueprint.gates.filter((g) => g !== key) : [...blueprint.gates, key];
     update.mutate({ id: blueprint.id, gates: next });
   };
+
   const lanes = stageLanes(def, blueprint);
   const isAi = def.fetch === 'ai';
   const isSource = def.fetch === 'source';
+
   return (
     <button
       type="button"
@@ -250,6 +256,7 @@ function PhaseLane({
 }) {
   const meta = TASK_KIND_META[kind];
   const stages = STAGE_TEMPLATES[kind];
+
   return (
     <div className="rounded-lg border bg-muted/30 p-3">
       <div className="mb-2.5 flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -287,6 +294,7 @@ function PhaseLane({
 /** 执行流程主体：blueprintFlow 阶段链逐条泳道 + 派生连接 + 洞察终点。 */
 function StageFlow({ blueprint }: { blueprint: BlueprintDTO }) {
   const flow = blueprintFlow(blueprint.kind);
+
   return (
     <div>
       {flow.map((kind, i) => (
@@ -327,6 +335,7 @@ function BlueprintSwitcher({
   onNew: () => void;
 }) {
   const km = KIND_META[selected.kind];
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -347,6 +356,7 @@ function BlueprintSwitcher({
           const m = KIND_META[b.kind];
           const count = procByBp.get(b.id)?.length ?? 0;
           const active = b.id === selected.id;
+
           return (
             <DropdownMenuItem key={b.id} onClick={() => onSelect(b.id)} className="gap-2">
               <m.icon
@@ -442,6 +452,7 @@ function BlueprintDetail({
           <div className="flex flex-wrap gap-2">
             {blueprint.sources.map((s) => {
               const m = SOURCE_META[s.kind];
+
               return (
                 <span
                   key={s.kind}
@@ -505,6 +516,7 @@ function BlueprintDetail({
                 <span className="inline-flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
                   {(() => {
                     const Icon = TRIGGER_META[p.trigger.kind].icon;
+
                     return <Icon className="size-3.5" />;
                   })()}
                   {triggerSummary(p.trigger)}
@@ -557,6 +569,7 @@ function BlueprintsView() {
       </>
     );
   }
+
   if (bpq.isPending) {
     return (
       <>
@@ -580,6 +593,7 @@ function BlueprintsView() {
       procByBp.set(p.blueprintId, [p]);
     }
   }
+
   const selected = blueprints.find((b) => b.id === selectedId) ?? blueprints[0] ?? null;
   const procs = selected ? (procByBp.get(selected.id) ?? []) : [];
 

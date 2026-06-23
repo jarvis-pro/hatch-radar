@@ -29,15 +29,19 @@ function actionClass(action: string): string {
   if (ACTION_NEGATIVE.test(action)) {
     return 'border-destructive/30 bg-destructive/10 text-destructive';
   }
+
   if (action.startsWith('auth.')) {
     return 'border-signal/30 bg-signal/12 text-signal';
   }
+
   if (action.startsWith('account.')) {
     return 'border-primary/30 bg-primary/12 text-primary';
   }
+
   if (action.startsWith('device.')) {
     return 'border-intensity-low/30 bg-intensity-low/12 text-intensity-low';
   }
+
   return 'text-muted-foreground';
 }
 

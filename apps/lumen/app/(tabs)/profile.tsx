@@ -36,6 +36,7 @@ const THEME_OPTIONS: { key: ThemeMode; label: string; Icon: LucideIcon }[] = [
 
 function SectionLabel({ children }: { children: string }) {
   const palette = usePalette();
+
   return (
     <View className="mb-5 mt-11 px-7">
       <View
@@ -84,6 +85,7 @@ function ThemeSegmented() {
       ) : null}
       {THEME_OPTIONS.map((o) => {
         const active = o.key === mode;
+
         return (
           <Pressable
             key={o.key}
@@ -125,6 +127,7 @@ function GlassSwitch({ value, onChange }: { value: boolean; onChange: (v: boolea
   const knob = useAnimatedStyle(() => ({
     transform: [{ translateX: interpolate(p.value, [0, 1], [2, 20]) }],
   }));
+
   return (
     <Pressable
       onPress={() => {
@@ -157,6 +160,7 @@ function PrefRow({
   onChange: (v: boolean) => void;
 }) {
   const palette = usePalette();
+
   return (
     <View className="flex-row items-center gap-3 py-4">
       <Icon size={18} color={palette.mutedForeground} strokeWidth={2.2} />

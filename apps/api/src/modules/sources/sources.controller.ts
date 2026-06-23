@@ -117,6 +117,7 @@ export class SourcesController {
     @Body(new ZodValidationPipe(updateSourceSchema)) dto: z.infer<typeof updateSourceSchema>,
   ) {
     await this.sources.updateSource(id, dto);
+
     return { ok: true };
   }
 
@@ -124,6 +125,7 @@ export class SourcesController {
   @Delete(':id')
   async remove(@Param('id', ParseIntPipe) id: number) {
     await this.sources.deleteSource(id);
+
     return { ok: true };
   }
 }
@@ -151,6 +153,7 @@ export class SourceConnectorsController {
       priority: dto.priority,
       enabled: dto.enabled,
     };
+
     return this.sources.createConnector(input);
   }
 
@@ -161,6 +164,7 @@ export class SourceConnectorsController {
     @Body(new ZodValidationPipe(updateConnectorSchema)) dto: z.infer<typeof updateConnectorSchema>,
   ) {
     await this.sources.updateConnector(id, dto);
+
     return { ok: true };
   }
 
@@ -168,6 +172,7 @@ export class SourceConnectorsController {
   @Delete(':id')
   async remove(@Param('id', ParseIntPipe) id: number) {
     await this.sources.deleteConnector(id);
+
     return { ok: true };
   }
 

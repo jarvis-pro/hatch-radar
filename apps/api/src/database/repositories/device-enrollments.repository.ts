@@ -14,6 +14,7 @@ export class DeviceEnrollmentsRepository {
       where: { status: 'pending', expires_at: { gt: BigInt(now) } },
       orderBy: { created_at: 'desc' },
     });
+
     return rows.map((e) => ({
       id: e.id,
       userId: e.user_id,
@@ -46,6 +47,7 @@ export class DeviceEnrollmentsRepository {
         created_at: BigInt(input.now),
       },
     });
+
     return row.id;
   }
 

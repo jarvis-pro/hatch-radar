@@ -45,6 +45,7 @@ export const InsightZodSchema = z.object({
 function buildInsightJsonSchema(): Record<string, unknown> {
   const schema = z.toJSONSchema(InsightZodSchema) as Record<string, unknown>;
   delete schema.$schema;
+
   return schema;
 }
 

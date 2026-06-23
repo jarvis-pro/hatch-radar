@@ -33,6 +33,7 @@ export class TxContext {
     if (this.als.getStore()) {
       return fn();
     }
+
     return this.handle.db.$transaction((tx) => this.als.run(tx, fn));
   }
 }
@@ -55,8 +56,10 @@ export function makeTxAwareClient(
           const active = als.getStore();
           if (typeof arg === 'function') {
             const cb = arg as (tx: Prisma.TransactionClient) => Promise<unknown>;
+
             return active ? cb(active) : root.$transaction((tx) => als.run(tx, () => cb(tx)));
           }
+
           // 数组批量形式（仓储未使用）：交根客户端直跑。
           return (root.$transaction as (a: unknown, ...r: unknown[]) => Promise<unknown>)(
             arg,
@@ -64,8 +67,10 @@ export function makeTxAwareClient(
           );
         };
       }
+
       const base = als.getStore() ?? target;
       const value = Reflect.get(base, prop, base);
+
       return typeof value === 'function' ? value.bind(base) : value;
     },
   });

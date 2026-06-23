@@ -47,6 +47,7 @@ export class TaskControlService {
     if (existing) {
       return existing;
     }
+
     return this.blueprints.createBlueprint({ kind, label }, nowSec());
   }
 
@@ -64,9 +65,11 @@ export class TaskControlService {
     if (!provider) {
       throw new ValidationError('模型配置不存在');
     }
+
     if (!provider.enabled) {
       throw new ValidationError('该模型已停用');
     }
+
     const post = await this.posts.getPostById(postId);
     if (!post) {
       throw new ValidationError('帖子不存在');
@@ -92,9 +95,11 @@ export class TaskControlService {
       await this.runs.finishRun(run.id, 'completed', nowSec());
       throw new ValidationError(res.error);
     }
+
     await this.runs.incrementCounters(run.id, { total: 1 });
     await this.runs.finishRun(run.id, 'completed', nowSec());
     void this.dispatcher?.tryDispatch();
+
     return { taskId: res.taskId };
   }
 
@@ -104,6 +109,7 @@ export class TaskControlService {
     if (!task) {
       return null;
     }
+
     const [stages, post, provider] = await Promise.all([
       this.taskStages.listStages(taskId),
       task.post_id != null ? this.posts.getPostById(task.post_id) : Promise.resolve(null),
@@ -121,6 +127,7 @@ export class TaskControlService {
       startedAt: s.started_at,
       finishedAt: s.finished_at,
     }));
+
     return {
       id: task.id,
       postId: task.post_id ?? '',
@@ -145,6 +152,7 @@ export class TaskControlService {
     if (ok) {
       void this.dispatcher?.tryDispatch();
     }
+
     return ok;
   }
 
@@ -164,14 +172,17 @@ export class TaskControlService {
     if (!task) {
       throw new ValidationError('任务不存在');
     }
+
     if (task.status !== 'failed') {
       throw new ValidationError('当前不可重试（任务并非失败态）');
     }
+
     await this.taskStages.resetStageToPending(taskId, task.current_seq);
     const ok = await this.tasks.requeueFailedTask(taskId);
     if (!ok) {
       throw new ValidationError('当前不可重试');
     }
+
     void this.dispatcher?.tryDispatch();
   }
 

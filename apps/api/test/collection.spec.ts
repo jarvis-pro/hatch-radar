@@ -77,6 +77,7 @@ describe('采集执行器（CollectionExecutor：逐环节 discover → collect 
       getActiveProvider: () => Promise.resolve(opts.active ?? null),
     } as unknown as AnalysisConfigService;
     const gate = new RequestGate(new RequestQueueRepository(db), new RequestLanesRepository(db));
+
     return new CollectionExecutor(
       crawlerConfig,
       hackernews,
@@ -107,6 +108,7 @@ describe('采集执行器（CollectionExecutor：逐环节 discover → collect 
             : await exec.runRecheckStage(s.name, task, post!, stages);
       stages.push({ name: s.name, output: out });
     }
+
     return Object.fromEntries(stages.map((x) => [x.name, x.output]));
   }
 
@@ -117,6 +119,7 @@ describe('采集执行器（CollectionExecutor：逐环节 discover → collect 
       { blueprintId: bp.id, kind: 'collect', triggerSource: 'manual' },
       nowSec(),
     );
+
     return run.id;
   }
 
@@ -134,6 +137,7 @@ describe('采集执行器（CollectionExecutor：逐环节 discover → collect 
     if (!res.ok) {
       throw new Error(res.error);
     }
+
     return (await tasks.getTask(res.taskId))!;
   }
 

@@ -121,6 +121,7 @@ const HANDLE_STYLE = {
 function TaskNode({ data }: NodeProps<TaskFlowNode>) {
   const { task, selected, onSelect } = data;
   const kind = KIND_META[task.kind] ?? { label: task.kind, tag: '?' };
+
   return (
     <div
       role="button"
@@ -168,6 +169,7 @@ function depthOf(task: GraphTask, byId: Map<number, GraphTask>): number {
     depth += 1;
     cur = byId.get(cur.parentTaskId);
   }
+
   return depth;
 }
 
@@ -183,6 +185,7 @@ function buildGraph(
     const depth = depthOf(task, byId);
     const row = rowByDepth.get(depth) ?? 0;
     rowByDepth.set(depth, row + 1);
+
     return {
       id: String(task.id),
       type: 'task' as const,
@@ -204,6 +207,7 @@ function buildGraph(
       });
     }
   }
+
   return { nodes, edges };
 }
 

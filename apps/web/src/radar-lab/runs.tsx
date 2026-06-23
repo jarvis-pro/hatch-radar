@@ -38,6 +38,7 @@ function runProgress(run: RunDTO): { total: number; done: number; failed: number
   const done = run.tasksDone;
   const failed = run.tasksFailed;
   const pct = total > 0 ? Math.round((done / total) * 100) : run.status === 'completed' ? 100 : 0;
+
   return { total, done, failed, pct };
 }
 
@@ -49,6 +50,7 @@ function RunsView() {
   if (q.isError) {
     return <LoadError onRetry={() => void q.refetch()} />;
   }
+
   if (q.isPending) {
     return <Skeleton className="h-96 w-full" />;
   }
@@ -125,6 +127,7 @@ function RunsView() {
                   const meta = runStatusMeta(run.status);
                   const { total, done, failed: runFailed, pct } = runProgress(run);
                   const ordinal = sorted.length - i;
+
                   return (
                     <TableRow
                       key={run.id}

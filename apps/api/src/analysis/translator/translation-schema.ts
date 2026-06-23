@@ -26,6 +26,7 @@ export type TranslationBatchResult = z.infer<typeof TranslationBatchZodSchema>;
 function buildTranslationJsonSchema(): Record<string, unknown> {
   const schema = z.toJSONSchema(TranslationBatchZodSchema) as Record<string, unknown>;
   delete schema.$schema;
+
   return schema;
 }
 

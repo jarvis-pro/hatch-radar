@@ -23,6 +23,7 @@ interface StatCardProps {
 function Sparkline({ data }: { data: number[] }) {
   const max = Math.max(1, ...data);
   const last = data.length - 1;
+
   return (
     <div className="mt-2 flex h-7 items-end gap-px" aria-hidden>
       {data.map((v, i) => (

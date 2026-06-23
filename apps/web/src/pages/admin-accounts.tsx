@@ -13,6 +13,7 @@ function groupByUser<T extends { userId: string }>(items: T[]): Record<string, T
   for (const it of items) {
     (out[it.userId] ??= []).push(it);
   }
+
   return out;
 }
 
@@ -44,9 +45,11 @@ function AccountsView() {
       />
     );
   }
+
   if (!user || !usersQ.data || !devicesQ.data || !enrollQ.data) {
     return <Spinner className="size-6 text-muted-foreground" />;
   }
+
   return (
     <AccountsManager
       users={usersQ.data}

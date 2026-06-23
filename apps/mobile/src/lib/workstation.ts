@@ -22,6 +22,7 @@ export function loadWorkstationConfig(): WorkstationConfig | null {
   if (!baseUrl) {
     return null;
   }
+
   return { baseUrl };
 }
 
@@ -35,9 +36,11 @@ export function normalizeBaseUrl(input: string): string {
   if (!url) {
     throw new Error('请填写工作台地址，例如 http://192.168.0.95:8787');
   }
+
   if (!/^https?:\/\//i.test(url)) {
     url = `http://${url}`;
   }
+
   return url.replace(/\/+$/, '');
 }
 
@@ -60,9 +63,11 @@ async function request<T>(cfg: WorkstationConfig, path: string, init?: RequestIn
     if (res.status === 401) {
       throw new Error('鉴权失败：请先在「我的」里激活本设备');
     }
+
     if (!res.ok) {
       throw new Error(`工作台返回 ${res.status}`);
     }
+
     return (await res.json()) as T;
   } catch (err) {
     if (err instanceof Error && err.name === 'AbortError') {
@@ -70,6 +75,7 @@ async function request<T>(cfg: WorkstationConfig, path: string, init?: RequestIn
         cause: err,
       });
     }
+
     throw err;
   } finally {
     clearTimeout(timer);
@@ -102,6 +108,7 @@ export function fetchBatch(cfg: WorkstationConfig): Promise<ExportBatch> {
 /** 取当前用户态（GET /api/me，设备通道签名鉴权；需已激活并联通工作台）。 */
 export async function fetchMe(cfg: WorkstationConfig): Promise<CurrentUser> {
   const { user } = await getJson<{ user: CurrentUser }>(cfg, '/api/me');
+
   return user;
 }
 

@@ -29,6 +29,7 @@ import { IntensityDot } from './intensity';
 /** 极坐标 → 屏幕坐标（y 向下，angle 顺时针、0=正右）。 */
 function polar(cx: number, cy: number, angleDeg: number, r: number) {
   const a = (angleDeg * Math.PI) / 180;
+
   return { x: cx + r * Math.cos(a), y: cy + r * Math.sin(a) };
 }
 
@@ -55,6 +56,7 @@ function Ping({
     transform: [{ scale: interpolate(t.value, [0, 1], [0.12, 1]) }],
     opacity: interpolate(t.value, [0, 1], [0.55, 0]),
   }));
+
   return (
     <Animated.View
       pointerEvents="none"
@@ -137,6 +139,7 @@ export function RadarScope({ size, opportunities, onSelectBlip }: RadarScopeProp
         {[0, 45, 90, 135].map((deg) => {
           const p1 = polar(R, R, deg, rOut);
           const p2 = polar(R, R, deg + 180, rOut);
+
           return (
             <Line
               key={deg}
@@ -209,6 +212,7 @@ export function RadarScope({ size, opportunities, onSelectBlip }: RadarScopeProp
         const r = op.radius * rOut;
         const p = polar(R, R, op.angle, r);
         const blip = 30;
+
         return (
           <PressableScale
             key={op.id}

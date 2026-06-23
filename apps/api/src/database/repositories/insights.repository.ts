@@ -49,6 +49,7 @@ export class InsightsRepository {
         intensity = p.intensity;
       }
     }
+
     const data = {
       source: post.source,
       subreddit: post.subreddit,
@@ -79,14 +80,17 @@ export class InsightsRepository {
     if (filter.subreddit) {
       conds.push(Prisma.sql`lower(subreddit) = lower(${filter.subreddit})`);
     }
+
     if (filter.intensity) {
       conds.push(Prisma.sql`intensity::text = ${filter.intensity.toUpperCase()}`);
     }
+
     if (filter.tag) {
       conds.push(
         Prisma.sql`EXISTS (SELECT 1 FROM jsonb_array_elements_text(tags) AS t(v) WHERE v ILIKE ${`%${filter.tag}%`})`,
       );
     }
+
     const where =
       conds.length > 0 ? Prisma.sql`WHERE ${Prisma.join(conds, ' AND ')}` : Prisma.empty;
     const rows = await this.db.$queryRaw<InsightPgRow[]>`
@@ -95,6 +99,7 @@ export class InsightsRepository {
       ORDER BY created_at DESC
       LIMIT ${filter.limit ?? 20}
     `;
+
     return rows.map(toInsight);
   }
 
@@ -114,15 +119,19 @@ export class InsightsRepository {
     if (f.source) {
       where.source = f.source;
     }
+
     if (f.subreddit) {
       where.subreddit = f.subreddit;
     }
+
     if (f.intensity) {
       where.intensity = f.intensity.toUpperCase();
     }
+
     if (f.q) {
       where.post_title = { contains: f.q, mode: 'insensitive' };
     }
+
     return where;
   }
 
@@ -140,6 +149,7 @@ export class InsightsRepository {
       f.sort === 'pain'
         ? [{ intensity: 'asc' as const }, { created_at: 'desc' as const }]
         : [{ created_at: 'desc' as const }];
+
     return this.db.insights.findMany({ where: this.radarWhere(f), orderBy, skip, take });
   }
 
@@ -165,6 +175,7 @@ export class InsightsRepository {
       select: { source: true },
       orderBy: { source: 'asc' },
     });
+
     return rows.map((r) => r.source).filter((s): s is string => Boolean(s));
   }
 
@@ -175,6 +186,7 @@ export class InsightsRepository {
       select: { subreddit: true },
       orderBy: { subreddit: 'asc' },
     });
+
     return rows.map((r) => r.subreddit).filter((s): s is string => Boolean(s));
   }
 }

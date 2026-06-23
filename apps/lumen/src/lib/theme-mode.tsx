@@ -16,6 +16,7 @@ export function useThemeMode(): ThemeModeContextValue {
   if (!ctx) {
     throw new Error('useThemeMode 必须在 <ThemeModeProvider> 内使用');
   }
+
   return ctx;
 }
 
@@ -26,6 +27,7 @@ export function useThemeMode(): ThemeModeContextValue {
 export function ThemeModeProvider({ children }: { children: ReactNode }) {
   const [mode, setModeState] = useState<ThemeMode>(() => {
     colorScheme.set('dark'); // 首帧前应用，避免浅色闪烁
+
     return 'dark';
   });
 

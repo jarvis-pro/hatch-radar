@@ -43,6 +43,7 @@ export function markSynced(opIds: string[]): void {
   if (opIds.length === 0) {
     return;
   }
+
   const db = getDb();
   db.withTransactionSync(() => {
     for (const opId of opIds) {

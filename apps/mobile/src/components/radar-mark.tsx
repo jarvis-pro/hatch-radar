@@ -9,6 +9,7 @@ import Svg, { Circle, Line } from 'react-native-svg';
 export function RadarMark({ size = 20 }: { size?: number }) {
   const { colorScheme } = useColorScheme();
   const c = THEME[colorScheme === 'dark' ? 'dark' : 'light'].primary;
+
   return (
     <Svg width={size} height={size} viewBox="0 0 20 20">
       <Circle

@@ -25,6 +25,7 @@ export function getLocalStats(): LocalStats {
   const db = getDb();
   const count = (sql: string): number => db.getFirstSync<{ n: number }>(sql)?.n ?? 0;
   const lastImport = getMeta('last_import_at');
+
   return {
     insights: count(`SELECT COUNT(*) n FROM insights`),
     posts: count(`SELECT COUNT(*) n FROM posts`),
@@ -59,10 +60,12 @@ export function listInsights(filter: ListFilter = {}): InsightListItem[] {
     clauses.push(`i.intensity = ?`);
     params.push(filter.intensity);
   }
+
   if (filter.status) {
     clauses.push(`COALESCE(t.status, 'pending') = ?`);
     params.push(filter.status);
   }
+
   const where = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
   const rows = getDb().getAllSync<JoinedRow>(
     `SELECT i.*, t.status AS t_status, t.rating AS t_rating
@@ -70,6 +73,7 @@ export function listInsights(filter: ListFilter = {}): InsightListItem[] {
      ${where} ORDER BY i.created_at DESC, i.id DESC`,
     params,
   );
+
   return rows.map(({ t_status, t_rating, ...insightRow }) => ({
     insight: rowToInsight(insightRow),
     status: t_status ?? 'pending',
@@ -79,6 +83,7 @@ export function listInsights(filter: ListFilter = {}): InsightListItem[] {
 
 export function getInsight(id: number): Insight | null {
   const row = getDb().getFirstSync<InsightRow>(`SELECT * FROM insights WHERE id = ?`, [id]);
+
   return row ? rowToInsight(row) : null;
 }
 
@@ -123,6 +128,7 @@ export function getPostTranslations(postId: string): PostTranslations {
       out.comments[r.entity_id] = r.text;
     }
   }
+
   return out;
 }
 

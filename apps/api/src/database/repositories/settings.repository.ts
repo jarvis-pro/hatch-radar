@@ -19,6 +19,7 @@ export class SettingsRepository {
   /** 读取一个全局配置项 */
   async getSetting(key: string): Promise<string | undefined> {
     const row = await this.db.app_settings.findUnique({ where: { key }, select: { value: true } });
+
     return row?.value;
   }
 
@@ -56,7 +57,9 @@ export class SettingsRepository {
     if (value == null) {
       return null;
     }
+
     const n = Number(value);
+
     return Number.isInteger(n) ? n : null;
   }
 
@@ -78,7 +81,9 @@ export class SettingsRepository {
     if (value == null) {
       return null;
     }
+
     const n = Number(value);
+
     return Number.isInteger(n) ? n : null;
   }
 
@@ -100,7 +105,9 @@ export class SettingsRepository {
     if (value == null) {
       return 0;
     }
+
     const n = Number(value);
+
     return Number.isFinite(n) ? n : 0;
   }
 
@@ -115,6 +122,7 @@ export class SettingsRepository {
       ON CONFLICT (key) DO UPDATE SET value = (app_settings.value::bigint + 1)::text
       RETURNING value
     `;
+
     return Number(rows[0]?.value ?? 0);
   }
 }

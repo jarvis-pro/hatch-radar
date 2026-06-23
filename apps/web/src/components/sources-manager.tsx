@@ -120,11 +120,13 @@ async function apiSend(
     } else {
       data = await api.del<ApiData>(p, body);
     }
+
     return { ok: true, status: 200, data: data ?? {} };
   } catch (err) {
     if (err instanceof ApiError) {
       return { ok: false, status: err.status, data: { error: err.message } };
     }
+
     return { ok: false, status: 0, data: { error: '网络错误' } };
   }
 }
@@ -163,9 +165,11 @@ function CheckBadge({ c }: { c: ConnectorDTO }) {
   if (c.lastCheckOk === true) {
     return <Badge variant="secondary">测试通过</Badge>;
   }
+
   if (c.lastCheckOk === false) {
     return <Badge variant="destructive">测试失败</Badge>;
   }
+
   return <Badge variant="outline">未测试</Badge>;
 }
 
@@ -231,8 +235,10 @@ export function SourcesManager({
   async function saveSource() {
     if (!srcForm.identifier.trim()) {
       toast.error('标识不能为空');
+
       return;
     }
+
     setSrcBusy(true);
     const body: Record<string, unknown> = {
       identifier: srcForm.identifier.trim(),
@@ -242,6 +248,7 @@ export function SourcesManager({
     if (srcEditingId === null) {
       body.platform = srcForm.platform;
     }
+
     const res =
       srcEditingId === null
         ? await apiSend('/api/sources', 'POST', body)
@@ -302,8 +309,10 @@ export function SourcesManager({
       if (missing.length > 0) {
         setConnBusy(false);
         toast.error(`Reddit 凭据缺少：${missing.join(' / ')}`);
+
         return;
       }
+
       res = await apiSend('/api/source-connectors', 'POST', {
         platform: 'reddit',
         authKind: 'oauth',
@@ -324,6 +333,7 @@ export function SourcesManager({
         priority: connForm.priority,
       });
     }
+
     setConnBusy(false);
     if (res.ok) {
       setConnOpen(false);
@@ -367,6 +377,7 @@ export function SourcesManager({
     } else {
       toast.error(`测试失败：${res.data?.error ?? res.status}`);
     }
+
     onChanged();
   }
 
@@ -375,6 +386,7 @@ export function SourcesManager({
     if (!confirm) {
       return;
     }
+
     if (confirm.kind === 'deleteSource') {
       void removeSource(confirm.source);
     } else {
@@ -404,6 +416,7 @@ export function SourcesManager({
           {platforms.map((platform) => {
             const group = sources.filter((s) => s.platform === platform);
             const redditBlocked = platform === 'reddit' && !redditUsable;
+
             return (
               <div key={platform}>
                 <div className="mb-1 flex flex-wrap items-center gap-2 text-sm font-medium">

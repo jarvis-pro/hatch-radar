@@ -19,6 +19,7 @@ import {
 function prepareTarget(file: string): string {
   const abs = resolve(file);
   mkdirSync(dirname(abs), { recursive: true });
+
   return abs;
 }
 
@@ -29,6 +30,7 @@ function prepareTarget(file: string): string {
 export function writeBatchJson(batch: ExportBatch, file: string): string {
   const abs = prepareTarget(file);
   writeFileSync(abs, JSON.stringify(batch, null, 2), 'utf8');
+
   return abs;
 }
 
@@ -72,6 +74,7 @@ export function writeBatchSqlite(batch: ExportBatch, file: string): string {
       for (const row of batch.insights) {
         insertInsight.run(row);
       }
+
       for (const row of batch.posts) {
         // 仅写共享 DDL 含有的 16 列：comments_changed_at / export_locked_at 是 server 私有列，
         // 不在 mobile / 导出 schema 中，显式构造避免向 named 占位符传入多余 key。
@@ -94,9 +97,11 @@ export function writeBatchSqlite(batch: ExportBatch, file: string): string {
           analyze_attempts: row.analyze_attempts,
         });
       }
+
       for (const row of batch.comments) {
         insertComment.run(row);
       }
+
       for (const row of batch.translations) {
         insertTranslation.run(row);
       }
@@ -104,6 +109,7 @@ export function writeBatchSqlite(batch: ExportBatch, file: string): string {
   } finally {
     out.close();
   }
+
   return abs;
 }
 
@@ -113,5 +119,6 @@ export function defaultExportName(ext: 'json' | 'sqlite', at = new Date()): stri
   const stamp =
     `${at.getFullYear()}${pad(at.getMonth() + 1)}${pad(at.getDate())}` +
     `-${pad(at.getHours())}${pad(at.getMinutes())}${pad(at.getSeconds())}`;
+
   return `batch-${stamp}.${ext}`;
 }

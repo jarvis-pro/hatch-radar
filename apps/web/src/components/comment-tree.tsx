@@ -29,6 +29,7 @@ function buildTree(rows: CommentRow[]): CommentNode[] {
       roots.push(node);
     }
   }
+
   // 展示用时间倒序：每层兄弟按发布时间从新到旧，优先看最近评论（父→子嵌套结构保留）。
   // 仅影响 web 展示——AI 分析是独立路径（packages/analysis/.../context.ts，按得分排序），不受此影响。
   const sortByNewest = (nodes: CommentNode[]): void => {
@@ -37,7 +38,9 @@ function buildTree(rows: CommentRow[]): CommentNode[] {
       sortByNewest(n.children);
     }
   };
+
   sortByNewest(roots);
+
   return roots;
 }
 
@@ -48,6 +51,7 @@ function CommentItem({ node }: { node: CommentNode }) {
   const tr = useTranslationView();
   // 有中文译文且开启「显示中文」时显示译文，否则回退原文
   const body = (tr.showZh ? tr.get(row.body_hash) : undefined) ?? row.body;
+
   return (
     <li>
       {/* 头部：折叠键 + 头像字母 + 昵称（醒目）+ 次级元信息，与正文清晰分层 */}
@@ -111,6 +115,7 @@ export function CommentTree({ comments }: { comments: CommentRow[] }) {
       </p>
     );
   }
+
   return (
     <ul className="space-y-4">
       {buildTree(comments).map((node) => (

@@ -52,9 +52,11 @@ export default function ActivateScreen() {
       const res = await requestPermission();
       if (!res.granted) {
         setError('需要相机权限才能扫码，可在系统设置中开启后重试。');
+
         return;
       }
     }
+
     scannedRef.current = false;
     setScanning(true);
   };
@@ -63,6 +65,7 @@ export default function ActivateScreen() {
     if (scannedRef.current) {
       return;
     } // 取景中会连续回调，只取首帧
+
     scannedRef.current = true;
     setCode(data.trim());
     setScanning(false);

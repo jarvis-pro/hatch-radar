@@ -49,6 +49,7 @@ export class SeedRunner {
           logger.error(`[seed] ${seeder.name} 失败（critical），中止启动：${msg}`);
           throw err;
         }
+
         logger.warn(`[seed] ${seeder.name} 失败（non-critical），已跳过：${msg}`);
       }
     }

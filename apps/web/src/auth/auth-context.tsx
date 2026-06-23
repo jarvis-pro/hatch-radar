@@ -59,6 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUserState(null);
       setStatus('anon');
     });
+
     return () => setUnauthorizedHandler(null);
   }, []);
 
@@ -66,6 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => ({ status, user, refresh, setUser }),
     [status, user, refresh, setUser],
   );
+
   return <AuthContext value={value}>{children}</AuthContext>;
 }
 
@@ -75,6 +77,7 @@ export function useAuth(): AuthContextValue {
   if (!ctx) {
     throw new Error('useAuth 必须在 <AuthProvider> 内使用');
   }
+
   return ctx;
 }
 

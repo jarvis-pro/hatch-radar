@@ -38,19 +38,24 @@ function computeNextRunAt(process: ProcessRow, now: number): number | null {
   if (process.status !== 'active' || process.trigger_kind === 'once') {
     return null;
   }
+
   const cfg = (process.trigger_config ?? {}) as { everySec?: unknown; expr?: unknown };
   if (process.trigger_kind === 'interval') {
     const everySec = typeof cfg.everySec === 'number' && cfg.everySec > 0 ? cfg.everySec : 1800;
+
     return now + everySec;
   }
+
   if (process.trigger_kind === 'cron' && typeof cfg.expr === 'string') {
     try {
       const it = CronExpressionParser.parse(cfg.expr, { currentDate: new Date(now * 1000) });
+
       return Math.floor(it.next().getTime() / 1000);
     } catch {
       return now + 3600; // cron 表达式非法兜底：1 小时后
     }
   }
+
   return null;
 }
 
@@ -92,6 +97,7 @@ export class PipelineService {
     if (existing) {
       return existing;
     }
+
     return this.blueprints.createBlueprint({ kind, label }, nowSec());
   }
 
@@ -141,6 +147,7 @@ export class PipelineService {
         logger.info(`[pipeline] analyze 进程#${run.id} 派生 ${created} 个分析任务`);
       }
     }
+
     return { active, runId: run.id, created, pending: posts.length };
   }
 
@@ -157,6 +164,7 @@ export class PipelineService {
     if (!bp) {
       throw new Error(`进程#${process?.id} 绑定的图纸不存在`);
     }
+
     const recipe = recipeFromBlueprint(bp);
     const run = await this.runs.createRun(
       {
@@ -181,6 +189,7 @@ export class PipelineService {
       // discover 被去重（已有活跃任务）：本运行无任务，即时收尾免留永久 running（finalize 不收尾空 run）。
       await this.runs.finishRun(run.id, 'completed', nowSec());
     }
+
     return { runId: run.id };
   }
 
@@ -201,6 +210,7 @@ export class PipelineService {
     if (!bp) {
       throw new Error(`进程#${process?.id} 绑定的图纸不存在`);
     }
+
     const recipe = recipeFromBlueprint(bp);
     const sweep = process
       ? await this.processes.bumpSweep(process.id)
@@ -246,6 +256,7 @@ export class PipelineService {
         );
       }
     }
+
     return { runId: run.id, sweep, due: posts.length };
   }
 
@@ -258,6 +269,7 @@ export class PipelineService {
       if (await this.runs.hasRunningRunForProcess(process.id)) {
         continue;
       }
+
       // 单个进程触发失败不应中断整轮——隔离记错，余下到期进程照常触发。
       try {
         await this.fireProcess(process);
@@ -274,12 +286,16 @@ export class PipelineService {
     const bp = await this.blueprints.getBlueprint(process.blueprint_id);
     if (!bp) {
       logger.warn(`[scheduler] 进程#${process.id} 绑定图纸缺失，跳过`);
+
       return;
     }
+
     if (bp.kind !== 'collect' && bp.kind !== 'recheck') {
       logger.warn(`[scheduler] 进程#${process.id} 图纸 kind=${bp.kind} 不可调度，跳过`);
+
       return;
     }
+
     const src = triggerSource ?? (process.trigger_kind === 'cron' ? 'cron' : 'interval');
     try {
       if (bp.kind === 'collect') {
@@ -308,6 +324,7 @@ export class PipelineService {
         if (counts.total === 0 || counts.active > 0) {
           continue;
         }
+
         const status = counts.failed > 0 ? 'failed' : 'completed';
         await this.runs.finishRun(
           run.id,
@@ -351,6 +368,7 @@ export class PipelineService {
     if (postIds.length === 0) {
       return { enqueued: 0 };
     }
+
     const bp = await this.ensureBlueprint('translate', '翻译');
     const run = await this.runs.createRun(
       {
@@ -385,6 +403,7 @@ export class PipelineService {
         void this.dispatcher?.tryDispatch();
       }
     }
+
     return { enqueued };
   }
 }

@@ -29,6 +29,7 @@ export class AnalysisService {
   ): Promise<{ saved: boolean; usage: TokenUsage | null }> {
     const { insight, usage } = await processor.analyze(post, comments, signal);
     const { saved } = await this.persistInsight(post, processor.model, insight);
+
     return { saved, usage };
   }
 
@@ -46,10 +47,12 @@ export class AnalysisService {
     if (insight.pain_points.length === 0 && insight.opportunities.length === 0) {
       return { saved: false };
     }
+
     await this.insights.saveInsight(post, model, insight, nowSec());
     logger.info(
       `  ✓ r/${post.subreddit}「${post.title.slice(0, 48)}」→ 痛点 ${insight.pain_points.length} / 机会 ${insight.opportunities.length}`,
     );
+
     return { saved: true };
   }
 }

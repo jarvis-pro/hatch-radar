@@ -87,6 +87,7 @@ function seedDraft(data: RuntimeSettingsData): Record<RuntimeSettingKey, string>
   for (const f of FIELD_META) {
     out[f.key] = String(data[f.key].value);
   }
+
   return out;
 }
 
@@ -119,6 +120,7 @@ export function RuntimeSettingsManager({
   if (loadError || !initial) {
     return <LoadError message={loadError ?? undefined} />;
   }
+
   const data = initial;
 
   function set(key: RuntimeSettingKey, v: string) {
@@ -132,17 +134,23 @@ export function RuntimeSettingsManager({
       if (cur === String(data[f.key].value)) {
         continue;
       } // 相对当前态无改动 → 不提交
+
       const n = Number(cur);
       if (cur === '' || !Number.isInteger(n) || n < f.min) {
         toast.error(`「${f.label}」需为 ≥ ${f.min} 的整数`);
+
         return;
       }
+
       patch[f.key] = n;
     }
+
     if (Object.keys(patch).length === 0) {
       toast.info('没有改动');
+
       return;
     }
+
     setBusy(true);
     try {
       await api.put('/settings/runtime', patch);
@@ -174,6 +182,7 @@ export function RuntimeSettingsManager({
               const state = data[f.key];
               const changedFromDefault = state.value !== state.defaultValue;
               const atDefault = draft[f.key].trim() === String(state.defaultValue);
+
               return (
                 <div
                   key={f.key}

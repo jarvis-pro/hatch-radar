@@ -9,6 +9,7 @@ const prettyOpts = {
   ignore: 'pid,hostname,context',
   messageFormat: (log: Record<string, unknown>, messageKey: string) => {
     const msg = log[messageKey] as string;
+
     return log.context ? `[${log.context}] ${msg}` : msg;
   },
 };

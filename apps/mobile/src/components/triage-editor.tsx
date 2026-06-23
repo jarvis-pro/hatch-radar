@@ -41,8 +41,10 @@ export function TriageEditor({ triage, onChanged }: { triage: Triage; onChanged:
     const tag = tagDraft.trim();
     if (!tag || triage.tags.includes(tag)) {
       setTagDraft('');
+
       return;
     }
+
     hapticSelect();
     setTags(insightId, [...triage.tags, tag]);
     setTagDraft('');
@@ -102,6 +104,7 @@ export function TriageEditor({ triage, onChanged }: { triage: Triage; onChanged:
           <Text className="mr-2 text-sm font-sans-md text-muted-foreground">评级</Text>
           {[1, 2, 3, 4, 5].map((star) => {
             const filled = triage.rating != null && star <= triage.rating;
+
             return (
               <Pressable
                 key={star}

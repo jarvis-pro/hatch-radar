@@ -24,12 +24,16 @@ function linkAbort(signal: AbortSignal | undefined): {
   if (!signal) {
     return { controller, dispose: () => {} };
   }
+
   if (signal.aborted) {
     controller.abort();
+
     return { controller, dispose: () => {} };
   }
+
   const onAbort = () => controller.abort();
   signal.addEventListener('abort', onAbort, { once: true });
+
   return { controller, dispose: () => signal.removeEventListener('abort', onAbort) };
 }
 
@@ -55,9 +59,11 @@ export function rawFromMessage(message: ResultMessageView): object | null {
   if (message.type !== 'result') {
     return null;
   }
+
   if (message.subtype === 'success' && message.structured_output !== undefined) {
     return message.structured_output as object;
   }
+
   const detail =
     message.subtype === 'success'
       ? '缺少 structured_output'
@@ -72,6 +78,7 @@ export function rawFromMessage(message: ResultMessageView): object | null {
  */
 export function insightFromMessage(message: ResultMessageView): InsightResult | null {
   const raw = rawFromMessage(message);
+
   return raw === null ? null : normalizeInsight(raw);
 }
 
@@ -120,6 +127,7 @@ export async function callRawClaudeAgent(
             };
           }
         ).usage;
+
         return {
           raw,
           usage: u
@@ -133,6 +141,7 @@ export async function callRawClaudeAgent(
         };
       }
     }
+
     throw new Error('Claude 订阅模式 query 结束但未收到 result 消息');
   } finally {
     dispose();
@@ -155,6 +164,7 @@ export async function analyzeWithClaudeAgent(
   signal?: AbortSignal,
 ): Promise<AnalysisOutcome> {
   const { raw, usage } = await callRawClaudeAgent(model, buildContext(post, comments), signal);
+
   return { insight: normalizeRawOutput(raw), usage };
 }
 
@@ -177,12 +187,15 @@ export async function testClaudeAgent(model: string): Promise<void> {
     if (message.type !== 'result') {
       continue;
     }
+
     if (message.subtype === 'success') {
       return;
     }
+
     throw new Error(
       `Claude CLI 不可用（${message.subtype}${message.errors.length ? `：${message.errors.join('; ')}` : ''}）`,
     );
   }
+
   throw new Error('Claude CLI 未返回结果（请确认 worker 本机已安装并登录 claude）');
 }

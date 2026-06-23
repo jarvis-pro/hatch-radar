@@ -24,6 +24,7 @@ export class BlueprintsSeeder implements Seeder {
     if ((await this.blueprints.listBlueprints()).length > 0) {
       return { status: 'skipped', reason: 'blueprints 表非空' };
     }
+
     const collectSources = [
       { kind: 'reddit', channels: SUBREDDITS },
       { kind: 'hackernews', channels: HN_SECTIONS.map((h) => h.channel) },
@@ -43,6 +44,7 @@ export class BlueprintsSeeder implements Seeder {
       },
       ctx.now,
     );
+
     return { status: 'seeded', detail: '采集 + 复查 各 1 张默认图纸' };
   }
 }

@@ -47,6 +47,7 @@ function InsightDetailView() {
       </>
     );
   }
+
   if (q.isPending) {
     return <Skeleton className="mx-auto h-96 max-w-5xl" />;
   }
@@ -92,6 +93,7 @@ function InsightDetailView() {
               <ul className="space-y-3">
                 {d.painPoints.map((pp, idx) => {
                   const pim = INTENSITY_META[pp.intensity];
+
                   return (
                     <li
                       key={idx}

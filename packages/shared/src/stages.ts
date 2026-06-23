@@ -63,6 +63,7 @@ export interface BuiltStage {
 export function buildStages(kind: TaskKind, recipe?: StageRecipe): BuiltStage[] {
   const gates = recipe?.gates ?? [];
   const enabled = recipe?.enabledStages ?? [];
+
   return STAGE_TEMPLATES[kind]
     .filter((t) => !t.optional || enabled.includes(gateKey(kind, t.name)))
     .map((t) => ({ name: t.name, gate: gates.includes(gateKey(kind, t.name)) }));

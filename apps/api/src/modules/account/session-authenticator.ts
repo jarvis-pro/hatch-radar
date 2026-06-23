@@ -36,6 +36,7 @@ export class SessionAuthenticator {
     if (!token) {
       throw new UnauthorizedException(noTokenMessage);
     }
+
     const user = await this.account.resolveSession(token);
     if (!user) {
       throw new UnauthorizedException('会话无效或已过期');
@@ -47,6 +48,7 @@ export class SessionAuthenticator {
     ) {
       throw new ForbiddenException('无权访问');
     }
+
     return user;
   }
 }

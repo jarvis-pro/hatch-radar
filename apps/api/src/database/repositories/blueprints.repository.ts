@@ -65,11 +65,13 @@ export class BlueprintsRepository {
         updated_at: BigInt(now),
       },
     });
+
     return toBlueprintRow(row);
   }
 
   async getBlueprint(id: number): Promise<BlueprintRow | null> {
     const row = await this.db.blueprints.findUnique({ where: { id } });
+
     return row ? toBlueprintRow(row) : null;
   }
 
@@ -79,6 +81,7 @@ export class BlueprintsRepository {
       where: kind ? { kind } : {},
       orderBy: { id: 'desc' },
     });
+
     return rows.map((r: BlueprintPg) => toBlueprintRow(r));
   }
 
@@ -87,25 +90,32 @@ export class BlueprintsRepository {
     if (patch.label !== undefined) {
       data.label = patch.label;
     }
+
     if (patch.note !== undefined) {
       data.note = patch.note;
     }
+
     if (patch.enabled !== undefined) {
       data.enabled = patch.enabled;
     }
+
     if (patch.sources !== undefined) {
       data.sources = patch.sources as Prisma.InputJsonValue;
     }
+
     if (patch.params !== undefined) {
       data.params =
         patch.params == null ? Prisma.JsonNull : (patch.params as Prisma.InputJsonValue);
     }
+
     if (patch.gates !== undefined) {
       data.gates = patch.gates as Prisma.InputJsonValue;
     }
+
     if (patch.enabledStages !== undefined) {
       data.enabled_stages = patch.enabledStages as Prisma.InputJsonValue;
     }
+
     await this.db.blueprints.update({ where: { id }, data });
   }
 

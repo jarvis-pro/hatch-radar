@@ -35,19 +35,25 @@ export class CrawlerConfigService {
     const conn = await this.connectors.getUsableConnector('reddit');
     if (!conn) {
       this.cached = null;
+
       return null;
     }
+
     const fingerprint = `${conn.id}:${conn.updated_at}`;
     if (this.cached?.fingerprint === fingerprint) {
       return this.cached.client;
     }
+
     const cfg = this.toRedditConfig(conn);
     if (!cfg) {
       this.cached = null;
+
       return null;
     }
+
     const client = new RedditClient(this.queue, cfg);
     this.cached = { fingerprint, client };
+
     return client;
   }
 
@@ -64,11 +70,14 @@ export class CrawlerConfigService {
       };
       if (!cfg.clientId || !cfg.clientSecret || !cfg.username || !cfg.password || !cfg.userAgent) {
         logger.warn(`[crawler] Reddit 连接器 #${conn.id} 凭据不完整，跳过`);
+
         return null;
       }
+
       return cfg;
     } catch (err) {
       logger.warn(`[crawler] Reddit 连接器 #${conn.id} 解密失败：${errMsg(err)}`);
+
       return null;
     }
   }
@@ -83,24 +92,31 @@ export class CrawlerConfigService {
     if (!conn) {
       return { ok: false, error: '连接器不存在' };
     }
+
     if (conn.platform !== 'reddit') {
       // 其余平台无需凭据；标记通过即可（理论上不会有非 reddit 连接器）
       await this.connectors.recordCheck(id, true, null, nowSec());
+
       return { ok: true };
     }
+
     const cfg = this.toRedditConfig(conn);
     if (!cfg) {
       await this.connectors.recordCheck(id, false, '凭据不完整或解密失败', nowSec());
+
       return { ok: false, error: '凭据不完整或解密失败' };
     }
+
     try {
       await new RedditClient(this.queue, cfg).testAuth();
       await this.connectors.recordCheck(id, true, null, nowSec());
       this.cached = null; // 凭据可能已变，失效缓存指纹，下次重建
+
       return { ok: true };
     } catch (err) {
       const m = errMsg(err);
       await this.connectors.recordCheck(id, false, m, nowSec());
+
       return { ok: false, error: m };
     }
   }

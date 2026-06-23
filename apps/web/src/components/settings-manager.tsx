@@ -98,11 +98,13 @@ function AzureUsageMeter() {
   if (!u) {
     return null;
   }
+
   const pct =
     u.azureFreeLimit > 0
       ? Math.min(100, Math.round((u.azureCharsThisMonth / u.azureFreeLimit) * 100))
       : 0;
   const over = u.azureCharsThisMonth >= u.azureFreeLimit;
+
   return (
     <div className="mt-2.5">
       <div className="flex items-center justify-between text-xs text-muted-foreground">
@@ -217,11 +219,13 @@ async function apiSend(
     } else {
       data = await api.del<ApiData>(p, body);
     }
+
     return { ok: true, status: 200, data: data ?? {} };
   } catch (err) {
     if (err instanceof ApiError) {
       return { ok: false, status: err.status, data: { error: err.message } };
     }
+
     return { ok: false, status: 0, data: { error: '网络错误' } };
   }
 }
@@ -231,15 +235,19 @@ function KeyStatusBadge({ k, now }: { k: ProviderKeyDTO; now: number }) {
   if (!k.enabled) {
     return <Badge variant="outline">已停用</Badge>;
   }
+
   if (k.status === 'invalid') {
     return <Badge variant="destructive">失效</Badge>;
   }
+
   if (k.status === 'cooling') {
     const remain = k.cooldownUntil ? k.cooldownUntil - now : 0;
+
     return (
       <Badge variant="outline">{remain > 0 ? `冷却 ${Math.ceil(remain / 60)}m` : '待恢复'}</Badge>
     );
   }
+
   return <Badge variant="secondary">正常</Badge>;
 }
 
@@ -348,6 +356,7 @@ export function SettingsManager({
     if (form.apiKey.trim()) {
       body.apiKey = form.apiKey.trim();
     }
+
     const res =
       editingId === null
         ? await apiSend('/api/settings/providers', 'POST', body)
@@ -368,28 +377,38 @@ export function SettingsManager({
   function save() {
     if (!form.label.trim() || !form.model.trim()) {
       toast.error('名称与模型不能为空');
+
       return;
     }
+
     if (usesApiKey(form.provider) && !secretConfigured) {
       toast.error('未配置 SETTINGS_SECRET，无法保存带密钥的模型');
+
       return;
     }
+
     if (needKeyOnSave && !form.apiKey.trim()) {
       toast.error(
         editingId === null ? '新增模型必须填写首把 API Key' : '修改 base 地址必须重填 API Key',
       );
+
       return;
     }
+
     const ip = form.inputPrice.trim();
     const op = form.outputPrice.trim();
     if ((ip !== '' && !(Number(ip) >= 0)) || (op !== '' && !(Number(op) >= 0))) {
       toast.error('token 单价需为非负数');
+
       return;
     }
+
     if (baseUrlChanged) {
       setConfirm({ kind: 'rebaseClear' });
+
       return;
     }
+
     void doSave();
   }
 
@@ -470,10 +489,13 @@ export function SettingsManager({
     if (keyProviderId === null) {
       return;
     }
+
     if (editingKeyId === null && !keyForm.apiKey.trim()) {
       toast.error('请填写 API Key');
+
       return;
     }
+
     setKeyBusy(true);
     const res =
       editingKeyId === null
@@ -548,6 +570,7 @@ export function SettingsManager({
     if (!confirm) {
       return;
     }
+
     if (confirm.kind === 'rebaseClear') {
       void doSave();
     } else if (confirm.kind === 'deleteProvider') {

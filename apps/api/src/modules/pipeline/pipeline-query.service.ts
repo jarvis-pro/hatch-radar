@@ -81,6 +81,7 @@ export class PipelineQueryService {
   /** 在飞任务计数（排队 + 运行中）：侧栏「进程」红点轮询用，避免拉整张看板。 */
   async inflight(): Promise<{ stats: { queued: number; running: number } }> {
     const stats = await this.tasks.taskStats();
+
     return { stats: { queued: stats.queued, running: stats.running } };
   }
 
@@ -91,6 +92,7 @@ export class PipelineQueryService {
       this.blueprints.listBlueprints(),
     ]);
     const labelById = new Map(bps.map((b) => [b.id, b.label]));
+
     return { runs: runs.map((r) => toRunView(r, labelById.get(r.blueprint_id) ?? null)) };
   }
 
@@ -100,10 +102,12 @@ export class PipelineQueryService {
     if (!run) {
       return null;
     }
+
     const bp = await this.blueprints.getBlueprint(run.blueprint_id);
     const tasks = await this.tasks.listByRun(id);
     const stagesByTask = await this.taskStages.listStagesByTasks(tasks.map((t) => t.id));
     const taskViews = tasks.map((t) => toTaskView(t, stagesByTask.get(t.id) ?? []));
+
     return { run: toRunView(run, bp?.label ?? null), tasks: taskViews };
   }
 }

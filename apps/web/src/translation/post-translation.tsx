@@ -79,6 +79,7 @@ export function usePostTranslation(postId: string | undefined) {
   });
 
   const translations = contentQ.data?.translations ?? {};
+
   return {
     status: statusQ.data,
     showZh,

@@ -18,6 +18,7 @@ function SavedRow({ op, index, onPress }: { op: Opportunity; index: number; onPr
   const palette = usePalette();
   const hue = INTENSITY_GLOW[op.intensity];
   const up = op.momentum >= 0;
+
   return (
     <Pressable
       onPress={onPress}
@@ -66,6 +67,7 @@ export default function SavedScreen() {
     const count = savedOpportunities.length;
     const avg = count ? Math.round(savedOpportunities.reduce((s, o) => s + o.score, 0) / count) : 0;
     const high = savedOpportunities.filter((o) => o.intensity === 'high').length;
+
     return { count, avg, high };
   }, [savedOpportunities]);
 

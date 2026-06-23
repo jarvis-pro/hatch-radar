@@ -90,6 +90,7 @@ export class SessionsRepository {
       where: { user_id: userId, expires_at: { gt: BigInt(now) } },
       orderBy: { last_seen_at: 'desc' },
     });
+
     return rows.map((s) => ({
       id: s.id,
       userAgent: s.user_agent,

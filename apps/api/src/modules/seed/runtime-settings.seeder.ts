@@ -16,6 +16,7 @@ export class RuntimeSettingsSeeder implements Seeder {
 
   async run(): Promise<SeedOutcome> {
     const inserted = await this.runtimeSettings.ensureSeeded();
+
     return inserted > 0
       ? { status: 'seeded', detail: `写入 ${inserted} 项默认值（app_settings）` }
       : { status: 'skipped', reason: '运行期参数默认值已存在' };

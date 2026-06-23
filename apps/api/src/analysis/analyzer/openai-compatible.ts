@@ -63,6 +63,7 @@ async function postChat(
     if (attempt > 0) {
       await sleep(2 ** attempt * 500);
     }
+
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
     // 单次请求超时控制器与外部中止信号（job 超时）合并：任一触发即 abort 本次请求
@@ -85,20 +86,25 @@ async function postChat(
       if (outerSignal?.aborted) {
         throw err;
       } // 外部中止（job 超时）：不再重试，直接冒泡
+
       continue;
     } finally {
       clearTimeout(timer);
     }
+
     if (res.ok) {
       return (await res.json()) as ChatCompletion;
     }
+
     if (res.status === 429 || res.status >= 500) {
       lastErr = new Error(`${cfg.provider} 返回 ${res.status}`);
       continue;
     }
+
     const detail = await res.text().catch(() => '');
     throw new Error(`${cfg.provider} 请求失败 ${res.status}: ${detail.slice(0, 200)}`);
   }
+
   throw new Error(
     `${cfg.provider} 重试 ${MAX_RETRIES} 次仍失败: ${lastErr instanceof Error ? lastErr.message : String(lastErr)}`,
   );
@@ -142,9 +148,11 @@ export async function callRawOpenAICompatible(
   if (!content) {
     throw new Error(`${cfg.provider} 未返回内容`);
   }
+
   const u = data.usage;
   // prompt_tokens 含缓存命中；非缓存输入 = prompt_tokens - 命中。OpenAI 自动缓存无独立写入计费。
   const cacheRead = u?.prompt_tokens_details?.cached_tokens ?? u?.prompt_cache_hit_tokens ?? 0;
+
   return {
     raw: content,
     usage: u
@@ -174,6 +182,7 @@ export async function analyzeWithOpenAICompatible(
   signal?: AbortSignal,
 ): Promise<AnalysisOutcome> {
   const { raw, usage } = await callRawOpenAICompatible(cfg, buildContext(post, comments), signal);
+
   return { insight: normalizeRawOutput(raw), usage };
 }
 

@@ -38,6 +38,7 @@ function scryptAsync(
 export async function hashPassword(plain: string): Promise<string> {
   const salt = randomBytes(SALT_BYTES);
   const key = await scryptAsync(plain.normalize('NFKC'), salt, KEYLEN, { N, r: R, p: P });
+
   return `scrypt:${N}:${R}:${P}:${salt.toString('base64')}:${key.toString('base64')}`;
 }
 
@@ -52,17 +53,21 @@ export async function verifyPassword(plain: string, stored: string): Promise<boo
   if (parts.length !== 6 || parts[0] !== 'scrypt') {
     return false;
   }
+
   const n = Number(parts[1]);
   const r = Number(parts[2]);
   const p = Number(parts[3]);
   if (!Number.isInteger(n) || !Number.isInteger(r) || !Number.isInteger(p)) {
     return false;
   }
+
   const salt = Buffer.from(parts[4], 'base64');
   const expected = Buffer.from(parts[5], 'base64');
   if (salt.length === 0 || expected.length === 0) {
     return false;
   }
+
   const key = await scryptAsync(plain.normalize('NFKC'), salt, expected.length, { N: n, r, p });
+
   return key.length === expected.length && timingSafeEqual(key, expected);
 }

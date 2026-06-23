@@ -37,6 +37,7 @@ function RadarBackdrop() {
     { cx: 61, cy: 220, delay: '2.91s' },
     { cx: 73, cy: 73, delay: '3.5s' },
   ];
+
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden">
       <div className="absolute top-1/2 left-1/2 size-[52rem] -translate-x-1/2 -translate-y-1/2 lg:left-[36%]">

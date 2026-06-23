@@ -165,6 +165,7 @@ export class SettingsController {
     @Body(new ZodValidationPipe(updateSchema)) dto: z.infer<typeof updateSchema>,
   ) {
     await this.settings.updateProvider(id, dto);
+
     return { ok: true };
   }
 
@@ -172,6 +173,7 @@ export class SettingsController {
   @Delete('providers/:id')
   async remove(@Param('id', ParseIntPipe) id: number) {
     await this.settings.deleteProvider(id);
+
     return { ok: true };
   }
 
@@ -200,6 +202,7 @@ export class SettingsController {
     @Body(new ZodValidationPipe(updateKeySchema)) dto: z.infer<typeof updateKeySchema>,
   ) {
     await this.settings.updateKey(providerId, keyId, dto satisfies KeyUpdate);
+
     return { ok: true };
   }
 
@@ -210,6 +213,7 @@ export class SettingsController {
     @Param('keyId', ParseIntPipe) keyId: number,
   ) {
     await this.settings.deleteKey(providerId, keyId);
+
     return { ok: true };
   }
 

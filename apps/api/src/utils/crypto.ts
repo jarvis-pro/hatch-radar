@@ -24,11 +24,14 @@ function deriveKey(): Buffer {
       '未配置 SETTINGS_SECRET：模型密钥加密入库需要它，请在 .env 设一个高强度随机串（如 openssl rand -hex 32）',
     );
   }
+
   if (cachedKey?.secret === secret) {
     return cachedKey.key;
   }
+
   const key = scryptSync(secret, SALT, 32);
   cachedKey = { secret, key };
+
   return key;
 }
 
@@ -48,6 +51,7 @@ export function encryptSecret(plaintext: string): string {
   const cipher = createCipheriv(ALGORITHM, deriveKey(), iv);
   const enc = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
   const tag = cipher.getAuthTag();
+
   return `${iv.toString('base64')}:${tag.toString('base64')}:${enc.toString('base64')}`;
 }
 
@@ -62,8 +66,10 @@ export function decryptSecret(payload: string): string {
   if (!ivB64 || !tagB64 || !dataB64) {
     throw new Error('密文格式非法');
   }
+
   const decipher = createDecipheriv(ALGORITHM, deriveKey(), Buffer.from(ivB64, 'base64'));
   decipher.setAuthTag(Buffer.from(tagB64, 'base64'));
+
   return Buffer.concat([
     decipher.update(Buffer.from(dataB64, 'base64')),
     decipher.final(),

@@ -39,6 +39,7 @@ class AzureHttpError extends Error {
 /** 拼出 /translate 请求 URL（去掉自定义端点尾部斜杠） */
 function buildUrl(endpoint: string | null | undefined): string {
   const base = (endpoint?.trim() || DEFAULT_ENDPOINT).replace(/\/+$/, '');
+
   return `${base}/translate?api-version=${API_VERSION}&to=${TARGET_LANG}`;
 }
 
@@ -53,6 +54,7 @@ function buildHeaders(config: AzureTranslateConfig): Record<string, string> {
   if (region) {
     headers['Ocp-Apim-Subscription-Region'] = region;
   }
+
   return headers;
 }
 
@@ -76,6 +78,7 @@ async function callAzure(
     const detail = await res.text().catch(() => '');
     throw new AzureHttpError(`Azure Translator ${res.status}：${detail.slice(0, 300)}`, res.status);
   }
+
   return (await res.json()) as AzureTranslateResponseItem[];
 }
 
@@ -96,6 +99,7 @@ export async function translateBatchWithAzure(
   if (items.length === 0) {
     return { results: [], usage: null };
   }
+
   const resp = await callAzure(
     config,
     items.map((it) => it.text),
@@ -107,12 +111,14 @@ export async function translateBatchWithAzure(
     if (text == null) {
       continue;
     } // 漏返回 → 跳过，下次翻译任务补
+
     results.push({
       key: items[i].key,
       lang: resp[i]?.detectedLanguage?.language ?? '',
       text,
     });
   }
+
   return { results, usage: null };
 }
 

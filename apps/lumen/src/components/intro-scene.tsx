@@ -48,6 +48,7 @@ export function IntroScene({
 
   const heroStyle = useAnimatedStyle(() => {
     const rel = scrollY.value / height;
+
     return {
       opacity: interpolate(rel, [0, 0.7], [1, 0], Extrapolation.CLAMP),
       transform: [

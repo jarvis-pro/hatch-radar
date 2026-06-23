@@ -27,6 +27,7 @@ export class SourcesRepository {
   /** 列出全部来源（按平台、id 排序） */
   async listSources(): Promise<SourceRow[]> {
     const rows = await this.db.sources.findMany({ orderBy: [{ platform: 'asc' }, { id: 'asc' }] });
+
     return rows.map(toSourceRow);
   }
 
@@ -36,12 +37,14 @@ export class SourcesRepository {
       where: { platform, enabled: true },
       orderBy: { id: 'asc' },
     });
+
     return rows.map(toSourceRow);
   }
 
   /** 按 ID 取单条来源 */
   async getSource(id: number): Promise<SourceRow | undefined> {
     const row = await this.db.sources.findUnique({ where: { id } });
+
     return row ? toSourceRow(row) : undefined;
   }
 
@@ -64,6 +67,7 @@ export class SourcesRepository {
       },
       select: { id: true },
     });
+
     return row.id;
   }
 
@@ -73,29 +77,37 @@ export class SourcesRepository {
     if (fields.platform !== undefined) {
       data.platform = fields.platform;
     }
+
     if (fields.identifier !== undefined) {
       data.identifier = fields.identifier;
     }
+
     if (fields.label !== undefined) {
       data.label = fields.label;
     }
+
     if (fields.config !== undefined) {
       data.config = fields.config;
     }
+
     if (fields.enabled !== undefined) {
       data.enabled = fields.enabled;
     }
+
     if (Object.keys(data).length === 0) {
       return false;
     }
+
     data.updated_at = BigInt(now);
     const res = await this.db.sources.updateMany({ where: { id }, data });
+
     return res.count > 0;
   }
 
   /** 删除来源 */
   async deleteSource(id: number): Promise<boolean> {
     const res = await this.db.sources.deleteMany({ where: { id } });
+
     return res.count > 0;
   }
 }

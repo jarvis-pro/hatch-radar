@@ -39,7 +39,9 @@ function computeCost(
   if (inputPrice == null || outputPrice == null) {
     return null;
   }
+
   const m = CACHE_MULT[provider] ?? { write: 1, read: 1 };
+
   return (
     (t.inputTokens * inputPrice +
       t.cacheWriteTokens * inputPrice * m.write +
@@ -111,6 +113,7 @@ export class CostRepository {
               cacheReadTokens,
             })
           : null;
+
         return {
           provider: price?.provider ?? 'unknown',
           model: g.model,
@@ -140,6 +143,7 @@ export class CostRepository {
         cost: null as number | null,
       },
     );
+
     return { totals, byModel };
   }
 
@@ -151,10 +155,12 @@ export class CostRepository {
         { provider: string; input_price: number | null; output_price: number | null }
       >();
     }
+
     const prices = await this.db.model_providers.findMany({
       where: { id: { in: providerIds } },
       select: { id: true, provider: true, input_price: true, output_price: true },
     });
+
     return new Map(prices.map((p) => [p.id, p]));
   }
 
@@ -229,8 +235,10 @@ export class CostRepository {
       if (cost != null) {
         acc.cost = (acc.cost ?? 0) + cost;
       }
+
       byDate.set(r.date, acc);
     }
+
     // 密集填充：无数据的日期补零（cost=null）
     return axis.map(({ date }) => byDate.get(date) ?? empty(date));
   }

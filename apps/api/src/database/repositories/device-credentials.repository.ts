@@ -11,6 +11,7 @@ export class DeviceCredentialsRepository {
   /** 全部设备凭据（新到旧）。 */
   async listAll(): Promise<DeviceRow[]> {
     const rows = await this.db.device_credentials.findMany({ orderBy: { created_at: 'desc' } });
+
     return rows.map((d) => ({
       id: d.id,
       userId: d.user_id,
@@ -34,6 +35,7 @@ export class DeviceCredentialsRepository {
     if (!cred) {
       return null;
     }
+
     return { id: cred.id, userId: cred.user_id, ownerRole: cred.user.role as UserRole };
   }
 

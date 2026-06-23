@@ -10,8 +10,10 @@ export function getDeviceId(): string {
   if (existing) {
     return existing;
   }
+
   const deviceId = Crypto.randomUUID();
   setMeta('device_id', deviceId);
+
   return deviceId;
 }
 
@@ -37,6 +39,7 @@ export async function pushOutbox(cfg: WorkstationConfig): Promise<PushSummary> {
   if (pending.length === 0) {
     return { total: 0, applied: 0, duplicate: 0, rejected: 0, rejections: [] };
   }
+
   const body: SyncPushRequest = { deviceId: getDeviceId(), ops: pending.map(rowToOp) };
   const resp = await postJson<SyncPushResponse>(cfg, '/api/sync/push', body);
 
@@ -53,7 +56,9 @@ export async function pushOutbox(cfg: WorkstationConfig): Promise<PushSummary> {
       summary.rejections.push({ opId: result.opId, reason: result.reason });
     }
   }
+
   markSynced(resp.results.map((r) => r.opId));
+
   return summary;
 }
 

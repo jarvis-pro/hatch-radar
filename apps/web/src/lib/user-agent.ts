@@ -20,18 +20,23 @@ function detectOs(ua: string): { name: string; mobile: boolean } | null {
   if (/iPhone|iPad|iPod/.test(ua)) {
     return { name: 'iOS', mobile: true };
   }
+
   if (/Android/.test(ua)) {
     return { name: 'Android', mobile: true };
   }
+
   if (/Windows NT/.test(ua)) {
     return { name: 'Windows', mobile: false };
   }
+
   if (/Mac OS X|Macintosh/.test(ua)) {
     return { name: 'macOS', mobile: false };
   }
+
   if (/Linux|X11/.test(ua)) {
     return { name: 'Linux', mobile: false };
   }
+
   return null;
 }
 
@@ -40,21 +45,27 @@ function detectBrowser(ua: string): string {
   if (/Claude\//.test(ua)) {
     return 'Claude 桌面端';
   }
+
   if (/Edg\//.test(ua)) {
     return 'Edge';
   }
+
   if (/OPR\/|Opera/.test(ua)) {
     return 'Opera';
   }
+
   if (/Firefox\//.test(ua)) {
     return 'Firefox';
   }
+
   if (/Chrome\//.test(ua)) {
     return 'Chrome';
   }
+
   if (/Safari\//.test(ua)) {
     return 'Safari';
   }
+
   return '浏览器';
 }
 
@@ -70,6 +81,7 @@ export function parseUserAgent(ua: string | null): ParsedUA {
 
   const os = detectOs(ua);
   const browser = detectBrowser(ua);
+
   return {
     label: os ? `${browser} · ${os.name}` : browser,
     kind: os?.mobile ? 'mobile' : 'desktop',

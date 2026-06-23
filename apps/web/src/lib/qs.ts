@@ -6,6 +6,8 @@ export function buildQuery(params: Record<string, string | number | undefined | 
       sp.set(key, String(value));
     }
   }
+
   const s = sp.toString();
+
   return s ? `?${s}` : '';
 }

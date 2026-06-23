@@ -32,7 +32,9 @@ function qs(params: Record<string, string | number | undefined>): string {
       sp.set(k, String(v));
     }
   }
+
   const s = sp.toString();
+
   return s ? `?${s}` : '';
 }
 
@@ -83,11 +85,13 @@ export function useRun(runId: string) {
       if (!d) {
         return false;
       }
+
       const active =
         d.run.status === 'running' ||
         d.tasks.some(
           (t) => t.status === 'queued' || t.status === 'running' || t.status === 'paused',
         );
+
       return active ? 1500 : false;
     },
   });

@@ -36,6 +36,7 @@ export class LocalDispatcher implements Dispatcher {
     if (this.draining || this.pumping) {
       return;
     } // 排空中不再认领；单飞：认领循环不可并发重入
+
     this.pumping = true;
     try {
       while (this.inFlight < this.concurrency) {
@@ -43,6 +44,7 @@ export class LocalDispatcher implements Dispatcher {
         if (!task) {
           break;
         } // 队列空
+
         // 先占名额再起执行：inFlight++ 紧邻 runClaimed（其同步建立 .finally 归还链），中间无
         // await，故不存在「占了名额却没挂归还回调」的泄漏窗口。
         this.inFlight++;

@@ -70,10 +70,12 @@ export class AnalyzeExecutor {
     if (providerId == null) {
       throw new Error('任务未绑定模型（provider_id 为空）');
     }
+
     const info = await this.analysisConfig.getProviderInspectInfo(providerId);
     if (!info) {
       throw new Error('模型配置不存在或已停用');
     }
+
     return info;
   }
 
@@ -81,6 +83,7 @@ export class AnalyzeExecutor {
   private async nodeFetch(post: PostRow): Promise<FetchOutput> {
     const comments = await this.comments.getCommentsForPost(post.id);
     const maxDepth = comments.reduce((m, c) => Math.max(m, c.depth), 0);
+
     return {
       title: post.title,
       selftextChars: post.selftext.length,
@@ -94,6 +97,7 @@ export class AnalyzeExecutor {
   private async nodeContext(post: PostRow): Promise<ContextOutput> {
     const comments = await this.comments.getCommentsForPost(post.id);
     const contextText = buildContext(post, comments);
+
     return {
       systemPrompt: SYSTEM_PROMPT,
       contextText,
@@ -111,15 +115,19 @@ export class AnalyzeExecutor {
     if (providerId == null) {
       throw new Error('任务未绑定模型（provider_id 为空）');
     }
+
     const ctx = stepOutput<ContextOutput>(stages, 'context');
     if (!ctx?.contextText) {
       throw new Error('上游 context 节点产物缺失，无法调用 AI');
     }
+
     const processor = await this.analysisConfig.getProcessorForProvider(providerId);
     if (!processor) {
       throw new Error('模型配置不存在或已停用');
     }
+
     const raw = await processor.callRaw(ctx.contextText, signal);
+
     return {
       raw: raw.raw,
       usage: raw.usage,
@@ -134,11 +142,13 @@ export class AnalyzeExecutor {
     if (ai?.raw == null) {
       throw new Error('上游 ai_call 节点产物缺失，无法归一化');
     }
+
     const parsed = typeof ai.raw === 'string' ? parseLooseJson(ai.raw) : ai.raw;
     const insight = normalizeInsight(parsed);
     const p = parsed as { pain_points?: unknown[]; opportunities?: unknown[] };
     const rawPain = Array.isArray(p?.pain_points) ? p.pain_points.length : 0;
     const rawOpp = Array.isArray(p?.opportunities) ? p.opportunities.length : 0;
+
     return {
       insight,
       droppedPainPoints: Math.max(0, rawPain - insight.pain_points.length),
@@ -156,7 +166,9 @@ export class AnalyzeExecutor {
     if (!norm?.insight) {
       throw new Error('上游 normalize 节点产物缺失，无法落库');
     }
+
     const { saved } = await this.analysis.persistInsight(post, model, norm.insight);
+
     return {
       saved,
       painPointCount: norm.insight.pain_points.length,

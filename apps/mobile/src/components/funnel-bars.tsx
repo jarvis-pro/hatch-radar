@@ -24,6 +24,7 @@ export function FunnelBars({
       <View className="gap-2.5">
         {rows.map((r) => {
           const pct = r.value > 0 ? Math.max((r.value / max) * 100, 5) : 0;
+
           return (
             <View key={r.label} className="flex-row items-center gap-3">
               <Text className="w-12 text-xs text-muted-foreground">{r.label}</Text>

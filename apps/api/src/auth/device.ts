@@ -31,8 +31,10 @@ export function verifyDeviceSignature(
     if (raw.length !== 32) {
       return false;
     }
+
     const spki = Buffer.concat([ED25519_SPKI_PREFIX, raw]);
     const key = createPublicKey({ key: spki, format: 'der', type: 'spki' });
+
     return verifyOneShot(
       null,
       Buffer.from(nonce, 'utf8'),

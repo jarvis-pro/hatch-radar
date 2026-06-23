@@ -27,6 +27,7 @@ export function classifyKeyError(err: unknown): KeyErrorKind {
   if (status === 429 || /\b429\b|rate.?limit|too many requests/i.test(m)) {
     return 'rate_limit';
   }
+
   if (
     status === 401 ||
     status === 403 ||
@@ -34,5 +35,6 @@ export function classifyKeyError(err: unknown): KeyErrorKind {
   ) {
     return 'auth';
   }
+
   return 'other';
 }

@@ -81,6 +81,7 @@ export function DeviceManager({
     if (!kick) {
       return;
     }
+
     const id = kick.id;
     setError(null);
     setPending(true);
@@ -242,6 +243,7 @@ export function DeviceManager({
                 if (!code) {
                   return;
                 }
+
                 void navigator.clipboard.writeText(code);
                 toast.success('激活码已复制');
               }}

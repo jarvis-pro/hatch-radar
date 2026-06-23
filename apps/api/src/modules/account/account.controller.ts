@@ -71,6 +71,7 @@ export class AccountController {
       ip: req.ip,
     });
     setSessionCookie(res, result.token, result.absoluteDays);
+
     return { user: result.user };
   }
 
@@ -105,7 +106,9 @@ export class AccountController {
     if (token) {
       await this.account.logout(token, user.id);
     }
+
     clearSessionCookie(res);
+
     return { ok: true };
   }
 
@@ -118,6 +121,7 @@ export class AccountController {
     @Body(new ZodValidationPipe(changePasswordSchema)) dto: z.infer<typeof changePasswordSchema>,
   ): Promise<{ ok: true }> {
     await this.account.changePassword(user, dto.current, dto.password, dto.confirm);
+
     return { ok: true };
   }
 
@@ -129,6 +133,7 @@ export class AccountController {
     @Body(new ZodValidationPipe(profileSchema)) dto: z.infer<typeof profileSchema>,
   ): Promise<{ ok: true }> {
     await this.account.updateOwnName(user, dto.name);
+
     return { ok: true };
   }
 
@@ -140,6 +145,7 @@ export class AccountController {
     @Body(new ZodValidationPipe(avatarSchema)) dto: z.infer<typeof avatarSchema>,
   ): Promise<{ ok: true }> {
     await this.account.updateOwnAvatar(user, dto.avatar);
+
     return { ok: true };
   }
 
@@ -158,6 +164,7 @@ export class AccountController {
     @Param('id') id: string,
   ): Promise<{ ok: true }> {
     await this.account.revokeSession(user, id);
+
     return { ok: true };
   }
 
@@ -167,6 +174,7 @@ export class AccountController {
   @UseGuards(SessionAuthGuard)
   async revokeOthers(@AuthUser() user: AuthedUser): Promise<{ ok: true }> {
     await this.account.revokeOtherSessions(user);
+
     return { ok: true };
   }
 }

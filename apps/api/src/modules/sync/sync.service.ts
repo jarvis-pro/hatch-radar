@@ -85,6 +85,7 @@ function extractOpId(raw: unknown, index: number): string {
       return opId;
     }
   }
+
   return `<无效操作 #${index}>`;
 }
 
@@ -145,12 +146,14 @@ export class SyncService {
     const parsed = opSchema.safeParse(raw);
     if (!parsed.success) {
       const issue = parsed.error.issues[0];
+
       return {
         opId: extractOpId(raw, index),
         outcome: 'rejected',
         reason: `payload 非法: ${issue.path.join('.')} ${issue.message}`,
       };
     }
+
     const op = parsed.data as SyncOperation;
 
     const dup = await tx.sync_ops.findUnique({
@@ -181,6 +184,7 @@ export class SyncService {
         applied_at: BigInt(nowSec()),
       },
     });
+
     return { opId: op.opId, outcome: 'applied' };
   }
 
@@ -195,6 +199,7 @@ export class SyncService {
       for (let i = 0; i < rawOps.length; i++) {
         acc.push(await this.applyOne(tx, deviceId, rawOps[i], i));
       }
+
       return acc;
     });
 
@@ -202,9 +207,11 @@ export class SyncService {
     for (const r of results) {
       tally[r.outcome]++;
     }
+
     logger.info(
       `[sync] 设备 ${deviceId.slice(0, 8)}… 推送 ${rawOps.length} 条：应用 ${tally.applied} / 重复 ${tally.duplicate} / 拒绝 ${tally.rejected}`,
     );
+
     return { results };
   }
 }

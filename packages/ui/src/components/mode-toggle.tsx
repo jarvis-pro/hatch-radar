@@ -27,6 +27,7 @@ const TRIGGER_ICON: Record<Theme, typeof Sun> = {
 export function ModeToggle() {
   const { theme, setTheme } = useTheme();
   const Icon = TRIGGER_ICON[theme];
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>

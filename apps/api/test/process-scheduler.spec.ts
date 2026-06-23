@@ -71,6 +71,7 @@ describe('进程调度（ProcessScheduler：fire / finalize / 重排）', () => 
       },
       nowSec(),
     );
+
     return { blueprintId: bp.id, processId: proc.id };
   }
 

@@ -56,11 +56,13 @@ export class RunsRepository {
         started_at: BigInt(now),
       },
     });
+
     return toRunRow(row);
   }
 
   async getRun(id: number): Promise<RunRow | null> {
     const row = await this.db.runs.findUnique({ where: { id } });
+
     return row ? toRunRow(row) : null;
   }
 
@@ -102,12 +104,14 @@ export class RunsRepository {
       orderBy: { id: 'desc' },
       take: limit,
     });
+
     return rows.map((r: RunPg) => toRunRow(r));
   }
 
   /** 列出全部图纸最近的进程（id 倒序），供「进程」总览页。 */
   async listAllRecent(limit: number): Promise<RunRow[]> {
     const rows = await this.db.runs.findMany({ orderBy: { id: 'desc' }, take: limit });
+
     return rows.map((r: RunPg) => toRunRow(r));
   }
 
@@ -117,6 +121,7 @@ export class RunsRepository {
       where: { process_id: processId, status: 'running' },
       select: { id: true },
     });
+
     return row != null;
   }
 
@@ -126,6 +131,7 @@ export class RunsRepository {
       where: { status: 'running' },
       orderBy: { id: 'asc' },
     });
+
     return rows.map((r: RunPg) => toRunRow(r));
   }
 
@@ -135,6 +141,7 @@ export class RunsRepository {
       where: { blueprint_id: blueprintId },
       _max: { sweep_seq: true },
     });
+
     return agg._max.sweep_seq ?? 0;
   }
 
@@ -150,6 +157,7 @@ export class RunsRepository {
       orderBy: { id: 'desc' },
       take: limit,
     });
+
     return rows.map((r: RunPg) => toRunRow(r));
   }
 
@@ -159,6 +167,7 @@ export class RunsRepository {
       where: { kind: 'recheck' },
       _max: { sweep_seq: true },
     });
+
     return agg._max.sweep_seq ?? 0;
   }
 
@@ -167,10 +176,12 @@ export class RunsRepository {
     if (runIds.length === 0) {
       return new Map();
     }
+
     const rows = await this.db.runs.findMany({
       where: { id: { in: runIds } },
       select: { id: true, sweep_seq: true },
     });
+
     return new Map(rows.map((r) => [r.id, r.sweep_seq]));
   }
 
@@ -181,6 +192,7 @@ export class RunsRepository {
       orderBy: { id: 'desc' },
       take: limit,
     });
+
     return rows.map((r: RunPg) => toRunRow(r));
   }
 }

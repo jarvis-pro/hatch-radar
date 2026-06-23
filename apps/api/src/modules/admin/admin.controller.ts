@@ -104,12 +104,14 @@ export class AdminController {
       role: dto.role ?? 'admin',
       perms: dto.perms ?? [],
     });
+
     return { ok: true };
   }
 
   @Delete('users/:id')
   async deleteUser(@AuthUser() actor: AuthedUser, @Param('id') id: string): Promise<{ ok: true }> {
     await this.admin.deleteUser(actor, id);
+
     return { ok: true };
   }
 
@@ -127,6 +129,7 @@ export class AdminController {
     @Body(new ZodValidationPipe(statusSchema)) dto: z.infer<typeof statusSchema>,
   ): Promise<{ ok: true }> {
     await this.admin.setStatus(actor, id, dto.status);
+
     return { ok: true };
   }
 
@@ -156,6 +159,7 @@ export class AdminController {
     @Param('id') id: string,
   ): Promise<{ ok: true }> {
     await this.admin.revokeDevice(actor, id);
+
     return { ok: true };
   }
 
@@ -165,6 +169,7 @@ export class AdminController {
     @Param('id') id: string,
   ): Promise<{ ok: true }> {
     await this.admin.cancelEnrollment(actor, id);
+
     return { ok: true };
   }
 }

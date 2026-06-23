@@ -57,6 +57,7 @@ function stubConfig(callRaw: () => Promise<RawModelOutput>): AnalysisConfigServi
     analyze: () => Promise.reject(new Error('stub analyze 不应被检视路径调用')),
     callRaw,
   };
+
   return {
     getProviderInspectInfo: (providerId: number): Promise<ResolveOutput> =>
       Promise.resolve({
@@ -141,6 +142,7 @@ describe('流水线检视器：执行内核（runTask 闸门状态机）', () =>
       { blueprintId: bp.id, kind: 'analyze', triggerSource: 'inspect' },
       nowSec(),
     );
+
     return run.id;
   }
 
@@ -155,6 +157,7 @@ describe('流水线检视器：执行内核（runTask 闸门状态机）', () =>
     if (!res.ok) {
       throw new Error(res.error);
     }
+
     return res.taskId;
   }
 
@@ -167,6 +170,7 @@ describe('流水线检视器：执行内核（runTask 闸门状态机）', () =>
       new CommentsRepository(db),
       new PostsRepository(db),
     );
+
     return new WorkerService(
       tasks,
       taskStages,
@@ -271,6 +275,7 @@ describe('流水线检视器：执行内核（runTask 闸门状态机）', () =>
     // 第 1 次 callRaw（ai_call）失败，第 2 次成功——验证「重认领只重调 ai_call、上游不重跑」
     const worker = makeWorker(() => {
       attempt += 1;
+
       return attempt === 1 ? Promise.reject(new Error('限流 boom')) : Promise.resolve(RAW);
     });
     const runId = await seedRun();
@@ -336,6 +341,7 @@ describe('流水线检视器：TaskControlService 编排（API 层）', () => {
     const gateway: Dispatcher = {
       tryDispatch: () => {
         dispatchCount += 1;
+
         return Promise.resolve();
       },
     };
@@ -384,6 +390,7 @@ describe('流水线检视器：TaskControlService 编排（API 层）', () => {
         updated_at: 0n,
       },
     });
+
     return p.id;
   }
 

@@ -45,6 +45,7 @@ export function parseLooseJson(text: string): unknown {
     .trim()
     .replace(/^```(?:json)?\s*/i, '')
     .replace(/\s*```$/, '');
+
   return JSON.parse(trimmed);
 }
 
@@ -60,6 +61,7 @@ export function normalizeRawOutput(raw: string | object): InsightResult {
 
 function normalizeIntensity(value: unknown): Intensity {
   const upper = String(value).toUpperCase();
+
   return upper === 'HIGH' || upper === 'LOW' ? upper : 'MEDIUM';
 }
 
@@ -75,6 +77,7 @@ export function normalizeInsight(raw: unknown): InsightResult {
   const painPoints = Array.isArray(data.pain_points) ? data.pain_points : [];
   const opportunities = Array.isArray(data.opportunities) ? data.opportunities : [];
   const tags = Array.isArray(data.tags) ? data.tags : [];
+
   return {
     pain_points: painPoints
       .map((p: Record<string, unknown>) => ({

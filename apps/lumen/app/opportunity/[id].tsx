@@ -35,6 +35,7 @@ function Stat({ value, label, color }: { value: string; label: string; color?: s
 
 function VRule() {
   const palette = usePalette();
+
   return (
     <View
       style={{
@@ -58,6 +59,7 @@ function PainPoint({
   hue: string;
 }) {
   const v = useCountUp(frequency, { duration: 950, delay });
+
   return (
     <View className="mb-7">
       <View className="flex-row items-baseline gap-4">
@@ -255,6 +257,7 @@ export default function OpportunityDetail() {
             } else {
               hapticTap();
             }
+
             toggleSave(op.id);
           }}
           className="mt-12 flex-row items-center justify-center gap-2.5 rounded-2xl py-4"
@@ -291,6 +294,7 @@ export default function OpportunityDetail() {
             } else {
               hapticTap();
             }
+
             toggleSave(op.id);
           }}
           hitSlop={10}

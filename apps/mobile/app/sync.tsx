@@ -92,6 +92,7 @@ export default function SyncScreen() {
     const cfg = { baseUrl: normalizeBaseUrl(baseUrl) };
     saveWorkstationConfig(cfg);
     setBaseUrl(cfg.baseUrl);
+
     return cfg;
   };
 
@@ -99,12 +100,14 @@ export default function SyncScreen() {
     run('正在连接工作台…', async () => {
       const health = await fetchHealth(cfgFromInputs());
       const s = health.stats;
+
       return `工作台在线：洞察 ${s.insights} / 帖子 ${s.posts} / 评论 ${s.comments}（待分析 ${s.pendingAnalysis}）`;
     });
 
   const onPull = () =>
     run('正在拉取批次…', async () => {
       const batch = await fetchBatch(cfgFromInputs());
+
       return describeResult(importBatch(batch));
     });
 
@@ -116,14 +119,17 @@ export default function SyncScreen() {
       if (summary.total === 0) {
         return '没有待同步的研判操作。';
       }
+
       const parts = [`同步完成：共 ${summary.total} 条，应用 ${summary.applied}`];
       if (summary.duplicate > 0) {
         parts.push(`重复跳过 ${summary.duplicate}`);
       }
+
       if (summary.rejected > 0) {
         const reasons = [...new Set(summary.rejections.map((r) => r.reason ?? '原因见工作台日志'))];
         parts.push(`拒绝 ${summary.rejected}（${reasons.join('；')}）`);
       }
+
       return parts.join('，');
     });
 
@@ -137,15 +143,19 @@ export default function SyncScreen() {
       if (picked.canceled) {
         return '已取消选择。';
       }
+
       const asset = picked.assets[0];
       const name = asset.name.toLowerCase();
       if (name.endsWith('.json')) {
         const text = await new File(asset.uri).text();
+
         return describeResult(importBatch(JSON.parse(text) as ExportBatch));
       }
+
       if (name.endsWith('.sqlite') || name.endsWith('.db')) {
         return describeResult(importSqliteFile(uriToPath(asset.uri)));
       }
+
       throw new Error(`不支持的文件类型：${asset.name}（需要 .json / .sqlite）`);
     });
 

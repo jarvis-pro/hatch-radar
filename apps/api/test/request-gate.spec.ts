@@ -56,6 +56,7 @@ describe('出站请求闸（RequestGate：记录 / 失败 / 暂停）', () => {
     await expect(
       gate.run({ lane: 'reddit', purpose: 'listing' }, () => {
         ran = true;
+
         return Promise.resolve('x');
       }),
     ).rejects.toThrow(/暂停/);

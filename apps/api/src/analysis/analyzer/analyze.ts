@@ -89,6 +89,7 @@ export function createProcessor(cfg: AnalysisConfig): PostProcessor {
   switch (cfg.provider) {
     case 'anthropic': {
       const client = createAnthropicClient(cfg.apiKey);
+
       return {
         label: `Anthropic (${cfg.model})`,
         model: cfg.model,
@@ -97,6 +98,7 @@ export function createProcessor(cfg: AnalysisConfig): PostProcessor {
         callRaw: (context, signal) => callRawAnthropic(client, cfg.model, context, signal),
       };
     }
+
     case 'claude_cli':
       return {
         label: `Claude CLI (${cfg.model})`,
@@ -108,6 +110,7 @@ export function createProcessor(cfg: AnalysisConfig): PostProcessor {
     case 'openai':
     case 'deepseek': {
       const label = cfg.provider === 'openai' ? 'OpenAI' : 'DeepSeek';
+
       return {
         label: `${label} (${cfg.model})`,
         model: cfg.model,
