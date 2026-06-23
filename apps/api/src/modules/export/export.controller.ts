@@ -1,23 +1,18 @@
-import { createReadStream, mkdtempSync, rmSync, statSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { Controller, Get, Header, Query, StreamableFile, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import type { ExportBatch } from '@hatch-radar/shared';
-import { RequireDevicePermission } from '@/modules/auth/device-permission.decorator';
-import { DeviceOrSessionGuard } from '@/modules/auth/device-or-session.guard';
+import { RequirePermission } from '@/modules/account/auth-user.decorator';
+import { SessionAuthGuard } from '@/modules/account/session-auth.guard';
 import { parseExportFilter } from '@/modules/export/export-query';
 import { ExportService } from '@/modules/export/export.service';
-import { defaultExportName, writeBatchSqlite } from '@/modules/export/sqlite-writer';
 import { logger } from '@/logger';
 
 /**
- * /api/export/* —— 局域网导出批次（鉴权）。
+ * /api/export/* —— 导出批次（会话鉴权 + export:run 能力）。
  *
- * - GET /api/export/batch          JSON 批次；查询参数 since / minIntensity / subreddit / limit
- * - GET /api/export/batch.sqlite   同条件的独立 .sqlite 文件下载（StreamableFile 流式）
+ * - GET /api/export/batch   JSON 批次；查询参数 since / minIntensity / subreddit / limit
  */
-@UseGuards(DeviceOrSessionGuard)
-@RequireDevicePermission('export:run')
+@UseGuards(SessionAuthGuard)
+@RequirePermission('export:run')
 @Controller('export')
 export class ExportController {
   constructor(private readonly exportSvc: ExportService) {}
@@ -30,24 +25,5 @@ export class ExportController {
     );
 
     return batch;
-  }
-
-  @Get('batch.sqlite')
-  @Header('Cache-Control', 'no-store')
-  async batchSqlite(@Query() q: Record<string, string | undefined>): Promise<StreamableFile> {
-    const batch = await this.exportSvc.collectBatch(parseExportFilter(q));
-    // 先在临时目录落一个独立 .sqlite，流式发给客户端后清理
-    const dir = mkdtempSync(join(tmpdir(), 'hatch-radar-export-'));
-    const name = defaultExportName('sqlite');
-    const file = writeBatchSqlite(batch, join(dir, name));
-    const { size } = statSync(file);
-    const stream = createReadStream(file);
-    stream.on('close', () => rmSync(dir, { recursive: true, force: true }));
-
-    return new StreamableFile(stream, {
-      type: 'application/vnd.sqlite3',
-      disposition: `attachment; filename="${name}"`,
-      length: size,
-    });
   }
 }

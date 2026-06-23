@@ -51,16 +51,8 @@ const statusSchema = z.object({
   status: z.enum(['active', 'disabled']),
 });
 
-/** 创建设备激活码入参：给某账户发一张限时一次性码。 */
-const enrollmentSchema = z.object({
-  /** 设备展示名（区分该账户的多台设备），非空 */
-  deviceName: z.string().trim().min(1),
-  /** 激活码有效天数（coerce 兼容字符串入参） */
-  ttlDays: z.coerce.number().int(),
-});
-
 /**
- * /api/admin/* —— 账户 / 权限 / 设备管理（需 accounts:manage）。
+ * /api/admin/* —— 账户 / 权限管理（需 accounts:manage）。
  * 写方法由 SessionAuthGuard 强制 CSRF 头；超管层级 / 最后一个超管等业务校验在 AdminService。
  */
 @UseGuards(SessionAuthGuard)
@@ -126,46 +118,6 @@ export class AdminController {
     @Body(new ZodValidationPipe(statusSchema)) dto: z.infer<typeof statusSchema>,
   ): Promise<{ ok: true }> {
     await this.admin.setStatus(actor, id, dto.status);
-
-    return { ok: true };
-  }
-
-  @Get('devices')
-  listDevices() {
-    return this.admin.listDevices();
-  }
-
-  @Get('enrollments')
-  listEnrollments() {
-    return this.admin.listEnrollments();
-  }
-
-  @Post('users/:id/enrollments')
-  @HttpCode(201)
-  createEnrollment(
-    @AuthUser() actor: AuthedUser,
-    @Param('id') id: string,
-    @Body(new ZodValidationPipe(enrollmentSchema)) dto: z.infer<typeof enrollmentSchema>,
-  ) {
-    return this.admin.createEnrollment(actor, id, dto.deviceName, dto.ttlDays);
-  }
-
-  @Delete('devices/:id')
-  async revokeDevice(
-    @AuthUser() actor: AuthedUser,
-    @Param('id') id: string,
-  ): Promise<{ ok: true }> {
-    await this.admin.revokeDevice(actor, id);
-
-    return { ok: true };
-  }
-
-  @Delete('enrollments/:id')
-  async cancelEnrollment(
-    @AuthUser() actor: AuthedUser,
-    @Param('id') id: string,
-  ): Promise<{ ok: true }> {
-    await this.admin.cancelEnrollment(actor, id);
 
     return { ok: true };
   }

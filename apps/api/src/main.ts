@@ -1,5 +1,4 @@
 import 'reflect-metadata';
-import { networkInterfaces } from 'node:os';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import type { NestExpressApplication } from '@nestjs/platform-express';
@@ -8,20 +7,6 @@ import { type AppEnv, isProd } from '@/config/env';
 import { logger } from '@/logger';
 import { AppModule } from './app.module';
 import { APP_ENV } from './common/tokens';
-
-/** 枚举本机非回环 IPv4 地址，方便在手机上直接填写 */
-function lanAddresses(): string[] {
-  const result: string[] = [];
-  for (const list of Object.values(networkInterfaces())) {
-    for (const iface of list ?? []) {
-      if (iface.family === 'IPv4' && !iface.internal) {
-        result.push(iface.address);
-      }
-    }
-  }
-
-  return result;
-}
 
 /** 解析 TRUST_PROXY env：'true'/'false' → 布尔；非负整数字符串 → 代理层数；其余（如 'loopback'）原样。 */
 function parseTrustProxy(raw: string): boolean | number | string {
@@ -42,8 +27,8 @@ function parseTrustProxy(raw: string): boolean | number | string {
  * 挂载交互式 API 文档（Swagger UI）于 `/docs`，仅非生产环境——避免对外泄露完整接口目录。
  *
  * 文档内的操作路径默认带全局前缀 `/api`（`ignoreGlobalPrefix` 默认 false），故 “Try it out”
- * 直接命中真实路由。登记两种鉴权方案供调试：会话 cookie（`radar_session`）+ 写请求 CSRF 头
- * （`X-Radar-Csrf`）；移动端 Ed25519 设备签名非简单 security scheme，未登记。
+ * 直接命中真实路由。登记鉴权方案供调试：会话 cookie（`radar_session`）+ 写请求 CSRF 头
+ * （`X-Radar-Csrf`）。
  *
  * 注：本仓直跑 TS 源（`@swc-node/register`、无 `nest build`），`@nestjs/swagger` 的自动内省
  * CLI 插件挂不上，故 DTO 的请求 / 响应富 schema 需在控制器 / DTO 上手写 `@ApiProperty`、
@@ -74,14 +59,13 @@ function mountApiDocs(app: NestExpressApplication): void {
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     bufferLogs: true,
-    rawBody: true, // 供设备签名校验请求体哈希（DeviceAuthService 读 req.rawBody）
   });
   app.useLogger(app.get(Logger));
   app.flushLogs();
-  // 同步推送上限：outbox 操作很小，5MB 足够容纳上万条（对应裸跑实现）
+  // 请求体上限放宽（默认 100kb 偏小，部分配置 / 批量端点的 JSON 入参可能超过）。
   app.useBodyParser('json', { limit: '5mb' });
   // 全局异常过滤器经 APP_FILTER 在 AppModule 注册（DI 装配），此处不再手动 useGlobalFilters。
-  // 统一 API 前缀：控制器只声明各自子路径，外部路径仍为 /api/*（mobile / web 契约不变）
+  // 统一 API 前缀：控制器只声明各自子路径，外部路径仍为 /api/*
   app.setGlobalPrefix('api');
   // 优雅退出：触发各 service 的 OnApplicationShutdown（worker 排空、连接池关闭）
   app.enableShutdownHooks();
@@ -102,16 +86,11 @@ async function bootstrap(): Promise<void> {
     mountApiDocs(app);
   }
 
-  // 绑 0.0.0.0：监听本机所有网卡，使本进程同时经 localhost 与局域网 IP 可达。
-  // web（独立部署，经 /api 调本服务）与 mobile 共用这一监听；mobile 必须走局域网 IP
-  // （手机是 LAN 上的另一台设备），故不能只绑回环——这才是对外开放的原因。
-  // 网络位置不参与鉴权：恒开、fail-closed——人=会话 cookie、mobile=设备签名，守卫一处校验。
+  // 绑 0.0.0.0：监听本机所有网卡，使本进程同时经 localhost 与局域网 IP 可达（web 独立部署经 /api 调本服务）。
+  // 网络位置不参与鉴权：恒开、fail-closed——会话 cookie 一处校验。
   await app.listen(env.http.port, '0.0.0.0');
 
-  logger.info('服务已启动（端口 %d，鉴权恒开：会话 / 设备签名）', env.http.port);
-  for (const ip of lanAddresses()) {
-    logger.info('  · 局域网地址: http://%s:%d', ip, env.http.port);
-  }
+  logger.info('服务已启动（端口 %d，鉴权恒开：会话）', env.http.port);
 }
 
 bootstrap().catch((err: unknown) => {

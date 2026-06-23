@@ -1,8 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
   AuditLogsRepository,
-  DeviceCredentialsRepository,
-  DeviceEnrollmentsRepository,
   SessionsRepository,
   UsersRepository,
   type AppDatabase,
@@ -44,13 +42,7 @@ describe('AdminService 越权矩阵', () => {
     handle = setupTestDb();
     db = handle.db;
     users = new UsersRepository(db);
-    admin = new AdminService(
-      users,
-      new SessionsRepository(db),
-      new DeviceCredentialsRepository(db),
-      new DeviceEnrollmentsRepository(db),
-      new AuditLogsRepository(db),
-    );
+    admin = new AdminService(users, new SessionsRepository(db), new AuditLogsRepository(db));
   });
   afterAll(async () => {
     await handle.close();

@@ -269,10 +269,10 @@ export class UsersRepository {
     await this.db.users.delete({ where: { id } });
   }
 
-  /** 账户管理列表（超管在前，再按创建时间），含权限与设备数。 */
+  /** 账户管理列表（超管在前，再按创建时间），含权限。 */
   async listForAdmin(): Promise<AdminUserRow[]> {
     const rows = await this.db.users.findMany({
-      include: { permissions: true, _count: { select: { devices: true } } },
+      include: { permissions: true },
       orderBy: [{ role: 'asc' }, { created_at: 'asc' }],
     });
 
@@ -284,7 +284,7 @@ export class UsersRepository {
       status: r.status,
       mustChangePassword: r.must_change_password,
       permissions: r.permissions.map((p) => p.permission).filter(isPermissionKey),
-      deviceCount: r._count.devices,
+      deviceCount: 0,
       lastLoginAt: r.last_login_at != null ? Number(r.last_login_at) : null,
       createdAt: Number(r.created_at),
     }));

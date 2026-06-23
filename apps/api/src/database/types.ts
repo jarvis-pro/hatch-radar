@@ -17,7 +17,6 @@ import type {
   provider_api_keysModel,
   source_connectorsModel,
   sourcesModel,
-  sync_opsModel,
   translationsModel,
   triageModel,
   blueprintsModel,
@@ -46,7 +45,6 @@ export type PostPg = postsModel;
 export type CommentPg = commentsModel;
 export type InsightPgRow = insightsModel;
 export type TriagePgRow = triageModel;
-export type SyncOpPgRow = sync_opsModel;
 export type ProviderPg = model_providersModel;
 export type ProviderApiKeyPg = provider_api_keysModel;
 export type SourcePg = sourcesModel;

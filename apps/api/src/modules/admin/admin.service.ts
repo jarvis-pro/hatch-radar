@@ -1,27 +1,18 @@
 import { Injectable } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
-import { generateEnrollmentCode, hashPassword, sha256Hex } from '@/auth';
+import { hashPassword } from '@/auth';
 import {
   isPermissionKey,
   type AdminUserRow,
-  type DeviceRow,
-  type EnrollmentRow,
   type PermissionKey,
   type UserRole,
 } from '@hatch-radar/shared';
 import type { AuthedUser } from '../account/auth-context';
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '@/common/errors';
 import { AuditLogsRepository } from '@/database';
-import { DeviceCredentialsRepository } from '@/database';
-import { DeviceEnrollmentsRepository } from '@/database';
 import { SessionsRepository } from '@/database';
 import { UsersRepository } from '@/database';
 import { nowSec } from '@/utils/time';
-
-/** 激活码有效期（秒）：短，15 分钟。 */
-const ENROLL_TTL_SEC = 15 * 60;
-/** 允许的离线宽限窗（天）。 */
-const ALLOWED_TTL_DAYS = [7, 30, 60];
 
 /** 新建账户入参（来自控制器 DTO）。 */
 export interface CreateUserDto {
@@ -54,7 +45,7 @@ function tempPassword(): string {
 }
 
 /**
- * 账户 / 设备管理服务（后端归一 P2：原 web lib/admin/* 整体迁来，行为不变）。
+ * 账户管理服务（后端归一 P2：原 web lib/admin/* 整体迁来，行为不变）。
  *
  * 能力闸（accounts:manage）由控制器的 SessionAuthGuard + @RequirePermission 强制；
  * 本服务只做「超管层级 / 最后一个超管 / 不能操作自己」等业务校验与审计，校验失败抛 HttpException。
@@ -64,8 +55,6 @@ export class AdminService {
   constructor(
     private readonly users: UsersRepository,
     private readonly sessions: SessionsRepository,
-    private readonly devices: DeviceCredentialsRepository,
-    private readonly enrollments: DeviceEnrollmentsRepository,
     private readonly audit: AuditLogsRepository,
   ) {}
 
@@ -74,16 +63,6 @@ export class AdminService {
   /** 全部管理员账户（管理页列表用）。 */
   listUsers(): Promise<AdminUserRow[]> {
     return this.users.listForAdmin();
-  }
-
-  /** 全部设备凭据（管理页列表用）。 */
-  listDevices(): Promise<DeviceRow[]> {
-    return this.devices.listAll();
-  }
-
-  /** 当前待激活（未过期）的激活码。 */
-  listEnrollments(): Promise<EnrollmentRow[]> {
-    return this.enrollments.listPending(nowSec());
   }
 
   // ── 账户写 ──────────────────────────────────────────────────────────────
@@ -286,98 +265,6 @@ export class AdminService {
       targetType: 'user',
       targetId: userId,
       metadata: { email: target.email },
-    });
-  }
-
-  // ── 设备写 ──────────────────────────────────────────────────────────────
-
-  /**
-   * 为某用户「赋予设备」：生成一次性激活码（仅此次返回明文，库存 sha256）。
-   * @param actor 操作者（当前登录管理员）
-   * @param userId 设备所属账户 id
-   * @param deviceName 设备名（首尾空白会被裁剪）
-   * @param ttlDays 离线宽限窗天数；非 [7,30,60] 之一时回退 30
-   * @returns 明文激活码（15 分钟内有效）
-   * @throws ValidationError 设备名为空
-   * @throws NotFoundError 账户不存在
-   * @throws ForbiddenError 非超管操作他人账户
-   */
-  async createEnrollment(
-    actor: AuthedUser,
-    userId: string,
-    deviceName: string,
-    ttlDays: number,
-  ): Promise<{ code: string }> {
-    const name = deviceName.trim();
-    if (!name) {
-      throw new ValidationError('请填写设备名');
-    }
-
-    const ttl = ALLOWED_TTL_DAYS.includes(ttlDays) ? ttlDays : 30;
-    const target = await this.users.findById(userId);
-    if (!target) {
-      throw new NotFoundError('账户不存在');
-    }
-
-    this.assertCanManageTarget(actor, userId);
-    const code = generateEnrollmentCode();
-    const now = nowSec();
-    const id = await this.enrollments.create({
-      userId,
-      deviceName: name,
-      codeHash: sha256Hex(code),
-      ttlDays: ttl,
-      expiresAt: now + ENROLL_TTL_SEC,
-      issuedBy: actor.id,
-      now,
-    });
-    await this.audit.write({
-      actorId: actor.id,
-      action: 'device.enroll.provision',
-      targetType: 'user',
-      targetId: userId,
-      metadata: { enrollmentId: id, deviceName: name, ttlDays: ttl },
-    });
-
-    return { code };
-  }
-
-  /**
-   * 强踢：吊销某设备凭据（下次验签即被拒）。
-   * @param actor 操作者（当前登录管理员）
-   * @param credentialId 设备凭据 id
-   * @throws NotFoundError 设备不存在
-   * @throws ForbiddenError 非超管操作他人设备
-   */
-  async revokeDevice(actor: AuthedUser, credentialId: string): Promise<void> {
-    const cred = await this.devices.findByIdWithOwnerRole(credentialId);
-    if (!cred) {
-      throw new NotFoundError('设备不存在');
-    }
-
-    this.assertCanManageTarget(actor, cred.userId);
-    await this.devices.revoke(credentialId);
-    await this.audit.write({
-      actorId: actor.id,
-      action: 'device.revoke',
-      targetType: 'device',
-      targetId: credentialId,
-      metadata: { user_id: cred.userId },
-    });
-  }
-
-  /**
-   * 取消一个待激活的激活码。
-   * @param actor 操作者（当前登录管理员）
-   * @param enrollmentId 激活码（enrollment）id
-   */
-  async cancelEnrollment(actor: AuthedUser, enrollmentId: string): Promise<void> {
-    await this.enrollments.cancel(enrollmentId);
-    await this.audit.write({
-      actorId: actor.id,
-      action: 'device.enroll.cancel',
-      targetType: 'enrollment',
-      targetId: enrollmentId,
     });
   }
 

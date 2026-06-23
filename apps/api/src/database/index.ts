@@ -13,8 +13,6 @@ export * from './tx-context';
 // 仓储（领域数据访问层；构造注入 AppDatabase）
 export * from './repositories/audit-logs.repository';
 export * from './repositories/comments.repository';
-export * from './repositories/device-credentials.repository';
-export * from './repositories/device-enrollments.repository';
 export * from './repositories/insights.repository';
 // 图纸驱动生命周期仓储（新执行模型）
 export * from './repositories/blueprints.repository';
