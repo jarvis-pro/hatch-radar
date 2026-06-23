@@ -1,7 +1,8 @@
 import { Body, Controller, Get, HttpException, Patch, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 import type { CurrentUser } from '@hatch-radar/shared';
-import { AuthUser, type AuthedUser } from '@/modules/account/auth-user.decorator';
+import type { AuthedUser } from '@/modules/account/auth-context';
+import { AuthUser } from '@/modules/account/auth-user.decorator';
 import { DeviceOrSessionGuard } from '@/modules/auth/device-or-session.guard';
 import { DeviceUser, type DeviceUserContext } from '@/modules/auth/device-permission.decorator';
 import { ZodValidationPipe } from '@/common/zod-validation.pipe';

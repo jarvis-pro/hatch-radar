@@ -9,7 +9,7 @@ import type { Request } from 'express';
 import type { PermissionKey } from '@hatch-radar/shared';
 import { DeviceAuthService } from './device-auth.service';
 import { SessionAuthenticator } from '@/modules/account/session-authenticator';
-import type { AuthedUser } from '@/modules/account/auth-user.decorator';
+import type { AuthedUser } from '@/modules/account/auth-context';
 import { DEVICE_PERMISSION } from './device-permission.decorator';
 
 /**

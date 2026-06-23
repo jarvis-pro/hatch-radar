@@ -1,11 +1,8 @@
 import { Body, Controller, Get, HttpCode, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 import type { ExportFilter } from '@hatch-radar/shared';
-import {
-  AuthUser,
-  RequirePermission,
-  type AuthedUser,
-} from '@/modules/account/auth-user.decorator';
+import type { AuthedUser } from '@/modules/account/auth-context';
+import { AuthUser, RequirePermission } from '@/modules/account/auth-user.decorator';
 import { SessionAuthGuard } from '@/modules/account/session-auth.guard';
 import { ZodValidationPipe } from '@/common/zod-validation.pipe';
 import { parseExportFilter } from '@/modules/export/export-query';

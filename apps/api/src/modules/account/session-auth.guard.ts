@@ -2,7 +2,8 @@ import { type CanActivate, type ExecutionContext, Injectable } from '@nestjs/com
 import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
 import type { PermissionKey } from '@hatch-radar/shared';
-import { type AuthedUser, REQUIRE_PERMISSION } from './auth-user.decorator';
+import type { AuthedUser } from './auth-context';
+import { REQUIRE_PERMISSION } from './auth-user.decorator';
 import { SessionAuthenticator } from './session-authenticator';
 
 /**
