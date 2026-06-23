@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { AnalysisConfigService } from '../analysis/analysis-config.service';
-import { AnalysisService } from '../analysis/analysis.service';
+import { AnalysisConfigService } from '@/modules/analysis/analysis-config.service';
+import { AnalysisService } from '@/modules/analysis/analysis.service';
 import { buildContext, normalizeInsight, parseLooseJson, SYSTEM_PROMPT } from '@/analysis';
 import { CommentsRepository, PostsRepository, type PostRow } from '@/database';
 import type {
@@ -29,9 +29,13 @@ const EST_CHARS_PER_TOKEN = 4;
 @Injectable()
 export class AnalyzeExecutor {
   constructor(
+    // 分析配置服务：resolve 节点解析模型配置 + ai_call 节点取处理器
     private readonly analysisConfig: AnalysisConfigService,
+    // 分析服务：persist 节点按 post_id 幂等落库洞察
     private readonly analysis: AnalysisService,
+    // 评论仓储：fetch / context 节点拉取帖子评论树
     private readonly comments: CommentsRepository,
+    // 帖子仓储：节点执行所需的帖子读取
     private readonly posts: PostsRepository,
   ) {}
 

@@ -7,7 +7,7 @@ import {
   type AppDatabase,
   type BlueprintPg,
   type BlueprintRow,
-} from '../internal';
+} from '@/database/internal';
 
 export type { BlueprintRow };
 
@@ -51,7 +51,10 @@ export interface UpdateBlueprintInput {
  */
 @Injectable()
 export class BlueprintsRepository {
-  constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
+  constructor(
+    // 事务感知 Prisma 客户端（经 @Inject(PRISMA)，按 ALS 自动路由事务/根客户端）：读写图纸（blueprints）表
+    @Inject(PRISMA) private readonly db: AppDatabase,
+  ) {}
 
   /**
    * 新建一份图纸；未给的 JSON 配方字段（sources/gates/enabledStages）走 DB 默认 []。

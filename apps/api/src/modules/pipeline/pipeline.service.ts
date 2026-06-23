@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { LocalDispatcher } from '../worker/local-dispatcher';
+import { LocalDispatcher } from '@/modules/worker/local-dispatcher';
 import {
   BlueprintsRepository,
   PostsRepository,
@@ -11,8 +11,8 @@ import {
   type NewTaskInput,
 } from '@/database';
 import { CronExpressionParser } from 'cron-parser';
-import { RuntimeSettingsService } from '../settings/runtime-settings.service';
-import { AnalysisConfigService } from '../analysis/analysis-config.service';
+import { RuntimeSettingsService } from '@/modules/settings/runtime-settings.service';
+import { AnalysisConfigService } from '@/modules/analysis/analysis-config.service';
 import type { Dispatcher } from '@/modules/worker/protocol';
 import { logger } from '@/logger';
 import { nowSec } from '@/utils/time';
@@ -81,13 +81,21 @@ export interface AnalyzeSweepResult {
 @Injectable()
 export class PipelineService {
   constructor(
+    // 图纸仓储：读 / 惰性种子默认图纸（配方来源）
     private readonly blueprints: BlueprintsRepository,
+    // 运行仓储：建 run、计数收尾、查进行中 / 收尾态
     private readonly runs: RunsRepository,
+    // 任务仓储：批量 / 单条派生带环节的 task
     private readonly tasks: TasksRepository,
+    // 帖子仓储：取待分析 / 待复查的帖子
     private readonly posts: PostsRepository,
+    // 分析配置服务：取当前 active 模型
     private readonly analysisConfig: AnalysisConfigService,
+    // 运行期设置服务：取分析批量大小等可调参数
     private readonly runtimeSettings: RuntimeSettingsService,
+    // 进程仓储：列到期进程、bumpSweep、记账重排
     private readonly processes: ProcessesRepository,
+    // 进程内派发器：派生任务后触发认领泵（接口令牌、可选）
     @Inject(LocalDispatcher) private readonly dispatcher?: Dispatcher,
   ) {}
 

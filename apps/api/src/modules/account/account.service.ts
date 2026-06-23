@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { generateSessionToken, hashPassword, hashSessionToken, verifyPassword } from '@/auth';
 import type { CurrentUser, SessionInfo } from '@hatch-radar/shared';
-import { RuntimeSettingsService } from '../settings/runtime-settings.service';
+import { RuntimeSettingsService } from '@/modules/settings/runtime-settings.service';
 import {
   AuditLogsRepository,
   LoginAttemptsRepository,
@@ -76,11 +76,17 @@ function stripHash(view: UserAuthView): CurrentUser {
 @Injectable()
 export class AccountService {
   constructor(
+    // 用户仓储：账户与凭据（密码哈希 / 权限 / 状态）读写
     private readonly users: UsersRepository,
+    // 会话仓储：会话建/查/吊销/滑动续期
     private readonly sessions: SessionsRepository,
+    // 登录失败仓储：限流计数与锁定（email / IP 双维）
     private readonly attempts: LoginAttemptsRepository,
+    // 审计日志仓储：登录 / 登出 / 改密等行为留痕
     private readonly audit: AuditLogsRepository,
+    // 运行期设置服务：读会话生命周期配置（空闲 / 绝对天数）
     private readonly runtimeSettings: RuntimeSettingsService,
+    // 事务上下文（UoW）：登录 / 改密的多仓储写入收进单事务
     private readonly tx: TxContext,
   ) {}
 

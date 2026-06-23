@@ -29,7 +29,10 @@ import { nowSec } from '@/utils/time';
  */
 @Injectable()
 export class ExportService {
-  constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
+  constructor(
+    // 事务感知数据库代理：直查 insights / posts / comments / translations 组装批次
+    @Inject(PRISMA) private readonly db: AppDatabase,
+  ) {}
 
   /**
    * 构造「有效洞察」筛选条件（针对 insights 表）：实质信号基线 + 可选 since/强度/版块。

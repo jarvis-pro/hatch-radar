@@ -8,7 +8,7 @@ import {
 import { ValidationError } from '@/common/errors';
 import { nowSec } from '@/utils/time';
 import type { BlueprintKind, ProcessDTO, RunDTO, TriggerConfig } from '@hatch-radar/shared';
-import { PipelineService } from '../pipeline/pipeline.service';
+import { PipelineService } from '@/modules/pipeline/pipeline.service';
 import { toProcessDTO, toRunDTO, triggerToRepo } from './radar.mappers';
 
 const PROCESS_RUNS_LIMIT = 50;
@@ -22,9 +22,13 @@ const PROCESS_RUNS_LIMIT = 50;
 @Injectable()
 export class ProcessService {
   constructor(
+    // 进程仓储：进程增删改查、启停、记账
     private readonly processes: ProcessesRepository,
+    // 图纸仓储：建 / 合成进程时校验并读取所属图纸 kind
     private readonly blueprints: BlueprintsRepository,
+    // 运行仓储：触发前查是否已有进行中运行、取运行历史
     private readonly runs: RunsRepository,
+    // 流水线服务：手动触发委托 fireProcess(manual)
     private readonly pipeline: PipelineService,
   ) {}
 

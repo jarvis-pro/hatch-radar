@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { LocalDispatcher } from '../worker/local-dispatcher';
+import { LocalDispatcher } from '@/modules/worker/local-dispatcher';
 import {
   BlueprintsRepository,
   PostsRepository,
@@ -32,12 +32,19 @@ import {
 @Injectable()
 export class TaskControlService {
   constructor(
+    // 图纸仓储：惰性种子检视所属的默认 analyze 图纸
     private readonly blueprints: BlueprintsRepository,
+    // 运行仓储：为检视任务建并收尾承载 run
     private readonly runs: RunsRepository,
+    // 任务仓储：建检视任务、放行 / 重排 / 取消
     private readonly tasks: TasksRepository,
+    // 环节仓储：组装环节轨迹、清 / 设闸门、复位失败环节
     private readonly taskStages: TaskStagesRepository,
+    // 帖子仓储：校验目标帖存在、取帖子标题
     private readonly posts: PostsRepository,
+    // 模型配置仓储：校验模型存在 / 启用、取模型名快照
     private readonly providers: ProvidersRepository,
+    // 进程内派发器：放行 / 重试后触发认领泵（接口令牌、可选）
     @Inject(LocalDispatcher) private readonly dispatcher?: Dispatcher,
   ) {}
 

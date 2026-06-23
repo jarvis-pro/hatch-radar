@@ -18,7 +18,10 @@ export class BlueprintsSeeder implements Seeder {
   readonly order = 15;
   readonly critical = false;
 
-  constructor(private readonly blueprints: BlueprintsRepository) {}
+  constructor(
+    // 图纸仓储：读写 blueprints 表（建默认采集 / 复查图纸）
+    private readonly blueprints: BlueprintsRepository,
+  ) {}
 
   async run(ctx: SeedContext): Promise<SeedOutcome> {
     if ((await this.blueprints.listBlueprints()).length > 0) {

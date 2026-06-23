@@ -24,8 +24,11 @@ import { logger } from '@/logger';
 @Injectable()
 export class SourcesService {
   constructor(
+    // 采集来源仓储：来源（爬虫计划）增删改查
     private readonly sources: SourcesRepository,
+    // 采集连接器仓储：平台凭据增删改查 + 可用连接器查询（Reddit 门禁据此）
     private readonly connectors: SourceConnectorsRepository,
+    // 采集配置服务：连接器连通性测试并记录结果
     private readonly crawlerConfig: CrawlerConfigService,
   ) {}
 

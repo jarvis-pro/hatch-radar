@@ -26,8 +26,11 @@ export class LocalDispatcher implements Dispatcher {
   private fallbackTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(
+    // 任务仓储：FOR UPDATE SKIP LOCKED 认领下一条 queued 任务
     private readonly tasks: TasksRepository,
+    // 执行器：认领到任务后直接调其执行（进程内、无序列化）
     private readonly worker: WorkerService,
+    // 并发上限（来自 WORKER_CONCURRENCY env，经令牌注入）
     @Inject(WORKER_CONCURRENCY) private readonly concurrency: number,
   ) {}
 

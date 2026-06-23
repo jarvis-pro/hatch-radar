@@ -7,7 +7,10 @@ import { AuditLogsRepository } from '@/database';
 @RequirePermission('audit:view')
 @Controller('admin/audit')
 export class AuditController {
-  constructor(private readonly audit: AuditLogsRepository) {}
+  constructor(
+    // 审计日志仓储：分页查询审计记录（支持关键字过滤）
+    private readonly audit: AuditLogsRepository,
+  ) {}
 
   @Get()
   list(@Query() q: Record<string, string | undefined>) {

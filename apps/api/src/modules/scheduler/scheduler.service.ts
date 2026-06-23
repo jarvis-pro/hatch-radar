@@ -23,8 +23,11 @@ export class SchedulerService {
   private readonly running = new Set<string>();
 
   constructor(
+    // 帖子仓储：归档时清理过期帖子 / 评论
     private readonly postsRepo: PostsRepository,
+    // 任务仓储：归档时清理终态任务
     private readonly tasksRepo: TasksRepository,
+    // 流水线服务：心跳触发到期进程并收尾运行
     private readonly pipeline: PipelineService,
   ) {}
 

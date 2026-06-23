@@ -1,4 +1,4 @@
-import type { TokenUsage } from '../analyzer/analyze';
+import type { TokenUsage } from '@/analysis/analyzer/analyze';
 import { translateBatchWithClaudeAgent } from './claude-agent';
 import { translateBatchWithAzure, type AzureTranslateConfig } from './azure-client';
 

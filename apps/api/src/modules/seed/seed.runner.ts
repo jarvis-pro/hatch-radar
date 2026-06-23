@@ -18,10 +18,15 @@ import { SuperAdminSeeder } from './super-admin.seeder';
 @Injectable()
 export class SeedRunner {
   constructor(
+    // 来源 Seeder：首启播种默认来源列表（order 10）
     private readonly sourcesSeeder: SourcesSeeder,
+    // 超管 Seeder：首启创建首个超级管理员（order 20，critical）
     private readonly superAdminSeeder: SuperAdminSeeder,
+    // 运行期配置 Seeder：补播缺失的出厂默认项（order 30）
     private readonly runtimeSettingsSeeder: RuntimeSettingsSeeder,
+    // 图纸 Seeder：首启建默认采集 / 复查图纸（order 15）
     private readonly blueprintsSeeder: BlueprintsSeeder,
+    // 进程 Seeder：首启为默认图纸建 interval 进程（order 18）
     private readonly processesSeeder: ProcessesSeeder,
   ) {}
 

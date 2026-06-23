@@ -6,7 +6,7 @@ import {
   type AppDatabase,
   type ProviderApiKeyRow,
   type ProviderRow,
-} from '../internal';
+} from '@/database/internal';
 import { decryptSecret, encryptSecret } from '@/utils/crypto';
 
 /** 支持的模型厂商 */
@@ -171,7 +171,10 @@ export function toProviderDTO({ provider, keys }: ProviderWithKeys): ProviderDTO
  */
 @Injectable()
 export class ProvidersRepository {
-  constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
+  constructor(
+    // 事务感知 Prisma 客户端（经 @Inject(PRISMA)，按 ALS 自动路由事务/根客户端）：读写模型配置（model_providers）+ Key 池（provider_api_keys）
+    @Inject(PRISMA) private readonly db: AppDatabase,
+  ) {}
 
   // ── 模型接入配置（标量） ───────────────────────────────────────────────
 

@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { PRISMA } from '@/common/tokens';
-import type { AppDatabase } from '../internal';
+import type { AppDatabase } from '@/database/internal';
 
 /** app_settings 中「当前使用的模型配置 ID」键 */
 const ACTIVE_PROVIDER_KEY = 'active_provider_id';
@@ -14,7 +14,10 @@ const CONFIG_VERSION_KEY = 'analysis_config_version';
  */
 @Injectable()
 export class SettingsRepository {
-  constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
+  constructor(
+    // 事务感知 Prisma 客户端（经 @Inject(PRISMA)，按 ALS 自动路由事务/根客户端）：读写全局键值配置（app_settings）表
+    @Inject(PRISMA) private readonly db: AppDatabase,
+  ) {}
 
   /**
    * 读取一个全局配置项。

@@ -7,7 +7,7 @@ import {
   type AppDatabase,
   type CommentPg,
   type CommentRow,
-} from '../internal';
+} from '@/database/internal';
 import type { RedditComment } from '@hatch-radar/shared';
 
 /**
@@ -26,7 +26,10 @@ function commentsFingerprint(rows: { id: string; score: number; body: string }[]
  */
 @Injectable()
 export class CommentsRepository {
-  constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
+  constructor(
+    // 事务感知 Prisma 客户端（经 @Inject(PRISMA)，按 ALS 自动路由事务/根客户端）：读写评论（comments）表
+    @Inject(PRISMA) private readonly db: AppDatabase,
+  ) {}
 
   /**
    * 整体替换帖子的评论快照并推进回捞阶段计数。

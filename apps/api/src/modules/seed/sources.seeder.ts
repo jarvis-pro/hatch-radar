@@ -13,7 +13,10 @@ export class SourcesSeeder implements Seeder {
   readonly order = 10;
   readonly critical = false;
 
-  constructor(private readonly sources: SourcesRepository) {}
+  constructor(
+    // 来源仓储：把代码常量来源列表写入 sources 表
+    private readonly sources: SourcesRepository,
+  ) {}
 
   async run(ctx: SeedContext): Promise<SeedOutcome> {
     if ((await this.sources.countSources()) > 0) {

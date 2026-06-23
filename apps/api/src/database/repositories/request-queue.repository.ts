@@ -5,7 +5,7 @@ import {
   type AppDatabase,
   type RequestQueuePg,
   type RequestQueueRow,
-} from '../internal';
+} from '@/database/internal';
 
 export type { RequestQueueRow };
 
@@ -30,7 +30,10 @@ export interface NewRequest {
  */
 @Injectable()
 export class RequestQueueRepository {
-  constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
+  constructor(
+    // 事务感知 Prisma 客户端（经 @Inject(PRISMA)，按 ALS 自动路由事务/根客户端）：读写出站请求队列（request_queue）表
+    @Inject(PRISMA) private readonly db: AppDatabase,
+  ) {}
 
   /**
    * 开始一条请求（status=running），返回 id。请求闸在真正发请求前调用。

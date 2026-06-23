@@ -17,7 +17,9 @@ export class ProcessesSeeder implements Seeder {
   readonly critical = false;
 
   constructor(
+    // 进程仓储：建 interval 进程并绑定图纸
     private readonly processes: ProcessesRepository,
+    // 图纸仓储：取默认采集 / 复查图纸以供进程绑定
     private readonly blueprints: BlueprintsRepository,
   ) {}
 

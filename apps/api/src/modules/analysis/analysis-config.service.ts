@@ -74,8 +74,11 @@ export class AnalysisConfigService {
   private cacheVersion = -1;
 
   constructor(
+    // 模型配置仓储：读 provider 行与多 Key 池（active/cooling/invalid 状态机）
     private readonly providers: ProvidersRepository,
+    // 设置仓储：读/递增分析 config 版本、读当前 active 模型 id
     private readonly settings: SettingsRepository,
+    // 帖子仓储：分析所需的帖子上下文读取
     private readonly posts: PostsRepository,
   ) {}
 

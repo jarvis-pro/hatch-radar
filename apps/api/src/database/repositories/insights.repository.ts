@@ -6,7 +6,7 @@ import {
   type AppDatabase,
   type InsightPgRow,
   type TriagePgRow,
-} from '../internal';
+} from '@/database/internal';
 import type {
   Insight,
   InsightFilter,
@@ -24,7 +24,10 @@ import type {
  */
 @Injectable()
 export class InsightsRepository {
-  constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
+  constructor(
+    // 事务感知 Prisma 客户端（经 @Inject(PRISMA)，按 ALS 自动路由事务/根客户端）：读写洞察（insights）表 + 关联 triage
+    @Inject(PRISMA) private readonly db: AppDatabase,
+  ) {}
 
   /**
    * 将 AI 分析结果落库为洞察记录。

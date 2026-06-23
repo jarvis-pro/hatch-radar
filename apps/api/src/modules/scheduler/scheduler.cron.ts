@@ -10,7 +10,10 @@ import { SchedulerService } from './scheduler.service';
  */
 @Injectable()
 export class SchedulerCron {
-  constructor(private readonly scheduler: SchedulerService) {}
+  constructor(
+    // 调度服务：@Cron 方法委托其执行心跳与归档
+    private readonly scheduler: SchedulerService,
+  ) {}
 
   /** 调度心跳：每 15 秒触发到期进程并收尾完成的运行（6 段 cron，含秒）。 */
   @Cron('*/15 * * * * *')

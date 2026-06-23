@@ -8,8 +8,8 @@ import {
 } from '@/database';
 import { ValidationError } from '@/common/errors';
 import type { ExportFilter } from '@hatch-radar/shared';
-import { ExportService } from '../export/export.service';
-import { PipelineService } from '../pipeline/pipeline.service';
+import { ExportService } from '@/modules/export/export.service';
+import { PipelineService } from '@/modules/pipeline/pipeline.service';
 
 /** Azure Translator 免费档月度配额（字符/月）——用量表参照线。 */
 const AZURE_FREE_CHARS_PER_MONTH = 2_000_000;
@@ -35,12 +35,19 @@ function startOfMonthSec(): number {
 @Injectable()
 export class TranslationOrchestrator {
   constructor(
+    // 流水线服务：把待翻译帖子入队为 translation 任务
     private readonly pipeline: PipelineService,
+    // 任务仓储：查询某帖是否有活跃翻译任务 + 最近翻译错误
     private readonly tasks: TasksRepository,
+    // 译文仓储：翻译进度 / 已完成译文 / 需补翻帖子 / Azure 字符用量
     private readonly translations: TranslationsRepository,
+    // 模型仓储：解析可用翻译模型（claude_cli / azure）
     private readonly providers: ProvidersRepository,
+    // 全局设置仓储：读 translation_provider_id / active_provider_id 做回落
     private readonly settings: SettingsRepository,
+    // 审计仓储：记录单帖/批量翻译入队操作
     private readonly audit: AuditLogsRepository,
+    // 导出服务：按导出筛选选取帖子 id（覆盖率/批量翻译同口径）
     private readonly exportSvc: ExportService,
   ) {}
 

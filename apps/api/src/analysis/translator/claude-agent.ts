@@ -1,5 +1,5 @@
 import { query } from '@anthropic-ai/claude-agent-sdk';
-import type { TokenUsage } from '../analyzer/analyze';
+import type { TokenUsage } from '@/analysis/analyzer/analyze';
 import {
   TRANSLATION_SYSTEM_PROMPT,
   buildTranslationPrompt,

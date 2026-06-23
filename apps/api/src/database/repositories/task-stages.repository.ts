@@ -6,7 +6,7 @@ import {
   type AppDatabase,
   type TaskStagePg,
   type TaskStageRow,
-} from '../internal';
+} from '@/database/internal';
 
 export type { TaskStageRow };
 
@@ -22,7 +22,10 @@ const MAX_ERROR_CHARS = 500;
  */
 @Injectable()
 export class TaskStagesRepository {
-  constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
+  constructor(
+    // 事务感知 Prisma 客户端（经 @Inject(PRISMA)，按 ALS 自动路由事务/根客户端）：读写任务环节（task_stages）表
+    @Inject(PRISMA) private readonly db: AppDatabase,
+  ) {}
 
   /**
    * 取某任务全部环节（按 seq 升序，决定执行与展示顺序）。

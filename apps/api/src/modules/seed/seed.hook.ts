@@ -8,7 +8,10 @@ import { SeedRunner } from './seed.runner';
  */
 @Injectable()
 export class SeedHook implements OnApplicationBootstrap {
-  constructor(private readonly seedRunner: SeedRunner) {}
+  constructor(
+    // 种子编排器：启动时按 order 串行驱动全部 Seeder
+    private readonly seedRunner: SeedRunner,
+  ) {}
 
   async onApplicationBootstrap(): Promise<void> {
     await this.seedRunner.run(nowSec());

@@ -1,6 +1,10 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { PRISMA } from '@/common/tokens';
-import { toSourceConnectorRow, type AppDatabase, type SourceConnectorRow } from '../internal';
+import {
+  toSourceConnectorRow,
+  type AppDatabase,
+  type SourceConnectorRow,
+} from '@/database/internal';
 import { decryptSecret, encryptSecret } from '@/utils/crypto';
 
 /** 数据来源平台 */
@@ -129,7 +133,10 @@ export function toConnectorDTO(row: SourceConnectorRow): ConnectorDTO {
  */
 @Injectable()
 export class SourceConnectorsRepository {
-  constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
+  constructor(
+    // 事务感知 Prisma 客户端（经 @Inject(PRISMA)，按 ALS 自动路由事务/根客户端）：读写采集连接器凭据（source_connectors）表
+    @Inject(PRISMA) private readonly db: AppDatabase,
+  ) {}
 
   /** 列出全部连接器（按平台、优先级排序；含密文，仅内部用） */
   async listConnectors(): Promise<SourceConnectorRow[]> {

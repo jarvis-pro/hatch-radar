@@ -23,7 +23,10 @@ export class TxContext {
   /** 事务句柄 ALS：代理与 {@link run} 共用同一实例，使「是否在事务中」对两者一致可见。 */
   readonly als = new AsyncLocalStorage<Prisma.TransactionClient>();
 
-  constructor(@Inject(DB_HANDLE) private readonly handle: DbHandle) {}
+  constructor(
+    // 根数据库句柄（经 @Inject(DB_HANDLE)）：仅用于 run() 开真实事务，独立于 PRISMA 事务感知代理
+    @Inject(DB_HANDLE) private readonly handle: DbHandle,
+  ) {}
 
   /**
    * 把回调内所有（经 PRISMA 代理的）仓储写操作收进一个事务；回调抛错则整体回滚。

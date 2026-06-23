@@ -8,7 +8,10 @@ import type { ZodType } from 'zod';
  * 用法：`@Body(new ZodValidationPipe(createSchema)) dto: z.infer<typeof createSchema>`
  */
 export class ZodValidationPipe<T> implements PipeTransform {
-  constructor(private readonly schema: ZodType<T>) {}
+  constructor(
+    // 待校验的 zod schema：transform 时用其 safeParse 入参
+    private readonly schema: ZodType<T>,
+  ) {}
 
   transform(value: unknown): T {
     const result = this.schema.safeParse(value);

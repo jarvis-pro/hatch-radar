@@ -58,16 +58,27 @@ const RECENT_PER_LANE = 8;
 @Injectable()
 export class RadarService {
   constructor(
+    // 图纸仓储：合成运行视图的图纸展示名
     private readonly blueprints: BlueprintsRepository,
+    // 进程服务：指挥室聚合时复用其进程列举 / 取单进程
     private readonly processSvc: ProcessService,
+    // 运行仓储：运行详情、进行中 / 失败运行、今日运行数、复查 sweep
     private readonly runs: RunsRepository,
+    // 任务仓储：任务树、任务统计、按帖列任务（帖子一生）
     private readonly tasks: TasksRepository,
+    // 环节仓储：批量取任务树各任务的环节
     private readonly taskStages: TaskStagesRepository,
+    // 出站请求队列仓储：lane 近况与近 60s 速率
     private readonly requestQueue: RequestQueueRepository,
+    // 出站请求闸 lane 仓储：lane 限速与暂停态
     private readonly requestLanes: RequestLanesRepository,
+    // 帖子仓储：帖子库分页、帖子一生、复查健康度
     private readonly posts: PostsRepository,
+    // 洞察仓储：收成洞察分页 / 详情、今日洞察数、筛选去重值
     private readonly insights: InsightsRepository,
+    // 评论仓储：帖子一生的评论树
     private readonly comments: CommentsRepository,
+    // 译文仓储：按内容哈希批量取中文译文
     private readonly translations: TranslationsRepository,
   ) {}
 

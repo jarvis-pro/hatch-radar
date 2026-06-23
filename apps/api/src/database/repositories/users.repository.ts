@@ -6,7 +6,7 @@ import {
   type PermissionKey,
   type UserRole,
 } from '@hatch-radar/shared';
-import { type AppDatabase } from '../internal';
+import { type AppDatabase } from '@/database/internal';
 
 /** 解析会话 / 校验密码时所需的用户视图（含密码哈希与已加载权限）。 */
 export interface UserAuthView {
@@ -80,7 +80,10 @@ export interface CreateUserInput {
  */
 @Injectable()
 export class UsersRepository {
-  constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
+  constructor(
+    // 事务感知 Prisma 客户端（经 @Inject(PRISMA)，按 ALS 自动路由事务/根客户端）：读写用户聚合（users + user_permissions）
+    @Inject(PRISMA) private readonly db: AppDatabase,
+  ) {}
 
   /**
    * 按邮箱取原始行（登录用，需要 password_hash / status）。

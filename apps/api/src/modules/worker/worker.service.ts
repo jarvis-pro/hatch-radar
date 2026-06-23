@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { TranslationService } from '../analysis/translation.service';
-import { RuntimeSettingsService } from '../settings/runtime-settings.service';
+import { TranslationService } from '@/modules/analysis/translation.service';
+import { RuntimeSettingsService } from '@/modules/settings/runtime-settings.service';
 import type { PostRow, TaskRow, TaskStageRow } from '@/database';
 import { TasksRepository } from '@/database';
 import { TaskStagesRepository } from '@/database';
@@ -43,13 +43,21 @@ export class WorkerService {
   private activeJobPromises: Promise<void>[] = [];
 
   constructor(
+    // 任务仓储：认领/状态机/心跳/僵死回收/成功失败收尾
     private readonly tasks: TasksRepository,
+    // 任务环节仓储：逐环节状态机 + 检查点（output）读写 + 闸门查询
     private readonly taskStages: TaskStagesRepository,
+    // 运行仓储：run 级计数（total/done/failed）累加
     private readonly runs: RunsRepository,
+    // 帖子仓储：取分析对象 + markAnalyzed + analyze_attempts 累加
     private readonly posts: PostsRepository,
+    // 翻译服务：执行 translate 环节（按 content_hash 落译文）
     private readonly translation: TranslationService,
+    // 运行期可调项服务：实时读单环节硬超时 / 僵死回收阈值
     private readonly runtimeSettings: RuntimeSettingsService,
+    // 采集执行器：discover / collect / recheck 各环节执行
     private readonly collection: CollectionExecutor,
+    // 分析执行器：analyze 任务的逐节点执行（6 节点）
     private readonly analyze: AnalyzeExecutor,
   ) {}
 

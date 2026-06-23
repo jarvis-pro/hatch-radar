@@ -48,7 +48,9 @@ function toRequestView(r: RequestQueueRow) {
 @Controller('requests')
 export class RequestsController {
   constructor(
+    // 请求队列仓储：取最近出站请求与按 lane 计数
     private readonly queue: RequestQueueRepository,
+    // 请求 lane 仓储：列举 lane 概览并控制暂停 / 恢复
     private readonly lanes: RequestLanesRepository,
   ) {}
 

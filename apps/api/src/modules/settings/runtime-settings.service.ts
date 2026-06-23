@@ -83,7 +83,10 @@ function parseOverride(raw: string | undefined, min: number): number | null {
  */
 @Injectable()
 export class RuntimeSettingsService {
-  constructor(private readonly settings: SettingsRepository) {}
+  constructor(
+    // 全局设置仓储：运行期可调项的 app_settings 键值读写（实时读库、无缓存）
+    private readonly settings: SettingsRepository,
+  ) {}
 
   /**
    * 首启幂等播种：五项默认值写入 app_settings（仅当键不存在；绝不覆盖已有值）。

@@ -6,7 +6,10 @@
  * 服务里 `catch (e) { if (e instanceof DomainError) throw e; ... }` 的分流仍有效（子类均 instanceof 基类）。
  */
 export abstract class DomainError extends Error {
-  constructor(message: string) {
+  constructor(
+    // 错误描述信息：透传给 Error 基类
+    message: string,
+  ) {
     super(message);
     this.name = new.target.name; // 子类名进栈帧（ValidationError 等），便于排查
   }

@@ -43,7 +43,9 @@ export interface TranslateOutcome {
 @Injectable()
 export class TranslationService {
   constructor(
+    // 译文仓储：按内容哈希取未译条目、upsert 回写译文
     private readonly translations: TranslationsRepository,
+    // 模型配置仓储：解析翻译 provider（claude_cli / azure）与其 Key
     private readonly providers: ProvidersRepository,
   ) {}
 

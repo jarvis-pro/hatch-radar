@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { PRISMA } from '@/common/tokens';
-import { type AppDatabase } from '../internal';
+import { type AppDatabase } from '@/database/internal';
 
 /**
  * 登录限流计数表数据访问（滑动窗 / 锁定策略由 AccountService 决定，本类只存取）。
@@ -8,7 +8,10 @@ import { type AppDatabase } from '../internal';
  */
 @Injectable()
 export class LoginAttemptsRepository {
-  constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
+  constructor(
+    // 事务感知 Prisma 客户端（经 @Inject(PRISMA)，按 ALS 自动路由事务/根客户端）：读写登录限流计数（login_attempts）表
+    @Inject(PRISMA) private readonly db: AppDatabase,
+  ) {}
 
   /**
    * 取某限流桶的失败计数行（含 bigint 时间戳）。

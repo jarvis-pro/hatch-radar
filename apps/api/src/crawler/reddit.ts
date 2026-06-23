@@ -132,7 +132,9 @@ export class RedditClient {
   private token: { value: string; expiresAt: number } | null = null;
 
   constructor(
+    // 令牌桶队列：所有出站请求经其限速（遵守 100/min 配额）
     private readonly queue: TokenBucketQueue,
+    // Reddit OAuth 凭据：换取 / 续期访问令牌所需
     private readonly cfg: RedditConfig,
   ) {}
 

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { AnalysisConfigService } from '../analysis/analysis-config.service';
+import { AnalysisConfigService } from '@/modules/analysis/analysis-config.service';
 import {
   ProvidersRepository,
   SettingsRepository,
@@ -13,7 +13,7 @@ import { isSecretConfigured } from '@/utils/crypto';
 import { NotFoundError, ValidationError } from '@/common/errors';
 import { nowSec } from '@/utils/time';
 import { logger } from '@/logger';
-import { PipelineService } from '../pipeline/pipeline.service';
+import { PipelineService } from '@/modules/pipeline/pipeline.service';
 
 type ProviderKind = 'anthropic' | 'openai' | 'deepseek' | 'claude_cli' | 'azure';
 
@@ -72,10 +72,15 @@ function normalizeBaseUrl(v: string | undefined): string | undefined {
 @Injectable()
 export class SettingsService {
   constructor(
+    // 模型/Key 池仓储：providers 增删改查 + Key 池 CRUD + 可用 Key 计数
     private readonly providers: ProvidersRepository,
+    // 全局设置仓储：active / 翻译 provider id 读写
     private readonly settings: SettingsRepository,
+    // 分析配置服务：写后热重载分析配置 + provider/Key 连通性探测
     private readonly analysisConfig: AnalysisConfigService,
+    // 流水线服务：选用 active 后即时触发一轮 analyze 入队
     private readonly pipeline: PipelineService,
+    // 运行期可调项服务：分析批次 / 会话时长 / worker 调优的读写
     private readonly runtimeSettings: RuntimeSettingsService,
   ) {}
 

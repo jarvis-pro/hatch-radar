@@ -20,7 +20,10 @@ import { logger } from '@/logger';
  */
 @Injectable()
 class DatabaseLifecycle implements OnModuleInit, OnApplicationShutdown {
-  constructor(@Inject(DB_HANDLE) private readonly handle: DbHandle) {}
+  constructor(
+    // 根数据库句柄（经 @Inject(DB_HANDLE)）：启动时 select 1 自检连通性、退出时断开连接
+    @Inject(DB_HANDLE) private readonly handle: DbHandle,
+  ) {}
 
   async onModuleInit(): Promise<void> {
     await this.handle.db.$queryRaw`select 1`;

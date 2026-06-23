@@ -14,7 +14,9 @@ import { toBlueprintDTO } from './radar.mappers';
 @Injectable()
 export class BlueprintService {
   constructor(
+    // 图纸仓储：图纸增删改查
     private readonly blueprints: BlueprintsRepository,
+    // 进程仓储：删除前校验图纸是否仍被进程引用
     private readonly processes: ProcessesRepository,
   ) {}
 

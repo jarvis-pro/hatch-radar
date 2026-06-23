@@ -5,7 +5,7 @@ import {
   type AppDatabase,
   type RequestLanePg,
   type RequestLaneRow,
-} from '../internal';
+} from '@/database/internal';
 
 export type { RequestLaneRow };
 
@@ -15,7 +15,10 @@ export type { RequestLaneRow };
  */
 @Injectable()
 export class RequestLanesRepository {
-  constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
+  constructor(
+    // 事务感知 Prisma 客户端（经 @Inject(PRISMA)，按 ALS 自动路由事务/根客户端）：读写出站请求 lane 配置（request_lanes）表
+    @Inject(PRISMA) private readonly db: AppDatabase,
+  ) {}
 
   /**
    * 取一条 lane 配置；不存在返回 null。

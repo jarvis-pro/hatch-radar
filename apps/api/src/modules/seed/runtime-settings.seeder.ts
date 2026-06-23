@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { RuntimeSettingsService } from '../settings/runtime-settings.service';
+import { RuntimeSettingsService } from '@/modules/settings/runtime-settings.service';
 import type { Seeder, SeedOutcome } from './seeder';
 
 /**
@@ -12,7 +12,10 @@ export class RuntimeSettingsSeeder implements Seeder {
   readonly order = 30;
   readonly critical = false;
 
-  constructor(private readonly runtimeSettings: RuntimeSettingsService) {}
+  constructor(
+    // 运行期配置服务：委托 ensureSeeded 补播缺失的出厂默认项
+    private readonly runtimeSettings: RuntimeSettingsService,
+  ) {}
 
   async run(): Promise<SeedOutcome> {
     const inserted = await this.runtimeSettings.ensureSeeded();

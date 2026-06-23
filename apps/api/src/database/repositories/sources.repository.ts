@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { PRISMA } from '@/common/tokens';
-import { Prisma, toSourceRow, type AppDatabase, type SourceRow } from '../internal';
+import { Prisma, toSourceRow, type AppDatabase, type SourceRow } from '@/database/internal';
 
 /** 数据来源平台 */
 export type SourcePlatform = SourceRow['platform'];
@@ -26,7 +26,10 @@ export interface SourceInput {
  */
 @Injectable()
 export class SourcesRepository {
-  constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
+  constructor(
+    // 事务感知 Prisma 客户端（经 @Inject(PRISMA)，按 ALS 自动路由事务/根客户端）：读写采集来源（sources）表
+    @Inject(PRISMA) private readonly db: AppDatabase,
+  ) {}
 
   /** 列出全部来源（按平台、id 排序） */
   async listSources(): Promise<SourceRow[]> {

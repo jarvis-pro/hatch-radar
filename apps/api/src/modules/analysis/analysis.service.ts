@@ -13,7 +13,10 @@ import type { PostProcessor, TokenUsage } from '@/analysis/analyzer/analyze';
  */
 @Injectable()
 export class AnalysisService {
-  constructor(private readonly insights: InsightsRepository) {}
+  constructor(
+    // 洞察仓储：按 post_id 幂等落库分析产出（痛点 / 机会）
+    private readonly insights: InsightsRepository,
+  ) {}
 
   /**
    * 分析单篇帖子并按需落库。

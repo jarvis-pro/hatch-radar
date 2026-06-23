@@ -8,7 +8,7 @@ import {
   type ProcessRow,
   type process_status as ProcessStatus,
   type trigger_kind as TriggerKind,
-} from '../internal';
+} from '@/database/internal';
 
 export type { ProcessRow };
 
@@ -46,7 +46,10 @@ export interface UpdateProcessInput {
  */
 @Injectable()
 export class ProcessesRepository {
-  constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
+  constructor(
+    // 事务感知 Prisma 客户端（经 @Inject(PRISMA)，按 ALS 自动路由事务/根客户端）：读写进程（processes）表
+    @Inject(PRISMA) private readonly db: AppDatabase,
+  ) {}
 
   /**
    * 新建进程（绑定图纸 + 触发节奏）。

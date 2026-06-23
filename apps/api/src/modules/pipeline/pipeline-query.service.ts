@@ -72,9 +72,13 @@ function toTaskView(t: TaskRow, stages: TaskStageRow[]) {
 @Injectable()
 export class PipelineQueryService {
   constructor(
+    // 运行仓储：进程总览、单进程元信息
     private readonly runs: RunsRepository,
+    // 任务仓储：在飞计数、单进程任务列表
     private readonly tasks: TasksRepository,
+    // 环节仓储：批量取任务树各任务的环节
     private readonly taskStages: TaskStagesRepository,
+    // 图纸仓储：合成运行视图的图纸展示名
     private readonly blueprints: BlueprintsRepository,
   ) {}
 

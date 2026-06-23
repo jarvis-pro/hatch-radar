@@ -23,7 +23,9 @@ export class CrawlerConfigService {
   private cached: { fingerprint: string; client: RedditClient } | null = null;
 
   constructor(
+    // 来源连接器仓储：取 / 解密 Reddit 凭据并记录连通性结果
     private readonly connectors: SourceConnectorsRepository,
+    // 令牌桶队列：构建 Reddit 客户端时注入，限速其所有出站请求
     private readonly queue: TokenBucketQueue,
   ) {}
 

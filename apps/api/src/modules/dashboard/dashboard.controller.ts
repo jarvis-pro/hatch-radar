@@ -45,7 +45,9 @@ function rangeTrendDays(range: BoardRange): number {
 @Controller('dashboard')
 export class DashboardController {
   constructor(
+    // 统计仓储：价值漏斗 / 每日趋势 / 洞察质量 / 来源洞察力看板数据
     private readonly stats: StatsRepository,
+    // 成本仓储：窗口成本统计（用于 ROI 每洞察成本）
     private readonly cost: CostRepository,
   ) {}
 

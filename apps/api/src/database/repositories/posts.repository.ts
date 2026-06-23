@@ -7,7 +7,7 @@ import {
   type AppDatabase,
   type PostPg,
   type PostRow,
-} from '../internal';
+} from '@/database/internal';
 import type { RadarPostFilter, RedditPost } from '@hatch-radar/shared';
 
 /** 评论 refresh 节奏与冻结策略（秒） */
@@ -42,7 +42,10 @@ export const PENDING_ANALYSIS_PREDICATE = Prisma.sql`
  */
 @Injectable()
 export class PostsRepository {
-  constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
+  constructor(
+    // 事务感知 Prisma 客户端（经 @Inject(PRISMA)，按 ALS 自动路由事务/根客户端）：读写帖子（posts）表及关联评论清理
+    @Inject(PRISMA) private readonly db: AppDatabase,
+  ) {}
 
   /**
    * 写入帖子列表，已存在的帖子仅刷新动态字段（分数、评论数、标题、正文、抓取时间）。

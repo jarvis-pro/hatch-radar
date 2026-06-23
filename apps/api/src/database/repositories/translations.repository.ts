@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { PRISMA } from '@/common/tokens';
-import { Prisma, type AppDatabase, type TranslationRow } from '../internal';
+import { Prisma, type AppDatabase, type TranslationRow } from '@/database/internal';
 
 /** 译文来源字段类型（post_title | post_selftext | comment_body） */
 export type TranslationField = TranslationRow['source_field'];
@@ -59,7 +59,10 @@ export interface TranslationUpsert {
  */
 @Injectable()
 export class TranslationsRepository {
-  constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
+  constructor(
+    // 事务感知 Prisma 客户端（经 @Inject(PRISMA)，按 ALS 自动路由事务/根客户端）：读写译文缓存（translations）表
+    @Inject(PRISMA) private readonly db: AppDatabase,
+  ) {}
 
   /**
    * 取某帖待翻译的源文本条目：标题 / 正文 / 各评论中，content_hash 在 translations

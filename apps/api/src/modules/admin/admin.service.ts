@@ -53,8 +53,11 @@ function tempPassword(): string {
 @Injectable()
 export class AdminService {
   constructor(
+    // 用户仓储：账户增删改查、权限与角色、最后一个超管计数
     private readonly users: UsersRepository,
+    // 会话仓储：停用 / 重置密码 / 删除账户时踢其会话下线
     private readonly sessions: SessionsRepository,
+    // 审计日志仓储：账户管理操作留痕
     private readonly audit: AuditLogsRepository,
   ) {}
 

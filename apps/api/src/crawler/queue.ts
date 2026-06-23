@@ -44,7 +44,10 @@ export class TokenBucketQueue {
   /**
    * @param options 速率与突发配置；省略时用默认值（90/分钟、容量 10），桶初始填满
    */
-  constructor(options: TokenBucketOptions = {}) {
+  constructor(
+    // 限速令牌桶配置：速率与突发上限；省略时用默认值（90/分钟、容量 10）
+    options: TokenBucketOptions = {},
+  ) {
     const ratePerMinute = options.ratePerMinute ?? 90;
     this.capacity = options.burst ?? 10;
     this.refillPerMs = ratePerMinute / 60_000;

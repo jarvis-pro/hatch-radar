@@ -8,7 +8,7 @@ import {
   type RunPg,
   type RunRow,
   type run_status as RunStatus,
-} from '../internal';
+} from '@/database/internal';
 
 export type { RunRow };
 
@@ -45,7 +45,10 @@ export interface NewRunInput {
  */
 @Injectable()
 export class RunsRepository {
-  constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
+  constructor(
+    // 事务感知 Prisma 客户端（经 @Inject(PRISMA)，按 ALS 自动路由事务/根客户端）：读写运行（runs）表
+    @Inject(PRISMA) private readonly db: AppDatabase,
+  ) {}
 
   /**
    * 开一条进程（status=running）。

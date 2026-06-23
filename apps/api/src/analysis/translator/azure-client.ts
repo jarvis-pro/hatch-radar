@@ -1,4 +1,4 @@
-import type { TokenUsage } from '../analyzer/analyze';
+import type { TokenUsage } from '@/analysis/analyzer/analyze';
 import type { TranslateItem, TranslatedItem } from './translate';
 
 /** Azure Translator 全局端点（区域资源亦可用，配合 Ocp-Apim-Subscription-Region 头）。 */
@@ -28,7 +28,9 @@ interface AzureTranslateResponseItem {
 /** 带 HTTP 状态码的错误，供 {@link classifyKeyError} 按 status 归类（429 冷却 / 401·403 失效） */
 class AzureHttpError extends Error {
   constructor(
+    // 错误描述信息：透传给 Error 基类
     message: string,
+    // HTTP 状态码：供 classifyKeyError 按 status 归类（429 冷却 / 401·403 失效）
     readonly status: number,
   ) {
     super(message);

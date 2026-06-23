@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { PRISMA } from '@/common/tokens';
 import type { AuditRow } from '@hatch-radar/shared';
-import { Prisma, type AppDatabase } from '../internal';
+import { Prisma, type AppDatabase } from '@/database/internal';
 import { nowSec } from '@/utils/time';
 
 /** 一条审计记录的输入。 */
@@ -26,7 +26,10 @@ const AUDIT_PAGE = 50;
 /** 审计日志数据访问：写入（失败不阻断）+ 分页查询（actor_id 解析为邮箱）。 */
 @Injectable()
 export class AuditLogsRepository {
-  constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
+  constructor(
+    // 事务感知 Prisma 客户端（经 @Inject(PRISMA)，按 ALS 自动路由事务/根客户端）：读写审计日志表
+    @Inject(PRISMA) private readonly db: AppDatabase,
+  ) {}
 
   /**
    * 写一条审计；失败只吞掉、绝不阻断主流程。

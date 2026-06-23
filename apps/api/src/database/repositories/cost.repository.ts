@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { PRISMA } from '@/common/tokens';
 import { type CostByModel, type DailyCostPoint, type ThroughputPoint } from '@hatch-radar/shared';
-import type { AppDatabase } from '../internal';
+import type { AppDatabase } from '@/database/internal';
 
 /**
  * 各 provider 缓存 token 相对「输入单价」的计费倍率（厂商固定口径，非自定义）：
@@ -58,7 +58,10 @@ function computeCost(
  */
 @Injectable()
 export class CostRepository {
-  constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
+  constructor(
+    // 事务感知 Prisma 客户端（经 @Inject(PRISMA)，按 ALS 自动路由事务/根客户端）：只读聚合 tasks/insights/model_providers 算成本与吞吐
+    @Inject(PRISMA) private readonly db: AppDatabase,
+  ) {}
 
   /**
    * 成本统计（finished_at ≥ sinceSec 的成功分析任务）：按 (provider, model) 汇总四类 token，

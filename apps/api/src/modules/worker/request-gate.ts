@@ -46,11 +46,11 @@ export class RequestGate {
   private readonly maxPauseWaitMs: number;
 
   constructor(
-    /** 请求流水仓储：写 running / done / failed 行供控制台可见 */
+    // 请求流水仓储：写 running / done / failed 行供控制台可见
     private readonly queue: RequestQueueRepository,
-    /** lane 状态仓储：ensureLane 存在性 + isPaused 暂停查询 */
+    // lane 状态仓储：ensureLane 存在性 + isPaused 暂停查询
     private readonly lanes: RequestLanesRepository,
-    /** 可注入的节流参数（测试传短值）；缺省回落到模块级默认常量 */
+    // 可注入的节流参数（测试传短值）；缺省回落到模块级默认常量
     options: RequestGateOptions = {},
   ) {
     this.pausePollMs = options.pausePollMs ?? DEFAULT_PAUSE_POLL_MS;

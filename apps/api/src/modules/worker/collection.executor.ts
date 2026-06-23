@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { AnalysisConfigService } from '../analysis/analysis-config.service';
+import { AnalysisConfigService } from '@/modules/analysis/analysis-config.service';
 import {
   CrawlerConfigService,
   HackerNewsClient,
@@ -115,14 +115,23 @@ export interface RecheckPersistOutput {
 @Injectable()
 export class CollectionExecutor {
   constructor(
+    // 采集配置服务：按连接器取已认证的 Reddit 客户端
     private readonly crawlerConfig: CrawlerConfigService,
+    // HackerNews 客户端：抓 HN 列表 + 评论
     private readonly hackernews: HackerNewsClient,
+    // 采集来源仓储：按平台列出启用来源（爬虫计划）
     private readonly sources: SourcesRepository,
+    // 帖子仓储：upsert 列表帖 + 复查退避状态更新
     private readonly posts: PostsRepository,
+    // 评论仓储：replaceComments 落评论树 + 指纹判变
     private readonly comments: CommentsRepository,
+    // 任务仓储：派生 collect / analyze 子任务（带活跃去重）
     private readonly tasks: TasksRepository,
+    // 运行仓储：run 级计数累加 + 读运行参数快照（图纸配方）
     private readonly runs: RunsRepository,
+    // 分析配置服务：派生 analyze 前确认存在 active 模型
     private readonly analysisConfig: AnalysisConfigService,
+    // 出站请求闸：每次外站抓取经此（lane 限速 / 可暂停 / 流水可见）
     private readonly gate: RequestGate,
   ) {}
 

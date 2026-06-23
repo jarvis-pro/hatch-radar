@@ -9,7 +9,10 @@ import { StatsRepository } from '@/database';
  */
 @Controller('health')
 export class HealthController {
-  constructor(private readonly stats: StatsRepository) {}
+  constructor(
+    // 统计仓储：取数据概览供健康检查返回
+    private readonly stats: StatsRepository,
+  ) {}
 
   @Public()
   @Get()

@@ -24,7 +24,9 @@ import { CSRF_HEADER, readSessionCookie } from './cookies';
 @Injectable()
 export class SessionAuthGuard implements CanActivate {
   constructor(
+    // 账户领域服务：据 cookie token 解析会话（含滑动续期）
     private readonly account: AccountService,
+    // Nest 反射器：读路由的 @Public / @RequirePermission 元数据
     private readonly reflector: Reflector,
   ) {}
 

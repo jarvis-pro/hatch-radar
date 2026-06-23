@@ -16,7 +16,9 @@ export class SuperAdminSeeder implements Seeder {
   readonly critical = true;
 
   constructor(
+    // 应用环境配置：读取 SUPER_ADMIN_* 首超管凭据
     @Inject(APP_ENV) private readonly env: AppEnv,
+    // 用户仓储：判空并创建首个超级管理员
     private readonly users: UsersRepository,
   ) {}
 

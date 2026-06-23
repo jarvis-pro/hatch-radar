@@ -13,7 +13,10 @@ import { logger } from '@/logger';
 @RequirePermission('export:run')
 @Controller('export')
 export class ExportController {
-  constructor(private readonly exportSvc: ExportService) {}
+  constructor(
+    // 导出服务：组装并返回导出批次
+    private readonly exportSvc: ExportService,
+  ) {}
 
   @Get('batch')
   async batchJson(@Query() q: Record<string, string | undefined>): Promise<ExportBatch> {

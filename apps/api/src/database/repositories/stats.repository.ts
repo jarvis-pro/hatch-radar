@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { PRISMA } from '@/common/tokens';
 import type { BoardData, FunnelTrendPoint, NamedCount } from '@hatch-radar/shared';
-import type { AppDatabase } from '../internal';
+import type { AppDatabase } from '@/database/internal';
 import { PENDING_ANALYSIS_PREDICATE } from './posts.repository';
 
 /** 数据库各表计数概览 */
@@ -21,7 +21,10 @@ export interface DbStats {
  */
 @Injectable()
 export class StatsRepository {
-  constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
+  constructor(
+    // 事务感知 Prisma 客户端（经 @Inject(PRISMA)，按 ALS 自动路由事务/根客户端）：只读跨表计数与价值看板聚合
+    @Inject(PRISMA) private readonly db: AppDatabase,
+  ) {}
 
   /**
    * 返回数据库各表的当前行数汇总。

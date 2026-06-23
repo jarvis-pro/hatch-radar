@@ -21,7 +21,9 @@ export class WorkerStarter
   implements OnApplicationBootstrap, BeforeApplicationShutdown, OnApplicationShutdown
 {
   constructor(
+    // 执行器：逐环节执行 + 僵死回收（生命周期 start/stop 由本封装代调）
     private readonly worker: WorkerService,
+    // 进程内派发器：认领泵（生命周期 start/stop 由本封装代调）
     private readonly dispatcher: LocalDispatcher,
   ) {}
 
