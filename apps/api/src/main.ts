@@ -1,9 +1,10 @@
 import 'reflect-metadata';
 import { networkInterfaces } from 'node:os';
 import { NestFactory } from '@nestjs/core';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Logger } from 'nestjs-pino';
-import { type AppEnv } from '@/config/env';
+import { type AppEnv, isProd } from '@/config/env';
 import { logger } from '@/logger';
 import { AppModule } from './app.module';
 import { APP_ENV } from './common/tokens';
@@ -13,7 +14,7 @@ function lanAddresses(): string[] {
   const result: string[] = [];
   for (const list of Object.values(networkInterfaces())) {
     for (const iface of list ?? []) {
-      if (iface.family === 'IPv4' && !iface.internal) result.push(iface.address);
+      if (iface.family === 'IPv4' && !iface.internal) {result.push(iface.address);}
     }
   }
   return result;
@@ -21,10 +22,37 @@ function lanAddresses(): string[] {
 
 /** 解析 TRUST_PROXY env：'true'/'false' → 布尔；非负整数字符串 → 代理层数；其余（如 'loopback'）原样。 */
 function parseTrustProxy(raw: string): boolean | number | string {
-  if (raw === 'true') return true;
-  if (raw === 'false') return false;
+  if (raw === 'true') {return true;}
+  if (raw === 'false') {return false;}
   const n = Number(raw);
   return Number.isInteger(n) && n >= 0 ? n : raw;
+}
+
+/**
+ * 挂载交互式 API 文档（Swagger UI）于 `/docs`，仅非生产环境——避免对外泄露完整接口目录。
+ *
+ * 文档内的操作路径默认带全局前缀 `/api`（`ignoreGlobalPrefix` 默认 false），故 “Try it out”
+ * 直接命中真实路由。登记两种鉴权方案供调试：会话 cookie（`radar_session`）+ 写请求 CSRF 头
+ * （`X-Radar-Csrf`）；移动端 Ed25519 设备签名非简单 security scheme，未登记。
+ *
+ * 注：本仓直跑 TS 源（`@swc-node/register`、无 `nest build`），`@nestjs/swagger` 的自动内省
+ * CLI 插件挂不上，故 DTO 的请求 / 响应富 schema 需在控制器 / DTO 上手写 `@ApiProperty`、
+ * `@ApiResponse` 增量补充；未标注的端点仍会列出，仅 body / 响应结构为空。
+ */
+function mountApiDocs(app: NestExpressApplication): void {
+  const config = new DocumentBuilder()
+    .setTitle('Hatch Radar API')
+    .setDescription('工作台后端 API —— 仅非生产环境暴露，供本地调试与文档浏览')
+    .setVersion('0.1.0')
+    .addCookieAuth('radar_session')
+    .addApiKey({ type: 'apiKey', in: 'header', name: 'X-Radar-Csrf' }, 'csrf')
+    .build();
+  const document = SwaggerModule.createDocument(app, config);
+  // persistAuthorization：刷新后保留已填的 cookie / CSRF，免反复输入
+  SwaggerModule.setup('docs', app, document, {
+    customSiteTitle: 'Hatch Radar API',
+    swaggerOptions: { persistAuthorization: true },
+  });
 }
 
 /**
@@ -50,9 +78,11 @@ async function bootstrap(): Promise<void> {
 
   const env = app.get<AppEnv>(APP_ENV);
   // 信任代理（反代场景）：使 req.ip 按代理链正确解析、审计 IP 不被伪造的 x-forwarded-for 污染。留空＝不信任。
-  if (env.trustProxy) app.set('trust proxy', parseTrustProxy(env.trustProxy));
+  if (env.trustProxy) {app.set('trust proxy', parseTrustProxy(env.trustProxy));}
   // 跨源放行：web 与 api 不同源部署时必填白名单（带凭据）；同源 / 反代留空即不开（浏览器同源策略足矣）。
-  if (env.corsOrigins.length > 0) app.enableCors({ origin: env.corsOrigins, credentials: true });
+  if (env.corsOrigins.length > 0) {app.enableCors({ origin: env.corsOrigins, credentials: true });}
+  // 交互式 API 文档（Swagger UI @ /docs）：仅非生产环境挂载（静态文档页公开，实际调用仍走守卫）。
+  if (!isProd()) {mountApiDocs(app);}
   // 绑 0.0.0.0：监听本机所有网卡，使本进程同时经 localhost 与局域网 IP 可达。
   // web（独立部署，经 /api 调本服务）与 mobile 共用这一监听；mobile 必须走局域网 IP
   // （手机是 LAN 上的另一台设备），故不能只绑回环——这才是对外开放的原因。
