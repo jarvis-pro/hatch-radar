@@ -2,11 +2,14 @@ import { Injectable } from '@nestjs/common';
 import { generateSessionToken, hashPassword, hashSessionToken, verifyPassword } from '@/auth';
 import type { CurrentUser, SessionInfo } from '@hatch-radar/shared';
 import { RuntimeSettingsService } from '../settings/runtime-settings.service';
-import { AuditLogsRepository } from '@/database';
-import { LoginAttemptsRepository } from '@/database';
-import { SessionsRepository } from '@/database';
-import { UsersRepository, type UserAuthView } from '@/database';
-import { TxContext } from '@/database';
+import {
+  AuditLogsRepository,
+  LoginAttemptsRepository,
+  SessionsRepository,
+  TxContext,
+  UsersRepository,
+  type UserAuthView,
+} from '@/database';
 import {
   DomainError,
   RateLimitError,
@@ -28,8 +31,10 @@ function logUnexpected(scope: string, e: unknown): void {
 const DAY = 86_400;
 /** 滑动续期写库的最小间隔（秒）：last_seen 在此区间内不重复 update，省写。 */
 const SLIDE_THROTTLE = 60;
-/** 滑动窗内达到此失败次数即锁定。 */
+/** email 维度阈值：针对单账户的撞库，较紧。 */
 const MAX_FAILURES = 5;
+/** IP 维度阈值：单客户端 IP 的总失败上限，较松以容忍 NAT 后多用户共享出口，仍能挡单点爆破。 */
+const IP_MAX_FAILURES = 20;
 /** 滑动窗（秒）：上次失败超过此时长则失败计数从头算。 */
 const WINDOW_SEC = 900;
 /** 锁定时长（秒）。 */
@@ -80,41 +85,64 @@ export class AccountService {
   ) {}
 
   /**
+   * 统一包裹会触达 DB 的方法：领域错误（业务失败）原样冒泡，其余意外错误（DB 抖动 / 约束冲突等）
+   * 落根因日志后兜底成 ServiceUnavailableError。收口此处，杜绝各方法各写一份 try/catch 导致的覆盖不一致。
+   * @param scope 出错日志的范围标签（方法名）
+   * @param fallback 兜底 503 对外的用户文案
+   * @param fn 实际业务逻辑（其 throw 的 DomainError 原样透传）
+   */
+  private async guard<T>(scope: string, fallback: string, fn: () => Promise<T>): Promise<T> {
+    try {
+      return await fn();
+    } catch (e) {
+      if (e instanceof DomainError) {
+        throw e;
+      }
+
+      logUnexpected(scope, e);
+      throw new ServiceUnavailableError(fallback);
+    }
+  }
+
+  /**
    * 解析会话 token → 当前用户（含权限 + sessionId）。
    * 无效 / 过期 / 账户停用一律返回 null，并顺手清理坏会话；活跃则滑动续期（限频写库）。
    * @param token 会话 token（明文，内部哈希后比对）
    * @returns 当前用户（含 sessionId）；无效 / 过期 / 停用时返回 null
+   * @throws ServiceUnavailableError 意外错误（DB 抖动等）记根因后兜底——区别于「未登录」的 null
    */
   async resolveSession(token: string): Promise<AuthedUser | null> {
-    const now = nowSec();
-    const session = await this.sessions.findByTokenHash(hashSessionToken(token));
-    if (!session) {
-      return null;
-    }
+    return this.guard('resolveSession', '会话校验失败：服务暂时不可用', async () => {
+      const now = nowSec();
+      const session = await this.sessions.findByTokenHash(hashSessionToken(token));
+      if (!session) {
+        return null;
+      }
 
-    if (Number(session.expires_at) <= now) {
-      await this.sessions.deleteById(session.id);
+      if (Number(session.expires_at) <= now) {
+        await this.sessions.deleteById(session.id);
 
-      return null;
-    }
+        return null;
+      }
 
-    const user = await this.users.resolveWithPermissions(session.user_id);
-    if (!user || user.status !== 'active') {
-      await this.sessions.deleteById(session.id);
+      const user = await this.users.resolveWithPermissions(session.user_id);
+      if (!user || user.status !== 'active') {
+        await this.sessions.deleteById(session.id);
 
-      return null;
-    }
+        return null;
+      }
 
-    if (now - Number(session.last_seen_at) >= SLIDE_THROTTLE) {
-      const { idleDays, absoluteDays } = await this.runtimeSettings.getSessionConfig();
-      const nextExpiry = Math.min(
-        now + idleDays * DAY,
-        Number(session.created_at) + absoluteDays * DAY,
-      );
-      await this.sessions.touch(session.id, now, nextExpiry);
-    }
+      if (now - Number(session.last_seen_at) >= SLIDE_THROTTLE) {
+        const { idleDays, absoluteDays } = await this.runtimeSettings.getSessionConfig();
+        const nextExpiry = Math.min(
+          now + idleDays * DAY,
+          Number(session.created_at) + absoluteDays * DAY,
+        );
+        await this.sessions.touch(session.id, now, nextExpiry);
+      }
 
-    return { ...stripHash(user), sessionId: session.id };
+      return { ...stripHash(user), sessionId: session.id };
+    });
   }
 
   /**
@@ -134,9 +162,9 @@ export class AccountService {
       throw new ValidationError('请输入邮箱和密码');
     }
 
-    try {
+    return this.guard('login', '登录失败：服务暂时不可用，请稍后再试', async () => {
       const now = nowSec();
-      const lock = await this.lockRemaining(email, now);
+      const lock = await this.lockRemaining(email, meta.ip, now);
       if (lock > 0) {
         await this.audit.write({
           action: 'auth.login.locked',
@@ -150,7 +178,7 @@ export class AccountService {
       const ok =
         !!view && view.status === 'active' && (await verifyPassword(password, view.passwordHash));
       if (!view || !ok) {
-        await this.recordFailure(email, now);
+        await this.recordFailure(email, meta.ip, now);
         await this.audit.write({
           action: 'auth.login.failed',
           metadata: { email },
@@ -164,7 +192,7 @@ export class AccountService {
       const tokenHash = hashSessionToken(token);
       // 成功登录的副作用收进一个事务：清失败计数 + 建会话 + 记最近登录同生共死。
       await this.tx.run(async () => {
-        await this.attempts.clear(email);
+        await this.clearAttempts(email, meta.ip);
         await this.sessions.create({
           userId: view.id,
           tokenHash,
@@ -179,27 +207,20 @@ export class AccountService {
       await this.audit.write({ actorId: view.id, action: 'auth.login', ip: meta.ip ?? null });
 
       return { token, user: stripHash(view), absoluteDays };
-    } catch (e) {
-      // 业务失败（限流 / 凭据错）原样冒泡；意外错误（DB 抖动等）记根因后才转 503
-      if (e instanceof DomainError) {
-        throw e;
-      }
-
-      logUnexpected('login', e);
-      throw new ServiceUnavailableError('登录失败：服务暂时不可用，请稍后再试');
-    }
+    });
   }
 
   /**
-   * 登出：吊销当前会话 + 写审计。
-   * @param token 待吊销的会话 token（明文）
-   * @param actorId 操作者 id；给定时写登出审计
+   * 登出：吊销当前会话 + 写审计。会话已由守卫解析，故凭 sessionId 直接删（无需再读 cookie / 哈希 token）。
+   * @param sessionId 待吊销的会话 id（守卫解析出的当前会话）
+   * @param actorId 操作者 id（写登出审计）
+   * @throws ServiceUnavailableError 意外错误记根因后兜底
    */
-  async logout(token: string, actorId?: string): Promise<void> {
-    await this.sessions.deleteByTokenHash(hashSessionToken(token));
-    if (actorId) {
+  async logout(sessionId: string, actorId: string): Promise<void> {
+    await this.guard('logout', '登出失败：服务暂时不可用', async () => {
+      await this.sessions.deleteById(sessionId);
       await this.audit.write({ actorId, action: 'auth.logout' });
-    }
+    });
   }
 
   /**
@@ -226,7 +247,7 @@ export class AccountService {
       throw new ValidationError('两次输入的新密码不一致');
     }
 
-    try {
+    await this.guard('changePassword', '修改失败：服务暂时不可用，请稍后再试', async () => {
       const row = await this.users.findById(user.id);
       if (!row || !(await verifyPassword(current, row.password_hash))) {
         throw new ValidationError('当前密码不正确');
@@ -239,14 +260,7 @@ export class AccountService {
         await this.sessions.deleteOthers(user.id, user.sessionId);
       });
       await this.audit.write({ actorId: user.id, action: 'account.password.change' });
-    } catch (e) {
-      if (e instanceof DomainError) {
-        throw e;
-      }
-
-      logUnexpected('changePassword', e);
-      throw new ServiceUnavailableError('修改失败：服务暂时不可用，请稍后再试');
-    }
+    });
   }
 
   /**
@@ -262,27 +276,23 @@ export class AccountService {
       throw new ValidationError('姓名不能为空');
     }
 
-    try {
+    await this.guard('updateOwnName', '保存失败：服务暂时不可用', async () => {
       await this.users.updateName(user.id, trimmed, nowSec());
-    } catch (e) {
-      if (e instanceof DomainError) {
-        throw e;
-      }
-
-      logUnexpected('updateOwnName', e);
-      throw new ServiceUnavailableError('保存失败：服务暂时不可用');
-    }
+    });
   }
 
   /**
    * 取指定用户的当前态（设备/会话双通道的 /api/me 用）。
    * @param userId 用户 id
    * @returns 用户态（脱敏）；不存在时返回 null
+   * @throws ServiceUnavailableError 意外错误记根因后兜底
    */
   async getProfile(userId: string): Promise<CurrentUser | null> {
-    const view = await this.users.resolveWithPermissions(userId);
+    return this.guard('getProfile', '获取用户失败：服务暂时不可用', async () => {
+      const view = await this.users.resolveWithPermissions(userId);
 
-    return view ? stripHash(view) : null;
+      return view ? stripHash(view) : null;
+    });
   }
 
   /**
@@ -301,66 +311,108 @@ export class AccountService {
    * @throws ServiceUnavailableError 意外错误记根因后兜底
    */
   async updateAvatarById(userId: string, avatar: string | null): Promise<void> {
-    try {
+    await this.guard('updateAvatarById', '保存失败：服务暂时不可用', async () => {
       await this.users.updateAvatar(userId, avatar, nowSec());
-    } catch (e) {
-      if (e instanceof DomainError) {
-        throw e;
-      }
-
-      logUnexpected('updateAvatarById', e);
-      throw new ServiceUnavailableError('保存失败：服务暂时不可用');
-    }
+    });
   }
 
   /**
    * 个人中心：未过期会话列表（标记当前会话）。
    * @param user 当前登录用户（据 sessionId 标记 current）
    * @returns 会话列表，最近活跃在前
+   * @throws ServiceUnavailableError 意外错误记根因后兜底
    */
   async listSessions(user: AuthedUser): Promise<SessionInfo[]> {
-    const rows = await this.sessions.listActiveByUser(user.id, nowSec());
+    return this.guard('listSessions', '获取会话失败：服务暂时不可用', async () => {
+      const rows = await this.sessions.listActiveByUser(user.id, nowSec());
 
-    return rows.map((s) => ({ ...s, current: s.id === user.sessionId }));
+      return rows.map((s) => ({ ...s, current: s.id === user.sessionId }));
+    });
   }
 
   /**
    * 个人中心：登出除当前外的其它会话。
    * @param user 当前登录用户（保留其 sessionId）
+   * @throws ServiceUnavailableError 意外错误记根因后兜底
    */
   async revokeOtherSessions(user: AuthedUser): Promise<void> {
-    await this.sessions.deleteOthers(user.id, user.sessionId);
+    await this.guard('revokeOtherSessions', '操作失败：服务暂时不可用', async () => {
+      await this.sessions.deleteOthers(user.id, user.sessionId);
+    });
   }
 
   /**
    * 个人中心：登出指定会话（仅限本人会话）。
    * @param user 当前登录用户（限定只能登出本人会话）
    * @param sessionId 待登出的会话 id
+   * @throws ServiceUnavailableError 意外错误记根因后兜底
    */
   async revokeSession(user: AuthedUser, sessionId: string): Promise<void> {
-    await this.sessions.deleteOwn(sessionId, user.id);
+    await this.guard('revokeSession', '操作失败：服务暂时不可用', async () => {
+      await this.sessions.deleteOwn(sessionId, user.id);
+    });
   }
 
-  // ── 限流（滑动窗 + 锁定）──────────────────────────────────────────────
+  // ── 限流（双维：email + IP，各滑动窗 + 锁定）──────────────────────────
 
-  /** 邮箱当前的登录锁定剩余秒数；未锁返回 0。 */
-  private async lockRemaining(email: string, now: number): Promise<number> {
-    const row = await this.attempts.findByEmail(email);
-    if (!row || row.locked_until == null) {
-      return 0;
+  /**
+   * 本次登录涉及的限流桶：始终含 email 桶（针对账户，阈值紧）；IP 可得时叠加 IP 桶
+   * （针对来源，阈值松以容忍 NAT）。两维独立计数，缓解「拿受害者邮箱反复失败把人锁死」的账户锁定 DoS——
+   * 单点爆破会先打满攻击者自己的 IP 桶，而非锁死受害账户。
+   * @param email 登录邮箱（已归一小写）
+   * @param ip 客户端 IP；不可得时只返回 email 桶（回落到原单维行为）
+   */
+  private attemptBuckets(email: string, ip?: string): { key: string; maxFailures: number }[] {
+    const buckets = [{ key: `email:${email}`, maxFailures: MAX_FAILURES }];
+    if (ip) {
+      buckets.push({ key: `ip:${ip}`, maxFailures: IP_MAX_FAILURES });
     }
 
-    const remaining = Number(row.locked_until) - now;
-
-    return remaining > 0 ? remaining : 0;
+    return buckets;
   }
 
-  /** 记一次登录失败；滑动窗内累计达阈值则锁定一段时间。 */
-  private async recordFailure(email: string, now: number): Promise<void> {
-    const row = await this.attempts.findByEmail(email);
-    const base = row && now - Number(row.last_attempt_at) <= WINDOW_SEC ? row.failed_count : 0;
-    const failed = base + 1;
-    const lockedUntil = failed >= MAX_FAILURES ? now + LOCK_SEC : null;
-    await this.attempts.record(email, failed, lockedUntil, now);
+  /** 本次登录涉及的任一限流桶的最长锁定剩余秒数；都未锁返回 0。 */
+  private async lockRemaining(email: string, ip: string | undefined, now: number): Promise<number> {
+    const rows = await Promise.all(
+      this.attemptBuckets(email, ip).map((b) => this.attempts.findByKey(b.key)),
+    );
+
+    let max = 0;
+    for (const row of rows) {
+      if (row?.locked_until == null) {
+        continue;
+      }
+
+      const remaining = Number(row.locked_until) - now;
+      if (remaining > max) {
+        max = remaining;
+      }
+    }
+
+    return max;
+  }
+
+  /**
+   * 记一次登录失败：对 email 桶与（可得时）IP 桶各原子累加 / 派生锁定（防并发丢计数），
+   * 本处仅持有滑动窗与各维阈值策略。
+   */
+  private async recordFailure(email: string, ip: string | undefined, now: number): Promise<void> {
+    await Promise.all(
+      this.attemptBuckets(email, ip).map((b) =>
+        this.attempts.recordFailure(b.key, {
+          now,
+          windowSec: WINDOW_SEC,
+          maxFailures: b.maxFailures,
+          lockSec: LOCK_SEC,
+        }),
+      ),
+    );
+  }
+
+  /** 登录成功后清除本次涉及的限流桶计数（email + 可得的 IP）；在登录事务内顺序执行。 */
+  private async clearAttempts(email: string, ip: string | undefined): Promise<void> {
+    for (const b of this.attemptBuckets(email, ip)) {
+      await this.attempts.clear(b.key);
+    }
   }
 }

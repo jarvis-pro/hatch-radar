@@ -16,8 +16,9 @@ import { z } from 'zod';
 import type { CurrentUser } from '@hatch-radar/shared';
 import { ZodValidationPipe } from '@/common/zod-validation.pipe';
 import { AccountService } from './account.service';
-import { AuthUser, type AuthedUser } from './auth-user.decorator';
-import { clearSessionCookie, readSessionCookie, setSessionCookie } from './cookies';
+import type { AuthedUser } from './auth-context';
+import { AuthUser } from './auth-user.decorator';
+import { clearSessionCookie, setSessionCookie } from './cookies';
 import { SessionAuthGuard } from './session-auth.guard';
 
 /** 登录入参：邮箱（归一为小写）+ 明文口令（服务内比对 scrypt 哈希）。 */
@@ -50,6 +51,11 @@ const avatarSchema = z.object({
   avatar: z.string().trim().min(1).max(128).nullable(),
 });
 
+/** 剥离 AuthedUser 内部的 sessionId，得到对外的 CurrentUser（解构丢弃，避免会话 id 泄露进响应体）。 */
+function toCurrentUser({ sessionId: _sessionId, ...user }: AuthedUser): CurrentUser {
+  return user;
+}
+
 /**
  * /api/auth/* —— 人鉴权权威端点（会话登录/登出/校验/改密/会话管理/资料）。
  * 登录公开；其余挂 SessionAuthGuard（读 httpOnly cookie 校验）。设备激活在另一控制器 /api/auth/device。
@@ -79,34 +85,18 @@ export class AccountController {
   @Get('session')
   @UseGuards(SessionAuthGuard)
   session(@AuthUser() user: AuthedUser): { user: CurrentUser } {
-    return {
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        avatar: user.avatar,
-        role: user.role,
-        status: user.status,
-        mustChangePassword: user.mustChangePassword,
-        permissions: user.permissions,
-      },
-    };
+    return { user: toCurrentUser(user) };
   }
 
-  /** POST /api/auth/logout —— 吊销当前会话 + 过期 cookie。 */
+  /** POST /api/auth/logout —— 吊销当前会话 + 过期 cookie（会话已由守卫解析，凭 sessionId 直接删）。 */
   @Post('logout')
   @HttpCode(200)
   @UseGuards(SessionAuthGuard)
   async logout(
     @AuthUser() user: AuthedUser,
-    @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ): Promise<{ ok: true }> {
-    const token = readSessionCookie(req);
-    if (token) {
-      await this.account.logout(token, user.id);
-    }
-
+    await this.account.logout(user.sessionId, user.id);
     clearSessionCookie(res);
 
     return { ok: true };
