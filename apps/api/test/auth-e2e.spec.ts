@@ -149,4 +149,21 @@ describe('鉴权契约 e2e（真实 AppModule + HTTP）', () => {
     const r = await call('GET', '/api/auth/session', { cookie: 'radar_session=bogus-token' });
     expect(r.status).toBe(401);
   });
+
+  it('同一邮箱连续失败达阈值 → 429（限流锁定，先于凭据校验）', async () => {
+    const probe = 'lockout-probe@test.co'; // 不存在的账户：失败也照记（防账户枚举）
+    // 前 5 次（MAX_FAILURES）均因凭据错返回 401，第 5 次后该邮箱桶被锁定
+    for (let i = 0; i < 5; i++) {
+      const r = await call('POST', '/api/auth/login', {
+        body: { email: probe, password: 'nope' },
+      });
+      expect(r.status).toBe(401);
+    }
+
+    // 第 6 次：已锁定 → 429（在校验凭据前就被拦截，验证累加 / 派生锁定的原子写入与按桶寻址生效）
+    const locked = await call('POST', '/api/auth/login', {
+      body: { email: probe, password: 'nope' },
+    });
+    expect(locked.status).toBe(429);
+  });
 });
