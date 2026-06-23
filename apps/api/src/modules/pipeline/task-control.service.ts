@@ -54,6 +54,9 @@ export class TaskControlService {
   /**
    * 发起检视任务：建 analyze 任务（检视器 6 环节）；stepGate=true 时每环节挂闸门（逐环节暂停），
    * false 则运行到底＋留痕。该帖已有活跃 analyze 任务时由 createTaskWithStages 去重拒绝（抛 400）。
+   * @param postId 目标帖子 id
+   * @param providerId 分析所用模型配置 id（model_providers.id）
+   * @param stepGate true=每环节挂闸门逐步暂停；false=一口气运行到底
    * @returns 新建任务 id（成功）；校验 / 去重失败抛 {@link DomainError}（400）。
    */
   async enqueueInspect(
@@ -103,7 +106,11 @@ export class TaskControlService {
     return { taskId: res.taskId };
   }
 
-  /** 取检视任务视图：任务元信息 + 各环节轨迹（InspectJobView 形状，时间戳 number、output 已解析）。 */
+  /**
+   * 取检视任务视图：任务元信息 + 各环节轨迹（InspectJobView 形状，时间戳 number、output 已解析）。
+   * @param taskId 任务 id
+   * @returns 检视视图；任务不存在时返回 null
+   */
   async getInspectView(taskId: number): Promise<InspectJobView | null> {
     const task = await this.tasks.getTask(taskId);
     if (!task) {
@@ -146,7 +153,11 @@ export class TaskControlService {
     };
   }
 
-  /** 放行下一环节：paused→queued + 派发。返回 false = 当前并非暂停态。 */
+  /**
+   * 放行下一环节：paused→queued + 派发。
+   * @param taskId 任务 id
+   * @returns 是否实际放行（false = 当前并非暂停态）
+   */
   async resumeInspect(taskId: number): Promise<boolean> {
     const ok = await this.tasks.resumeTask(taskId);
     if (ok) {
@@ -156,7 +167,10 @@ export class TaskControlService {
     return ok;
   }
 
-  /** 运行到底：清除全部环节闸门、若暂停则放行；worker 回读已清的闸门后连续跑完剩余环节（仍留轨迹）。 */
+  /**
+   * 运行到底：清除全部环节闸门、若暂停则放行；worker 回读已清的闸门后连续跑完剩余环节（仍留轨迹）。
+   * @param taskId 任务 id
+   */
   async runInspectToEnd(taskId: number): Promise<void> {
     await this.taskStages.clearGates(taskId);
     await this.tasks.resumeTask(taskId); // 暂停则放行；运行中为 no-op（worker 自会回读清掉的闸门续跑）
@@ -166,6 +180,7 @@ export class TaskControlService {
   /**
    * 重试当前失败环节：失败环节复位 pending、任务 failed→queued + 派发。
    * 当前不可重试（任务不存在 / 并非失败态 / 重排失败）时抛 {@link DomainError}（400）。
+   * @param taskId 任务 id
    */
   async retryInspectStep(taskId: number): Promise<void> {
     const task = await this.tasks.getTask(taskId);
@@ -186,12 +201,22 @@ export class TaskControlService {
     void this.dispatcher?.tryDispatch();
   }
 
-  /** 取消检视任务：活跃态（queued/running/paused）→ canceled。返回 false = 当前已是终态。 */
+  /**
+   * 取消检视任务：活跃态（queued/running/paused）→ canceled。
+   * @param taskId 任务 id
+   * @returns 是否取消（false = 当前已是终态）
+   */
   async cancelInspect(taskId: number): Promise<boolean> {
     return this.tasks.cancelTask(taskId, nowSec());
   }
 
-  /** 运行前挂 / 摘某环节暂停点（仅 pending 环节可改）。返回是否生效。 */
+  /**
+   * 运行前挂 / 摘某环节暂停点（仅 pending 环节可改）。
+   * @param taskId 任务 id
+   * @param seq 环节序号（task_stages.seq）
+   * @param gate true=挂闸门（执行前暂停）；false=摘除
+   * @returns 是否生效（false = 该环节非 pending、不可改）
+   */
   async toggleStageGate(taskId: number, seq: number, gate: boolean): Promise<boolean> {
     return this.taskStages.setStageGate(taskId, seq, gate);
   }

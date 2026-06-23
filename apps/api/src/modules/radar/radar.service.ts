@@ -73,7 +73,11 @@ export class RadarService {
 
   // ─── 运行详情 ──────────────────────────────────────────────────────────────────
 
-  /** 运行详情：运行 + 任务树（每任务含环节，lane / 产物摘要已合成）。 */
+  /**
+   * 运行详情：运行元信息 + 任务树（每个任务含其环节，已合成 lane / 来源 / 标题）。
+   * @param id 运行 id
+   * @returns run + tasks；运行不存在时返回 null
+   */
   async runDetail(id: number): Promise<{ run: RunDTO; tasks: TaskDTO[] } | null> {
     const run = await this.runs.getRun(id);
     if (!run) {
@@ -134,6 +138,12 @@ export class RadarService {
 
   // ─── lane 概览 ────────────────────────────────────────────────────────────────
 
+  /**
+   * 出站请求闸的 lane 概览（每条 lane 的限速、暂停态与近况）。
+   * - depth=当前在跑数，rate=近 60s 完成数（≈ 每分钟速率），etaSec 由二者估算（任一为 0 时为 null）
+   * - 每条 lane 附最近至多 8 条请求
+   * @returns 各 lane 的概览 DTO 列表
+   */
   async lanes(): Promise<LaneDTO[]> {
     const now = nowSec();
     const [lanes, recent, counts] = await Promise.all([
@@ -181,6 +191,11 @@ export class RadarService {
 
   // ─── 指挥室聚合 ────────────────────────────────────────────────────────────────
 
+  /**
+   * 雷达指挥室首屏聚合：今日产出、lane 概览、各进程（含进行中运行）、失败告警、复查健康度。
+   * - today.workers 恒为 1（单进程归一，执行器内嵌；进程在即视为一个 worker 在线）
+   * @returns 指挥室 DTO（一次性合成的多源只读视图）
+   */
   async controlRoom(): Promise<ControlRoomDTO> {
     const now = nowSec();
     const dayStart = now - (now % 86400);
@@ -253,6 +268,12 @@ export class RadarService {
 
   // ─── 收成洞察（分页） ───────────────────────────────────────────────────────────
 
+  /**
+   * 收成洞察分页列表（按筛选条件），已合成中文标题。
+   * - page 越界时夹到 [1, pageCount]；size 非正时回退默认 PAGE_SIZE
+   * @param f 洞察筛选 + 分页参数
+   * @returns 当前页洞察 + total / page / pageCount
+   */
   async listInsights(f: RadarInsightFilter): Promise<Paged<RadarInsightDTO>> {
     const size = f.size && f.size > 0 ? f.size : PAGE_SIZE;
     const total = await this.insights.countForRadar(f);
@@ -277,7 +298,11 @@ export class RadarService {
     return { items, total, page, pageCount };
   }
 
-  /** 单条洞察详情（痛点 / 机会 / 人工研判全展开 + 译文标题 + 源帖是否仍在库）。 */
+  /**
+   * 单条洞察详情：痛点 / 机会 / 人工研判全展开 + 中文标题 + 源帖是否仍在库。
+   * @param id 洞察 id
+   * @returns 洞察详情 DTO；洞察不存在时返回 null
+   */
   async insightDetail(id: number): Promise<RadarInsightDetailDTO | null> {
     const r = await this.insights.getRawById(id);
     if (!r) {
@@ -341,7 +366,10 @@ export class RadarService {
     };
   }
 
-  /** 来源 / 版块去重清单（洞察口径，供洞察库筛选下拉 + 导出批次按钮）。 */
+  /**
+   * 洞察口径的来源 / 版块去重清单（供洞察库筛选下拉与导出按钮）。
+   * @returns sources 与 subreddits 两组去重值
+   */
   async filterOptions(): Promise<RadarFilterOptions> {
     const [sources, subreddits] = await Promise.all([
       this.insights.distinctSources(),
@@ -353,6 +381,12 @@ export class RadarService {
 
   // ─── 帖子库（分页） ─────────────────────────────────────────────────────────────
 
+  /**
+   * 帖子库分页列表（按筛选条件），已合成标题 / 正文中文译文与复查进度。
+   * - page 越界时夹到 [1, pageCount]；size 非正时回退默认 PAGE_SIZE
+   * @param f 帖子筛选 + 分页参数
+   * @returns 当前页帖子 + total / page / pageCount
+   */
   async listPosts(f: RadarPostFilter): Promise<Paged<RadarPostDTO>> {
     const size = f.size && f.size > 0 ? f.size : PAGE_SIZE;
     const sweep = await this.runs.maxRecheckSweep();
@@ -388,6 +422,11 @@ export class RadarService {
 
   // ─── 帖子一生（详情） ──────────────────────────────────────────────────────────
 
+  /**
+   * 帖子一生详情：帖子本体 + 评论树 + 跨运行生命周期时间线 + 关联洞察。
+   * @param id 帖子 id
+   * @returns 帖子详情 DTO；帖子不存在时返回 null
+   */
   async postDetail(id: string): Promise<RadarPostDetailDTO | null> {
     const p = await this.posts.getRawById(id);
     if (!p) {

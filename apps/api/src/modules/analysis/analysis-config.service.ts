@@ -23,7 +23,9 @@ import { logger } from '@/logger';
 
 /** 当前选用的 active 模型（供调度与启动日志使用） */
 export interface ActiveProvider {
+  /** model_providers.id */
   id: number;
+  /** 模型名（如 gpt-4o / claude-sonnet-...） */
   model: string;
   /** 展示名，如 `openai (gpt-4o)` */
   label: string;
@@ -256,6 +258,7 @@ export class AnalysisConfigService {
 
   /**
    * 解析某条模型配置的展示信息（流水线检视器 resolve 节点产物 + 入队前校验）。
+   * @param providerId model_providers.id
    * @returns provider 标签 / 模型 / 类型 / 可用 Key 数；配置不存在或已停用时 null
    */
   async getProviderInspectInfo(providerId: number): Promise<ResolveOutput | null> {
@@ -282,6 +285,7 @@ export class AnalysisConfigService {
   /**
    * 连通性测试：API Key 模式用当前「最优可用」的一把 Key 发一次极小请求；claude_cli 订阅模式
    * 直接探测 worker 本机的 claude（无 Key）。
+   * @param providerId model_providers.id
    * @returns ok 与可选错误信息（不抛出）
    */
   async testProvider(providerId: number): Promise<{ ok: boolean; error?: string }> {
@@ -310,6 +314,7 @@ export class AnalysisConfigService {
 
   /**
    * 连通性测试：测试某模型下指定的一把 Key（含 invalid 态，便于人工复测后复位）。
+   * @param keyId provider_api_keys.id
    * @returns ok 与可选错误信息（不抛出）
    */
   async testProviderKey(keyId: number): Promise<{ ok: boolean; error?: string }> {

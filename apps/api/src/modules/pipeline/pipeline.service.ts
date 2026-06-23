@@ -105,6 +105,7 @@ export class PipelineService {
    * 自动分析一轮（取代旧 enqueueAutoAnalysisRound）：选 active 模型 → 取待分析帖 → 建 analyze 进程 +
    * 逐帖派生 analyze 任务（同帖已有活跃任务则由 createTaskWithStages 去重跳过）→ 触发派发。
    * @param triggerSource 触发来源（cron / manual）
+   * @returns 本轮结果（active 模型、run id、新派生任务数、待分析帖数）；未配置 active 模型时各项为 null/0
    */
   async runAnalyzeSweep(triggerSource = 'cron'): Promise<AnalyzeSweepResult> {
     const active = await this.analysisConfig.getActiveProvider();
@@ -156,6 +157,8 @@ export class PipelineService {
    * 为新帖派生 collect 任务 → collect 抓评论 → 派生 analyze。整链路在「运行」页可见。
    * @param triggerSource 触发来源（manual / cron / interval）
    * @param process 进程调度触发时传入（带 process_id + 图纸配方）；手动触发省略（惰性默认图纸）
+   * @returns 新建的 collect 运行 id
+   * @throws Error 进程绑定的图纸不存在
    */
   async runCollectSweep(triggerSource = 'cron', process?: ProcessRow): Promise<{ runId: number }> {
     const bp = process
@@ -199,6 +202,8 @@ export class PipelineService {
    * worker 复查时变则重抓 + 重新分析、否则指数退避。
    * @param triggerSource 触发来源（manual / cron / interval）
    * @param process 进程调度触发时传入；手动触发省略
+   * @returns runId（本轮运行）/ sweep（本轮 sweep 序号）/ due（命中的到期帖数）
+   * @throws Error 进程绑定的图纸不存在
    */
   async runRecheckSweep(
     triggerSource = 'cron',
@@ -281,7 +286,13 @@ export class PipelineService {
     }
   }
 
-  /** 触发单个进程：按图纸 kind 开 collect / recheck 运行 + 记账（markFired）；空轮即时重排下一轮。 */
+  /**
+   * 触发单个进程：按图纸 kind 开 collect / recheck 运行 + 记账（markFired），空轮即时重排下一轮。
+   * - 图纸缺失或 kind 不可调度（非 collect/recheck）时记日志后跳过，不抛错
+   * - 记账恒执行（finally）：即便 sweep 抛错也 markFired + 重排，避免 next_run_at 卡在过去致反复触发/卡死
+   * @param process 要触发的进程行
+   * @param triggerSource 触发来源标签；省略时按 trigger_kind 推断（cron / interval）
+   */
   async fireProcess(process: ProcessRow, triggerSource?: string): Promise<void> {
     const bp = await this.blueprints.getBlueprint(process.blueprint_id);
     if (!bp) {

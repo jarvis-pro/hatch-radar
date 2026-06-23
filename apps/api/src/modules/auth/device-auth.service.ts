@@ -49,7 +49,10 @@ export class DeviceAuthService {
   /**
    * 用激活码 + 设备公钥换取一条 device_credentials（绑定到激活码所属账户）。
    * 码无效 / 已用 / 过期一律返回 null（不泄露原因）。
-   * @returns 凭据 id（设备后续用作 x-device-id）
+   * @param input.code 激活码明文（内部 sha256 比对）
+   * @param input.deviceName 设备名；省略时沿用激活码预设的设备名
+   * @param input.publicKey 设备 Ed25519 公钥（后续验签用）
+   * @returns 凭据 id（设备后续用作 x-device-id）；码无效 / 已用 / 过期时返回 null
    */
   async enroll(input: {
     code: string;
@@ -105,6 +108,9 @@ export class DeviceAuthService {
    * 校验设备签名请求：头里取 x-device-id / x-device-ts / x-device-sig，
    * 验时间窗 → 查凭据（active 未过期）→ 用存的公钥验 Ed25519 签名 → 查账户启用 → 校验所需能力。
    * 成功滑动续期并返回设备用户上下文，否则返回 null。
+   * @param req 入站请求：取 headers 的 x-device-id / x-device-ts / x-device-sig 及 method / url / rawBody 验签
+   * @param requiredPerm 需要的能力 key；给定时校验设备用户是否具备，不足即拒
+   * @returns 设备用户上下文（id / role / email / credentialId）；任一校验失败均返回 null（不泄露原因）
    */
   async verifyRequest(
     req: {
@@ -172,7 +178,10 @@ export class DeviceAuthService {
     return { id: user.id, role: user.role as UserRole, email: user.email, credentialId };
   }
 
-  /** 写一条审计（server 直写 audit_logs；失败不阻断主流程）。 */
+  /**
+   * 写一条审计（server 直写 audit_logs；失败不阻断主流程）。
+   * @param entry 审计条目（actorId / action / targetType / targetId / metadata）
+   */
   async recordAudit(entry: {
     actorId?: string | null;
     action: string;

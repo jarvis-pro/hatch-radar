@@ -19,18 +19,30 @@ type ProviderKind = 'anthropic' | 'openai' | 'deepseek' | 'claude_cli' | 'azure'
 
 /** 新建模型入参（对应控制器 createSchema）。 */
 export type ProviderCreateInput = {
+  /** provider 类型：anthropic / openai / deepseek / claude_cli（订阅）/ azure（机翻） */
   provider: ProviderKind;
+  /** 展示名 */
   label: string;
+  /** 首把 API Key 明文；claude_cli 订阅模式无需，其余必填（加密入库） */
   apiKey?: string;
+  /** 自定义 API 基址（openai / deepseek 兼容端点）；省略用厂商默认 */
   baseUrl?: string;
+  /** Azure 区域（仅 azure 翻译需要） */
   region?: string;
+  /** 模型名 */
   model: string;
+  /** 是否启用；省略按启用处理 */
   enabled?: boolean;
+  /** 输入单价（用于成本估算）；null = 不计费（如订阅模式） */
   inputPrice?: number | null;
+  /** 输出单价（用于成本估算）；null = 不计费 */
   outputPrice?: number | null;
 };
 
-/** 更新模型入参（对应控制器 updateSchema）。 */
+/**
+ * 更新模型入参（对应控制器 updateSchema）。
+ * 各字段均可选：省略即保持原值；语义同 {@link ProviderCreateInput} 对应字段。
+ */
 export type ProviderUpdateInput = {
   provider?: ProviderKind;
   label?: string;
@@ -69,12 +81,15 @@ export class SettingsService {
 
   // ── 运行期可调项 ───────────────────────────────────────────────────────────────
 
-  /** 五项运行期可调项有效态（当前值 / env 默认 / 是否覆盖）。 */
+  /** 运行期可调项有效态（每项当前生效值 + 出厂默认值）。 */
   getRuntimeOverview() {
     return this.runtimeSettings.getOverview();
   }
 
-  /** 写入运行期参数（整数），保存即生效（实时读库，无需重启或版本广播）。 */
+  /**
+   * 写入运行期参数（整数），保存即生效（实时读库，无需重启或版本广播）。
+   * @param patch 仅含需更新的项；省略的项保持原值
+   */
   applyRuntimeSettings(patch: RuntimeSettingsPatch) {
     return this.runtimeSettings.applySettings(patch);
   }
@@ -96,7 +111,12 @@ export class SettingsService {
     return (await this.providers.listProvidersWithKeys()).map(toProviderDTO);
   }
 
-  /** 新建模型（含第一把 Key，密钥加密入库）。 */
+  /**
+   * 新建模型（含第一把 Key，密钥加密入库）；写后热重载分析配置。
+   * @param dto 模型标量字段 + 首把 Key（见 {@link ProviderCreateInput}）
+   * @returns 新模型配置 id
+   * @throws ValidationError 非订阅模式但未提供 API Key，或未配置 SETTINGS_SECRET
+   */
   async createProvider(dto: ProviderCreateInput): Promise<{ id: number }> {
     const isCli = dto.provider === 'claude_cli';
     if (!isCli) {
@@ -126,6 +146,10 @@ export class SettingsService {
   /**
    * 更新模型标量字段（密钥走 Key 池端点）。
    * 安全闸：改 baseUrl 必须同时重填 API Key——否则旧密钥会被发往新地址。重填时整个 Key 池被替换成这一把新 Key。
+   * @param id 模型配置 id
+   * @param dto 待更新字段（见 {@link ProviderUpdateInput}）；含 apiKey 时按 provider 类型替换 Key
+   * @throws NotFoundError 模型配置不存在
+   * @throws ValidationError 提供新 Key 但未配置 SETTINGS_SECRET，或改 baseUrl 未同时重填 Key
    */
   async updateProvider(id: number, dto: ProviderUpdateInput): Promise<void> {
     if (dto.apiKey && !isSecretConfigured()) {
@@ -217,7 +241,11 @@ export class SettingsService {
     logger.info(`[设置] 更新模型 #${id}${baseUrlChanged ? '（baseUrl 变更，Key 池已重置）' : ''}`);
   }
 
-  /** 删除模型（Key 池级联删除；若为 active 则清空 active）。 */
+  /**
+   * 删除模型（Key 池级联删除；若为 active 则一并清空 active）。
+   * @param id 模型配置 id
+   * @throws NotFoundError 模型配置不存在
+   */
   async deleteProvider(id: number): Promise<void> {
     const removed = await this.providers.deleteProvider(id);
     if (!removed) {
@@ -232,14 +260,25 @@ export class SettingsService {
     logger.info(`[设置] 删除模型 #${id}`);
   }
 
-  /** 用最优可用 Key 探测连通性，始终返回 { ok, error? }。 */
+  /**
+   * 用最优可用 Key 探测连通性，始终返回 { ok, error? }。
+   * @param id 模型配置 id
+   * @returns { ok, error? }（不抛连通错误）
+   */
   testProvider(id: number) {
     return this.analysisConfig.testProvider(id);
   }
 
   // ── API Key 池 ────────────────────────────────────────────────────────────────
 
-  /** 新增一把备用 Key（密钥加密入库）。 */
+  /**
+   * 新增一把备用 Key（密钥加密入库）。
+   * @param providerId 所属模型配置 id
+   * @param input 新 Key（明文 + 备注 + 优先级，见 {@link KeyInput}）
+   * @returns 新 Key id
+   * @throws ValidationError 未配置 SETTINGS_SECRET，或 provider 为 claude_cli / azure（不走多 Key 池）
+   * @throws NotFoundError 模型配置不存在
+   */
   async addKey(providerId: number, input: KeyInput): Promise<{ id: number }> {
     if (!isSecretConfigured()) {
       throw new ValidationError('未配置 SETTINGS_SECRET，无法加密入库，请先在 .env 设置');
@@ -264,7 +303,13 @@ export class SettingsService {
     return { id };
   }
 
-  /** 改备注/优先级/启停；reset 复位 invalid/cooling。 */
+  /**
+   * 改备注 / 优先级 / 启停；reset 复位 invalid/cooling 态。
+   * @param providerId 所属模型配置 id（与 keyId 一并校验归属）
+   * @param keyId 目标 Key id
+   * @param patch 待更新字段（见 {@link KeyUpdate}）
+   * @throws NotFoundError API Key 不存在或不属于该模型
+   */
   async updateKey(providerId: number, keyId: number, patch: KeyUpdate): Promise<void> {
     const key = await this.providers.getKey(keyId);
     if (!key || key.provider_id !== providerId) {
@@ -276,7 +321,12 @@ export class SettingsService {
     }
   }
 
-  /** 删除一把 Key。 */
+  /**
+   * 删除一把 Key。
+   * @param providerId 所属模型配置 id（与 keyId 一并校验归属）
+   * @param keyId 目标 Key id
+   * @throws NotFoundError API Key 不存在或不属于该模型
+   */
   async deleteKey(providerId: number, keyId: number): Promise<void> {
     const key = await this.providers.getKey(keyId);
     if (!key || key.provider_id !== providerId) {
@@ -287,7 +337,13 @@ export class SettingsService {
     logger.info(`[设置] 模型 #${providerId} 删除 Key #${keyId}`);
   }
 
-  /** 测试指定 Key，返回 { ok, error? }。 */
+  /**
+   * 测试指定 Key 的连通性。
+   * @param providerId 所属模型配置 id（与 keyId 一并校验归属）
+   * @param keyId 目标 Key id
+   * @returns { ok, error? }（连通失败以 ok=false 回报，不抛连通错误）
+   * @throws NotFoundError API Key 不存在或不属于该模型
+   */
   async testKey(providerId: number, keyId: number): Promise<{ ok: boolean; error?: string }> {
     const key = await this.providers.getKey(keyId);
     if (!key || key.provider_id !== providerId) {
@@ -299,7 +355,13 @@ export class SettingsService {
 
   // ── 选用 active / 翻译 provider ─────────────────────────────────────────────────
 
-  /** 选用分析 active 模型；即时热重载并触发一轮入队。 */
+  /**
+   * 选用分析 active 模型；即时热重载并立刻触发一轮入队。
+   * @param providerId 选用的模型 id；传 null 清空 active（停止自动分析）
+   * @returns 选用结果 + 本次即时入队的帖子数
+   * @throws NotFoundError 模型配置不存在
+   * @throws ValidationError 模型已停用 / 为 azure（仅翻译）/ 无可用 API Key
+   */
   async setActive(
     providerId: number | null,
   ): Promise<{ activeProviderId: number | null; enqueued: number }> {
@@ -335,7 +397,13 @@ export class SettingsService {
     return { activeProviderId: providerId, enqueued: round.created };
   }
 
-  /** 选用翻译模型（与分析 active 解耦）；清空则翻译回落 active provider。支持 claude_cli / azure。 */
+  /**
+   * 选用翻译模型（与分析 active 解耦）；清空则翻译回落 active provider。支持 claude_cli / azure。
+   * @param providerId 选用的翻译模型 id；传 null 清空
+   * @returns 选用后的翻译 provider id
+   * @throws NotFoundError 模型配置不存在
+   * @throws ValidationError 模型已停用 / 非 claude_cli·azure / Azure 无可用 Key
+   */
   async setTranslationProvider(
     providerId: number | null,
   ): Promise<{ translationProviderId: number | null }> {

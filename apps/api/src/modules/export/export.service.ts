@@ -63,6 +63,7 @@ export class ExportService {
    * 仅取一个导出筛选命中的、当前仍存在（未归档）的帖子 ID（按导出同序）。
    * 供翻译覆盖率统计与批量补翻——与 collectBatch 选取的帖子完全一致。
    * @param filter 批次筛选条件
+   * @returns 命中且未归档的 post_id 列表，按导出同序（created_at DESC, id DESC）；无命中或全部已归档时为空数组
    */
   async selectPostIds(filter: ExportFilter): Promise<string[]> {
     const where = Prisma.join(this.insightConds(filter), ' AND ');
@@ -89,8 +90,12 @@ export class ExportService {
   }
 
   /**
-   * 按条件从主库筛出一个导出批次。
+   * 按条件从主库组装一个完整导出批次（洞察 + 关联帖子 / 评论 + 已完成中文译文）。
+   * - 已归档（缺失）的关联帖子被跳过，仅其洞察保留（post_id 为软引用）
+   * - 帖子按洞察顺序、评论按 (created_utc,id) 升序分组，产出与逐条实现字节级一致（移动端 ATTACH 合并依赖此格式）
+   * - 译文按实体（帖子标题 / 正文、评论正文）展开，移动端以 post.id / comment.id 直接贴中文
    * @param filter 批次筛选条件
+   * @returns 含 meta（格式版本、导出时间、各类计数）与 insights/posts/comments/translations 四组数据的批次
    */
   async collectBatch(filter: ExportFilter): Promise<ExportBatch> {
     const where = Prisma.join(this.insightConds(filter), ' AND ');

@@ -17,6 +17,7 @@ const HEARTBEAT_INTERVAL_MS = 15_000;
 /** 周期性僵死回收间隔（毫秒） */
 const RECLAIM_INTERVAL_MS = 60_000;
 
+/** 给 promise 套硬超时：超过 ms 即 reject 并调 onTimeout（用于中止底层调用 / abort）。 */
 function withTimeout<T>(promise: Promise<T>, ms: number, onTimeout?: () => void): Promise<T> {
   let timer: ReturnType<typeof setTimeout>;
   const timeout = new Promise<never>((_, reject) => {
@@ -92,6 +93,8 @@ export class WorkerService {
 
   /**
    * 执行派发器认领来的任务（task 已被 LocalDispatcher 认领为 running；执行模型 blueprints→runs→tasks→task_stages）。
+   * @param taskId 已认领任务的 id
+   * @param onProgress 进度回调（每次心跳触发，传入任务 id）；供派发器上报活跃度
    */
   async executeDispatchedTask(taskId: number, onProgress?: (id: number) => void): Promise<void> {
     const p = this.runTask(taskId, onProgress);

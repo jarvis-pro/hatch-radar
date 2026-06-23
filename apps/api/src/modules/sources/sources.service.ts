@@ -31,7 +31,10 @@ export class SourcesService {
 
   // ── 来源 ─────────────────────────────────────────────────────────────────────
 
-  /** 来源列表 + 连接器（脱敏）+ redditUsable + secretConfigured。 */
+  /**
+   * 来源页首屏聚合：来源列表 + 连接器（脱敏）+ Reddit 是否可用 + 密钥是否已配置。
+   * @returns sources / connectors / redditUsable / secretConfigured 四项
+   */
   async overview() {
     const [sourceRows, connectorRows, redditUsable] = await Promise.all([
       this.sources.listSources(),
@@ -47,6 +50,12 @@ export class SourcesService {
     };
   }
 
+  /**
+   * 新建采集来源（爬虫计划）。enabled 未显式给 false 时按启用处理。
+   * @param input 来源配置（见 {@link SourceInput}）
+   * @returns 新建来源的 id
+   * @throws ValidationError 启用 reddit 来源但尚无可用 Reddit 连接器
+   */
   async createSource(input: SourceInput): Promise<{ id: number }> {
     await this.assertRedditEnable(input.platform, input.enabled !== false);
     const id = await this.sources.createSource(input, nowSec());
@@ -55,6 +64,13 @@ export class SourcesService {
     return { id };
   }
 
+  /**
+   * 局部更新来源字段（仅覆盖 fields 中给出的键；fields 为空则不写库）。
+   * @param id 来源 id
+   * @param fields 仅含需更新的字段
+   * @throws NotFoundError 来源不存在
+   * @throws ValidationError 将 reddit 来源置 enabled=true 但尚无可用 Reddit 连接器
+   */
   async updateSource(id: number, fields: Partial<SourceInput>): Promise<void> {
     const existing = await this.sources.getSource(id);
     if (!existing) {
@@ -70,6 +86,11 @@ export class SourcesService {
     }
   }
 
+  /**
+   * 删除采集来源。
+   * @param id 来源 id
+   * @throws NotFoundError 来源不存在
+   */
   async deleteSource(id: number): Promise<void> {
     if (!(await this.sources.deleteSource(id))) {
       throw new NotFoundError('来源不存在');
@@ -93,6 +114,12 @@ export class SourcesService {
 
   // ── 采集连接器 ────────────────────────────────────────────────────────────────
 
+  /**
+   * 新建采集连接器（需鉴权平台的凭据；secret 加密入库）。
+   * @param input 连接器配置（见 {@link ConnectorInput}）
+   * @returns 新建连接器的 id
+   * @throws ValidationError 未配置 SETTINGS_SECRET（无法加密凭据入库）
+   */
   async createConnector(input: ConnectorInput): Promise<{ id: number }> {
     if (!isSecretConfigured()) {
       throw new ValidationError('未配置 SETTINGS_SECRET，无法加密入库，请先在 .env 设置');
@@ -104,6 +131,13 @@ export class SourcesService {
     return { id };
   }
 
+  /**
+   * 局部更新连接器字段（仅覆盖 fields 中给出的键；fields 为空则不写库）。
+   * @param id 连接器 id
+   * @param fields 仅含需更新的字段；含 secret 时会重新加密入库
+   * @throws ValidationError 更新含 secret 但未配置 SETTINGS_SECRET
+   * @throws NotFoundError 连接器不存在
+   */
   async updateConnector(id: number, fields: ConnectorUpdate): Promise<void> {
     if (fields.secret && !isSecretConfigured()) {
       throw new ValidationError('未配置 SETTINGS_SECRET，无法加密新凭据');
@@ -120,6 +154,11 @@ export class SourcesService {
     logger.info(`[采集连接器] 更新 #${id}`);
   }
 
+  /**
+   * 删除采集连接器。
+   * @param id 连接器 id
+   * @throws NotFoundError 连接器不存在
+   */
   async deleteConnector(id: number): Promise<void> {
     if (!(await this.connectors.deleteConnector(id))) {
       throw new NotFoundError('连接器不存在');
@@ -128,7 +167,12 @@ export class SourcesService {
     logger.info(`[采集连接器] 删除 #${id}`);
   }
 
-  /** 连通性测试并记录结果（始终成功返回 { ok, error? }）。 */
+  /**
+   * 测试连接器连通性，并把结果记录到该连接器。
+   * - 不抛错：连通失败也以 ok=false + error 形式返回
+   * @param id 连接器 id
+   * @returns { ok, error? }
+   */
   testConnector(id: number) {
     return this.crawlerConfig.testConnector(id);
   }

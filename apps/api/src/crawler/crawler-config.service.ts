@@ -85,6 +85,7 @@ export class CrawlerConfigService {
   /**
    * 连通性测试某连接器并记录结果（门禁依赖 last_check_ok）。
    * - reddit：尝试取 OAuth token；成功后失效客户端缓存，使新凭据下次抓取即生效
+   * @param id 连接器 id
    * @returns ok 与可选错误信息（不抛出）
    */
   async testConnector(id: number): Promise<{ ok: boolean; error?: string }> {

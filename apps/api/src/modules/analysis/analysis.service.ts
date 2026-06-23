@@ -18,8 +18,11 @@ export class AnalysisService {
   /**
    * 分析单篇帖子并按需落库。
    * - pain_points 与 opportunities 均为空时视为无信号，不落库，saved 为 false
+   * @param processor 帖子处理器（封装选定模型 + 多 Key 故障转移）
+   * @param post 待分析帖子
+   * @param comments 该帖评论（作为分析上下文）
    * @param signal 可选中止信号（worker 传入 job 超时信号，使慢调用真正停下）
-   * @returns saved 是否产出并落库了洞察
+   * @returns saved=是否产出并落库了洞察；usage=本次 AI 调用 token 用量（不可得时为 null）
    */
   async analyzeAndPersist(
     processor: PostProcessor,
@@ -37,6 +40,9 @@ export class AnalysisService {
    * 落库一条已归一化的洞察（无信号则不落库）。analyzeAndPersist 与流水线检视器 persist 节点共用——
    * 把「无信号判定 + saveInsight + 日志」收敛于一处。saveInsight 按 post_id 幂等（upsert），故
    * persist 节点重认领重跑安全。
+   * @param post 来源帖子（提供落库的 source / subreddit / title / permalink）
+   * @param model 分析所用模型名（落库快照）
+   * @param insight 已归一化的洞察结果
    * @returns saved 是否产出并落库了洞察
    */
   async persistInsight(

@@ -5,6 +5,7 @@ import { logger } from '@/logger';
 import { nowSec } from '@/utils/time';
 import { PipelineService } from '@/modules/pipeline/pipeline.service';
 
+/** 原始数据归档阈值（天）：超过即清理帖子 / 评论 / 终态任务（洞察永久保留）。 */
 const ARCHIVE_DAYS = 30;
 
 /**

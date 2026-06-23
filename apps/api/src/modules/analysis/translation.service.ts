@@ -74,6 +74,8 @@ export class TranslationService {
    * @param postId 目标帖子 ID
    * @param providerId 翻译用 model_providers.id（claude_cli / azure）
    * @param signal 可选中止信号（job 超时即停在途请求）
+   * @returns 本次翻译概要；该帖无未翻译条目时返回 { translated: 0, skipped: 0, usage: null }
+   * @throws Error provider 缺失 / 不存在 / 已停用 / 非可翻译类型，或 Azure 无可用 Key / 鉴权失败
    */
   async translatePost(
     postId: string,

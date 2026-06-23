@@ -192,6 +192,7 @@ export class SyncService {
    * 应用一批移动端同步操作（按请求内顺序逐条处理，整批一个事务）。
    * @param deviceId 推送设备标识（审计用）
    * @param rawOps 未经校验的操作数组（来自请求体）
+   * @returns 每条操作的结论（applied / duplicate / rejected），与 rawOps 逐条对应同序
    */
   async applySyncPush(deviceId: string, rawOps: unknown[]): Promise<SyncPushResponse> {
     const results = await this.db.$transaction(async (tx) => {

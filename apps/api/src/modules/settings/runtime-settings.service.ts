@@ -167,6 +167,7 @@ export class RuntimeSettingsService {
   /**
    * 写入一批运行期参数（upsert）。读取侧实时读库，故保存即生效（含独立 worker 进程的下一次回收/分发）。
    * 「恢复默认」由前端以默认值发起，等同写回出厂值——不删行，DB 始终持有这五项。
+   * @param patch 仅含需更新的项（整数）；省略的项保持原值，合法性由控制器 zod 把关
    * @returns 应用后的有效态总览
    */
   async applySettings(patch: RuntimeSettingsPatch): Promise<RuntimeSettingsOverview> {

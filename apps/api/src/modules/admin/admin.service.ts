@@ -25,18 +25,27 @@ const ALLOWED_TTL_DAYS = [7, 30, 60];
 
 /** 新建账户入参（来自控制器 DTO）。 */
 export interface CreateUserDto {
+  /** 登录邮箱（服务内会 trim + 小写化） */
   email: string;
+  /** 显示姓名 */
   name: string;
+  /** 角色：super_admin / admin */
   role: UserRole;
+  /** 初始密码明文（至少 8 位；服务内 hash 后入库） */
   password: string;
+  /** 是否强制其首次登录改密 */
   requireChange: boolean;
+  /** 勾选的能力 key（仅 admin 角色生效；超管隐含全权） */
   perms: string[];
 }
 
 /** 编辑账户入参。 */
 export interface EditUserDto {
+  /** 显示姓名 */
   name: string;
+  /** 角色：super_admin / admin */
   role: UserRole;
+  /** 勾选的能力 key（仅 admin 角色生效） */
   perms: string[];
 }
 
@@ -62,21 +71,32 @@ export class AdminService {
 
   // ── 读 ────────────────────────────────────────────────────────────────
 
+  /** 全部管理员账户（管理页列表用）。 */
   listUsers(): Promise<AdminUserRow[]> {
     return this.users.listForAdmin();
   }
 
+  /** 全部设备凭据（管理页列表用）。 */
   listDevices(): Promise<DeviceRow[]> {
     return this.devices.listAll();
   }
 
+  /** 当前待激活（未过期）的激活码。 */
   listEnrollments(): Promise<EnrollmentRow[]> {
     return this.enrollments.listPending(nowSec());
   }
 
   // ── 账户写 ──────────────────────────────────────────────────────────────
 
-  /** 新建管理员。 */
+  /**
+   * 新建管理员账户。
+   * @param actor 操作者（当前登录管理员，用于层级校验与审计）
+   * @param dto 新账户字段（见 {@link CreateUserDto}）
+   * @returns 新账户 id
+   * @throws ValidationError 邮箱 / 姓名为空，或初始密码不足 8 位
+   * @throws ForbiddenError 非超管试图创建超管
+   * @throws ConflictError 邮箱已存在
+   */
   async createUser(actor: AuthedUser, dto: CreateUserDto): Promise<{ id: string }> {
     const email = dto.email.trim().toLowerCase();
     const name = dto.name.trim();
@@ -121,7 +141,15 @@ export class AdminService {
     return { id };
   }
 
-  /** 编辑管理员资料 / 角色 / 权限。 */
+  /**
+   * 编辑管理员资料 / 角色 / 权限。
+   * @param actor 操作者（当前登录管理员）
+   * @param userId 被编辑账户 id
+   * @param dto 资料 / 角色 / 权限（见 {@link EditUserDto}）
+   * @throws ValidationError 姓名为空，或试图降级最后一个超管
+   * @throws NotFoundError 账户不存在
+   * @throws ForbiddenError 非超管试图授予超管角色，或操作他人账户
+   */
   async editUser(actor: AuthedUser, userId: string, dto: EditUserDto): Promise<void> {
     const name = dto.name.trim();
     if (!name) {
@@ -163,7 +191,14 @@ export class AdminService {
     });
   }
 
-  /** 重置某账户密码为随机临时密码，强制首登改密、踢下线。返回临时密码（仅此一次）。 */
+  /**
+   * 重置某账户密码为随机临时密码，强制其首登改密并踢下线。
+   * @param actor 操作者（当前登录管理员）
+   * @param userId 被重置账户 id
+   * @returns 一次性临时密码（仅此次返回明文）
+   * @throws NotFoundError 账户不存在
+   * @throws ForbiddenError 非超管操作他人账户
+   */
   async resetPassword(actor: AuthedUser, userId: string): Promise<{ tempPassword: string }> {
     const target = await this.users.findById(userId);
     if (!target) {
@@ -184,7 +219,15 @@ export class AdminService {
     return { tempPassword: pw };
   }
 
-  /** 启用 / 停用账户（停用即踢下线）。 */
+  /**
+   * 启用 / 停用账户（停用即踢下线）。
+   * @param actor 操作者（当前登录管理员）
+   * @param userId 目标账户 id
+   * @param status 目标状态：active 启用 / disabled 停用
+   * @throws ValidationError 操作自己，或停用最后一个超管
+   * @throws NotFoundError 账户不存在
+   * @throws ForbiddenError 非超管操作他人账户
+   */
   async setStatus(actor: AuthedUser, userId: string, status: 'active' | 'disabled'): Promise<void> {
     if (userId === actor.id) {
       throw new ValidationError('不能停用 / 启用自己');
@@ -213,7 +256,14 @@ export class AdminService {
     });
   }
 
-  /** 删除账户（级联清理其权限 / 会话 / 设备）。 */
+  /**
+   * 删除账户（级联清理其权限 / 会话 / 设备）。
+   * @param actor 操作者（当前登录管理员）
+   * @param userId 被删除账户 id
+   * @throws ValidationError 删除自己，或删除最后一个超管
+   * @throws NotFoundError 账户不存在
+   * @throws ForbiddenError 非超管操作他人账户
+   */
   async deleteUser(actor: AuthedUser, userId: string): Promise<void> {
     if (userId === actor.id) {
       throw new ValidationError('不能删除自己');
@@ -241,7 +291,17 @@ export class AdminService {
 
   // ── 设备写 ──────────────────────────────────────────────────────────────
 
-  /** 为某用户「赋予设备」：生成一次性激活码（仅此次返回明文，库存 sha256）。 */
+  /**
+   * 为某用户「赋予设备」：生成一次性激活码（仅此次返回明文，库存 sha256）。
+   * @param actor 操作者（当前登录管理员）
+   * @param userId 设备所属账户 id
+   * @param deviceName 设备名（首尾空白会被裁剪）
+   * @param ttlDays 离线宽限窗天数；非 [7,30,60] 之一时回退 30
+   * @returns 明文激活码（15 分钟内有效）
+   * @throws ValidationError 设备名为空
+   * @throws NotFoundError 账户不存在
+   * @throws ForbiddenError 非超管操作他人账户
+   */
   async createEnrollment(
     actor: AuthedUser,
     userId: string,
@@ -282,7 +342,13 @@ export class AdminService {
     return { code };
   }
 
-  /** 强踢：吊销某设备凭据（下次验签即被拒）。 */
+  /**
+   * 强踢：吊销某设备凭据（下次验签即被拒）。
+   * @param actor 操作者（当前登录管理员）
+   * @param credentialId 设备凭据 id
+   * @throws NotFoundError 设备不存在
+   * @throws ForbiddenError 非超管操作他人设备
+   */
   async revokeDevice(actor: AuthedUser, credentialId: string): Promise<void> {
     const cred = await this.devices.findByIdWithOwnerRole(credentialId);
     if (!cred) {
@@ -300,7 +366,11 @@ export class AdminService {
     });
   }
 
-  /** 取消一个待激活的激活码。 */
+  /**
+   * 取消一个待激活的激活码。
+   * @param actor 操作者（当前登录管理员）
+   * @param enrollmentId 激活码（enrollment）id
+   */
   async cancelEnrollment(actor: AuthedUser, enrollmentId: string): Promise<void> {
     await this.enrollments.cancel(enrollmentId);
     await this.audit.write({

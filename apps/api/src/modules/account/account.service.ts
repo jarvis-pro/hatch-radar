@@ -37,7 +37,9 @@ const LOCK_SEC = 300;
 
 /** 登录请求附带的客户端信息（写入会话与审计）。 */
 export interface LoginMeta {
+  /** 客户端 User-Agent（写入会话，供「我的设备」展示） */
   userAgent?: string;
+  /** 客户端 IP（写入会话 + 审计；不可得时省略） */
   ip?: string;
 }
 
@@ -80,6 +82,8 @@ export class AccountService {
   /**
    * 解析会话 token → 当前用户（含权限 + sessionId）。
    * 无效 / 过期 / 账户停用一律返回 null，并顺手清理坏会话；活跃则滑动续期（限频写库）。
+   * @param token 会话 token（明文，内部哈希后比对）
+   * @returns 当前用户（含 sessionId）；无效 / 过期 / 停用时返回 null
    */
   async resolveSession(token: string): Promise<AuthedUser | null> {
     const now = nowSec();
@@ -113,7 +117,18 @@ export class AccountService {
     return { ...stripHash(user), sessionId: session.id };
   }
 
-  /** 登录：限流 → 校验邮箱+密码 → 建会话 + 回 token；错误文案统一不泄露存在性。 */
+  /**
+   * 登录：限流 → 校验邮箱+密码 → 建会话 + 回 token；错误文案统一不泄露账户存在性。
+   * - 成功的副作用（清失败计数 + 建会话 + 记最近登录）收进一个事务，同生共死
+   * @param email 登录邮箱
+   * @param password 明文密码
+   * @param meta 客户端信息（User-Agent / IP，写入会话与审计）
+   * @returns token（控制器据此 Set-Cookie）+ 用户态 + cookie 绝对生命周期天数
+   * @throws ValidationError 邮箱或密码为空
+   * @throws RateLimitError 滑动窗内失败次数达阈值被锁定
+   * @throws UnauthorizedError 邮箱或密码不正确（账户不存在 / 停用同此文案，不泄露存在性）
+   * @throws ServiceUnavailableError 意外错误（DB 抖动等）记根因后兜底
+   */
   async login(email: string, password: string, meta: LoginMeta): Promise<LoginResult> {
     if (!email || !password) {
       throw new ValidationError('请输入邮箱和密码');
@@ -175,7 +190,11 @@ export class AccountService {
     }
   }
 
-  /** 登出：吊销当前会话 + 写审计。 */
+  /**
+   * 登出：吊销当前会话 + 写审计。
+   * @param token 待吊销的会话 token（明文）
+   * @param actorId 操作者 id；给定时写登出审计
+   */
   async logout(token: string, actorId?: string): Promise<void> {
     await this.sessions.deleteByTokenHash(hashSessionToken(token));
     if (actorId) {
@@ -183,7 +202,16 @@ export class AccountService {
     }
   }
 
-  /** 改密：校验当前密码 → 写新哈希、清强制改密标记、吊销其余会话。 */
+  /**
+   * 改密：校验当前密码 → 写新哈希、清强制改密标记、吊销其余会话。
+   * - 写新哈希与踢其余会话同事务，杜绝「密码已改、旧会话仍有效」的窗口
+   * @param user 当前登录用户（含 sessionId，用于保留当前会话）
+   * @param current 当前密码（明文，校验用）
+   * @param next 新密码（明文，至少 8 位）
+   * @param confirm 再次输入的新密码（须与 next 一致）
+   * @throws ValidationError 新密码不足 8 位 / 两次输入不一致 / 当前密码不正确
+   * @throws ServiceUnavailableError 意外错误记根因后兜底
+   */
   async changePassword(
     user: AuthedUser,
     current: string,
@@ -221,7 +249,13 @@ export class AccountService {
     }
   }
 
-  /** 改本人姓名。 */
+  /**
+   * 改本人姓名（首尾空白会被裁剪）。
+   * @param user 当前登录用户
+   * @param name 新姓名（首尾空白会被裁剪）
+   * @throws ValidationError 姓名去空白后为空
+   * @throws ServiceUnavailableError 意外错误记根因后兜底
+   */
   async updateOwnName(user: AuthedUser, name: string): Promise<void> {
     const trimmed = name.trim();
     if (!trimmed) {
@@ -240,19 +274,32 @@ export class AccountService {
     }
   }
 
-  /** 取指定用户的当前态（设备/会话双通道的 /api/me 用）。 */
+  /**
+   * 取指定用户的当前态（设备/会话双通道的 /api/me 用）。
+   * @param userId 用户 id
+   * @returns 用户态（脱敏）；不存在时返回 null
+   */
   async getProfile(userId: string): Promise<CurrentUser | null> {
     const view = await this.users.resolveWithPermissions(userId);
 
     return view ? stripHash(view) : null;
   }
 
-  /** 改本人头像（avatar=DiceBear seed；null 恢复姓名首字母）。 */
+  /**
+   * 改本人头像（avatar=DiceBear seed；null 恢复姓名首字母）。
+   * @param user 当前登录用户
+   * @param avatar DiceBear seed；传 null 恢复姓名首字母
+   */
   async updateOwnAvatar(user: AuthedUser, avatar: string | null): Promise<void> {
     await this.updateAvatarById(user.id, avatar);
   }
 
-  /** 按 id 改头像（设备通道 /api/me/avatar 复用，无 AuthedUser 时用）。 */
+  /**
+   * 按 id 改头像（设备通道 /api/me/avatar 复用，无 AuthedUser 时用）。
+   * @param userId 用户 id
+   * @param avatar DiceBear seed；传 null 恢复姓名首字母
+   * @throws ServiceUnavailableError 意外错误记根因后兜底
+   */
   async updateAvatarById(userId: string, avatar: string | null): Promise<void> {
     try {
       await this.users.updateAvatar(userId, avatar, nowSec());
@@ -266,19 +313,30 @@ export class AccountService {
     }
   }
 
-  /** 个人中心：未过期会话列表（标记当前会话）。 */
+  /**
+   * 个人中心：未过期会话列表（标记当前会话）。
+   * @param user 当前登录用户（据 sessionId 标记 current）
+   * @returns 会话列表，最近活跃在前
+   */
   async listSessions(user: AuthedUser): Promise<SessionInfo[]> {
     const rows = await this.sessions.listActiveByUser(user.id, nowSec());
 
     return rows.map((s) => ({ ...s, current: s.id === user.sessionId }));
   }
 
-  /** 个人中心：登出除当前外的其它会话。 */
+  /**
+   * 个人中心：登出除当前外的其它会话。
+   * @param user 当前登录用户（保留其 sessionId）
+   */
   async revokeOtherSessions(user: AuthedUser): Promise<void> {
     await this.sessions.deleteOthers(user.id, user.sessionId);
   }
 
-  /** 个人中心：登出指定会话（仅限本人会话）。 */
+  /**
+   * 个人中心：登出指定会话（仅限本人会话）。
+   * @param user 当前登录用户（限定只能登出本人会话）
+   * @param sessionId 待登出的会话 id
+   */
   async revokeSession(user: AuthedUser, sessionId: string): Promise<void> {
     await this.sessions.deleteOwn(sessionId, user.id);
   }

@@ -44,7 +44,11 @@ export class TranslationOrchestrator {
     private readonly exportSvc: ExportService,
   ) {}
 
-  /** 某帖翻译进度与按钮状态（含活跃翻译任务 → translating）。 */
+  /**
+   * 某帖翻译进度与按钮状态（含活跃翻译任务 → translating）。
+   * @param postId 目标帖子 id
+   * @returns 进度计数 + active + 三态 state + 最近错误
+   */
   async getStatus(postId: string): Promise<{
     total: number;
     translated: number;
@@ -71,7 +75,11 @@ export class TranslationOrchestrator {
     return { ...progress, active, state, lastError };
   }
 
-  /** 该帖已完成译文（content_hash → 中文）。 */
+  /**
+   * 该帖已完成译文（content_hash → 中文）。
+   * @param postId 目标帖子 id
+   * @returns translations=content_hash → 中文译文
+   */
   async getContent(postId: string): Promise<{ translations: Record<string, string> }> {
     return { translations: await this.translations.getDoneForPost(postId) };
   }
@@ -106,6 +114,11 @@ export class TranslationOrchestrator {
   /**
    * 入队翻译该帖未翻译内容（首次或增量）。同帖已有活跃翻译任务时去重（enqueued=false）。
    * provider 解析：chosenId（前端弹窗选定）> translation_provider_id > active；支持 claude_cli / azure。
+   * @param actorId 操作者 id（写入审计）
+   * @param postId 目标帖子 id
+   * @param chosenId 前端弹窗选定的翻译模型 id；省略则按 translation_provider_id ?? active 解析
+   * @returns enqueued=是否新派生了翻译任务（已有活跃任务则 false）
+   * @throws ValidationError 未配置可用翻译模型，或选定模型不存在 / 停用 / 非 claude_cli·azure
    */
   async enqueue(
     actorId: string,
@@ -132,6 +145,7 @@ export class TranslationOrchestrator {
   /**
    * 一个导出筛选命中帖子的译文覆盖率（供导出面板在「直接导出 / 先补翻」之间决策）。
    * translated = 全部内容已译的帖子数，untranslated = 仍需补翻数。
+   * @param filter 导出筛选条件（与导出同口径选取帖子）
    */
   async coverage(
     filter: ExportFilter,
@@ -149,6 +163,11 @@ export class TranslationOrchestrator {
   /**
    * 对一个导出筛选命中、仍有未翻内容的帖子批量入队翻译。同帖已有活跃翻译任务时自动去重。
    * provider 解析同单帖：chosenId > translation_provider_id > active。
+   * @param actorId 操作者 id（写入审计）
+   * @param filter 导出筛选条件（命中帖子中仍需补翻者入队）
+   * @param chosenId 前端弹窗选定的翻译模型 id；省略则按 translation_provider_id ?? active 解析
+   * @returns enqueued=实际派生的翻译任务数；posts=命中且仍需补翻的帖子数
+   * @throws ValidationError 未配置可用翻译模型，或选定模型不存在 / 停用 / 非 claude_cli·azure
    */
   async enqueueBatch(
     actorId: string,

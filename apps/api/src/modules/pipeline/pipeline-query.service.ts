@@ -85,7 +85,10 @@ export class PipelineQueryService {
     return { stats: { queued: stats.queued, running: stats.running } };
   }
 
-  /** 最近进程总览（跨图纸，id 倒序）。 */
+  /**
+   * 最近进程总览（跨图纸，id 倒序，最多 50 条）。
+   * @returns runs=运行视图列表（已附图纸展示名）
+   */
   async listRuns() {
     const [runs, bps] = await Promise.all([
       this.runs.listAllRecent(RECENT_RUNS_LIMIT),
@@ -96,7 +99,11 @@ export class PipelineQueryService {
     return { runs: runs.map((r) => toRunView(r, labelById.get(r.blueprint_id) ?? null)) };
   }
 
-  /** 单进程详情：进程 + 任务树（每任务含其环节）。不存在返回 null。 */
+  /**
+   * 单进程详情：进程 + 任务树（每任务含其环节）。
+   * @param id 运行 id
+   * @returns run + tasks 任务树；进程不存在时返回 null
+   */
   async runDetail(id: number) {
     const run = await this.runs.getRun(id);
     if (!run) {

@@ -18,16 +18,36 @@ export class BlueprintService {
     private readonly processes: ProcessesRepository,
   ) {}
 
+  /**
+   * 列出全部图纸。
+   * @returns 图纸 DTO 列表；无图纸时为空数组
+   */
   async listBlueprints(): Promise<BlueprintDTO[]> {
     return (await this.blueprints.listBlueprints()).map(toBlueprintDTO);
   }
 
+  /**
+   * 按 id 取单个图纸。
+   * @param id 图纸 id
+   * @returns 图纸 DTO；不存在时返回 null
+   */
   async getBlueprint(id: number): Promise<BlueprintDTO | null> {
     const b = await this.blueprints.getBlueprint(id);
 
     return b ? toBlueprintDTO(b) : null;
   }
 
+  /**
+   * 新建一份图纸（纯配方，不绑定到任何进程）。
+   * @param input.kind 图纸类型（采集 / 分析 / 复查 / 翻译等），决定 params 与各环节的语义
+   * @param input.label 展示名
+   * @param input.note 备注；可空
+   * @param input.sources 数据源配置，按图纸类型解释（jsonb 原样存储）
+   * @param input.params 该类型的执行参数（jsonb 原样存储）
+   * @param input.gates 开启后在该环节前暂停的闸门环节 key 列表
+   * @param input.enabledStages 启用的环节 key 列表
+   * @returns 落库后的图纸 DTO（含分配的 id 与创建时间）
+   */
   async createBlueprint(input: {
     kind: BlueprintKind;
     label: string;
@@ -42,6 +62,13 @@ export class BlueprintService {
     return toBlueprintDTO(b);
   }
 
+  /**
+   * 局部更新图纸字段。
+   * - 仅覆盖 patch 中给出的键，省略的字段保持原值
+   * - 不校验是否被进程引用；改动即时对后续新建的任务生效
+   * @param id 图纸 id
+   * @param patch 仅含需更新的字段
+   */
   async updateBlueprint(
     id: number,
     patch: {
@@ -56,7 +83,11 @@ export class BlueprintService {
     await this.blueprints.updateBlueprint(id, patch, nowSec());
   }
 
-  /** 删图纸：被进程引用则拒绝（抛 400），否则删除。 */
+  /**
+   * 删除图纸；仍被进程引用时拒绝删除。
+   * @param id 图纸 id
+   * @throws ValidationError 该图纸仍被至少一个进程引用（需先删除其进程）
+   */
   async deleteBlueprint(id: number): Promise<void> {
     const used = (await this.processes.listProcesses(id)).length > 0;
     if (used) {
