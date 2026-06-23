@@ -69,6 +69,68 @@ const importPathPlugin = {
   },
 };
 
+/**
+ * 内联规则（仅 apps/api）：构造函数每个参数「上一行」必须有独占一行的 `//` 注释，说明该依赖 / 入参的角色。
+ * 副作用即目的——行注释让 Prettier 无法把参数列表合并成一行，从而强制「每个参数独占一行」的排版。
+ * 无 autofix：缺注释即报错，强制人工补真实说明（不接受占位）。仅查「存在性 + 独占一行」，内容质量靠 review。
+ */
+const constructorDocsPlugin = {
+  rules: {
+    'require-constructor-param-comment': {
+      meta: {
+        type: 'suggestion',
+        docs: { description: '构造函数每个参数上一行须有独占的 // 注释' },
+        schema: [],
+        messages: {
+          missing:
+            "构造函数参数 '{{name}}' 上一行缺少 // 注释（apps/api 约定：每个构造参数独占一行、上一行用 // 说明其角色）",
+        },
+      },
+      create(context) {
+        const sourceCode = context.sourceCode;
+        // 「独占一行的行注释」：是 Line(`//`) 注释，且其前一个 token/注释在更早的行（即它自起一行，排除行尾注释）。
+        const isOwnLineLineComment = (comment) => {
+          if (comment.type !== 'Line') {
+            return false;
+          }
+
+          const before = sourceCode.getTokenBefore(comment, { includeComments: true });
+
+          return !before || before.loc.end.line < comment.loc.start.line;
+        };
+
+        const nameOf = (param) => {
+          const node = param.type === 'TSParameterProperty' ? param.parameter : param;
+          if (node?.type === 'Identifier') {
+            return node.name;
+          }
+
+          if (node?.type === 'AssignmentPattern' && node.left?.type === 'Identifier') {
+            return node.left.name;
+          }
+
+          return '(参数)';
+        };
+
+        return {
+          'MethodDefinition[kind="constructor"]'(node) {
+            const params = node.value?.params ?? [];
+            for (const param of params) {
+              if (!sourceCode.getCommentsBefore(param).some(isOwnLineLineComment)) {
+                context.report({
+                  node: param,
+                  messageId: 'missing',
+                  data: { name: nameOf(param) },
+                });
+              }
+            }
+          },
+        };
+      },
+    },
+  },
+};
+
 export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
@@ -117,42 +179,43 @@ export default tseslint.config(
     },
   },
   {
-    // apps/server 导入约定：跨目录用 @/（映射 apps/server/src），同目录保留 ./
-    // 仅限 server —— web 的 @/ 指 web 自己的 src、mobile 又是另一套，故按路径 scope。
-    files: ['apps/server/**/*.ts'],
+    // apps/api 导入约定：跨目录用 @/（映射 apps/api/src），同目录保留 ./
+    // 仅限 api —— web 的 @/ 指 web 自己的 src、mobile 又是另一套，故按路径 scope。
+    // 生成代码（Prisma client）走相对互引、不归此约定，排除。
+    files: ['apps/api/**/*.ts'],
+    ignores: ['apps/api/src/database/generated/**'],
     plugins: { 'import-path': importPathPlugin },
     rules: {
       'import-path/no-relative-parent-imports': [
         'error',
-        { rootDirAbs: path.join(repoRoot, 'apps/server/src'), prefix: '@' },
+        { rootDirAbs: path.join(repoRoot, 'apps/api/src'), prefix: '@' },
       ],
     },
   },
-  // ── 分层护栏（apps/api）：modules → domain → lib 单向，防跨层反向依赖（审计 #21）──────────
-  // 用内置 no-restricted-imports + files scope（ESLint 10 可靠；eslint-plugin-boundaries 在 ESLint 10
-  // 崩，故沿用本仓「内置/自写规则」路线）。跨层必是跨目录、按约定走 @/ 别名，按别名前缀拦截即可。
-  // 注：lib 子层次序（kernel←db←crawler/analysis/auth）与领域服务相对路径互引混用 ../，不宜用别名
-  // pattern 强制，留待 dependency-cruiser；此处先固化最关键的「不可反向跨层」。
   {
-    files: ['apps/api/src/lib/**/*.ts'],
-    ignores: ['apps/api/src/lib/db/generated/**'],
+    // apps/api 约定：构造函数每个参数独占一行 + 上一行 `//` 注释（用注释逼出独行排版 + 标注每个依赖角色）。
+    // 仅 apps/api/src（不含生成代码）；测试不强制。无 autofix——缺注释即报错，须人工补真实说明。
+    files: ['apps/api/src/**/*.ts'],
+    ignores: ['apps/api/src/database/generated/**'],
+    plugins: { 'api-conventions': constructorDocsPlugin },
     rules: {
-      'no-restricted-imports': [
-        'error',
-        {
-          patterns: [
-            {
-              group: ['@/domain', '@/domain/*', '@/modules', '@/modules/*'],
-              message:
-                'lib（能力 / 适配层）不可依赖 domain / modules——依赖方向应为 modules → domain → lib。',
-            },
-          ],
-        },
-      ],
+      'api-conventions/require-constructor-param-comment': 'error',
     },
   },
+  // ── 分层护栏（apps/api）：能力 / 基座层不得反向依赖 modules，防跨层反向耦合 ────────────────
+  // 用内置 no-restricted-imports + files scope（ESLint 10 可靠；eslint-plugin-boundaries 在 ESLint 10
+  // 崩，故沿用本仓「内置/自写规则」路线）。lib / domain 层已解散（能力层下沉 src 根、领域服务
+  // collocate 进 modules），旧 lib/domain 守卫退役，收敛为这一条「能力层不可向上依赖 modules」。
   {
-    files: ['apps/api/src/domain/**/*.ts'],
+    files: [
+      'apps/api/src/database/**/*.ts',
+      'apps/api/src/crawler/**/*.ts',
+      'apps/api/src/analysis/**/*.ts',
+      'apps/api/src/auth/**/*.ts',
+      'apps/api/src/utils/**/*.ts',
+      'apps/api/src/config/**/*.ts',
+    ],
+    ignores: ['apps/api/src/database/generated/**'],
     rules: {
       'no-restricted-imports': [
         'error',
@@ -161,7 +224,7 @@ export default tseslint.config(
             {
               group: ['@/modules', '@/modules/*'],
               message:
-                'domain（领域层）不可依赖 modules（HTTP / wiring 层）——控制器依赖领域服务，反之不可。',
+                '能力 / 基座层不可依赖 modules（HTTP / wiring / 领域服务层）——依赖方向应为 modules → 能力层 → 基座。',
             },
           ],
         },
@@ -175,6 +238,7 @@ export default tseslint.config(
       '**/.next/',
       '**/.expo/',
       '**/next-env.d.ts',
+      'apps/api/src/database/generated/',
       'apps/mobile/ios/',
       'apps/mobile/android/',
       'apps/lumen/ios/',
