@@ -71,6 +71,8 @@ Web / Mobile：
 
 **导入别名**：跨目录用 `@/`（= 各 app 的 `src`），同目录用 `./`；由 `eslint.config.js` 内联规则强制（现成插件在 ESLint 10 崩故自写）。`@/` 在 tsc / vitest / swc(oxc-resolver) 三处各自解析。
 
+**Service / Repository 方法注释规范（结构化 JSDoc）**：`src/modules/*/*.service.ts` 的领域服务方法与 `@/database` 仓储方法，**公共方法一律用结构化 JSDoc 块**：摘要行（讲*做什么*不讲*怎么做*，不重复方法名）→ 隐含契约（是否改入参 / 幂等性 / 事务边界等，`-` 列表，仅在有实质信息时写）→ `@param`（只写类型签名之外的信息：约束 / 默认语义 / 为空时行为）→ `@returns`（返回值代表什么 + 边界情形，如「无匹配返回 null」）→ `@throws`（抛哪些领域错误，如 `RateLimitError` 限流 / `UnauthorizedError` 凭据错）。私有 helper、构造器参数、文件内常量沿用现有单行 `/** */`「讲 why」风格即可。**不写**：重述 TS 类型的散文、「此函数用于……」套话、对调用方无意义的实现细节。补 / 改注释直接走 `/jsdoc` skill（它已按此规范执行）。
+
 **运行期配置**：可种子化配置一律「**代码常量仅作首启种子 → DB → 设置页扩展**」，勿在代码里维护运行期配置。种子在 `apps/api/src/modules/seed`（Seeder + SeedRunner）。数据来源 / Reddit 凭据 / AI 模型 / 翻译 provider 全在 `/settings` 配置入库，**env 不承载任何凭据**。
 
 **密钥**：模型 / 连接器密钥经 `SETTINGS_SECRET`（AES-256-GCM，`kernel` 的 `crypto.ts`）加密入库，API 只返回脱敏值；未配 `SETTINGS_SECRET` 则禁用相关功能。

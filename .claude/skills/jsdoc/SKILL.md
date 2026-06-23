@@ -31,11 +31,11 @@ user-invocable: true
 ```ts
 export enum ConversationStatus {
   /** 等待坐席接入，尚未有人回复 */
-  Pending = "pending",
+  Pending = 'pending',
   /** 坐席已接入，正在进行中 */
-  Active = "active",
+  Active = 'active',
   /** 会话已正常结束 */
-  Closed = "closed",
+  Closed = 'closed',
 }
 ```
 
@@ -95,6 +95,8 @@ function handleSubmit(e: FormEvent) { ... }
 **@param**：只描述类型签名之外的信息——约束、默认语义、为空/零时的行为。
 
 **@returns**：说明返回值*代表什么*，以及边界情形（如"无匹配时返回原列表引用"）。
+
+**@throws**：方法靠抛异常传播失败时（典型：`src/modules/*` 领域服务、`@/database` 仓储抛 `@/common/errors` 的领域错误），逐条写明抛哪个错误类及触发条件，如 `@throws RateLimitError 登录尝试超过滑动窗阈值被锁定`。被全局异常过滤器兜底映射成 HTTP 的领域错误尤其要写——这是调用方/控制器理解失败语义的唯一来源。纯返回 null/空表示失败、不抛错的方法则不写。
 
 **行为注解**：调用方需要知道的隐含契约——是否修改入参、是否幂等、乐观更新占位替换逻辑、排序稳定性、性能特征等。放在摘要行之后、`@param` 之前，以 `-` 列表呈现（仅在有实质信息时添加，不凑字数）。
 
