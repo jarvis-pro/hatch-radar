@@ -41,13 +41,13 @@ export function clearSessionCookie(res: Response): void {
  * @returns cookie 值；缺失返回 undefined
  */
 export function readSessionCookie(req: Request): string | undefined {
-  const header = req.headers?.cookie;
-  if (!header) {
+  const cookieHeader = req.headers?.cookie;
+  if (!cookieHeader) {
     return undefined;
   }
 
   let base: string | undefined;
-  for (const part of header.split(';')) {
+  for (const part of cookieHeader.split(';')) {
     const idx = part.indexOf('=');
     if (idx < 0) {
       continue;
