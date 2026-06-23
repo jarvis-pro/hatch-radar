@@ -534,24 +534,6 @@ model posts {
   @@index([subreddit], map: "idx_posts_subreddit")
 }
 
-/// 同步操作日志：记录各端（如 mobile）下发的写操作，用于离线同步对账与回放。
-model sync_ops {
-  /// 操作唯一 id，做幂等去重。
-  op_id      String @id
-  /// 发起操作的设备标识。
-  device_id  String
-  /// 操作类型。
-  type       String
-  /// 操作目标记录 id。
-  target_id  Int
-  /// 操作载荷（JSON）。
-  payload    Json
-  /// 操作产生时间。
-  created_at BigInt
-  /// 操作被服务端应用的时间。
-  applied_at BigInt
-}
-
 /// 人工筛选：「闭环工作台」对洞察的人工评审结果，与 insights 一对一。
 /// rating 受 CHECK 约束 triage_rating_range（1–5）限定；Prisma 无法表达 CHECK，由迁移 0_init（整合基线）末尾手工维护，勿删。
 model triage {
@@ -599,8 +581,6 @@ model users {
 
   permissions user_permissions[]
   sessions    sessions[]
-  devices     device_credentials[]
-  enrollments device_enrollments[]
 }
 
 /// 普通管理员的「按能力勾选」授权：每行一个被授予的能力 key。
@@ -638,33 +618,7 @@ model sessions {
   @@index([expires_at], map: "idx_sessions_expires")
 }
 
-/// Mobile 设备凭据：绑定到某 user，存设备 Ed25519 公钥；status=revoked 即「强踢」。
-/// 权限不在此存——sync 时从绑定的 user 实时查（改号权限即时生效、停号即全灭）。
-model device_credentials {
-  id           String        @id @default(uuid())
-  /// 绑定账号；权限实时从这里查。
-  user_id      String
-  /// 设备展示名，如「现场 iPad 1」，强踢列表给人看。
-  device_name  String
-  /// 设备 Ed25519 公钥（base64）；私钥永不离设备。
-  public_key   String
-  /// 凭据状态：active | revoked（revoked = 被强踢，下次校验即拒）。
-  status       device_status @default(active)
-  /// 离线宽限窗（天，7/30/60）：滑动续期时 expires_at = now + ttl_days，激活时从 enrollment 带入。
-  ttl_days     Int           @default(30)
-  /// 最长未联网续期时限（epoch 秒）：now + ttl_days，每次成功验签滑动续期；超期需重新赋予。
-  expires_at   BigInt
-  /// 最近一次成功校验 / 同步时间。
-  last_seen_at BigInt?
-  /// 赋予它的管理员 users.id（软引用）。
-  issued_by    String?
-  created_at   BigInt
-  user         users         @relation(fields: [user_id], references: [id], onDelete: Cascade)
-
-  @@index([user_id], map: "idx_devcred_user")
-}
-
-/// 审计日志：敏感与计费相关操作（登录、账户/权限/设备变更、模型密钥变更、触发分析、导出）。
+/// 审计日志：敏感与计费相关操作（登录、账户/权限变更、模型密钥变更、触发分析、导出）。
 /// 操作者删除后 actor_id 保留（软引用）。只追加、不更新。
 model audit_logs {
   id          Int      @id @default(autoincrement())
@@ -697,44 +651,6 @@ enum user_status {
 }
 
 /// 设备凭据状态。
-enum device_status {
-  active
-  revoked
-}
-
-/// 设备激活码（一次性，短有效期）：管理员为某用户「赋予设备」时生成，
-/// 设备端用激活码 + 自生成公钥换取一条 device_credentials（见 api /api/auth/device/enroll）。
-/// 明文码只在生成时给管理员显示一次；库里只存其 sha256（code_hash）。
-model device_enrollments {
-  id          String            @id @default(uuid())
-  /// 激活后凭据将绑定到的账户。
-  user_id     String
-  /// 设备展示名（激活后写入 device_credentials.device_name）。
-  device_name String
-  /// sha256(激活码) 十六进制；按此查激活码，明文不入库。
-  code_hash   String            @unique(map: "idx_enroll_code")
-  /// 离线宽限窗（天）；激活时换算为 device_credentials.expires_at = now + ttl_days。
-  ttl_days    Int               @default(30)
-  /// pending=待激活 / consumed=已激活 / revoked=被取消。
-  status      enrollment_status @default(pending)
-  /// 激活码本身的有效期（epoch 秒，短，如 15 分钟）。
-  expires_at  BigInt
-  /// 赋予的管理员 users.id（软引用）。
-  issued_by   String?
-  created_at  BigInt
-  consumed_at BigInt?
-  user        users             @relation(fields: [user_id], references: [id], onDelete: Cascade)
-
-  @@index([user_id], map: "idx_enroll_user")
-}
-
-/// 设备激活码状态。
-enum enrollment_status {
-  pending
-  consumed
-  revoked
-}
-
 /// 登录失败限流：按邮箱累计失败次数，达阈值锁定一段时间，挡暴力破解（落表以跨进程/重启持久）。
 /// 登录限流计数：按「桶键」寻址（email 维 / IP 维各一行），登录成功即清除相关行；非账户邮箱的尝试也会记（防枚举）。
 model login_attempts {
