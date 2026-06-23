@@ -73,9 +73,9 @@ export function TabBar({ state, descriptors, navigation }: TabBarProps) {
         style={{
           width: '88%',
           maxWidth: 460,
-          backgroundColor: 'rgba(12,13,21,0.94)',
+          backgroundColor: palette.card,
           borderWidth: StyleSheet.hairlineWidth,
-          borderColor: 'rgba(255,255,255,0.08)',
+          borderColor: palette.hairlineSoft,
         }}
       >
         {tabW > 0 ? (

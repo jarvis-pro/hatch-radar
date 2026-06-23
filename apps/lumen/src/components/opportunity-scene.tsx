@@ -98,7 +98,7 @@ export function OpportunityScene({
           <Text style={{ color: hue }} className="font-mono-sb text-[13px]">
             {pad(number)} / {pad(total)}
           </Text>
-          <View style={{ flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: 'rgba(255,255,255,0.16)' }} />
+          <View style={{ flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: palette.hairline }} />
           <Text className="text-[12px] font-sans-md uppercase tracking-wider text-muted-foreground">{op.category}</Text>
         </Animated.View>
 

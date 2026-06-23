@@ -19,6 +19,11 @@ export interface Palette {
   foreground: string;
   mutedForeground: string;
   border: string;
+  /** 自适应分隔线 / 描边（深色=白透明、浅色=墨透明），替代硬编码 rgba(255,255,255,x)。 */
+  hairline: string;
+  hairlineSoft: string;
+  /** 自适应微填充（替代 bg-white/x 在浅色下失效的问题）。 */
+  fill: string;
   primary: string;
   primarySoft: string;
   signal: string;
@@ -35,6 +40,9 @@ const PALETTE: Record<'light' | 'dark', Palette> = {
     foreground: 'hsl(234 28% 12%)',
     mutedForeground: 'hsl(235 10% 44%)',
     border: 'hsl(235 16% 90%)',
+    hairline: 'rgba(17,20,45,0.1)',
+    hairlineSoft: 'rgba(17,20,45,0.06)',
+    fill: 'rgba(17,20,45,0.04)',
     primary: 'hsl(244 76% 62%)',
     primarySoft: 'rgba(89,89,232,0.16)',
     signal: 'hsl(190 95% 40%)',
@@ -53,6 +61,9 @@ const PALETTE: Record<'light' | 'dark', Palette> = {
     foreground: 'hsl(230 24% 96%)',
     mutedForeground: 'hsl(232 14% 66%)',
     border: 'hsl(233 16% 22%)',
+    hairline: 'rgba(255,255,255,0.12)',
+    hairlineSoft: 'rgba(255,255,255,0.08)',
+    fill: 'rgba(255,255,255,0.05)',
     primary: 'hsl(245 92% 72%)',
     primarySoft: 'rgba(124,118,255,0.22)',
     signal: 'hsl(188 95% 52%)',

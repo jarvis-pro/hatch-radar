@@ -46,7 +46,7 @@ function SwipeCardFace({ op, tx, ty }: { op: Opportunity; tx: SharedValue<number
   return (
     <View
       className="flex-1 overflow-hidden rounded-[34px]"
-      style={{ backgroundColor: '#0D0E16', borderWidth: StyleSheet.hairlineWidth, borderColor: `${hue}40` }}
+      style={{ backgroundColor: palette.card, borderWidth: StyleSheet.hairlineWidth, borderColor: `${hue}40` }}
     >
       {/* 卡内强度色场 */}
       <View pointerEvents="none" style={StyleSheet.absoluteFill}>
@@ -199,6 +199,7 @@ const SwipeCard = forwardRef<SwipeCardHandle, { op: Opportunity; onSwipe: (a: 's
 
 /** 叠层预览卡：缩小下移、降透明，制造卡组纵深。 */
 function PreviewCard({ op, depth }: { op: Opportunity; depth: number }) {
+  const palette = usePalette();
   return (
     <Animated.View
       pointerEvents="none"
@@ -209,7 +210,7 @@ function PreviewCard({ op, depth }: { op: Opportunity; depth: number }) {
     >
       <View
         className="flex-1 overflow-hidden rounded-[34px] p-7"
-        style={{ backgroundColor: '#0D0E16', borderWidth: StyleSheet.hairlineWidth, borderColor: `${INTENSITY_GLOW[op.intensity]}33` }}
+        style={{ backgroundColor: palette.card, borderWidth: StyleSheet.hairlineWidth, borderColor: `${INTENSITY_GLOW[op.intensity]}33` }}
       >
         <View className="flex-row items-center gap-2.5">
           <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: INTENSITY_GLOW[op.intensity] }} />
@@ -232,6 +233,7 @@ const ACTIONS: Record<string, { Icon: LucideIcon; tone: string; ring: string; bi
 };
 
 function ActionButton({ kind, color, onPress }: { kind: keyof typeof ACTIONS; color: string; onPress: () => void }) {
+  const palette = usePalette();
   const c = ACTIONS[kind];
   return (
     <PressableScale
@@ -247,7 +249,7 @@ function ActionButton({ kind, color, onPress }: { kind: keyof typeof ACTIONS; co
           c.big ? 'h-16 w-16' : 'h-12 w-12',
           c.ring,
         )}
-        style={{ backgroundColor: '#14151F' }}
+        style={{ backgroundColor: palette.card }}
       >
         <View className={cn('absolute inset-0', c.tone)} />
         <c.Icon size={c.size} color={color} strokeWidth={2.4} />
@@ -258,7 +260,7 @@ function ActionButton({ kind, color, onPress }: { kind: keyof typeof ACTIONS; co
 
 function DeckProgress({ value }: { value: number }) {
   return (
-    <View className="h-1.5 w-24 overflow-hidden rounded-full bg-white/10">
+    <View className="h-1.5 w-24 overflow-hidden rounded-full bg-foreground/10">
       <View className="h-full rounded-full bg-primary" style={{ width: `${Math.round(value * 100)}%` }} />
     </View>
   );

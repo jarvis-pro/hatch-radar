@@ -5,7 +5,7 @@ import type { Opportunity } from '@/data/types';
 import { compact, INTENSITY_META, momentumLabel } from '@/lib/format';
 import { hapticSelect } from '@/lib/haptics';
 import { useStore } from '@/lib/store';
-import { INTENSITY_GLOW } from '@/lib/theme';
+import { INTENSITY_GLOW, usePalette } from '@/lib/theme';
 import { useRouter } from 'expo-router';
 import { useMemo } from 'react';
 import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
@@ -15,10 +15,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 const pad = (n: number) => String(n).padStart(2, '0');
 
 function SavedRow({ op, index, onPress }: { op: Opportunity; index: number; onPress: () => void }) {
+  const palette = usePalette();
   const hue = INTENSITY_GLOW[op.intensity];
   const up = op.momentum >= 0;
   return (
-    <Pressable onPress={onPress} className="px-7 py-6" style={{ borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: 'rgba(255,255,255,0.08)' }}>
+    <Pressable onPress={onPress} className="px-7 py-6" style={{ borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.hairlineSoft }}>
       <View className="mb-3 flex-row items-center gap-3">
         <Text style={{ color: hue }} className="font-mono-sb text-[13px]">
           {pad(index)}

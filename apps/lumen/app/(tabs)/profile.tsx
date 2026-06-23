@@ -27,9 +27,10 @@ const THEME_OPTIONS: { key: ThemeMode; label: string; Icon: LucideIcon }[] = [
 ];
 
 function SectionLabel({ children }: { children: string }) {
+  const palette = usePalette();
   return (
     <View className="mb-5 mt-11 px-7">
-      <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: 'rgba(255,255,255,0.1)' }} className="mb-5" />
+      <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: palette.hairline }} className="mb-5" />
       <Text className="text-[12px] font-sans-sb uppercase tracking-[2px] text-primary">{children}</Text>
     </View>
   );
@@ -60,7 +61,7 @@ function ThemeSegmented() {
   return (
     <View
       onLayout={(e) => setW(e.nativeEvent.layout.width)}
-      className="relative flex-row rounded-2xl border border-white/10 bg-white/5 p-1"
+      className="relative flex-row rounded-2xl border border-border bg-foreground/5 p-1"
     >
       {seg > 0 ? (
         <Animated.View
@@ -97,7 +98,7 @@ function GlassSwitch({ value, onChange }: { value: boolean; onChange: (v: boolea
     p.value = withSpring(value ? 1 : 0, SPRING);
   }, [value, p]);
   const track = useAnimatedStyle(() => ({
-    backgroundColor: interpolateColor(p.value, [0, 1], ['rgba(255,255,255,0.12)', palette.primary]),
+    backgroundColor: interpolateColor(p.value, [0, 1], ['rgba(128,130,150,0.5)', palette.primary]),
   }));
   const knob = useAnimatedStyle(() => ({ transform: [{ translateX: interpolate(p.value, [0, 1], [2, 20]) }] }));
   return (
@@ -175,9 +176,9 @@ export default function ProfileScreen() {
       {/* 统计 */}
       <View className="mt-8 flex-row items-start px-7">
         <Stat value={savedIds.length} label="收藏" />
-        <View style={{ width: StyleSheet.hairlineWidth, backgroundColor: 'rgba(255,255,255,0.12)', marginHorizontal: 16 }} />
+        <View style={{ width: StyleSheet.hairlineWidth, backgroundColor: palette.hairline, marginHorizontal: 16 }} />
         <Stat value={dismissedIds.length} label="已跳过" />
-        <View style={{ width: StyleSheet.hairlineWidth, backgroundColor: 'rgba(255,255,255,0.12)', marginHorizontal: 16 }} />
+        <View style={{ width: StyleSheet.hairlineWidth, backgroundColor: palette.hairline, marginHorizontal: 16 }} />
         <Stat value={OPPORTUNITIES.length} label="追踪机会" />
       </View>
 
@@ -191,7 +192,7 @@ export default function ProfileScreen() {
       <SectionLabel>偏好</SectionLabel>
       <View className="px-7">
         <PrefRow icon={Bell} label="强信号提醒" hint="出现高强度机会时推送" value={notify} onChange={setNotify} />
-        <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: 'rgba(255,255,255,0.08)' }} />
+        <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: palette.hairlineSoft }} />
         <PrefRow icon={Vibrate} label="触感反馈" hint="交互时的轻微震动" value={haptics} onChange={setHaptics} />
       </View>
 

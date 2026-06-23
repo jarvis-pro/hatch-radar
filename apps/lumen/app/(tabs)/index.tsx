@@ -32,7 +32,7 @@ function MiniHeader({ scrollY, height, insets }: { scrollY: SharedValue<number>;
       pointerEvents="none"
       style={[{ position: 'absolute', top: insets.top + 8, left: 0, right: 0, alignItems: 'center' }, style]}
     >
-      <View className="flex-row items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3.5 py-1.5">
+      <View className="flex-row items-center gap-2 rounded-full border border-border bg-foreground/5 px-3.5 py-1.5">
         <PulseDot color={palette.signal} size={6} />
         <Text className="text-[13px] font-sans-bd tracking-tight text-foreground">Lumen</Text>
       </View>

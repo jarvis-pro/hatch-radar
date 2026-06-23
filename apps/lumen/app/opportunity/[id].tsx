@@ -1,4 +1,5 @@
 import { useCountUp } from '@/components/animated-number';
+import { AuroraBackground } from '@/components/aurora-background';
 import { HueWash } from '@/components/editorial';
 import { Text } from '@/components/ui/text';
 import { getOpportunity } from '@/data/opportunities';
@@ -30,7 +31,8 @@ function Stat({ value, label, color }: { value: string; label: string; color?: s
 }
 
 function VRule() {
-  return <View style={{ width: StyleSheet.hairlineWidth, backgroundColor: 'rgba(255,255,255,0.12)', marginHorizontal: 16 }} />;
+  const palette = usePalette();
+  return <View style={{ width: StyleSheet.hairlineWidth, backgroundColor: palette.hairline, marginHorizontal: 16 }} />;
 }
 
 function PainPoint({ text, frequency, delay, hue }: { text: string; frequency: number; delay: number; hue: string }) {
@@ -43,7 +45,7 @@ function PainPoint({ text, frequency, delay, hue }: { text: string; frequency: n
         </Text>
         <Text className="flex-1 text-[15px] leading-6 text-foreground">{text}</Text>
       </View>
-      <View className="mt-3 h-[3px] overflow-hidden rounded-full bg-white/8">
+      <View className="mt-3 h-[3px] overflow-hidden rounded-full bg-foreground/[0.08]">
         <View className="h-full rounded-full" style={{ width: `${v}%`, backgroundColor: hue }} />
       </View>
     </View>
@@ -81,7 +83,8 @@ export default function OpportunityDetail() {
   const up = op.momentum >= 0;
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: palette.background }}>
+      <AuroraBackground />
       <HueWash color={hue} opacity={0.52} />
 
       {/* 巨型幽灵分数（与场景延续，固定 + 缓速视差） */}
@@ -139,7 +142,7 @@ export default function OpportunityDetail() {
         </View>
 
         {/* 用户痛点 */}
-        <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: 'rgba(255,255,255,0.1)' }} className="mt-14" />
+        <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: palette.hairline }} className="mt-14" />
         <Text className="mb-7 mt-6 text-[12px] font-sans-sb uppercase tracking-[2px]" style={{ color: hue }}>
           用户痛点
         </Text>
@@ -148,7 +151,7 @@ export default function OpportunityDetail() {
         ))}
 
         {/* 社区原声 */}
-        <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: 'rgba(255,255,255,0.1)' }} className="mt-14" />
+        <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: palette.hairline }} className="mt-14" />
         <Text className="mb-7 mt-6 text-[12px] font-sans-sb uppercase tracking-[2px]" style={{ color: hue }}>
           社区原声
         </Text>
@@ -163,7 +166,7 @@ export default function OpportunityDetail() {
               <Text className="ml-1 font-mono-sb text-[12px] text-signal">{compact(ev.upvotes)}</Text>
             </View>
             {i < op.evidence.length - 1 ? (
-              <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: 'rgba(255,255,255,0.1)', marginTop: 22 }} />
+              <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: palette.hairline, marginTop: 22 }} />
             ) : null}
           </View>
         ))}
@@ -197,7 +200,7 @@ export default function OpportunityDetail() {
         <Pressable
           onPress={() => router.back()}
           hitSlop={10}
-          className="h-9 w-9 items-center justify-center rounded-full border border-white/12 bg-white/8"
+          className="h-9 w-9 items-center justify-center rounded-full border border-border bg-foreground/[0.08]"
         >
           <ChevronLeft size={22} color={palette.foreground} strokeWidth={2.4} />
         </Pressable>
@@ -208,7 +211,7 @@ export default function OpportunityDetail() {
             toggleSave(op.id);
           }}
           hitSlop={10}
-          className="h-9 w-9 items-center justify-center rounded-full border border-white/12 bg-white/8"
+          className="h-9 w-9 items-center justify-center rounded-full border border-border bg-foreground/[0.08]"
         >
           <Bookmark size={18} color={saved ? hue : palette.foreground} fill={saved ? hue : 'transparent'} strokeWidth={2.3} />
         </Pressable>
