@@ -37,6 +37,7 @@ export class CommentsRepository {
    * @param incoming 从 API 抓取的最新评论列表；传空数组时仅推进阶段计数
    * @param pass 本次完成的回捞阶段（1 或 2）
    * @param fetchedAt 本次回捞 Unix 时间戳（秒）
+   * @returns changed=本次抓取的评论内容较上次快照是否有变化（驱动复查退避 / 重列）
    */
   async replaceComments(
     postId: string,
@@ -90,6 +91,7 @@ export class CommentsRepository {
   /**
    * 取出指定帖子的全部评论，按深度升序、分数降序排列。
    * @param postId 目标帖子 ID
+   * @returns 评论列表（域类型）；无评论时为空数组
    */
   async getCommentsForPost(postId: string): Promise<CommentRow[]> {
     const rows = await this.db.comments.findMany({
@@ -104,6 +106,7 @@ export class CommentsRepository {
    * 取某帖全部评论原始 Prisma 行（深度升序、分数降序），供帖子一生详情合成楼层树
    * （时间戳仍为 bigint，由调用方的评论树构建器折算）。
    * @param postId 目标帖子 ID
+   * @returns 原始 Prisma 评论行；无评论时为空数组
    */
   async listRawForPost(postId: string): Promise<CommentPg[]> {
     return this.db.comments.findMany({

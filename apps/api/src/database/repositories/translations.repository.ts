@@ -31,17 +31,23 @@ export interface TranslationProgress {
 
 /** worker 回写的译文结果行 */
 export interface TranslationUpsert {
+  /** 源文本内容哈希（= translations.content_hash 主键，upsert 据此覆盖） */
   contentHash: string;
+  /** 源字段类型（标题 / 正文 / 评论） */
   sourceField: TranslationField;
   /** 检测出的源语种（zh → status=skipped；其余 → 译文落 text） */
   sourceLang: string | null;
   /** 中文译文（done 时非空；skipped/failed 为 null） */
   text: string | null;
+  /** 产出译文的 provider 类型（skipped 时为 null） */
   providerKind: TranslationProviderKind | null;
+  /** 产出译文的模型配置 id（skipped 时为 null） */
   providerId: number | null;
+  /** 落库状态（done / skipped / failed 等） */
   status: TranslationStatus;
   /** 计费用源字符数 */
   charCount: number | null;
+  /** 失败原因（status=failed 时有值） */
   lastError: string | null;
 }
 

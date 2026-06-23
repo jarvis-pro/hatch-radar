@@ -14,7 +14,9 @@ export type { ProcessRow };
 
 /** 新建进程入参（图纸 + 触发节奏） */
 export interface NewProcessInput {
+  /** 绑定的图纸 id */
   blueprintId: number;
+  /** 展示名 */
   label: string;
   /** once | interval | cron */
   triggerKind: TriggerKind;
@@ -26,7 +28,10 @@ export interface NewProcessInput {
   nextRunAt?: number | null;
 }
 
-/** 更新进程入参（均可选，未给的字段不动） */
+/**
+ * 更新进程入参（均可选，未给的字段不动）。
+ * 语义同 {@link NewProcessInput} 对应字段。
+ */
 export interface UpdateProcessInput {
   label?: string;
   triggerKind?: TriggerKind;
@@ -43,6 +48,12 @@ export interface UpdateProcessInput {
 export class ProcessesRepository {
   constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
 
+  /**
+   * 新建进程（绑定图纸 + 触发节奏）。
+   * @param input 进程字段（见 {@link NewProcessInput}）
+   * @param now 创建时刻 Unix 时间戳（秒）
+   * @returns 新建的进程行
+   */
   async createProcess(input: NewProcessInput, now: number): Promise<ProcessRow> {
     const row = await this.db.processes.create({
       data: {
@@ -63,13 +74,21 @@ export class ProcessesRepository {
     return toProcessRow(row);
   }
 
+  /**
+   * 按 id 取进程。
+   * @param id 进程 id
+   * @returns 进程行；不存在时返回 null
+   */
   async getProcess(id: number): Promise<ProcessRow | null> {
     const row = await this.db.processes.findUnique({ where: { id } });
 
     return row ? toProcessRow(row) : null;
   }
 
-  /** 列出进程（可按图纸过滤），id 倒序。 */
+  /**
+   * 列出进程（可按图纸过滤），id 倒序。
+   * @param blueprintId 仅列绑定该图纸的进程；省略则列全部
+   */
   async listProcesses(blueprintId?: number): Promise<ProcessRow[]> {
     const rows = await this.db.processes.findMany({
       where: blueprintId != null ? { blueprint_id: blueprintId } : {},
@@ -79,7 +98,10 @@ export class ProcessesRepository {
     return rows.map((r: ProcessPg) => toProcessRow(r));
   }
 
-  /** 到期可触发的进程：active 且 next_run_at ≤ now，按到期时刻升序（供调度心跳）。 */
+  /**
+   * 到期可触发的进程：active 且 next_run_at ≤ now，按到期时刻升序（供调度心跳）。
+   * @param now 当前 Unix 时间戳（秒）
+   */
   async listDue(now: number): Promise<ProcessRow[]> {
     const rows = await this.db.processes.findMany({
       where: { status: 'active', next_run_at: { not: null, lte: BigInt(now) } },
@@ -89,6 +111,12 @@ export class ProcessesRepository {
     return rows.map((r: ProcessPg) => toProcessRow(r));
   }
 
+  /**
+   * 局部更新进程（仅覆盖 patch 中给出的字段）。
+   * @param id 进程 id
+   * @param patch 仅含需更新的字段（见 {@link UpdateProcessInput}）
+   * @param now 更新时刻 Unix 时间戳（秒）
+   */
   async updateProcess(id: number, patch: UpdateProcessInput, now: number): Promise<void> {
     const data: Prisma.processesUpdateInput = { updated_at: BigInt(now) };
     if (patch.label !== undefined) {
@@ -117,7 +145,12 @@ export class ProcessesRepository {
     await this.db.processes.update({ where: { id }, data });
   }
 
-  /** 置状态（active / paused）。 */
+  /**
+   * 置状态（active / paused）。
+   * @param id 进程 id
+   * @param status 目标状态
+   * @param now 更新时刻 Unix 时间戳（秒）
+   */
   async setStatus(id: number, status: ProcessStatus, now: number): Promise<void> {
     await this.db.processes.update({
       where: { id },
@@ -125,7 +158,12 @@ export class ProcessesRepository {
     });
   }
 
-  /** 置下次触发时刻（null=不自动触发）。 */
+  /**
+   * 置下次触发时刻（null=不自动触发）。
+   * @param id 进程 id
+   * @param nextRunAt 下次到期触发时刻（epoch 秒）；null=不自动触发
+   * @param now 更新时刻 Unix 时间戳（秒）
+   */
   async setNextRunAt(id: number, nextRunAt: number | null, now: number): Promise<void> {
     await this.db.processes.update({
       where: { id },
@@ -133,7 +171,11 @@ export class ProcessesRepository {
     });
   }
 
-  /** 触发记账：runs_total++、last_run_at=now、next_run_at=null（待运行完成后重排）。 */
+  /**
+   * 触发记账：runs_total++、last_run_at=now、next_run_at=null（待运行完成后重排）。
+   * @param id 进程 id
+   * @param now 触发时刻 Unix 时间戳（秒）
+   */
   async markFired(id: number, now: number): Promise<void> {
     await this.db.processes.update({
       where: { id },
@@ -146,7 +188,11 @@ export class ProcessesRepository {
     });
   }
 
-  /** sweep 自增并返回新值（复查每开一轮调用，驱动退避到期判定）。 */
+  /**
+   * sweep 自增并返回新值（复查每开一轮调用，驱动退避到期判定）。
+   * @param id 进程 id
+   * @returns 自增后的 sweep 序号
+   */
   async bumpSweep(id: number): Promise<number> {
     const row = await this.db.processes.update({
       where: { id },
@@ -156,6 +202,10 @@ export class ProcessesRepository {
     return row.sweep_seq;
   }
 
+  /**
+   * 删除进程。
+   * @param id 进程 id
+   */
   async deleteProcess(id: number): Promise<void> {
     await this.db.processes.delete({ where: { id } });
   }

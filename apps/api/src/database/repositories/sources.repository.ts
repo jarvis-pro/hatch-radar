@@ -8,11 +8,15 @@ export type { SourceRow };
 
 /** 新建/更新采集来源的输入 */
 export interface SourceInput {
+  /** 数据来源平台（reddit / hackernews / rss） */
   platform: SourcePlatform;
+  /** 来源标识（如 subreddit 名 / RSS URL） */
   identifier: string;
+  /** 展示名；省略为空串 */
   label?: string;
   /** 平台特定参数(JSON)：reddit={sorts:["hot","new"],limit:25} */
   config?: unknown;
+  /** 是否启用；省略按启用处理 */
   enabled?: boolean;
 }
 
@@ -31,7 +35,10 @@ export class SourcesRepository {
     return rows.map(toSourceRow);
   }
 
-  /** 列出某平台「已启用」的来源（调度抓取用） */
+  /**
+   * 列出某平台「已启用」的来源（调度抓取用）。
+   * @param platform 数据来源平台
+   */
   async listEnabledByPlatform(platform: SourcePlatform): Promise<SourceRow[]> {
     const rows = await this.db.sources.findMany({
       where: { platform, enabled: true },
@@ -41,7 +48,11 @@ export class SourcesRepository {
     return rows.map(toSourceRow);
   }
 
-  /** 按 ID 取单条来源 */
+  /**
+   * 按 ID 取单条来源。
+   * @param id 来源 id
+   * @returns 来源行；不存在时返回 undefined
+   */
   async getSource(id: number): Promise<SourceRow | undefined> {
     const row = await this.db.sources.findUnique({ where: { id } });
 
@@ -53,7 +64,12 @@ export class SourcesRepository {
     return this.db.sources.count();
   }
 
-  /** 新建来源 */
+  /**
+   * 新建来源。
+   * @param input 来源配置（见 {@link SourceInput}）
+   * @param now 创建时刻 Unix 时间戳（秒）
+   * @returns 新建来源的 id
+   */
   async createSource(input: SourceInput, now: number): Promise<number> {
     const row = await this.db.sources.create({
       data: {
@@ -71,7 +87,13 @@ export class SourcesRepository {
     return row.id;
   }
 
-  /** 更新来源（仅更新提供的字段） */
+  /**
+   * 更新来源（仅更新提供的字段）。
+   * @param id 来源 id
+   * @param fields 仅含需更新的字段
+   * @param now 更新时刻 Unix 时间戳（秒）
+   * @returns 是否写入（false = 无可更新字段，或来源不存在）
+   */
   async updateSource(id: number, fields: Partial<SourceInput>, now: number): Promise<boolean> {
     const data: Record<string, unknown> = {};
     if (fields.platform !== undefined) {
@@ -104,7 +126,11 @@ export class SourcesRepository {
     return res.count > 0;
   }
 
-  /** 删除来源 */
+  /**
+   * 删除来源。
+   * @param id 来源 id
+   * @returns 是否删除（false = 来源不存在）
+   */
   async deleteSource(id: number): Promise<boolean> {
     const res = await this.db.sources.deleteMany({ where: { id } });
 

@@ -105,7 +105,10 @@ export class InsightsRepository {
 
   // ─── 雷达只读视图（指挥室 / 收成洞察库 / 详情）─────────────────────────────────────
 
-  /** 创建时间 ≥ sinceSec 的洞察数（指挥室「今日洞察」）。 */
+  /**
+   * 创建时间 ≥ sinceSec 的洞察数（指挥室「今日洞察」）。
+   * @param sinceSec 起始 Unix 时间戳（秒，含下界）
+   */
   async countSince(sinceSec: number): Promise<number> {
     return this.db.insights.count({ where: { created_at: { gte: BigInt(sinceSec) } } });
   }
@@ -135,7 +138,10 @@ export class InsightsRepository {
     return where;
   }
 
-  /** 收成洞察库筛选后的总数（分页 total）。 */
+  /**
+   * 收成洞察库筛选后的总数（分页 total）。
+   * @param f 洞察库筛选条件
+   */
   async countForRadar(f: RadarInsightFilter): Promise<number> {
     return this.db.insights.count({ where: this.radarWhere(f) });
   }
@@ -143,6 +149,9 @@ export class InsightsRepository {
   /**
    * 收成洞察库一页（原始 Prisma 行供服务合成 DTO）。
    * sort=pain 按强度升序 + 时间倒序，否则纯时间倒序。
+   * @param f 洞察库筛选 + 排序条件
+   * @param skip 分页偏移
+   * @param take 本页条数
    */
   async listForRadar(f: RadarInsightFilter, skip: number, take: number): Promise<InsightPgRow[]> {
     const orderBy =
@@ -153,17 +162,26 @@ export class InsightsRepository {
     return this.db.insights.findMany({ where: this.radarWhere(f), orderBy, skip, take });
   }
 
-  /** 按 id 取单条洞察原始 Prisma 行；不存在返回 null。 */
+  /**
+   * 按 id 取单条洞察原始 Prisma 行；不存在返回 null。
+   * @param id 洞察 id
+   */
   async getRawById(id: number): Promise<InsightPgRow | null> {
     return this.db.insights.findUnique({ where: { id } });
   }
 
-  /** 按 post_id 取单条洞察原始 Prisma 行（一帖至多一条）；不存在返回 null。 */
+  /**
+   * 按 post_id 取单条洞察原始 Prisma 行（一帖至多一条）；不存在返回 null。
+   * @param postId 帖子 id
+   */
   async getRawByPostId(postId: string): Promise<InsightPgRow | null> {
     return this.db.insights.findUnique({ where: { post_id: postId } });
   }
 
-  /** 取某洞察的人工研判（triage）原始行；无则 null。 */
+  /**
+   * 取某洞察的人工研判（triage）原始行；无则 null。
+   * @param insightId 洞察 id
+   */
   async getTriageByInsightId(insightId: number): Promise<TriagePgRow | null> {
     return this.db.triage.findUnique({ where: { insight_id: insightId } });
   }

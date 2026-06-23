@@ -6,9 +6,13 @@ import { PENDING_ANALYSIS_PREDICATE } from './posts.repository';
 
 /** 数据库各表计数概览 */
 export interface DbStats {
+  /** posts 表总行数 */
   posts: number;
+  /** comments 表总行数 */
   comments: number;
+  /** 待分析帖子数（口径 = PENDING_ANALYSIS_PREDICATE，与入队取数一致） */
   pendingAnalysis: number;
+  /** insights 表总行数 */
   insights: number;
 }
 

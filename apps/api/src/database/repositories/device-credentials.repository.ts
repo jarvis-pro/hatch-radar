@@ -24,7 +24,11 @@ export class DeviceCredentialsRepository {
     }));
   }
 
-  /** 取设备凭据 + 所属账户角色（强踢前的层级校验用）。 */
+  /**
+   * 取设备凭据 + 所属账户角色（强踢前的层级校验用）。
+   * @param id 设备凭据 id
+   * @returns 凭据 id / 所属用户 id / 用户角色；不存在时返回 null
+   */
   async findByIdWithOwnerRole(
     id: string,
   ): Promise<{ id: string; userId: string; ownerRole: UserRole } | null> {
@@ -39,7 +43,10 @@ export class DeviceCredentialsRepository {
     return { id: cred.id, userId: cred.user_id, ownerRole: cred.user.role as UserRole };
   }
 
-  /** 强踢：吊销设备凭据（下次验签即被拒）。 */
+  /**
+   * 强踢：吊销设备凭据（下次验签即被拒）。
+   * @param id 设备凭据 id
+   */
   async revoke(id: string): Promise<void> {
     await this.db.device_credentials.update({ where: { id }, data: { status: 'revoked' } });
   }

@@ -63,6 +63,7 @@ export class CostRepository {
   /**
    * 成本统计（finished_at ≥ sinceSec 的成功分析任务）：按 (provider, model) 汇总四类 token，
    * 按各 provider 单价 + 缓存倍率（CACHE_MULT）折算成本；未配单价的模型 cost 为 null。
+   * @param sinceSec 起始 Unix 时间戳（秒，含下界，按任务 finished_at 过滤）
    */
   async getCostStats(sinceSec: number): Promise<{
     totals: {
@@ -168,6 +169,7 @@ export class CostRepository {
    * 近 days 天每日 token 用量与折算成本（0 填充的密集序列，服务端按统一时区分桶）。
    * 成本口径与 {@link getCostStats} 完全一致（按 provider 单价 + 缓存倍率折算）；当天没有任何
    * 带单价模型的任务时 cost 为 null（只有用量、不折算）。前端按 7/14/30 天切片即可画走势。
+   * @param days 回看天数（生成含今天的密集日期轴）
    */
   async getDailyCost(days: number): Promise<DailyCostPoint[]> {
     // 密集日期轴（DB 时区；与下方分桶同源 to_char，保证 key 对齐）
@@ -243,7 +245,10 @@ export class CostRepository {
     return axis.map(({ date }) => byDate.get(date) ?? empty(date));
   }
 
-  /** 近 days 天每日完成的分析任务数 + 当日洞察分布（0 填充的密集序列，服务端按统一时区分桶）。 */
+  /**
+   * 近 days 天每日完成的分析任务数 + 当日洞察分布（0 填充的密集序列，服务端按统一时区分桶）。
+   * @param days 回看天数（生成含今天的密集日期轴）
+   */
   async getThroughput(days: number): Promise<ThroughputPoint[]> {
     return this.db.$queryRaw<ThroughputPoint[]>`
       SELECT

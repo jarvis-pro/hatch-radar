@@ -32,7 +32,12 @@ export interface NewRequest {
 export class RequestQueueRepository {
   constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
 
-  /** 开始一条请求（status=running），返回 id。请求闸在真正发请求前调用。 */
+  /**
+   * 开始一条请求（status=running），返回 id。请求闸在真正发请求前调用。
+   * @param input 请求元信息（见 {@link NewRequest}）
+   * @param now 开始时刻 Unix 时间戳（秒）
+   * @returns 新建请求记录的 id
+   */
   async startRequest(input: NewRequest, now: number): Promise<number> {
     const row = await this.db.request_queue.create({
       data: {
@@ -50,7 +55,13 @@ export class RequestQueueRepository {
     return row.id;
   }
 
-  /** 收尾一条请求（done / failed）+ 结束时间 + 可选错误。 */
+  /**
+   * 收尾一条请求（done / failed）+ 结束时间 + 可选错误。
+   * @param id 请求记录 id（startRequest 返回）
+   * @param status 终态：done 成功 / failed 失败
+   * @param error 失败原因；null 表示无（落库前截断至 500 字符）
+   * @param now 结束时刻 Unix 时间戳（秒）
+   */
   async finishRequest(
     id: number,
     status: 'done' | 'failed',
@@ -67,14 +78,20 @@ export class RequestQueueRepository {
     });
   }
 
-  /** 最近请求（id 倒序），供控制台展示。 */
+  /**
+   * 最近请求（id 倒序），供控制台展示。
+   * @param limit 最多返回条数
+   */
   async listRecent(limit: number): Promise<RequestQueueRow[]> {
     const rows = await this.db.request_queue.findMany({ orderBy: { id: 'desc' }, take: limit });
 
     return rows.map((r: RequestQueuePg) => toRequestQueueRow(r));
   }
 
-  /** 按 lane 统计在途（running）+ 最近一小时完成数，供控制台 lane 概览。 */
+  /**
+   * 按 lane 统计在途（running）+ 最近一小时完成数，供控制台 lane 概览。
+   * @param sinceSec 「最近完成」的起始 Unix 时间戳（秒）；finished_at ≥ 此值计入 recent
+   */
   async laneCounts(sinceSec: number): Promise<{ lane: string; running: number; recent: number }[]> {
     return this.db.$queryRaw<{ lane: string; running: number; recent: number }[]>`
       SELECT lane,

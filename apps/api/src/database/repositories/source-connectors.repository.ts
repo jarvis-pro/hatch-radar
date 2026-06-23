@@ -11,50 +11,75 @@ export type { SourceConnectorRow };
 
 /** Reddit OAuth 凭据：连接器 secret 的 JSON 明文形状（auth_kind=oauth） */
 export interface RedditOAuthSecret {
+  /** Reddit 应用 client id */
   clientId: string;
+  /** Reddit 应用 client secret */
   clientSecret: string;
+  /** Reddit 账号用户名 */
   username: string;
+  /** Reddit 账号密码 */
   password: string;
+  /** 请求 User-Agent（Reddit 要求唯一标识，缺失会被限流 / 拒绝） */
   userAgent: string;
 }
 
 /** 新建连接器的输入（secret 为明文凭据，入库前加密为 JSON 密文） */
 export interface ConnectorInput {
+  /** 平台（目前仅 reddit 需凭据连接器） */
   platform: SourcePlatform;
+  /** 鉴权方式：oauth（官方 API）/ scrape（自托管爬虫） */
   authKind: ConnectorAuthKind;
+  /** 明文凭据对象（按 authKind 解释，如 RedditOAuthSecret）；入库前整体加密为 JSON 密文 */
   secret: Record<string, unknown>;
+  /** 备注名；省略为空串 */
   label?: string;
+  /** 同平台多连接器的选取优先级（越小越先用）；省略为 0 */
   priority?: number;
+  /** 是否启用；省略按启用处理 */
   enabled?: boolean;
 }
 
 /** 更新连接器：secret 提供时整体重设并清空上次连通性结果（需重新测试才可用） */
 export interface ConnectorUpdate {
+  /** 备注名 */
   label?: string;
+  /** 选取优先级（越小越先用） */
   priority?: number;
+  /** 是否启用 */
   enabled?: boolean;
+  /** 明文凭据对象；提供即整体覆盖并清空上次连通性结果（须重新测试通过才可再用） */
   secret?: Record<string, unknown>;
 }
 
 /** 脱敏连接器视图：永不含明文凭据 */
 export interface ConnectorDTO {
   id: number;
+  /** 平台（reddit / …） */
   platform: SourcePlatform;
+  /** 备注名 */
   label: string;
+  /** 鉴权方式：oauth / scrape */
   authKind: ConnectorAuthKind;
+  /** 是否启用 */
   enabled: boolean;
+  /** 选取优先级（越小越先用） */
   priority: number;
   /** 脱敏摘要，如 `clientId abc…xyz · u/username` */
   summary: string;
   /** 最近测试结果；null=从未测试（未测则不可用，门禁不放行其来源） */
   lastCheckOk: boolean | null;
+  /** 最近测试时刻（epoch 秒）；从未测试为 null */
   lastCheckAt: number | null;
+  /** 最近测试失败原因；通过 / 从未测试为 null */
   lastCheckError: string | null;
   createdAt: number;
   updatedAt: number;
 }
 
-/** 把连接器密文凭据解密为明文对象（仅服务端内部用，如构建 Reddit 客户端） */
+/**
+ * 把连接器密文凭据解密为明文对象（仅服务端内部用，如构建 Reddit 客户端）。
+ * @param row 连接器行（取其 secret 密文解密）
+ */
 export function decryptConnectorSecret(row: SourceConnectorRow): Record<string, unknown> {
   return JSON.parse(decryptSecret(row.secret)) as Record<string, unknown>;
 }
@@ -77,7 +102,10 @@ function summarize(row: SourceConnectorRow): string {
   }
 }
 
-/** 把连接器行转成脱敏 DTO（API 返回用）。 */
+/**
+ * 把连接器行转成脱敏 DTO（API 返回用）。
+ * @param row 连接器行
+ */
 export function toConnectorDTO(row: SourceConnectorRow): ConnectorDTO {
   return {
     id: row.id,
@@ -112,7 +140,11 @@ export class SourceConnectorsRepository {
     return rows.map(toSourceConnectorRow);
   }
 
-  /** 按 ID 取单个连接器 */
+  /**
+   * 按 ID 取单个连接器。
+   * @param id 连接器 id
+   * @returns 连接器行；不存在时返回 undefined
+   */
   async getConnector(id: number): Promise<SourceConnectorRow | undefined> {
     const row = await this.db.source_connectors.findUnique({ where: { id } });
 
@@ -122,6 +154,8 @@ export class SourceConnectorsRepository {
   /**
    * 取某平台当前「可用」的连接器（enabled 且最近测试通过），按优先级升序取第一条。
    * 用于抓取时选取凭据，以及来源门禁判定。
+   * @param platform 数据来源平台
+   * @returns 可用连接器（优先级最高的一条）；无则 undefined
    */
   async getUsableConnector(platform: SourcePlatform): Promise<SourceConnectorRow | undefined> {
     const row = await this.db.source_connectors.findFirst({
@@ -132,7 +166,10 @@ export class SourceConnectorsRepository {
     return row ? toSourceConnectorRow(row) : undefined;
   }
 
-  /** 某平台是否有可用连接器（门禁：放行该平台的来源 enabled） */
+  /**
+   * 某平台是否有可用连接器（门禁：放行该平台的来源 enabled）。
+   * @param platform 数据来源平台
+   */
   async hasUsableConnector(platform: SourcePlatform): Promise<boolean> {
     const count = await this.db.source_connectors.count({
       where: { platform, enabled: true, last_check_ok: true },
@@ -141,7 +178,12 @@ export class SourceConnectorsRepository {
     return count > 0;
   }
 
-  /** 新建连接器（凭据 JSON 加密入库；last_check_* 留空，须测试通过后才可用） */
+  /**
+   * 新建连接器（凭据 JSON 加密入库；last_check_* 留空，须测试通过后才可用）。
+   * @param input 连接器配置（见 {@link ConnectorInput}）
+   * @param now 创建时刻 Unix 时间戳（秒）
+   * @returns 新建连接器的 id
+   */
   async createConnector(input: ConnectorInput, now: number): Promise<number> {
     const row = await this.db.source_connectors.create({
       data: {
@@ -163,6 +205,9 @@ export class SourceConnectorsRepository {
   /**
    * 更新连接器。重填 secret 时整体覆盖，并清空上次连通性结果（last_check_* 置空）——
    * 凭据变了必须重新测试通过才能再被选用，避免旧「测试通过」状态放行新凭据。
+   * @param id 连接器 id
+   * @param fields 仅含需更新的字段（见 {@link ConnectorUpdate}）
+   * @param now 更新时刻 Unix 时间戳（秒）
    * @returns 是否有记录被更新
    */
   async updateConnector(id: number, fields: ConnectorUpdate, now: number): Promise<boolean> {
@@ -196,14 +241,24 @@ export class SourceConnectorsRepository {
     return res.count > 0;
   }
 
-  /** 删除连接器 */
+  /**
+   * 删除连接器。
+   * @param id 连接器 id
+   * @returns 是否删除（false = 连接器不存在）
+   */
   async deleteConnector(id: number): Promise<boolean> {
     const res = await this.db.source_connectors.deleteMany({ where: { id } });
 
     return res.count > 0;
   }
 
-  /** 记录一次连通性测试结果（门禁依赖 last_check_ok） */
+  /**
+   * 记录一次连通性测试结果（门禁依赖 last_check_ok）。
+   * @param id 连接器 id
+   * @param ok 是否测试通过
+   * @param error 失败原因；ok 时忽略（落库前截断至 500 字符）
+   * @param now 测试时刻 Unix 时间戳（秒）
+   */
   async recordCheck(id: number, ok: boolean, error: string | null, now: number): Promise<void> {
     await this.db.source_connectors.updateMany({
       where: { id },

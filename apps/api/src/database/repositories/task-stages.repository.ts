@@ -24,7 +24,10 @@ const MAX_ERROR_CHARS = 500;
 export class TaskStagesRepository {
   constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
 
-  /** 取某任务全部环节（按 seq 升序，决定执行与展示顺序）。 */
+  /**
+   * 取某任务全部环节（按 seq 升序，决定执行与展示顺序）。
+   * @param taskId 任务 id
+   */
   async listStages(taskId: number): Promise<TaskStageRow[]> {
     const rows = await this.db.task_stages.findMany({
       where: { task_id: taskId },
@@ -37,6 +40,8 @@ export class TaskStagesRepository {
   /**
    * 批量取多个任务的环节，按 task_id 分组（一次查询 + 内存分组）——消除任务树逐任务查 listStages 的
    * N+1（进程详情页一次请求可有上百任务）。每组内按 seq 升序。
+   * @param taskIds 任务 id 集合（空数组直接返回空 Map）
+   * @returns 任务 id → 其环节列表（seq 升序）
    */
   async listStagesByTasks(taskIds: number[]): Promise<Map<number, TaskStageRow[]>> {
     const grouped = new Map<number, TaskStageRow[]>();
@@ -60,7 +65,13 @@ export class TaskStagesRepository {
     return grouped;
   }
 
-  /** 标记环节开始：status→running、记录开始时间与输入摘要（展示用）。 */
+  /**
+   * 标记环节开始：status→running、记录开始时间与输入摘要（展示用）。
+   * @param taskId 任务 id
+   * @param seq 环节序号
+   * @param inputSummary 输入摘要（展示用；null 写 JSON null）
+   * @param now 开始时刻 Unix 时间戳（秒）
+   */
   async markStageRunning(
     taskId: number,
     seq: number,
@@ -79,7 +90,13 @@ export class TaskStagesRepository {
     });
   }
 
-  /** 标记环节完成：status→done、写入产物（检查点）与结束时间。 */
+  /**
+   * 标记环节完成：status→done、写入产物（检查点）与结束时间。
+   * @param taskId 任务 id
+   * @param seq 环节序号
+   * @param output 产物（检查点；下游环节重认领时的输入。null 写 JSON null）
+   * @param now 完成时刻 Unix 时间戳（秒）
+   */
   async markStageDone(taskId: number, seq: number, output: unknown, now: number): Promise<void> {
     await this.db.task_stages.updateMany({
       where: { task_id: taskId, seq },
@@ -91,7 +108,12 @@ export class TaskStagesRepository {
     });
   }
 
-  /** 标记环节跳过（如复查未变化时跳过 recrawl / persist 环节）。 */
+  /**
+   * 标记环节跳过（如复查未变化时跳过 recrawl / persist 环节）。
+   * @param taskId 任务 id
+   * @param seq 环节序号
+   * @param now 结束时刻 Unix 时间戳（秒）
+   */
   async markStageSkipped(taskId: number, seq: number, now: number): Promise<void> {
     await this.db.task_stages.updateMany({
       where: { task_id: taskId, seq },
@@ -99,7 +121,13 @@ export class TaskStagesRepository {
     });
   }
 
-  /** 标记环节失败：status→failed、记录失败原因与结束时间。 */
+  /**
+   * 标记环节失败：status→failed、记录失败原因与结束时间。
+   * @param taskId 任务 id
+   * @param seq 环节序号
+   * @param error 失败原因（落库前截断至 500 字符）
+   * @param now 结束时刻 Unix 时间戳（秒）
+   */
   async markStageFailed(taskId: number, seq: number, error: string, now: number): Promise<void> {
     await this.db.task_stages.updateMany({
       where: { task_id: taskId, seq },
@@ -107,7 +135,11 @@ export class TaskStagesRepository {
     });
   }
 
-  /** 单环节是否仍挂闸门（worker 在暂停决策前回读：使「运行到底」清闸对执行中的任务即时生效）。 */
+  /**
+   * 单环节是否仍挂闸门（worker 在暂停决策前回读：使「运行到底」清闸对执行中的任务即时生效）。
+   * @param taskId 任务 id
+   * @param seq 环节序号
+   */
   async isStageGated(taskId: number, seq: number): Promise<boolean> {
     const row = await this.db.task_stages.findFirst({
       where: { task_id: taskId, seq },
@@ -117,12 +149,21 @@ export class TaskStagesRepository {
     return row?.gate ?? false;
   }
 
-  /** 清除整条任务所有环节的闸门（「运行到底」：连续跑完剩余环节、不再逐环节暂停）。 */
+  /**
+   * 清除整条任务所有环节的闸门（「运行到底」：连续跑完剩余环节、不再逐环节暂停）。
+   * @param taskId 任务 id
+   */
   async clearGates(taskId: number): Promise<void> {
     await this.db.task_stages.updateMany({ where: { task_id: taskId }, data: { gate: false } });
   }
 
-  /** 运行前挂 / 摘某环节暂停点：仅 pending 环节可改（已跑过的不可改）；返回是否生效。 */
+  /**
+   * 运行前挂 / 摘某环节暂停点：仅 pending 环节可改（已跑过的不可改）。
+   * @param taskId 任务 id
+   * @param seq 环节序号
+   * @param gate true=挂闸门；false=摘除
+   * @returns 是否生效（false = 该环节非 pending）
+   */
   async setStageGate(taskId: number, seq: number, gate: boolean): Promise<boolean> {
     const res = await this.db.task_stages.updateMany({
       where: { task_id: taskId, seq, status: 'pending' },
@@ -135,6 +176,8 @@ export class TaskStagesRepository {
   /**
    * 重试复位：把失败环节退回 pending、清空产物 / 错误 / 时间戳，使重认领后从此环节重跑。
    * 调用方须随后把整条任务由 failed 置回 queued（见 {@link TasksRepository.requeueFailedTask}）。
+   * @param taskId 任务 id
+   * @param seq 环节序号（通常为当前失败环节 current_seq）
    */
   async resetStageToPending(taskId: number, seq: number): Promise<void> {
     await this.db.task_stages.updateMany({

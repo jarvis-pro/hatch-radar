@@ -16,14 +16,22 @@ const CONFIG_VERSION_KEY = 'analysis_config_version';
 export class SettingsRepository {
   constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
 
-  /** 读取一个全局配置项 */
+  /**
+   * 读取一个全局配置项。
+   * @param key 配置键
+   * @returns 配置值；不存在时返回 undefined
+   */
   async getSetting(key: string): Promise<string | undefined> {
     const row = await this.db.app_settings.findUnique({ where: { key }, select: { value: true } });
 
     return row?.value;
   }
 
-  /** 写入（或覆盖）一个全局配置项 */
+  /**
+   * 写入（或覆盖）一个全局配置项。
+   * @param key 配置键
+   * @param value 配置值
+   */
   async setSetting(key: string, value: string): Promise<void> {
     await this.db.app_settings.upsert({
       where: { key },
@@ -34,6 +42,8 @@ export class SettingsRepository {
 
   /**
    * 仅当 key 不存在时插入（ON CONFLICT DO NOTHING），用于幂等播种——绝不覆盖已有值。
+   * @param key 配置键
+   * @param value 初始值（仅 key 不存在时写入）
    * @returns 实际插入的行数（1=新播种 / 0=已存在），供调用方统计
    */
   insertSettingIfAbsent(key: string, value: string): Promise<number> {
@@ -43,7 +53,10 @@ export class SettingsRepository {
     `;
   }
 
-  /** 删除一个全局配置项 */
+  /**
+   * 删除一个全局配置项。
+   * @param key 配置键
+   */
   async deleteSetting(key: string): Promise<void> {
     await this.db.app_settings.deleteMany({ where: { key } });
   }
@@ -63,7 +76,10 @@ export class SettingsRepository {
     return Number.isInteger(n) ? n : null;
   }
 
-  /** 设置（或清空）当前选用的模型配置 ID */
+  /**
+   * 设置（或清空）当前选用的模型配置 ID。
+   * @param id 模型配置 id；传 null 清空（停止自动分析）
+   */
   async setActiveProviderId(id: number | null): Promise<void> {
     if (id == null) {
       await this.deleteSetting(ACTIVE_PROVIDER_KEY);
@@ -87,7 +103,10 @@ export class SettingsRepository {
     return Number.isInteger(n) ? n : null;
   }
 
-  /** 设置（或清空）翻译用模型配置 ID */
+  /**
+   * 设置（或清空）翻译用模型配置 ID。
+   * @param id 模型配置 id；传 null 清空（翻译回落 active）
+   */
   async setTranslationProviderId(id: number | null): Promise<void> {
     if (id == null) {
       await this.deleteSetting(TRANSLATION_PROVIDER_KEY);

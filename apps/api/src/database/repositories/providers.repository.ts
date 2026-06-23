@@ -17,12 +17,17 @@ export type { ProviderRow, ProviderApiKeyRow };
 
 /** 新建/更新模型接入配置的标量字段（不含密钥——密钥走 Key 池） */
 export interface ProviderInput {
+  /** provider 类型（anthropic / openai / deepseek / claude_cli / azure） */
   provider: ProviderKind;
+  /** 展示名 */
   label: string;
+  /** 自定义 API 基址（兼容端点）；undefined=不改，null/''=清除 */
   baseUrl?: string | null;
   /** Azure Translator 资源区域（如 eastasia）；仅 azure 用，写 Ocp-Apim-Subscription-Region 头。undefined=不改，null/''=清除 */
   region?: string | null;
+  /** 模型名 */
   model: string;
+  /** 是否启用；省略按启用处理 */
   enabled?: boolean;
   /** 输入/输出 token 单价（美元 / 1M tokens）；undefined=不改，null=清除 */
   inputPrice?: number | null;
@@ -31,30 +36,42 @@ export interface ProviderInput {
 
 /** 新建一把 Key 的输入（apiKey 为明文，入库前加密） */
 export interface KeyInput {
+  /** API Key 明文（入库前 AES 加密） */
   apiKey: string;
+  /** 备注名；省略为空串 */
   label?: string;
+  /** 故障转移优先级（越小越先用）；省略为 0 */
   priority?: number;
 }
 
 /** 更新一把 Key 的可改字段；reset=true 时把 cooling/invalid 复位为 active */
 export interface KeyUpdate {
+  /** 备注名 */
   label?: string;
+  /** 故障转移优先级（越小越先用） */
   priority?: number;
+  /** 是否启用 */
   enabled?: boolean;
+  /** true 时把 cooling/invalid 复位为 active 并清冷却 / 错误（人工复位用） */
   reset?: boolean;
 }
 
 /** 脱敏的单把 Key 视图：API 返回用，永不含明文密钥 */
 export interface ProviderKeyDTO {
   id: number;
+  /** 备注名 */
   label: string;
+  /** 故障转移优先级（越小越先用） */
   priority: number;
+  /** 是否启用 */
   enabled: boolean;
+  /** 运行期健康态：active 可用 / cooling 限流冷却中 / invalid 鉴权失败需人工复位 */
   status: ApiKeyStatus;
   /** 仅供展示的脱敏密钥，如 `sk-a…wxyz` */
   keyMasked: string;
   /** cooling 的解冻时刻（epoch 秒），active/invalid 时为 null */
   cooldownUntil: number | null;
+  /** 最近一次失败原因（限流 / 鉴权）；无则 null */
   lastError: string | null;
   createdAt: number;
   updatedAt: number;
@@ -63,12 +80,17 @@ export interface ProviderKeyDTO {
 /** 脱敏的模型接入配置视图：含 Key 池摘要，永不含明文密钥 */
 export interface ProviderDTO {
   id: number;
+  /** provider 类型（anthropic / openai / deepseek / claude_cli / azure） */
   provider: ProviderKind;
+  /** 展示名 */
   label: string;
+  /** 模型名 */
   model: string;
+  /** 自定义 API 基址；未设为 null */
   baseUrl: string | null;
   /** Azure Translator 资源区域；仅 azure 非空 */
   region: string | null;
+  /** 是否启用 */
   enabled: boolean;
   /** 输入 token 单价（美元 / 1M tokens），未配置为 null */
   inputPrice: number | null;
@@ -82,7 +104,9 @@ export interface ProviderDTO {
 
 /** 模型接入配置 + 其 Key 池（仅服务端内部使用，keys 含密文） */
 export interface ProviderWithKeys {
+  /** 模型接入配置标量行 */
   provider: ProviderRow;
+  /** 该模型的 Key 池（含密文，按 priority 升序） */
   keys: ProviderApiKeyRow[];
 }
 
@@ -100,7 +124,10 @@ function maskKey(cipher: string): string {
   }
 }
 
-/** 把一把 Key 行转成脱敏 DTO（API 返回用）。 */
+/**
+ * 把一把 Key 行转成脱敏 DTO（API 返回用）。
+ * @param k Key 行（含密文，内部脱敏）
+ */
 export function toProviderKeyDTO(k: ProviderApiKeyRow): ProviderKeyDTO {
   return {
     id: k.id,
@@ -116,7 +143,11 @@ export function toProviderKeyDTO(k: ProviderApiKeyRow): ProviderKeyDTO {
   };
 }
 
-/** 把「模型 + Key 池」转成脱敏 DTO（API 返回用）。 */
+/**
+ * 把「模型 + Key 池」转成脱敏 DTO（API 返回用）。
+ * @param provider 模型接入配置标量行
+ * @param keys 该模型的 Key 池（含密文，内部脱敏）
+ */
 export function toProviderDTO({ provider, keys }: ProviderWithKeys): ProviderDTO {
   return {
     id: provider.id,
@@ -151,7 +182,11 @@ export class ProvidersRepository {
     return rows.map(toProviderRow);
   }
 
-  /** 按 ID 取单条模型配置（标量） */
+  /**
+   * 按 ID 取单条模型配置（标量）。
+   * @param id 模型配置 id
+   * @returns 模型配置行；不存在时返回 undefined
+   */
   async getProvider(id: number): Promise<ProviderRow | undefined> {
     const row = await this.db.model_providers.findUnique({ where: { id } });
 
@@ -179,7 +214,10 @@ export class ProvidersRepository {
     return providers.map((provider) => ({ provider, keys: byProvider.get(provider.id) ?? [] }));
   }
 
-  /** 取单条模型配置及其 Key 池；不存在时返回 undefined */
+  /**
+   * 取单条模型配置及其 Key 池；不存在时返回 undefined。
+   * @param id 模型配置 id
+   */
   async getProviderWithKeys(id: number): Promise<ProviderWithKeys | undefined> {
     const provider = await this.getProvider(id);
     if (!provider) {
@@ -240,6 +278,9 @@ export class ProvidersRepository {
 
   /**
    * 更新模型配置标量字段（不含密钥；密钥走 Key 池端点）。
+   * @param id 模型配置 id
+   * @param fields 仅含需更新的标量字段
+   * @param now 更新时刻 Unix 时间戳（秒）
    * @returns 是否有记录被更新
    */
   async updateProvider(id: number, fields: Partial<ProviderInput>, now: number): Promise<boolean> {
@@ -289,7 +330,11 @@ export class ProvidersRepository {
   /**
    * 改 base_url 的安全闸用：更新标量字段并把整个 Key 池替换成一把新 Key（事务内）。
    * 改 base_url 时若不重置密钥，旧密钥会被发往新地址——故强制连同重填，旧 Key 全清。
+   * @param id 模型配置 id
+   * @param fields 仅含需更新的标量字段
    * @param newKey 新的唯一 API Key 明文（加密入库为 priority 0 主 Key）
+   * @param now 更新时刻 Unix 时间戳（秒）
+   * @returns 是否有记录被更新（false = 模型配置不存在）
    */
   async updateProviderAndResetKeys(
     id: number,
@@ -354,7 +399,11 @@ export class ProvidersRepository {
     });
   }
 
-  /** 删除模型配置（其 Key 池随外键级联删除） */
+  /**
+   * 删除模型配置（其 Key 池随外键级联删除）。
+   * @param id 模型配置 id
+   * @returns 是否删除（false = 不存在）
+   */
   async deleteProvider(id: number): Promise<boolean> {
     const res = await this.db.model_providers.deleteMany({ where: { id } });
 
@@ -363,7 +412,10 @@ export class ProvidersRepository {
 
   // ── API Key 池 ────────────────────────────────────────────────────────
 
-  /** 列出某模型的全部 Key（按 priority 升序；含密文，仅内部用） */
+  /**
+   * 列出某模型的全部 Key（按 priority 升序；含密文，仅内部用）。
+   * @param providerId 模型配置 id
+   */
   async listKeysForProvider(providerId: number): Promise<ProviderApiKeyRow[]> {
     const rows = await this.db.provider_api_keys.findMany({
       where: { provider_id: providerId },
@@ -373,7 +425,11 @@ export class ProvidersRepository {
     return rows.map(toProviderApiKeyRow);
   }
 
-  /** 按 ID 取单把 Key（含密文，仅内部用） */
+  /**
+   * 按 ID 取单把 Key（含密文，仅内部用）。
+   * @param keyId Key id
+   * @returns Key 行；不存在时返回 undefined
+   */
   async getKey(keyId: number): Promise<ProviderApiKeyRow | undefined> {
     const row = await this.db.provider_api_keys.findUnique({ where: { id: keyId } });
 
@@ -383,6 +439,7 @@ export class ProvidersRepository {
   /**
    * 取某模型当前「可用」的 Key（按优先级升序）：enabled 且 status=active，
    * 或 status=cooling 但已过 cooldown_until（视为已解冻）。供故障转移选取与逐把切换。
+   * @param providerId 模型配置 id
    * @param now 当前 Unix 时间戳（秒）
    */
   async listUsableKeys(providerId: number, now: number): Promise<ProviderApiKeyRow[]> {
@@ -398,7 +455,13 @@ export class ProvidersRepository {
     return rows.map(toProviderApiKeyRow);
   }
 
-  /** 新增一把 Key（密钥加密入库），返回自增 ID */
+  /**
+   * 新增一把 Key（密钥加密入库），返回自增 ID。
+   * @param providerId 所属模型配置 id
+   * @param input 新 Key（明文 + 备注 + 优先级，见 {@link KeyInput}）
+   * @param now 创建时刻 Unix 时间戳（秒）
+   * @returns 新 Key id
+   */
   async createKey(providerId: number, input: KeyInput, now: number): Promise<number> {
     const row = await this.db.provider_api_keys.create({
       data: {
@@ -419,6 +482,9 @@ export class ProvidersRepository {
 
   /**
    * 更新一把 Key 的备注/优先级/启停；reset=true 时把状态复位为 active 并清冷却/错误。
+   * @param keyId Key id
+   * @param fields 待更新字段（见 {@link KeyUpdate}）
+   * @param now 更新时刻 Unix 时间戳（秒）
    * @returns 是否有记录被更新
    */
   async updateKey(keyId: number, fields: KeyUpdate, now: number): Promise<boolean> {
@@ -451,14 +517,22 @@ export class ProvidersRepository {
     return res.count > 0;
   }
 
-  /** 删除一把 Key */
+  /**
+   * 删除一把 Key。
+   * @param keyId Key id
+   * @returns 是否删除（false = 不存在）
+   */
   async deleteKey(keyId: number): Promise<boolean> {
     const res = await this.db.provider_api_keys.deleteMany({ where: { id: keyId } });
 
     return res.count > 0;
   }
 
-  /** 统计某模型「可用」Key 数（enabled 且 active/已解冻 cooling），用于设为 active 前的校验 */
+  /**
+   * 统计某模型「可用」Key 数（enabled 且 active/已解冻 cooling），用于设为 active 前的校验。
+   * @param providerId 模型配置 id
+   * @param now 当前 Unix 时间戳（秒）
+   */
   async countUsableKeys(providerId: number, now: number): Promise<number> {
     return this.db.provider_api_keys.count({
       where: {
@@ -471,7 +545,10 @@ export class ProvidersRepository {
 
   /**
    * 标记一把 Key 进入限流冷却：到 cooldownUntil 前不再选用，之后自动恢复可用。
+   * @param keyId Key id
    * @param cooldownUntil 解冻时刻（epoch 秒）
+   * @param error 触发冷却的错误（落库前截断至 500 字符）
+   * @param now 更新时刻 Unix 时间戳（秒）
    */
   async markKeyCooling(
     keyId: number,
@@ -493,7 +570,12 @@ export class ProvidersRepository {
     });
   }
 
-  /** 标记一把 Key 失效（鉴权失败/额度耗尽，需人工复位），不自动恢复 */
+  /**
+   * 标记一把 Key 失效（鉴权失败/额度耗尽，需人工复位），不自动恢复。
+   * @param keyId Key id
+   * @param error 失效原因（落库前截断至 500 字符）
+   * @param now 更新时刻 Unix 时间戳（秒）
+   */
   async markKeyInvalid(keyId: number, error: string, now: number): Promise<void> {
     await this.db.provider_api_keys.update({
       where: { id: keyId },

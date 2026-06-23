@@ -15,9 +15,11 @@ export type { BlueprintRow };
 export interface NewBlueprintInput {
   /** 复用 task_kind；实际仅用 collect / recheck / analyze / translate（不会是 discover）。 */
   kind: TaskKind;
+  /** 展示名 */
   label: string;
   /** 备注 */
   note?: string | null;
+  /** 是否启用；省略为 true */
   enabled?: boolean;
   /** 来源筛选：[{kind,channels[]}]（JSON） */
   sources?: unknown;
@@ -29,7 +31,10 @@ export interface NewBlueprintInput {
   enabledStages?: unknown;
 }
 
-/** 更新图纸入参（均可选，未给的字段不动） */
+/**
+ * 更新图纸入参（均可选，未给的字段不动）。
+ * 语义同 {@link NewBlueprintInput} 对应字段。
+ */
 export interface UpdateBlueprintInput {
   label?: string;
   note?: string | null;
@@ -48,6 +53,12 @@ export interface UpdateBlueprintInput {
 export class BlueprintsRepository {
   constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
 
+  /**
+   * 新建一份图纸；未给的 JSON 配方字段（sources/gates/enabledStages）走 DB 默认 []。
+   * @param input 图纸字段（见 {@link NewBlueprintInput}）
+   * @param now 创建时刻 Unix 时间戳（秒）
+   * @returns 新建的图纸行
+   */
   async createBlueprint(input: NewBlueprintInput, now: number): Promise<BlueprintRow> {
     const row = await this.db.blueprints.create({
       data: {
@@ -69,13 +80,21 @@ export class BlueprintsRepository {
     return toBlueprintRow(row);
   }
 
+  /**
+   * 按 id 取图纸。
+   * @param id 图纸 id
+   * @returns 图纸行；不存在时返回 null
+   */
   async getBlueprint(id: number): Promise<BlueprintRow | null> {
     const row = await this.db.blueprints.findUnique({ where: { id } });
 
     return row ? toBlueprintRow(row) : null;
   }
 
-  /** 列出图纸（可按 kind 过滤），id 倒序。 */
+  /**
+   * 列出图纸（可按 kind 过滤），id 倒序。
+   * @param kind 仅列该类型；省略则列全部
+   */
   async listBlueprints(kind?: TaskKind): Promise<BlueprintRow[]> {
     const rows = await this.db.blueprints.findMany({
       where: kind ? { kind } : {},
@@ -85,6 +104,12 @@ export class BlueprintsRepository {
     return rows.map((r: BlueprintPg) => toBlueprintRow(r));
   }
 
+  /**
+   * 局部更新图纸（仅覆盖 patch 中给出的字段）。
+   * @param id 图纸 id
+   * @param patch 仅含需更新的字段（见 {@link UpdateBlueprintInput}）
+   * @param now 更新时刻 Unix 时间戳（秒）
+   */
   async updateBlueprint(id: number, patch: UpdateBlueprintInput, now: number): Promise<void> {
     const data: Prisma.blueprintsUpdateInput = { updated_at: BigInt(now) };
     if (patch.label !== undefined) {
@@ -119,6 +144,10 @@ export class BlueprintsRepository {
     await this.db.blueprints.update({ where: { id }, data });
   }
 
+  /**
+   * 删除图纸（是否仍被进程引用的校验在服务层）。
+   * @param id 图纸 id
+   */
   async deleteBlueprint(id: number): Promise<void> {
     await this.db.blueprints.delete({ where: { id } });
   }

@@ -196,6 +196,8 @@ export class PostsRepository {
   /**
    * 写回复查结果状态：连续未变次数 / 下次到期 sweep / 最近复查时间。
    * 评论变化标记（comments_changed_at）由 {@link CommentsRepository.replaceComments} 内处理。
+   * @param postId 目标帖子 id
+   * @param state misses=连续未变次数 / dueSweep=下次到期 sweep / lastRecheckedAt=最近复查 Unix 秒
    */
   async updateRecheckState(
     postId: string,
@@ -239,12 +241,18 @@ export class PostsRepository {
 
   // ─── 雷达只读视图（指挥室 / 帖子库 / 详情）─────────────────────────────────────────
 
-  /** 抓取时间 ≥ sinceSec 的帖子数（指挥室「今日采集」）。 */
+  /**
+   * 抓取时间 ≥ sinceSec 的帖子数（指挥室「今日采集」）。
+   * @param sinceSec 起始 Unix 时间戳（秒，含下界）
+   */
   async countFetchedSince(sinceSec: number): Promise<number> {
     return this.db.posts.count({ where: { fetched_at: { gte: BigInt(sinceSec) } } });
   }
 
-  /** 到期可复查的旧帖数（非 rss、已抓评论、recheck_due_sweep ≤ sweep），供指挥室复查健康。 */
+  /**
+   * 到期可复查的旧帖数（非 rss、已抓评论、recheck_due_sweep ≤ sweep），供指挥室复查健康。
+   * @param sweep 当前复查 sweep 序号
+   */
   async countRecheckDue(sweep: number): Promise<number> {
     return this.db.posts.count({
       where: {
@@ -304,12 +312,22 @@ export class PostsRepository {
     return where;
   }
 
-  /** 帖子库筛选后的总数（分页 total）。 */
+  /**
+   * 帖子库筛选后的总数（分页 total）。
+   * @param f 帖子库筛选条件
+   * @param sweep 当前复查 sweep 序号（status=due 判定到期用）
+   */
   async countForRadar(f: RadarPostFilter, sweep: number): Promise<number> {
     return this.db.posts.count({ where: this.radarWhere(f, sweep) });
   }
 
-  /** 帖子库一页（created_utc 倒序，原始 Prisma 行供服务合成 DTO）。 */
+  /**
+   * 帖子库一页（created_utc 倒序，原始 Prisma 行供服务合成 DTO）。
+   * @param f 帖子库筛选条件
+   * @param sweep 当前复查 sweep 序号（status=due 判定到期用）
+   * @param skip 分页偏移
+   * @param take 本页条数
+   */
   async listForRadar(
     f: RadarPostFilter,
     sweep: number,
@@ -324,19 +342,30 @@ export class PostsRepository {
     });
   }
 
-  /** 按 id 取单帖原始 Prisma 行（供帖子一生详情合成）；不存在返回 null。 */
+  /**
+   * 按 id 取单帖原始 Prisma 行（供帖子一生详情合成）。
+   * @param id 帖子 id
+   * @returns 原始 Prisma 行；不存在时返回 null
+   */
   async getRawById(id: string): Promise<PostPg | null> {
     return this.db.posts.findUnique({ where: { id } });
   }
 
-  /** 帖子是否在库（含 30 天归档后已删除则不在）。供洞察详情标注源帖是否仍存在。 */
+  /**
+   * 帖子是否在库（含 30 天归档后已删除则不在）。供洞察详情标注源帖是否仍存在。
+   * @param id 帖子 id
+   */
   async exists(id: string): Promise<boolean> {
     const row = await this.db.posts.findUnique({ where: { id }, select: { id: true } });
 
     return row != null;
   }
 
-  /** 一批帖子 id → title_hash（供按内容哈希 join 译文标题）。 */
+  /**
+   * 一批帖子 id → title_hash（供按内容哈希 join 译文标题）。
+   * @param ids 帖子 id 集合（自动去重；空数组直接返回空 Map）
+   * @returns 帖子 id → title_hash（无标题哈希为 null）
+   */
   async titleHashByIds(ids: string[]): Promise<Map<string, string | null>> {
     const uniq = [...new Set(ids)];
     if (uniq.length === 0) {
@@ -351,7 +380,10 @@ export class PostsRepository {
     return new Map(rows.map((p) => [p.id, p.title_hash]));
   }
 
-  /** 一批帖子 id → {id, source, title}（供运行详情任务树标注来源 / 标题）。 */
+  /**
+   * 一批帖子 id → {id, source, title}（供运行详情任务树标注来源 / 标题）。
+   * @param ids 帖子 id 集合（空数组直接返回空数组）
+   */
   async listSummaryByIds(ids: string[]): Promise<{ id: string; source: string; title: string }[]> {
     if (ids.length === 0) {
       return [];

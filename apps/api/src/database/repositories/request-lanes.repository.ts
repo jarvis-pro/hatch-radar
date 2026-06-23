@@ -17,14 +17,20 @@ export type { RequestLaneRow };
 export class RequestLanesRepository {
   constructor(@Inject(PRISMA) private readonly db: AppDatabase) {}
 
-  /** 取一条 lane 配置；不存在返回 null。 */
+  /**
+   * 取一条 lane 配置；不存在返回 null。
+   * @param lane lane 标识（reddit / hackernews / rss / ai-* 等）
+   */
   async getLane(lane: string): Promise<RequestLaneRow | null> {
     const row = await this.db.request_lanes.findUnique({ where: { lane } });
 
     return row ? toRequestLaneRow(row) : null;
   }
 
-  /** 该 lane 是否暂停（不存在视为未暂停）。请求闸放行前读取。 */
+  /**
+   * 该 lane 是否暂停（不存在视为未暂停）。请求闸放行前读取。
+   * @param lane lane 标识
+   */
   async isPaused(lane: string): Promise<boolean> {
     const row = await this.db.request_lanes.findUnique({
       where: { lane },
@@ -41,7 +47,11 @@ export class RequestLanesRepository {
     return rows.map((r: RequestLanePg) => toRequestLaneRow(r));
   }
 
-  /** 确保 lane 存在（首次出现以默认值建行，使其在控制台可见）。 */
+  /**
+   * 确保 lane 存在（首次出现以默认值建行，使其在控制台可见）。
+   * @param lane lane 标识
+   * @param now 当前 Unix 时间戳（秒）
+   */
   async ensureLane(lane: string, now: number): Promise<void> {
     await this.db.request_lanes.upsert({
       where: { lane },
@@ -50,7 +60,12 @@ export class RequestLanesRepository {
     });
   }
 
-  /** 暂停 / 恢复某 lane（不存在则建行）。 */
+  /**
+   * 暂停 / 恢复某 lane（不存在则建行）。
+   * @param lane lane 标识
+   * @param paused true=暂停（请求闸不放行该 lane）；false=恢复
+   * @param now 当前 Unix 时间戳（秒）
+   */
   async setPaused(lane: string, paused: boolean, now: number): Promise<void> {
     await this.db.request_lanes.upsert({
       where: { lane },
