@@ -16,9 +16,6 @@ catalog:
   # 主存储 PostgreSQL：api 用 pg；ORM 用 Prisma（塌缩后仅 apps/api 直依赖 @prisma/*，未入 catalog）
   pg: ^8.21.0
   '@types/pg': ^8.20.0
-  # 导出 .sqlite 产物仍用 better-sqlite3（server 导出路径 + 历史迁移脚本）
-  better-sqlite3: ^12.10.0
-  '@types/better-sqlite3': ^7.6.13
   # 运行时校验
   zod: ^4.4.3
   # UI 工具（ui 库与 mobile 共用同款）
@@ -29,10 +26,9 @@ catalog:
   # 图表（ui 提供 shadcn chart 封装，web 直接组合 recharts 原语）
   recharts: 3.8.0
 
-# better-sqlite3 / esbuild / @tailwindcss/oxide 需要运行原生模块安装脚本
+# esbuild / @tailwindcss/oxide 需要运行原生模块安装脚本
 onlyBuiltDependencies:
   - '@tailwindcss/oxide'
-  - better-sqlite3
   - esbuild
 
 # input-otp 的 d.ts 引 react 却未声明 @types/react 可选 peer，
