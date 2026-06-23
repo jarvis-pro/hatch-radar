@@ -9,7 +9,6 @@ import {
   Post,
   Req,
   Res,
-  UseGuards,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
@@ -17,9 +16,8 @@ import type { CurrentUser } from '@hatch-radar/shared';
 import { ZodValidationPipe } from '@/common/zod-validation.pipe';
 import { AccountService } from './account.service';
 import type { AuthedUser } from '@/types/auth-context';
-import { AuthUser } from './auth-user.decorator';
+import { AuthUser, Public } from './auth-user.decorator';
 import { clearSessionCookie, setSessionCookie } from './cookies';
-import { SessionAuthGuard } from './session-auth.guard';
 
 /** 登录入参：邮箱（归一为小写）+ 明文口令（服务内比对 scrypt 哈希）。 */
 const loginSchema = z.object({
@@ -58,13 +56,14 @@ function toCurrentUser({ sessionId: _sessionId, ...user }: AuthedUser): CurrentU
 
 /**
  * /api/auth/* —— 人鉴权权威端点（会话登录/登出/校验/改密/会话管理/资料）。
- * 登录公开；其余挂 SessionAuthGuard（读 httpOnly cookie 校验）。
+ * 登录以 @Public 豁免全局守卫；其余端点受全局会话守卫保护（读 httpOnly cookie 校验）。
  */
 @Controller('auth')
 export class AccountController {
   constructor(private readonly account: AccountService) {}
 
   /** POST /api/auth/login —— 校验后 Set-Cookie: radar_session（HttpOnly），返回用户态。 */
+  @Public()
   @Post('login')
   @HttpCode(200)
   async login(
@@ -83,7 +82,6 @@ export class AccountController {
 
   /** GET /api/auth/session —— 返回当前用户态（SPA 进站取一次 + 路由守卫）。 */
   @Get('session')
-  @UseGuards(SessionAuthGuard)
   session(@AuthUser() user: AuthedUser): { user: CurrentUser } {
     return { user: toCurrentUser(user) };
   }
@@ -91,7 +89,6 @@ export class AccountController {
   /** POST /api/auth/logout —— 吊销当前会话 + 过期 cookie（会话已由守卫解析，凭 sessionId 直接删）。 */
   @Post('logout')
   @HttpCode(200)
-  @UseGuards(SessionAuthGuard)
   async logout(
     @AuthUser() user: AuthedUser,
     @Res({ passthrough: true }) res: Response,
@@ -105,7 +102,6 @@ export class AccountController {
   /** POST /api/auth/change-password —— 校验当前密码后改密，吊销其余会话。 */
   @Post('change-password')
   @HttpCode(200)
-  @UseGuards(SessionAuthGuard)
   async changePassword(
     @AuthUser() user: AuthedUser,
     @Body(new ZodValidationPipe(changePasswordSchema)) dto: z.infer<typeof changePasswordSchema>,
@@ -117,7 +113,6 @@ export class AccountController {
 
   /** PATCH /api/auth/profile —— 改本人姓名。 */
   @Patch('profile')
-  @UseGuards(SessionAuthGuard)
   async updateProfile(
     @AuthUser() user: AuthedUser,
     @Body(new ZodValidationPipe(profileSchema)) dto: z.infer<typeof profileSchema>,
@@ -129,7 +124,6 @@ export class AccountController {
 
   /** PATCH /api/auth/avatar —— 改本人头像（DiceBear seed；avatar=null 恢复首字母）。 */
   @Patch('avatar')
-  @UseGuards(SessionAuthGuard)
   async updateAvatar(
     @AuthUser() user: AuthedUser,
     @Body(new ZodValidationPipe(avatarSchema)) dto: z.infer<typeof avatarSchema>,
@@ -141,14 +135,12 @@ export class AccountController {
 
   /** GET /api/auth/sessions —— 本人当前会话列表（标记当前会话）。 */
   @Get('sessions')
-  @UseGuards(SessionAuthGuard)
   sessions(@AuthUser() user: AuthedUser) {
     return this.account.listSessions(user);
   }
 
   /** DELETE /api/auth/sessions/:id —— 登出指定会话（仅本人）。 */
   @Delete('sessions/:id')
-  @UseGuards(SessionAuthGuard)
   async revokeSession(
     @AuthUser() user: AuthedUser,
     @Param('id') id: string,
@@ -161,7 +153,6 @@ export class AccountController {
   /** POST /api/auth/sessions/revoke-others —— 登出除当前外的其它会话。 */
   @Post('sessions/revoke-others')
   @HttpCode(200)
-  @UseGuards(SessionAuthGuard)
   async revokeOthers(@AuthUser() user: AuthedUser): Promise<{ ok: true }> {
     await this.account.revokeOtherSessions(user);
 

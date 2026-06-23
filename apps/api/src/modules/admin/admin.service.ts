@@ -47,7 +47,7 @@ function tempPassword(): string {
 /**
  * 账户管理服务（后端归一 P2：原 web lib/admin/* 整体迁来，行为不变）。
  *
- * 能力闸（accounts:manage）由控制器的 SessionAuthGuard + @RequirePermission 强制；
+ * 能力闸（accounts:manage）由全局会话守卫 + @RequirePermission 强制；
  * 本服务只做「超管层级 / 最后一个超管 / 不能操作自己」等业务校验与审计，校验失败抛 HttpException。
  */
 @Injectable()

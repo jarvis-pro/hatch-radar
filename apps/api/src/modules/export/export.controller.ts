@@ -1,7 +1,6 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query } from '@nestjs/common';
 import type { ExportBatch } from '@hatch-radar/shared';
 import { RequirePermission } from '@/modules/account/auth-user.decorator';
-import { SessionAuthGuard } from '@/modules/account/session-auth.guard';
 import { parseExportFilter } from '@/modules/export/export-query';
 import { ExportService } from '@/modules/export/export.service';
 import { logger } from '@/logger';
@@ -11,7 +10,6 @@ import { logger } from '@/logger';
  *
  * - GET /api/export/batch   JSON 批次；查询参数 since / minIntensity / subreddit / limit
  */
-@UseGuards(SessionAuthGuard)
 @RequirePermission('export:run')
 @Controller('export')
 export class ExportController {

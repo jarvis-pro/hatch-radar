@@ -7,12 +7,10 @@ import {
   Param,
   Patch,
   Post,
-  UseGuards,
 } from '@nestjs/common';
 import { z } from 'zod';
 import type { AuthedUser } from '@/types/auth-context';
 import { AuthUser, RequirePermission } from '@/modules/account/auth-user.decorator';
-import { SessionAuthGuard } from '@/modules/account/session-auth.guard';
 import { ZodValidationPipe } from '@/common/zod-validation.pipe';
 import { AdminService } from './admin.service';
 
@@ -53,9 +51,8 @@ const statusSchema = z.object({
 
 /**
  * /api/admin/* —— 账户 / 权限管理（需 accounts:manage）。
- * 写方法由 SessionAuthGuard 强制 CSRF 头；超管层级 / 最后一个超管等业务校验在 AdminService。
+ * 写方法由全局会话守卫强制 CSRF 头；超管层级 / 最后一个超管等业务校验在 AdminService。
  */
-@UseGuards(SessionAuthGuard)
 @RequirePermission('accounts:manage')
 @Controller('admin')
 export class AdminController {

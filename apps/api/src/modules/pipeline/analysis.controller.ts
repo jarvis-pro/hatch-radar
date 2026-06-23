@@ -7,11 +7,9 @@ import {
   NotFoundException,
   Param,
   Post,
-  UseGuards,
 } from '@nestjs/common';
 import { z } from 'zod';
 import { RequirePermission } from '@/modules/account/auth-user.decorator';
-import { SessionAuthGuard } from '@/modules/account/session-auth.guard';
 import { ZodValidationPipe } from '@/common/zod-validation.pipe';
 import { ProvidersRepository, SettingsRepository } from '@/database';
 import { TaskControlService } from '@/modules/pipeline/task-control.service';
@@ -48,7 +46,6 @@ function parseJobId(raw: string): number {
  * - POST /api/analysis/inspect/:jobId/retry-step 重试当前失败节点
  * - POST /api/analysis/inspect/:jobId/cancel     取消检视任务
  */
-@UseGuards(SessionAuthGuard)
 @RequirePermission('analyze:run')
 @Controller('analysis')
 export class AnalysisController {

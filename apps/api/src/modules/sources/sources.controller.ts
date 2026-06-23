@@ -7,11 +7,9 @@ import {
   ParseIntPipe,
   Post,
   Put,
-  UseGuards,
 } from '@nestjs/common';
 import { z } from 'zod';
 import { RequirePermission } from '@/modules/account/auth-user.decorator';
-import { SessionAuthGuard } from '@/modules/account/session-auth.guard';
 import { ZodValidationPipe } from '@/common/zod-validation.pipe';
 import { type ConnectorInput } from '@/database';
 import { SourcesService } from '@/modules/sources/sources.service';
@@ -90,7 +88,6 @@ const updateConnectorSchema = z.object({
  * /api/sources/* —— 采集来源（爬虫计划）CRUD + 概览。
  * 编排与 Reddit 服务端闸在 {@link SourcesService}；本控制器仅做入参校验，业务失败由服务抛 DomainError。
  */
-@UseGuards(SessionAuthGuard)
 @RequirePermission('settings:manage')
 @Controller('sources')
 export class SourcesController {
@@ -134,7 +131,6 @@ export class SourcesController {
  * /api/source-connectors/* —— 采集连接器（需鉴权平台的凭据）CRUD + 连通性测试。
  * 凭据加密入库、仅脱敏外发；改 secret 会清空上次测试结果（须重测才可用）。
  */
-@UseGuards(SessionAuthGuard)
 @RequirePermission('settings:manage')
 @Controller('source-connectors')
 export class SourceConnectorsController {

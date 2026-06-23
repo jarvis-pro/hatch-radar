@@ -7,10 +7,8 @@ import {
   NotFoundException,
   Param,
   Post,
-  UseGuards,
 } from '@nestjs/common';
 import { RequirePermission } from '@/modules/account/auth-user.decorator';
-import { SessionAuthGuard } from '@/modules/account/session-auth.guard';
 import { PipelineQueryService } from '@/modules/pipeline/pipeline-query.service';
 import { PipelineService } from '@/modules/pipeline/pipeline.service';
 import { TaskControlService } from '@/modules/pipeline/task-control.service';
@@ -31,7 +29,6 @@ function parseId(raw: string): number {
  * 只读视图（runs / runs/:id / inflight）委托 {@link PipelineQueryService}；触发（collect / recheck）委托
  * {@link PipelineService}；逐环节闸门控制委托 {@link TaskControlService}（与 /api/analysis/inspect/* 共用同一组方法）。
  */
-@UseGuards(SessionAuthGuard)
 @RequirePermission('analyze:run')
 @Controller('pipeline')
 export class PipelineController {

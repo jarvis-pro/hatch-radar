@@ -10,11 +10,9 @@ import {
   Patch,
   Post,
   Query,
-  UseGuards,
 } from '@nestjs/common';
 import { z } from 'zod';
 import { RequirePermission } from '@/modules/account/auth-user.decorator';
-import { SessionAuthGuard } from '@/modules/account/session-auth.guard';
 import { ZodValidationPipe } from '@/common/zod-validation.pipe';
 import { BlueprintService } from '@/modules/radar/blueprint.service';
 import { ProcessService } from '@/modules/radar/process.service';
@@ -95,7 +93,6 @@ const updateProcessSchema = z.object({
 /**
  * /api/blueprints/* —— 图纸（纯配方）CRUD。读 pipeline:run，写 pipeline:control。
  */
-@UseGuards(SessionAuthGuard)
 @RequirePermission('pipeline:run')
 @Controller('blueprints')
 export class BlueprintsController {
@@ -156,7 +153,6 @@ export class BlueprintsController {
  * /api/processes/* —— 进程（图纸 + 触发节奏）CRUD + 暂停/恢复/触发。
  * 读 + 触发 pipeline:run；编辑/启停/删除 pipeline:control。
  */
-@UseGuards(SessionAuthGuard)
 @RequirePermission('pipeline:run')
 @Controller('processes')
 export class ProcessesController {
@@ -255,7 +251,6 @@ const INTENSITIES: readonly RadarIntensity[] = ['high', 'medium', 'low'];
  * /api/radar/* —— 雷达指挥室只读 / 聚合视图（鉴权 pipeline:run）。
  * 指挥室聚合 / lane 概览 / 运行详情 / 收成洞察 / 帖子库 / 帖子一生。
  */
-@UseGuards(SessionAuthGuard)
 @RequirePermission('pipeline:run')
 @Controller('radar')
 export class RadarController {

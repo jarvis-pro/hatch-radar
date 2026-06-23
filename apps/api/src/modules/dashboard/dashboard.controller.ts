@@ -1,7 +1,6 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query } from '@nestjs/common';
 import type { BoardData, BoardRange } from '@hatch-radar/shared';
 import { RequirePermission } from '@/modules/account/auth-user.decorator';
-import { SessionAuthGuard } from '@/modules/account/session-auth.guard';
 import { CostRepository, StatsRepository } from '@/database';
 import { nowSec } from '@/utils/time';
 
@@ -42,7 +41,6 @@ function rangeTrendDays(range: BoardRange): number {
  * + 洞察质量（强度 / 标签）+ 来源洞察力 + ROI（每洞察成本）。运营指标（队列 / Worker / 吞吐 /
  * 成本明细）已切分至指挥室（GET /api/radar/control-room）。需 insights:view。
  */
-@UseGuards(SessionAuthGuard)
 @RequirePermission('insights:view')
 @Controller('dashboard')
 export class DashboardController {

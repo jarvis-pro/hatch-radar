@@ -1,6 +1,5 @@
-import { Controller, Get, HttpCode, Param, Post, UseGuards } from '@nestjs/common';
+import { Controller, Get, HttpCode, Param, Post } from '@nestjs/common';
 import { RequirePermission } from '@/modules/account/auth-user.decorator';
-import { SessionAuthGuard } from '@/modules/account/session-auth.guard';
 import { nowSec } from '@/utils/time';
 import {
   RequestLanesRepository,
@@ -45,7 +44,6 @@ function toRequestView(r: RequestQueueRow) {
  * - POST /api/requests/lanes/:lane/pause  暂停某 lane（worker 抓取阻塞至恢复）
  * - POST /api/requests/lanes/:lane/resume 恢复某 lane
  */
-@UseGuards(SessionAuthGuard)
 @RequirePermission('requests:control')
 @Controller('requests')
 export class RequestsController {

@@ -34,7 +34,7 @@ import { WorkerModule } from './modules/worker/worker.module';
  * 图为无环 DAG（Analysis←Worker←Pipeline←{Radar / Settings / Translation / Scheduler}）。各 feature module
  * 同时声明自己的 HTTP 控制器（与 service 同目录 collocate）；根模块在此组合全部 feature module。
  * imports 各模块职责：
- * - AccountModule  会话鉴权权威（SessionAuthGuard + cookie）+ 账户端点。
+ * - AccountModule  会话鉴权权威（SessionAuthGuard 经 APP_GUARD 全局挂载 + cookie）+ 账户端点。
  * - AdminModule    后台管理 + 审计日志（admin / audit）。
  * - PipelineModule / RadarModule / SettingsModule / SourcesModule / TranslationModule / ExportModule
  *                  各上下文的领域服务 + 其 HTTP 控制器。

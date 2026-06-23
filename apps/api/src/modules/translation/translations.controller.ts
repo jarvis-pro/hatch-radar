@@ -1,9 +1,8 @@
-import { Body, Controller, Get, HttpCode, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Post, Query } from '@nestjs/common';
 import { z } from 'zod';
 import type { ExportFilter } from '@hatch-radar/shared';
 import type { AuthedUser } from '@/types/auth-context';
 import { AuthUser, RequirePermission } from '@/modules/account/auth-user.decorator';
-import { SessionAuthGuard } from '@/modules/account/session-auth.guard';
 import { ZodValidationPipe } from '@/common/zod-validation.pipe';
 import { parseExportFilter } from '@/modules/export/export-query';
 import { TranslationOrchestrator } from '@/modules/translation/translation-orchestrator.service';
@@ -34,7 +33,6 @@ const batchSchema = z.object({
  * 编排在 {@link TranslationOrchestrator}；本控制器仅做入参校验、导出筛选解析，业务失败由服务抛 DomainError。
  * 翻译走 claude_cli（订阅额度、零边际成本）或 azure（机翻、按字符计费）；未单独配置时回落 active provider。
  */
-@UseGuards(SessionAuthGuard)
 @Controller('translations')
 export class TranslationsController {
   constructor(private readonly translations: TranslationOrchestrator) {}

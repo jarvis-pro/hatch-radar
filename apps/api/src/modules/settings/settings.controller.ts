@@ -7,11 +7,9 @@ import {
   ParseIntPipe,
   Post,
   Put,
-  UseGuards,
 } from '@nestjs/common';
 import { z } from 'zod';
 import { RequirePermission } from '@/modules/account/auth-user.decorator';
-import { SessionAuthGuard } from '@/modules/account/session-auth.guard';
 import { ZodValidationPipe } from '@/common/zod-validation.pipe';
 import { type KeyInput, type KeyUpdate } from '@/database';
 import { SettingsService } from '@/modules/settings/settings.service';
@@ -118,7 +116,6 @@ const runtimeSettingsSchema = z
  * 编排与业务规则（含「改 baseUrl 须重填 Key」安全闸、写后热重载）在 {@link SettingsService}；
  * 本控制器仅做入参校验，业务失败由服务抛 DomainError、全局过滤器映射成 HTTP。
  */
-@UseGuards(SessionAuthGuard)
 @RequirePermission('settings:manage')
 @Controller('settings')
 export class SettingsController {
