@@ -6,7 +6,10 @@ const level = logLevel();
 
 const prettyOpts = {
   translateTime: 'SYS:yyyy-mm-dd HH:MM:ss',
-  ignore: 'pid,hostname,context',
+  // req/res/responseTime/reqId 是 pino-http 给每条请求日志附的结构化字段——dev 下信息已并进消息行
+  // （见 app.module 的 customSuccessMessage），故 pretty 模式忽略以保持单行清爽；生产（无 pretty）
+  // 仍保留为 JSON 字段供检索。context 既驱动下方前缀又在此忽略，避免再以字段重复打印。
+  ignore: 'pid,hostname,context,req,res,responseTime,reqId',
   messageFormat: (log: Record<string, unknown>, messageKey: string) => {
     const msg = log[messageKey] as string;
 

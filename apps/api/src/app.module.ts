@@ -1,6 +1,5 @@
-import { Module, RequestMethod } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
-import { LoggerModule } from 'nestjs-pino';
 import { AllExceptionsFilter } from './common/http-exception.filter';
 import { SessionAuthGuard } from './common/session-auth.guard';
 import { AccountModule } from './modules/account/account.module';
@@ -12,7 +11,7 @@ import { RepositoryModule } from './core/repository.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { DatabaseModule } from './database/database.module';
 import { HealthModule } from './modules/health/health.module';
-import { logger } from './logger';
+import { LoggingModule } from './logger/logging.module';
 import { PipelineModule } from './modules/pipeline/pipeline.module';
 import { RequestsModule } from './modules/requests/requests.module';
 import { RadarModule } from './modules/radar/radar.module';
@@ -50,14 +49,7 @@ import { WorkerModule } from './modules/worker/worker.module';
  */
 @Module({
   imports: [
-    // forRoutes 显式用 path-to-regexp v8（Express 5 / Nest 11）命名通配 `{*path}`：
-    // 库默认 `{ path: '*' }` 叠加全局前缀 `api` → `/api/*`，是旧式通配，Nest 每个中间件
-    // 转一次（pino 注册两个 → 两条 LegacyRouteConverter 警告）。写成 `{*path}` 后叠加前缀
-    // 直接得合法的 `/api/{*path}`，无需转换、无警告；语义不变（覆盖全部 /api 路由）。
-    LoggerModule.forRoot({
-      pinoHttp: { logger, autoLogging: false },
-      forRoutes: [{ path: '{*path}', method: RequestMethod.ALL }],
-    }),
+    LoggingModule,
     AppConfigModule,
     DatabaseModule,
     RepositoryModule,
@@ -82,7 +74,6 @@ import { WorkerModule } from './modules/worker/worker.module';
     // 全局异常过滤器：领域错误 → HTTP 映射。
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
     // 全局会话守卫（fail-closed）：除 @Public 外全仓路由先过此守卫。守卫实例在根上下文实例化，
-    // 注入的 AccountService 经 AccountModule 的 exports 跨模块解析（故该 export 为此守卫所必需）。
     { provide: APP_GUARD, useClass: SessionAuthGuard },
   ],
 })
