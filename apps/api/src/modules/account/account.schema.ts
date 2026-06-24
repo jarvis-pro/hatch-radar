@@ -1,6 +1,5 @@
 import { z } from 'zod';
 import { createZodDto } from 'nestjs-zod';
-import { PERMISSION_KEYS } from '@hatch-radar/shared';
 
 /**
  * AccountController（/api/auth/*）入参 / 出参 schema（zod，单一事实源）。
@@ -62,31 +61,3 @@ export const avatarSchema = z
   .meta({ id: 'AvatarBody' });
 export class AvatarDto extends createZodDto(avatarSchema) {}
 
-// ───────────────────────── 响应体 ─────────────────────────
-
-/** 当前登录用户（与 @hatch-radar/shared 的 `CurrentUser` 同形；role/status/permissions 复用同一真相源枚举）。 */
-export const currentUserSchema = z
-  .object({
-    id: z.string(),
-    email: z.string(),
-    name: z.string(),
-    avatar: z.string().nullable().meta({ description: '头像 seed；null=昵称首字母回退' }),
-    role: z.enum(['super_admin', 'admin']),
-    status: z.enum(['active', 'disabled']),
-    mustChangePassword: z.boolean(),
-    permissions: z.array(z.enum(PERMISSION_KEYS)),
-  })
-  .meta({ id: 'CurrentUser' });
-
-/** `{ user }` 包络：session 校验的返回。 */
-export const userEnvelopeSchema = z
-  .object({ user: currentUserSchema })
-  .meta({ id: 'UserEnvelope' });
-
-/** `{ user, token }` 包络：登录成功后的返回（token 由客户端自行持久化）。 */
-export const loginEnvelopeSchema = z
-  .object({ user: currentUserSchema, token: z.string().meta({ description: '会话 token，客户端存 localStorage，后续请求经 Authorization: Bearer 头携带' }) })
-  .meta({ id: 'LoginEnvelope' });
-
-/** `{ ok: true }`：无返回体的写操作统一回执。 */
-export const okSchema = z.object({ ok: z.literal(true) }).meta({ id: 'Ok' });
