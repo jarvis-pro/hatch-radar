@@ -1,14 +1,12 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { apiReference } from '@scalar/nestjs-api-reference';
-import { cleanupOpenApiDoc } from 'nestjs-zod';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Logger } from 'nestjs-pino';
 import { type AppEnv, isProd } from '@/config/env';
 import { logger } from '@/logger';
 import { AppModule } from './app.module';
 import { APP_ENV } from './common/tokens';
+import { mountApiDocs } from './docs';
 
 /** 解析 TRUST_PROXY env：'true'/'false' → 布尔；非负整数字符串 → 代理层数；其余（如 'loopback'）原样。 */
 function parseTrustProxy(raw: string): boolean | number | string {
@@ -23,31 +21,6 @@ function parseTrustProxy(raw: string): boolean | number | string {
   const n = Number(raw);
 
   return Number.isInteger(n) && n >= 0 ? n : raw;
-}
-
-/**
- * 挂载交互式 API 文档（Scalar）于 `/docs`，仅非生产环境——避免对外泄露完整接口目录。
- *
- * 文档内的操作路径默认带全局前缀 `/api`（`ignoreGlobalPrefix` 默认 false），故 “Try it out”
- * 直接命中真实路由。调试流程：先执行 POST /api/auth/login 拿到 token，再点 Authenticate 填入即可。
- *
- * 注：本仓直跑 TS 源（`@swc-node/register`、无 `nest build`），swagger 自动内省插件挂不上。请求体 / 响应体
- * 均由 nestjs-zod 从 zod schema 自动出 schema（请求 `@Body() dto: XxxDto`＝createZodDto 类、响应
- * `@ZodResponse(schema)`），createDocument 后经 `cleanupOpenApiDoc` 把 zod 占位清理成正规 OpenAPI（无需 CLI 内省插件）。
- */
-function mountApiDocs(app: NestExpressApplication): void {
-  const config = new DocumentBuilder()
-    .setTitle('Hatch Radar API')
-    .setDescription('工作台后端 API —— 仅非生产环境暴露，供本地调试与文档浏览')
-    .setVersion('0.1.0')
-    .addBearerAuth()
-    .build();
-  // createZodDto 生成的 DTO 类带 _OPENAPI_METADATA_FACTORY，SwaggerModule 运行期即可读出 schema（绕过无 nest
-  // build 时 swc 内省插件挂不上的限制）；createDocument 后经 cleanupOpenApiDoc 把 zod 占位清理成正规 OpenAPI schema。
-  const document = cleanupOpenApiDoc(SwaggerModule.createDocument(app, config));
-  // 全局声明 Bearer 鉴权：所有端点默认需要 Authorization: Bearer <token>。
-  document.security = [{ bearer: [] }];
-  app.use('/docs', apiReference({ spec: { content: document } }));
 }
 
 /**
