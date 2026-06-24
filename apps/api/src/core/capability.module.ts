@@ -3,8 +3,8 @@ import { type AppEnv } from '@/config/env';
 import { APP_ENV, WORKER_CONCURRENCY } from '@/common/tokens';
 import { RequestLanesRepository, RequestQueueRepository } from '@/database';
 import { CrawlerConfigService, HackerNewsClient, TokenBucketQueue } from '@/crawler';
-import { RuntimeSettingsService } from '@/modules/settings/runtime-settings.service';
-import { RequestGate } from '@/modules/worker/request-gate';
+import { RuntimeSettingsService } from '@/modules/settings/settings.runtime-settings.service';
+import { RequestGate } from '@/modules/worker/worker.request-gate';
 
 /**
  * 能力模块（全局）：无状态能力 / 运行期配置读取叶子，被多域广泛依赖。

@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { PipelineQueryService } from './pipeline-query.service';
 import { PipelineService } from './pipeline.service';
-import { TaskControlService } from './task-control.service';
+import { TaskControlService } from './pipeline.task-control.service';
 import { AnalysisController } from './analysis.controller';
 import { PipelineController } from './pipeline.controller';
 import { AnalysisModule } from '@/modules/analysis/analysis.module';

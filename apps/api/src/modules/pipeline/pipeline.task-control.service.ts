@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { LocalDispatcher } from '@/modules/worker/local-dispatcher';
+import { LocalDispatcher } from '@/modules/worker/worker.local-dispatcher';
 import {
   BlueprintsRepository,
   PostsRepository,
@@ -10,7 +10,7 @@ import {
   type BlueprintRow,
 } from '@/database';
 import { ValidationError } from '@/common/errors';
-import type { Dispatcher } from '@/modules/worker/protocol';
+import type { Dispatcher } from '@/modules/worker/worker.protocol';
 import { nowSec } from '@/utils/time';
 import {
   INSPECT_STEP_NAMES,

@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { generateSessionToken, hashPassword, hashSessionToken, verifyPassword } from '@/auth';
 import type { CurrentUser, SessionInfo } from '@hatch-radar/shared';
-import { RuntimeSettingsService } from '@/modules/settings/runtime-settings.service';
+import { RuntimeSettingsService } from '@/modules/settings/settings.runtime-settings.service';
 import {
   AuditLogsRepository,
   LoginAttemptsRepository,

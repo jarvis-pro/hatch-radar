@@ -10,7 +10,7 @@ import {
 import { RequirePermission } from '@/common/auth-user.decorator';
 import { ZodBody } from '@/common/zod-body.decorator';
 import { ProvidersRepository, SettingsRepository } from '@/database';
-import { TaskControlService } from '@/modules/pipeline/task-control.service';
+import { TaskControlService } from '@/modules/pipeline/pipeline.task-control.service';
 import { logger } from '@/logger';
 import { inspectSchema } from './analysis.schema';
 import type { InspectDto } from './analysis.schema';

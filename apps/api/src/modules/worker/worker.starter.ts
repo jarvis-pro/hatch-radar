@@ -4,7 +4,7 @@ import {
   type OnApplicationBootstrap,
   type OnApplicationShutdown,
 } from '@nestjs/common';
-import { LocalDispatcher } from './local-dispatcher';
+import { LocalDispatcher } from './worker.local-dispatcher';
 import { WorkerService } from './worker.service';
 
 /**

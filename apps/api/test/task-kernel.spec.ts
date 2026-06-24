@@ -11,7 +11,7 @@ import {
   TasksRepository,
   TaskStagesRepository,
 } from '@/database';
-import { RuntimeSettingsService } from '@/modules/settings/runtime-settings.service';
+import { RuntimeSettingsService } from '@/modules/settings/settings.runtime-settings.service';
 import type { PostProcessor, RawModelOutput } from '@/analysis';
 import { AnalysisConfigService } from '@/modules/analysis/analysis-config.service';
 import { AnalysisService } from '@/modules/analysis/analysis.service';
@@ -20,8 +20,8 @@ import { INSPECT_STEP_NAMES, type PersistOutput, type ResolveOutput } from '@hat
 import { nowSec } from '@/utils/time';
 // 通用任务内核（WorkerService.runTask）单进程归一后内嵌 api domain；测试直引其源码 + AnalyzeExecutor / CollectionExecutor 桩。
 import { WorkerService } from '@/modules/worker/worker.service';
-import { AnalyzeExecutor } from '@/modules/worker/analyze.executor';
-import type { CollectionExecutor } from '@/modules/worker/collection.executor';
+import { AnalyzeExecutor } from '@/modules/worker/internal/analyze.executor';
+import type { CollectionExecutor } from '@/modules/worker/internal/collection.executor';
 import { setupTestDb, truncateAll } from './helpers';
 
 // 桩原始响应：含一条非法痛点（空 description）验证归一化丢弃；与 inspect 套件同构。

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { TranslationService } from '@/modules/analysis/translation.service';
-import { RuntimeSettingsService } from '@/modules/settings/runtime-settings.service';
+import { RuntimeSettingsService } from '@/modules/settings/settings.runtime-settings.service';
 import type { PostRow, TaskRow, TaskStageRow } from '@/database';
 import { TasksRepository } from '@/database';
 import { TaskStagesRepository } from '@/database';
@@ -8,9 +8,9 @@ import { RunsRepository } from '@/database';
 import { PostsRepository } from '@/database';
 import { logger } from '@/logger';
 import { nowSec } from '@/utils/time';
-import { CollectionExecutor } from './collection.executor';
-import { AnalyzeExecutor } from './analyze.executor';
-import { usageFromSteps, type StageLike } from './stage-usage';
+import { CollectionExecutor } from './internal/collection.executor';
+import { AnalyzeExecutor } from './internal/analyze.executor';
+import { usageFromSteps, type StageLike } from './internal/stage-usage';
 
 /** running 期间的 DB 心跳间隔（毫秒），需远小于运行期设置 workerStaleSeconds（下界 30s） */
 const HEARTBEAT_INTERVAL_MS = 15_000;

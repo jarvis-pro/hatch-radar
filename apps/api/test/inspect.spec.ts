@@ -11,12 +11,12 @@ import {
   TasksRepository,
   TaskStagesRepository,
 } from '@/database';
-import { RuntimeSettingsService } from '@/modules/settings/runtime-settings.service';
+import { RuntimeSettingsService } from '@/modules/settings/settings.runtime-settings.service';
 import type { PostProcessor, RawModelOutput } from '@/analysis';
 import { AnalysisService } from '@/modules/analysis/analysis.service';
 import type { AnalysisConfigService } from '@/modules/analysis/analysis-config.service';
 import type { TranslationService } from '@/modules/analysis/translation.service';
-import type { Dispatcher } from '@/modules/worker/protocol';
+import type { Dispatcher } from '@/modules/worker/worker.protocol';
 import { nowSec } from '@/utils/time';
 import {
   INSPECT_STEP_NAMES,
@@ -27,11 +27,11 @@ import {
   type PersistOutput,
   type ResolveOutput,
 } from '@hatch-radar/shared';
-import { TaskControlService } from '@/modules/pipeline/task-control.service';
+import { TaskControlService } from '@/modules/pipeline/pipeline.task-control.service';
 // 任务执行内核（WorkerService.runTask）单进程归一后内嵌 api domain；测试直引其源码 + AnalyzeExecutor / CollectionExecutor 桩。
 import { WorkerService } from '@/modules/worker/worker.service';
-import { AnalyzeExecutor } from '@/modules/worker/analyze.executor';
-import type { CollectionExecutor } from '@/modules/worker/collection.executor';
+import { AnalyzeExecutor } from '@/modules/worker/internal/analyze.executor';
+import type { CollectionExecutor } from '@/modules/worker/internal/collection.executor';
 import { setupTestDb, truncateAll } from './helpers';
 
 // 桩 AnalysisConfigService 默认返回的原始响应：含一条非法痛点（空 description）以验证归一化丢弃统计。

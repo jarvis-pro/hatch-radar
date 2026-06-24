@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
-import { AnalyzeExecutor } from './analyze.executor';
-import { CollectionExecutor } from './collection.executor';
-import { LocalDispatcher } from './local-dispatcher';
+import { AnalyzeExecutor } from './internal/analyze.executor';
+import { CollectionExecutor } from './internal/collection.executor';
+import { LocalDispatcher } from './worker.local-dispatcher';
 import { WorkerService } from './worker.service';
 import { AnalysisModule } from '@/modules/analysis/analysis.module';
 import { WorkerStarter } from './worker.starter';

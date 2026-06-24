@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { AppDatabase, DbHandle } from '@/database';
 import { nowSec } from '@/utils/time';
 import { ProvidersRepository, SettingsRepository } from '@/database';
-import { type RuntimeSettingsService } from '@/modules/settings/runtime-settings.service';
+import { type RuntimeSettingsService } from '@/modules/settings/settings.runtime-settings.service';
 import { type AnalysisConfigService } from '@/modules/analysis/analysis-config.service';
 import type { PipelineService } from '@/modules/pipeline/pipeline.service';
 import { SettingsService } from '@/modules/settings/settings.service';

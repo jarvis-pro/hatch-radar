@@ -11,7 +11,7 @@ import { RequirePermission } from '@/common/auth-user.decorator';
 import { ZodBody } from '@/common/zod-body.decorator';
 import { PipelineQueryService } from '@/modules/pipeline/pipeline-query.service';
 import { PipelineService } from '@/modules/pipeline/pipeline.service';
-import { TaskControlService } from '@/modules/pipeline/task-control.service';
+import { TaskControlService } from '@/modules/pipeline/pipeline.task-control.service';
 import { logger } from '@/logger';
 import { stageGateSchema } from './pipeline.schema';
 import type { StageGateDto } from './pipeline.schema';

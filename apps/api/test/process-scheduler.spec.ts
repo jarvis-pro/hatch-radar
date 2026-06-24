@@ -7,9 +7,9 @@ import {
   RunsRepository,
   TasksRepository,
 } from '@/database';
-import { RuntimeSettingsService } from '@/modules/settings/runtime-settings.service';
+import { RuntimeSettingsService } from '@/modules/settings/settings.runtime-settings.service';
 import type { AnalysisConfigService } from '@/modules/analysis/analysis-config.service';
-import type { Dispatcher } from '@/modules/worker/protocol';
+import type { Dispatcher } from '@/modules/worker/worker.protocol';
 import { nowSec } from '@/utils/time';
 import { PipelineService } from '@/modules/pipeline/pipeline.service';
 import { setupTestDb, truncateAll } from './helpers';

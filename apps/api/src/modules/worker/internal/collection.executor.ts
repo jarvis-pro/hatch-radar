@@ -20,7 +20,7 @@ import { logger } from '@/logger';
 import { nowSec } from '@/utils/time';
 import { errMsg } from '@/utils/error';
 import { buildStages, type RedditComment, type StageRecipe } from '@hatch-radar/shared';
-import { RequestGate } from './request-gate';
+import { RequestGate } from '@/modules/worker/worker.request-gate';
 
 /** 评论抓取后写入的 comment_pass 值（≥1 即可进入分析） */
 const COMMENT_FETCHED_PASS = 2;

@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { LocalDispatcher } from '@/modules/worker/local-dispatcher';
+import { LocalDispatcher } from '@/modules/worker/worker.local-dispatcher';
 import {
   BlueprintsRepository,
   PostsRepository,
@@ -11,9 +11,9 @@ import {
   type NewTaskInput,
 } from '@/database';
 import { CronExpressionParser } from 'cron-parser';
-import { RuntimeSettingsService } from '@/modules/settings/runtime-settings.service';
+import { RuntimeSettingsService } from '@/modules/settings/settings.runtime-settings.service';
 import { AnalysisConfigService } from '@/modules/analysis/analysis-config.service';
-import type { Dispatcher } from '@/modules/worker/protocol';
+import type { Dispatcher } from '@/modules/worker/worker.protocol';
 import { logger } from '@/logger';
 import { nowSec } from '@/utils/time';
 import { buildStages, type StageRecipe, type TaskKind } from '@hatch-radar/shared';

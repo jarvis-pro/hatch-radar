@@ -3,7 +3,7 @@ import { RequirePermission } from '@/common/auth-user.decorator';
 import { ZodBody } from '@/common/zod-body.decorator';
 import { type KeyInput, type KeyUpdate } from '@/database';
 import { SettingsService } from '@/modules/settings/settings.service';
-import { type RuntimeSettingsPatch } from '@/modules/settings/runtime-settings.service';
+import { type RuntimeSettingsPatch } from '@/modules/settings/settings.runtime-settings.service';
 import {
   activeProviderSchema,
   createKeySchema,
