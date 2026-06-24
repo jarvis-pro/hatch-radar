@@ -11,7 +11,7 @@ import { hasPermission, type PermissionKey } from '@hatch-radar/shared';
 import { AccountService } from '@/modules/account/account.service';
 import type { AuthedUser } from '@/types/auth-context';
 import { IS_PUBLIC, REQUIRE_PERMISSION } from './auth-user.decorator';
-import { CSRF_HEADER, readSessionCookie } from '@/modules/account/account.cookies';
+import { CSRF_HEADER, readSessionCookie } from './session-cookie';
 
 /**
  * 会话守卫：唯一鉴权权威，经 APP_GUARD 全局挂载，默认 fail-closed。
