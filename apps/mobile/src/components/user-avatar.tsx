@@ -6,7 +6,7 @@ import { avatarSvg, initials } from '@/lib/avatar';
 import { cn } from '@/lib/utils';
 
 /**
- * 用户头像：有 seed 则渲染 DiceBear SVG，否则回退姓名首字母（靛紫底）。
+ * 用户头像：有 seed 则渲染 DiceBear SVG，否则回退昵称首字母（靛紫底）。
  * 方圆角（rounded-md）与 web 侧栏 / 资料页对齐。
  */
 export function UserAvatar({

@@ -14,7 +14,7 @@ export interface CurrentUser {
   id: string;
   email: string;
   name: string;
-  /** 头像 seed（DiceBear adventurer-neutral）；null=用姓名首字母回退。 */
+  /** 头像 seed（DiceBear adventurer-neutral）；null=用昵称首字母回退。 */
   avatar: string | null;
   role: UserRole;
   status: 'active' | 'disabled';

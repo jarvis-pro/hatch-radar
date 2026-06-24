@@ -74,7 +74,7 @@ export class AccountController {
     return { ok: true };
   }
 
-  /** PATCH /api/auth/profile —— 改本人姓名。 */
+  /** PATCH /api/auth/profile —— 改本人昵称。 */
   @Patch('profile')
   async updateProfile(
     @AuthUser() user: AuthedUser,

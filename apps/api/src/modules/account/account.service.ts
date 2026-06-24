@@ -270,16 +270,16 @@ export class AccountService {
   }
 
   /**
-   * 改本人姓名（首尾空白会被裁剪）。
+   * 改本人昵称（首尾空白会被裁剪）。
    * @param user 当前登录用户
-   * @param name 新姓名（首尾空白会被裁剪）
-   * @throws ValidationError 姓名去空白后为空
+   * @param name 新昵称（首尾空白会被裁剪）
+   * @throws ValidationError 昵称去空白后为空
    * @throws ServiceUnavailableError 意外错误记根因后兜底
    */
   async updateOwnName(user: AuthedUser, name: string): Promise<void> {
     const trimmed = name.trim();
     if (!trimmed) {
-      throw new ValidationError('姓名不能为空');
+      throw new ValidationError('昵称不能为空');
     }
 
     await this.guard('updateOwnName', '保存失败：服务暂时不可用', async () => {
@@ -288,9 +288,9 @@ export class AccountService {
   }
 
   /**
-   * 改本人头像（avatar=DiceBear seed；null 恢复姓名首字母）。
+   * 改本人头像（avatar=DiceBear seed；null 恢复昵称首字母）。
    * @param user 当前登录用户
-   * @param avatar DiceBear seed；传 null 恢复姓名首字母
+   * @param avatar DiceBear seed；传 null 恢复昵称首字母
    * @throws ServiceUnavailableError 意外错误记根因后兜底
    */
   async updateOwnAvatar(user: AuthedUser, avatar: string | null): Promise<void> {

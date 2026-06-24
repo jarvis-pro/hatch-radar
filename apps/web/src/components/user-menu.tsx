@@ -27,7 +27,7 @@ import { useAuth } from '@/auth/auth-context';
 import { UserAvatar } from './user-avatar';
 
 /**
- * 侧边栏页脚的用户控件：头像 + 姓名 + 角色，下拉含个人中心 / 退出。
+ * 侧边栏页脚的用户控件：头像 + 昵称 + 角色，下拉含个人中心 / 退出。
  * 账户管理 / 审计已上移到侧边栏「系统」分组（它们是系统功能，不属于「个人」）。
  */
 export function UserMenu({ user }: { user: CurrentUser }) {

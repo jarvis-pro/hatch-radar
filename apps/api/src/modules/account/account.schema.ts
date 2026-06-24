@@ -22,14 +22,14 @@ export const changePasswordSchema = z.object({
 });
 export type ChangePasswordDto = z.infer<typeof changePasswordSchema>;
 
-/** 改资料入参：仅姓名（trim 后非空）。 */
+/** 改资料入参：仅昵称（trim 后非空）。 */
 export const profileSchema = z.object({
-  /** 展示用姓名，去空白后必填 */
+  /** 展示用昵称，去空白后必填 */
   name: z.string().trim().min(1),
 });
 export type ProfileDto = z.infer<typeof profileSchema>;
 
-/** 改头像入参：DiceBear seed 字符串，或 null 恢复姓名首字母。 */
+/** 改头像入参：DiceBear seed 字符串，或 null 恢复昵称首字母。 */
 export const avatarSchema = z.object({
   /** 头像 seed（≤128 字符）；null=清除自定义头像、回落首字母 */
   avatar: z.string().trim().min(1).max(128).nullable(),

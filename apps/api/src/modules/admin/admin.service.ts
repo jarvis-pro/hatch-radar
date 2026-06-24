@@ -18,7 +18,7 @@ import { nowSec } from '@/utils/time';
 export interface CreateUserDto {
   /** 登录邮箱（服务内会 trim + 小写化） */
   email: string;
-  /** 显示姓名 */
+  /** 显示昵称 */
   name: string;
   /** 角色：super_admin / admin */
   role: UserRole;
@@ -32,7 +32,7 @@ export interface CreateUserDto {
 
 /** 编辑账户入参。 */
 export interface EditUserDto {
-  /** 显示姓名 */
+  /** 显示昵称 */
   name: string;
   /** 角色：super_admin / admin */
   role: UserRole;
@@ -75,15 +75,16 @@ export class AdminService {
    * @param actor 操作者（当前登录管理员，用于层级校验与审计）
    * @param dto 新账户字段（见 {@link CreateUserDto}）
    * @returns 新账户 id
-   * @throws ValidationError 邮箱 / 姓名为空，或初始密码不足 8 位
+   * @throws ValidationError 邮箱 / 昵称为空，或初始密码不足 8 位
    * @throws ForbiddenError 非超管试图创建超管
    * @throws ConflictError 邮箱已存在
    */
   async createUser(actor: AuthedUser, dto: CreateUserDto): Promise<{ id: string }> {
     const email = dto.email.trim().toLowerCase();
     const name = dto.name.trim();
+
     if (!email || !name) {
-      throw new ValidationError('邮箱与姓名必填');
+      throw new ValidationError('邮箱与昵称必填');
     }
 
     if (dto.password.length < 8) {
@@ -128,7 +129,7 @@ export class AdminService {
    * @param actor 操作者（当前登录管理员）
    * @param userId 被编辑账户 id
    * @param dto 资料 / 角色 / 权限（见 {@link EditUserDto}）
-   * @throws ValidationError 姓名为空，或试图降级最后一个超管
+   * @throws ValidationError 昵称为空，或试图降级最后一个超管
    * @throws NotFoundError 账户不存在
    * @throws ForbiddenError 非超管试图授予超管角色，或操作他人账户
    */

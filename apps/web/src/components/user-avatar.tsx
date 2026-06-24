@@ -3,7 +3,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@hatch-radar/ui/components/
 import { avatarDataUri, initials } from '@/lib/avatar';
 
 /**
- * 用户头像：有 avatar seed 则渲染 DiceBear 图，否则回退姓名首字母（靛紫底）。
+ * 用户头像：有 avatar seed 则渲染 DiceBear 图，否则回退昵称首字母（靛紫底）。
  * `className` 控尺寸/圆角；`fallbackClassName` 覆盖回退块样式（如侧边栏的方角）。
  */
 export function UserAvatar({

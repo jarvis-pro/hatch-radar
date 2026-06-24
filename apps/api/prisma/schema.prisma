@@ -560,9 +560,9 @@ model users {
   id                   String      @id @default(uuid())
   /// 登录标识，全局唯一（应用层归一为小写后入库）。
   email                String      @unique(map: "idx_users_email")
-  /// 展示名。
+  /// 展示名（昵称，非真实姓名）。
   name                 String
-  /// 头像：所选 DiceBear seed（风格固定 adventurer-neutral，应用层据此复算 SVG）；null=回退姓名首字母。
+  /// 头像：所选 DiceBear seed（风格固定 adventurer-neutral，应用层据此复算 SVG）；null=回退昵称首字母。
   avatar               String?
   /// scrypt 派生口令哈希，格式 `scrypt:N:r:p:saltB64:hashB64`（自带参数便于调参/迁移）。
   password_hash        String

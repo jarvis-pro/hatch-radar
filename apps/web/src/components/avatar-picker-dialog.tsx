@@ -22,7 +22,7 @@ const BATCH = 12;
 
 /**
  * 换头像弹窗：随机一批候选头像供选择，「换一批」重新生成，保存写入 `PATCH /auth/avatar`。
- * 头像由 seed 确定性生成，保存的是所选 seed（或 null=恢复姓名首字母）。
+ * 头像由 seed 确定性生成，保存的是所选 seed（或 null=恢复昵称首字母）。
  */
 export function AvatarPickerDialog({ user }: { user: CurrentUser }) {
   const { refresh } = useAuth();

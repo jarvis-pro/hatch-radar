@@ -112,7 +112,7 @@ export async function fetchMe(cfg: WorkstationConfig): Promise<CurrentUser> {
   return user;
 }
 
-/** 改本人头像（PATCH /api/me/avatar；avatar=所选 DiceBear seed，null 恢复姓名首字母）。 */
+/** 改本人头像（PATCH /api/me/avatar；avatar=所选 DiceBear seed，null 恢复昵称首字母）。 */
 export function updateAvatar(cfg: WorkstationConfig, avatar: string | null): Promise<{ ok: true }> {
   return request<{ ok: true }>(cfg, '/api/me/avatar', {
     method: 'PATCH',

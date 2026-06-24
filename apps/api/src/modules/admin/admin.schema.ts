@@ -9,7 +9,7 @@ const roleEnum = z.enum(['admin', 'super_admin']);
 export const createUserSchema = z.object({
   /** 登录邮箱，非空 */
   email: z.string().trim().min(1),
-  /** 展示用姓名，非空 */
+  /** 展示用昵称，非空 */
   name: z.string().trim().min(1),
   /** 角色；省略服务内默认 admin */
   role: roleEnum.optional(),
@@ -22,9 +22,9 @@ export const createUserSchema = z.object({
 });
 export type CreateUserDto = z.infer<typeof createUserSchema>;
 
-/** 编辑账户入参：改姓名 / 角色 / 能力（不含口令、状态——各有独立端点）。 */
+/** 编辑账户入参：改昵称 / 角色 / 能力（不含口令、状态——各有独立端点）。 */
 export const editUserSchema = z.object({
-  /** 改展示姓名，非空 */
+  /** 改展示昵称，非空 */
   name: z.string().trim().min(1),
   /** 改角色；省略服务内默认 admin */
   role: roleEnum.optional(),

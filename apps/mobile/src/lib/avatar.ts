@@ -11,7 +11,7 @@ import { adventurerNeutral } from '@dicebear/collection';
 /** seed → SVG 字符串缓存，避免跨组件 / 重渲染重复生成。 */
 const cache = new Map<string, string>();
 
-/** 姓名首字母（无头像时的回退）。 */
+/** 昵称首字母（无头像时的回退）。 */
 export function initials(name: string): string {
   return name.trim().slice(0, 1).toUpperCase() || '?';
 }

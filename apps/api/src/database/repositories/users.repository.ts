@@ -13,9 +13,9 @@ export interface UserAuthView {
   id: string;
   /** 登录邮箱 */
   email: string;
-  /** 显示姓名 */
+  /** 显示昵称 */
   name: string;
-  /** DiceBear 头像 seed；null 用姓名首字母 */
+  /** DiceBear 头像 seed；null 用昵称首字母 */
   avatar: string | null;
   /** 角色：super_admin / admin */
   role: UserRole;
@@ -58,7 +58,7 @@ function toAuthView(u: {
 export interface CreateUserInput {
   /** 登录邮箱 */
   email: string;
-  /** 显示姓名 */
+  /** 显示昵称 */
   name: string;
   /** 已 scrypt 哈希的密码（明文哈希在 service 完成） */
   passwordHash: string;
@@ -164,9 +164,9 @@ export class UsersRepository {
   }
 
   /**
-   * 改本人姓名。
+   * 改本人昵称。
    * @param id 用户 id
-   * @param name 新姓名
+   * @param name 新昵称
    * @param now 更新时刻 Unix 时间戳（秒）
    */
   async updateName(id: string, name: string, now: number): Promise<void> {
@@ -174,9 +174,9 @@ export class UsersRepository {
   }
 
   /**
-   * 改本人头像（avatar=DiceBear seed；null 恢复姓名首字母）。
+   * 改本人头像（avatar=DiceBear seed；null 恢复昵称首字母）。
    * @param id 用户 id
-   * @param avatar DiceBear seed；传 null 恢复姓名首字母
+   * @param avatar DiceBear seed；传 null 恢复昵称首字母
    * @param now 更新时刻 Unix 时间戳（秒）
    */
   async updateAvatar(id: string, avatar: string | null, now: number): Promise<void> {
@@ -230,7 +230,7 @@ export class UsersRepository {
   /**
    * 编辑资料 / 角色 / 权限（替换式：清空旧权限再写新权限，单事务）。
    * @param id 用户 id
-   * @param fields 姓名 + 角色
+   * @param fields 昵称 + 角色
    * @param permissions 新的能力清单（整表替换）
    * @param grantedBy 授权操作者 id；系统为 null
    * @param now 更新时刻 Unix 时间戳（秒）

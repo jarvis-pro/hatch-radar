@@ -53,7 +53,7 @@ function roleLabel(role: CurrentUser['role']): string {
   return role === 'super_admin' ? '超级管理员' : '普通管理员';
 }
 
-/** 个人资料：头像 + 姓名 / 角色 / 邮箱 + 更换头像（经设备通道连工作台读写）。 */
+/** 个人资料：头像 + 昵称 / 角色 / 邮箱 + 更换头像（经设备通道连工作台读写）。 */
 export default function ProfileScreen() {
   const router = useRouter();
   const [profile, setProfile] = useState<Profile | null>(() => readCache());
