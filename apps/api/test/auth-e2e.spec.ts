@@ -10,15 +10,14 @@ import { setupTestDb, truncateAll, TEST_DATABASE_URL } from './helpers';
 
 /**
  * 鉴权契约 e2e：引导**真实 AppModule** 并走 HTTP（Node 内置 fetch，无需 supertest），
- * 覆盖此前完全没有的层——SessionAuthGuard / CSRF 兜底 / 能力闸 / 全局异常过滤器 / DI 装配。
+ * 覆盖此前完全没有的层——SessionAuthGuard / 能力闸 / 全局异常过滤器 / DI 装配。
  * 是 A/B/H 等重构的安全网：鉴权链一旦回归，这里立刻变红。
  */
 const ADMIN_EMAIL = 'e2e-admin@test.co';
 const ADMIN_PASS = 'e2e-pass-12345';
 
 interface CallOpts {
-  cookie?: string;
-  csrf?: boolean;
+  authorization?: string;
   body?: unknown;
 }
 
@@ -57,12 +56,8 @@ describe('鉴权契约 e2e（真实 AppModule + HTTP）', () => {
       headers['content-type'] = 'application/json';
     }
 
-    if (opts.cookie) {
-      headers['cookie'] = opts.cookie;
-    }
-
-    if (opts.csrf) {
-      headers['x-radar-csrf'] = '1';
+    if (opts.authorization) {
+      headers['authorization'] = opts.authorization;
     }
 
     return fetch(`${base}${path}`, {
@@ -72,9 +67,9 @@ describe('鉴权契约 e2e（真实 AppModule + HTTP）', () => {
     });
   }
 
-  let cookie = '';
+  let token = '';
 
-  it('未带 cookie 访问受保护端点 → 401', async () => {
+  it('未带 token 访问受保护端点 → 401', async () => {
     const r = await call('GET', '/api/auth/session');
     expect(r.status).toBe(401);
   });
@@ -86,30 +81,25 @@ describe('鉴权契约 e2e（真实 AppModule + HTTP）', () => {
     expect(r.status).toBe(401);
   });
 
-  it('登录成功 → 200 + Set-Cookie radar_session', async () => {
+  it('登录成功 → 200 + 响应体含 token', async () => {
     const r = await call('POST', '/api/auth/login', {
       body: { email: ADMIN_EMAIL, password: ADMIN_PASS },
     });
     expect(r.status).toBe(200);
-    const setCookie = r.headers.get('set-cookie') ?? '';
-    const m = /radar_session=([^;]+)/.exec(setCookie);
-    expect(m).not.toBeNull();
-    cookie = `radar_session=${m![1]}`;
-    expect(((await r.json()) as { user: { email: string } }).user.email).toBe(ADMIN_EMAIL);
+    const body = (await r.json()) as { user: { email: string }; token: string };
+    expect(typeof body.token).toBe('string');
+    expect(body.token.length).toBeGreaterThan(0);
+    expect(body.user.email).toBe(ADMIN_EMAIL);
+    token = body.token;
   });
 
-  it('带有效 cookie 访问受保护端点 → 200', async () => {
-    const r = await call('GET', '/api/auth/session', { cookie });
+  it('带有效 Bearer token 访问受保护端点 → 200', async () => {
+    const r = await call('GET', '/api/auth/session', { authorization: `Bearer ${token}` });
     expect(r.status).toBe(200);
   });
 
-  it('写方法缺 X-Radar-Csrf 头 → 403（CSRF 兜底，先于处理器）', async () => {
-    const r = await call('POST', '/api/auth/logout', { cookie });
-    expect(r.status).toBe(403);
-  });
-
-  it('写方法带 X-Radar-Csrf 头 → 放行（200）', async () => {
-    const r = await call('POST', '/api/auth/logout', { cookie, csrf: true });
+  it('写方法带有效 token → 放行（200）', async () => {
+    const r = await call('POST', '/api/auth/logout', { authorization: `Bearer ${token}` });
     expect(r.status).toBe(200);
   });
 
@@ -131,22 +121,22 @@ describe('鉴权契约 e2e（真实 AppModule + HTTP）', () => {
       },
       now,
     );
-    const token = generateSessionToken();
+    const limitedToken = generateSessionToken();
     await sessions.create({
       userId,
-      tokenHash: hashSessionToken(token),
+      tokenHash: hashSessionToken(limitedToken),
       expiresAt: now + 86_400,
       lastSeenAt: now,
       createdAt: now,
       userAgent: null,
       ip: null,
     });
-    const r = await call('GET', '/api/settings', { cookie: `radar_session=${token}` });
+    const r = await call('GET', '/api/settings', { authorization: `Bearer ${limitedToken}` });
     expect(r.status).toBe(403);
   });
 
-  it('无效 cookie → 401', async () => {
-    const r = await call('GET', '/api/auth/session', { cookie: 'radar_session=bogus-token' });
+  it('无效 token → 401', async () => {
+    const r = await call('GET', '/api/auth/session', { authorization: 'Bearer bogus-token' });
     expect(r.status).toBe(401);
   });
 

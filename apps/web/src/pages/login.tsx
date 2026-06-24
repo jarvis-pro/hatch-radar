@@ -14,7 +14,7 @@ import {
 import { Input } from '@hatch-radar/ui/components/input';
 import { Label } from '@hatch-radar/ui/components/label';
 import { Spinner } from '@hatch-radar/ui/components/spinner';
-import { api, ApiError } from '@/api/client';
+import { api, ApiError, setToken } from '@/api/client';
 import { useAuth } from '@/auth/auth-context';
 
 /** 仅允许站内相对路径跳转，挡开放重定向。 */
@@ -141,7 +141,8 @@ export function LoginPage() {
     setError(null);
     setPending(true);
     try {
-      const { user } = await api.post<{ user: CurrentUser }>('/auth/login', { email, password });
+      const { user, token } = await api.post<{ user: CurrentUser; token: string }>('/auth/login', { email, password });
+      setToken(token);
       setUser(user);
       navigate(user.mustChangePassword ? '/account/password' : next, { replace: true });
     } catch (err) {

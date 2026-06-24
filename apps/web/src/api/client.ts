@@ -1,12 +1,13 @@
 /**
- * 同源 API 客户端：所有请求打到 `/api/*`（dev 经 Vite proxy、prod 由 NestJS 同源托管），
- * 浏览器自动带 httpOnly `radar_session` cookie。写请求恒带 `x-radar-csrf` 头（server CSRF 兜底）。
+ * 同源 API 客户端：所有请求打到 `/api/*`（dev 经 Vite proxy、prod 由 NestJS 同源托管）。
+ * token 存于 localStorage，每次请求经 Authorization: Bearer 头携带。
  *
  * 401 统一交给注册的处理器（AuthProvider → 置匿名 → 路由守卫跳 /login），
  * 唯独会话自检（skipAuthHandler）只抛不触发，避免登录页/启动自检的重定向自循环。
  */
 
 const API_BASE = '/api';
+const TOKEN_KEY = 'radar_token';
 
 /** API 错误：带 HTTP 状态码与 server 返回的 { error } 文案。 */
 export class ApiError extends Error {
@@ -16,6 +17,20 @@ export class ApiError extends Error {
   ) {
     super(message);
     this.name = 'ApiError';
+  }
+}
+
+/** 读取本地持久化的会话 token。 */
+export function getToken(): string | null {
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+/** 持久化或清除会话 token（null = 清除）。 */
+export function setToken(token: string | null): void {
+  if (token) {
+    localStorage.setItem(TOKEN_KEY, token);
+  } else {
+    localStorage.removeItem(TOKEN_KEY);
   }
 }
 
@@ -37,7 +52,11 @@ async function request<T>(
   body?: unknown,
   opts?: RequestOptions,
 ): Promise<T> {
-  const headers: Record<string, string> = { 'x-radar-csrf': '1' };
+  const headers: Record<string, string> = {};
+  const token = getToken();
+  if (token) {
+    headers['authorization'] = `Bearer ${token}`;
+  }
   if (body !== undefined) {
     headers['content-type'] = 'application/json';
   }
@@ -91,7 +110,7 @@ export const api = {
 };
 
 /**
- * 导出下载：流式拿 blob（保留 .sqlite 等二进制），自带 cookie + CSRF 头。
+ * 导出下载：流式拿 blob（保留 .sqlite 等二进制），自带 Bearer token。
  * @param fallbackName Content-Disposition 缺失时（如 JSON 批次）使用的文件名
  * @returns blob 与文件名（优先取 Content-Disposition）
  */
@@ -99,7 +118,13 @@ export async function downloadBlob(
   path: string,
   fallbackName: string,
 ): Promise<{ blob: Blob; filename: string }> {
-  const res = await fetch(`${API_BASE}${path}`, { headers: { 'x-radar-csrf': '1' } });
+  const headers: Record<string, string> = {};
+  const token = getToken();
+  if (token) {
+    headers['authorization'] = `Bearer ${token}`;
+  }
+
+  const res = await fetch(`${API_BASE}${path}`, { headers });
   if (res.status === 401) {
     unauthorizedHandler?.();
     throw new ApiError(401, '未登录或会话已过期');

@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from 'react';
 import { hasPermission, type CurrentUser, type PermissionKey } from '@hatch-radar/shared';
-import { api, setUnauthorizedHandler } from '@/api/client';
+import { api, getToken, setToken, setUnauthorizedHandler } from '@/api/client';
 
 type AuthStatus = 'loading' | 'authed' | 'anon';
 
@@ -24,14 +24,21 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 /**
- * 鉴权上下文：进站 GET /api/auth/session 取一次用户态（内存缓存）。
- * 任意请求 401 → 全局处理器置匿名 → 路由守卫跳 /login。前端不读 cookie（httpOnly）。
+ * 鉴权上下文：进站若有本地 token 则 GET /api/auth/session 验证（内存缓存）。
+ * 任意请求 401 → 全局处理器清 token + 置匿名 → 路由守卫跳 /login。
  */
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>('loading');
   const [user, setUserState] = useState<CurrentUser | null>(null);
 
   const refresh = useCallback(async (): Promise<void> => {
+    if (!getToken()) {
+      setUserState(null);
+      setStatus('anon');
+
+      return;
+    }
+
     try {
       const { user } = await api.get<{ user: CurrentUser }>('/auth/session', {
         skipAuthHandler: true,
@@ -39,12 +46,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUserState(user);
       setStatus('authed');
     } catch {
+      setToken(null);
       setUserState(null);
       setStatus('anon');
     }
   }, []);
 
   const setUser = useCallback((next: CurrentUser | null): void => {
+    if (!next) setToken(null);
     setUserState(next);
     setStatus(next ? 'authed' : 'anon');
   }, []);
@@ -53,9 +62,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void refresh();
   }, [refresh]);
 
-  // 任意请求 401 → 置匿名（路由守卫据此跳 /login）
+  // 任意请求 401 → 清 token + 置匿名（路由守卫据此跳 /login）
   useEffect(() => {
     setUnauthorizedHandler(() => {
+      setToken(null);
       setUserState(null);
       setStatus('anon');
     });
