@@ -1,18 +1,10 @@
-import { Controller, Delete, Get, Param, ParseIntPipe, Post, Put } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { RequirePermission } from '@/common/auth-user.decorator';
-import { ZodBody } from '@/common/zod-body.decorator';
 import { type KeyInput, type KeyUpdate } from '@/database';
 import { SettingsService } from '@/modules/settings/settings.service';
 import { type RuntimeSettingsPatch } from '@/modules/settings/settings.runtime-settings.service';
 import {
-  activeProviderSchema,
-  createKeySchema,
-  createProviderSchema,
-  runtimeSettingsSchema,
-  updateKeySchema,
-  updateProviderSchema,
-} from './settings.schema';
-import type {
   ActiveProviderDto,
   CreateKeyDto,
   CreateProviderDto,
@@ -26,6 +18,7 @@ import type {
  * 编排与业务规则（含「改 baseUrl 须重填 Key」安全闸、写后热重载）在 {@link SettingsService}；
  * 本控制器仅做入参校验，业务失败由服务抛 DomainError、全局过滤器映射成 HTTP。
  */
+@ApiTags('settings')
 @RequirePermission('settings:manage')
 @Controller('settings')
 export class SettingsController {
@@ -44,7 +37,7 @@ export class SettingsController {
 
   /** PUT /api/settings/runtime —— 写入运行期参数（整数），保存即生效。 */
   @Put('runtime')
-  updateRuntime(@ZodBody(runtimeSettingsSchema) dto: RuntimeSettingsDto) {
+  updateRuntime(@Body() dto: RuntimeSettingsDto) {
     return this.settings.applyRuntimeSettings(dto satisfies RuntimeSettingsPatch);
   }
 
@@ -62,7 +55,7 @@ export class SettingsController {
 
   /** POST /api/settings/providers —— 新建模型（含第一把 Key，密钥加密入库），201 { id } */
   @Post('providers')
-  async create(@ZodBody(createProviderSchema) dto: CreateProviderDto) {
+  async create(@Body() dto: CreateProviderDto) {
     return this.settings.createProvider(dto);
   }
 
@@ -70,7 +63,7 @@ export class SettingsController {
   @Put('providers/:id')
   async update(
     @Param('id', ParseIntPipe) id: number,
-    @ZodBody(updateProviderSchema) dto: UpdateProviderDto,
+    @Body() dto: UpdateProviderDto,
   ) {
     await this.settings.updateProvider(id, dto);
 
@@ -97,7 +90,7 @@ export class SettingsController {
   @Post('providers/:id/keys')
   async addKey(
     @Param('id', ParseIntPipe) providerId: number,
-    @ZodBody(createKeySchema) dto: CreateKeyDto,
+    @Body() dto: CreateKeyDto,
   ) {
     return this.settings.addKey(providerId, dto satisfies KeyInput);
   }
@@ -107,7 +100,7 @@ export class SettingsController {
   async updateKey(
     @Param('id', ParseIntPipe) providerId: number,
     @Param('keyId', ParseIntPipe) keyId: number,
-    @ZodBody(updateKeySchema) dto: UpdateKeyDto,
+    @Body() dto: UpdateKeyDto,
   ) {
     await this.settings.updateKey(providerId, keyId, dto satisfies KeyUpdate);
 
@@ -136,13 +129,13 @@ export class SettingsController {
 
   /** PUT /api/settings/active —— 选用模型 { providerId: number|null }，即时热重载并触发一轮入队 */
   @Put('active')
-  async setActive(@ZodBody(activeProviderSchema) dto: ActiveProviderDto) {
+  async setActive(@Body() dto: ActiveProviderDto) {
     return this.settings.setActive(dto.providerId);
   }
 
   /** PUT /api/settings/translation-provider —— 选用翻译模型 { providerId: number|null }。 */
   @Put('translation-provider')
-  async setTranslationProvider(@ZodBody(activeProviderSchema) dto: ActiveProviderDto) {
+  async setTranslationProvider(@Body() dto: ActiveProviderDto) {
     return this.settings.setTranslationProvider(dto.providerId);
   }
 }

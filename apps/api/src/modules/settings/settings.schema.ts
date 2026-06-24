@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { createZodDto } from 'nestjs-zod';
 
 /** SettingsController（/api/settings/*）入参校验 schema（zod）+ 推导 DTO 类型。字段 `.describe()` 同步进 Swagger。 */
 
@@ -32,7 +33,7 @@ export const createProviderSchema = z.object({
     .optional()
     .describe('输出 token 单价（美元 / 1M tokens）；省略=不设'),
 });
-export type CreateProviderDto = z.infer<typeof createProviderSchema>;
+export class CreateProviderDto extends createZodDto(createProviderSchema) {}
 
 /** 更新模型标量字段入参：每项可省略（不改）；密钥走 Key 池端点，不在此处改。 */
 export const updateProviderSchema = z.object({
@@ -60,7 +61,7 @@ export const updateProviderSchema = z.object({
     .optional()
     .describe('输出 token 单价（美元 / 1M tokens）；null=清除、省略=不改'),
 });
-export type UpdateProviderDto = z.infer<typeof updateProviderSchema>;
+export class UpdateProviderDto extends createZodDto(updateProviderSchema) {}
 
 /** 新增一把备用 Key 入参（密钥加密入库）。 */
 export const createKeySchema = z.object({
@@ -68,7 +69,7 @@ export const createKeySchema = z.object({
   label: z.string().trim().optional().describe('Key 备注（区分多把 Key）；省略=无备注'),
   priority: z.number().int().min(0).optional().describe('故障转移优先级，数字越小越优先；省略走服务默认'),
 });
-export type CreateKeyDto = z.infer<typeof createKeySchema>;
+export class CreateKeyDto extends createZodDto(createKeySchema) {}
 
 /** 更新一把 Key 入参：改备注 / 优先级 / 启停，或人工复位状态。 */
 export const updateKeySchema = z.object({
@@ -77,7 +78,7 @@ export const updateKeySchema = z.object({
   enabled: z.boolean().optional().describe('改启停；省略=不改'),
   reset: z.boolean().optional().describe('把 cooling/invalid 的 Key 复位为 active（人工排障后恢复使用）'),
 });
-export type UpdateKeyDto = z.infer<typeof updateKeySchema>;
+export class UpdateKeyDto extends createZodDto(updateKeySchema) {}
 
 /** 选用模型 / 翻译模型入参：providerId 为目标模型，null 表示清空选用。 */
 export const activeProviderSchema = z.object({
@@ -87,7 +88,7 @@ export const activeProviderSchema = z.object({
     .nullable()
     .describe('目标模型 id；null=不选用任何模型（停掉对应自动流程）'),
 });
-export type ActiveProviderDto = z.infer<typeof activeProviderSchema>;
+export class ActiveProviderDto extends createZodDto(activeProviderSchema) {}
 
 /**
  * 运行期参数写入入参：每项可省略（不变）/ 给整数（写入）。下界与 RuntimeSettingsService 一致，
@@ -103,4 +104,4 @@ export const runtimeSettingsSchema = z
     translationConcurrency: z.number().int().min(1).describe('翻译任务并发上限'),
   })
   .partial();
-export type RuntimeSettingsDto = z.infer<typeof runtimeSettingsSchema>;
+export class RuntimeSettingsDto extends createZodDto(runtimeSettingsSchema) {}

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { createZodDto } from 'nestjs-zod';
 
 /** BlueprintsController / ProcessesController（/api/blueprints/*、/api/processes/*）入参校验 schema（zod）+ 推导 DTO 类型。字段 `.describe()` 同步进 Swagger。 */
 
@@ -21,7 +22,7 @@ export const createBlueprintSchema = z.object({
   gates: z.array(z.string()).optional().describe('默认开闸的节点 key 列表（逐节点暂停）；省略=不开闸'),
   enabledStages: z.array(z.string()).optional().describe('启用的执行节点 key 列表；省略=全部节点'),
 });
-export type CreateBlueprintDto = z.infer<typeof createBlueprintSchema>;
+export class CreateBlueprintDto extends createZodDto(createBlueprintSchema) {}
 
 /** 更新图纸入参：每项可省略（不改）；kind 不可改（建后固定）。 */
 export const updateBlueprintSchema = z.object({
@@ -32,7 +33,7 @@ export const updateBlueprintSchema = z.object({
   gates: z.array(z.string()).optional().describe('改开闸节点（整体覆盖）；省略=不改'),
   enabledStages: z.array(z.string()).optional().describe('改启用节点（整体覆盖）；省略=不改'),
 });
-export type UpdateBlueprintDto = z.infer<typeof updateBlueprintSchema>;
+export class UpdateBlueprintDto extends createZodDto(updateBlueprintSchema) {}
 
 /** 进程触发节奏（按 kind 判别）：单次 / 固定间隔 / cron 表达式。 */
 const triggerSchema = z.discriminatedUnion('kind', [
@@ -56,11 +57,11 @@ export const createProcessSchema = z.object({
   label: z.string().trim().min(1).describe('进程展示名，非空'),
   trigger: triggerSchema.describe('触发节奏（once / interval / cron）'),
 });
-export type CreateProcessDto = z.infer<typeof createProcessSchema>;
+export class CreateProcessDto extends createZodDto(createProcessSchema) {}
 
 /** 更新进程入参：每项可省略（不改）；不可改绑定图纸。 */
 export const updateProcessSchema = z.object({
   label: z.string().trim().min(1).optional().describe('改展示名（非空）；省略=不改'),
   trigger: triggerSchema.optional().describe('改触发节奏；省略=不改'),
 });
-export type UpdateProcessDto = z.infer<typeof updateProcessSchema>;
+export class UpdateProcessDto extends createZodDto(updateProcessSchema) {}

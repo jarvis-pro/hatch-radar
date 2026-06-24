@@ -1,13 +1,20 @@
-import { Controller, Delete, Get, HttpCode, Param, Patch, Post, Req, Res } from '@nestjs/common';
-import type { Request, Response } from 'express';
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Req } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
+import type { Request } from 'express';
 import type { CurrentUser } from '@hatch-radar/shared';
-import { ZodBody } from '@/common/zod-body.decorator';
+import { ZodResponse } from '@/common/zod-response.decorator';
 import { AccountService } from './account.service';
 import type { AuthedUser } from '@/types/auth-context';
 import { AuthUser, Public } from '@/common/auth-user.decorator';
-import { clearSessionCookie, setSessionCookie } from '@/common/session-cookie';
-import { avatarSchema, changePasswordSchema, loginSchema, profileSchema } from './account.schema';
-import type { AvatarDto, ChangePasswordDto, LoginDto, ProfileDto } from './account.schema';
+import {
+  AvatarDto,
+  ChangePasswordDto,
+  LoginDto,
+  loginEnvelopeSchema,
+  okSchema,
+  ProfileDto,
+  userEnvelopeSchema,
+} from './account.schema';
 
 /** 剥离 AuthedUser 内部的 sessionId，得到对外的 CurrentUser（解构丢弃，避免会话 id 泄露进响应体）。 */
 function toCurrentUser({ sessionId: _sessionId, ...user }: AuthedUser): CurrentUser {
@@ -16,8 +23,13 @@ function toCurrentUser({ sessionId: _sessionId, ...user }: AuthedUser): CurrentU
 
 /**
  * /api/auth/* —— 人鉴权权威端点（会话登录/登出/校验/改密/会话管理/资料）。
- * 登录以 @Public 豁免全局守卫；其余端点受全局会话守卫保护（读 httpOnly cookie 校验）。
+ * 登录以 @Public 豁免全局守卫；其余端点受全局会话守卫保护（读 Authorization: Bearer 头校验）。
+ *
+ * 入参 `@Body() dto: XxxDto`（createZodDto 类 + 全局 ZodDtoValidationPipe 校验）、出参
+ * `@ZodResponse(xxxSchema)`（文档 + 出站序列化）；全仓控制器已统一此 nestjs-zod 请求方案，
+ * 响应序列化目前仅本控制器接入。
  */
+@ApiTags('account')
 @Controller('auth')
 export class AccountController {
   constructor(
@@ -25,39 +37,36 @@ export class AccountController {
     private readonly account: AccountService,
   ) {}
 
-  /** POST /api/auth/login —— 校验后 Set-Cookie: radar_session（HttpOnly），返回用户态。 */
+  /** POST /api/auth/login —— 校验凭据，返回用户态与会话 token（客户端自行持久化）。 */
   @Public()
   @Post('login')
   @HttpCode(200)
+  @ZodResponse(loginEnvelopeSchema)
   async login(
-    @ZodBody(loginSchema) dto: LoginDto,
+    @Body() dto: LoginDto,
     @Req() req: Request,
-    @Res({ passthrough: true }) res: Response,
-  ): Promise<{ user: CurrentUser }> {
+  ): Promise<{ user: CurrentUser; token: string }> {
     const result = await this.account.login(dto.email, dto.password, {
       userAgent: req.headers['user-agent'],
       ip: req.ip,
     });
-    setSessionCookie(res, result.token, result.absoluteDays);
 
-    return { user: result.user };
+    return { user: result.user, token: result.token };
   }
 
   /** GET /api/auth/session —— 返回当前用户态（SPA 进站取一次 + 路由守卫）。 */
   @Get('session')
+  @ZodResponse(userEnvelopeSchema)
   session(@AuthUser() user: AuthedUser): { user: CurrentUser } {
     return { user: toCurrentUser(user) };
   }
 
-  /** POST /api/auth/logout —— 吊销当前会话 + 过期 cookie（会话已由守卫解析，凭 sessionId 直接删）。 */
+  /** POST /api/auth/logout —— 吊销当前会话（客户端负责清除本地 token）。 */
   @Post('logout')
   @HttpCode(200)
-  async logout(
-    @AuthUser() user: AuthedUser,
-    @Res({ passthrough: true }) res: Response,
-  ): Promise<{ ok: true }> {
+  @ZodResponse(okSchema)
+  async logout(@AuthUser() user: AuthedUser): Promise<{ ok: true }> {
     await this.account.logout(user.sessionId, user.id);
-    clearSessionCookie(res);
 
     return { ok: true };
   }
@@ -65,9 +74,10 @@ export class AccountController {
   /** POST /api/auth/change-password —— 校验当前密码后改密，吊销其余会话。 */
   @Post('change-password')
   @HttpCode(200)
+  @ZodResponse(okSchema)
   async changePassword(
     @AuthUser() user: AuthedUser,
-    @ZodBody(changePasswordSchema) dto: ChangePasswordDto,
+    @Body() dto: ChangePasswordDto,
   ): Promise<{ ok: true }> {
     await this.account.changePassword(user, dto.current, dto.password, dto.confirm);
 
@@ -76,9 +86,10 @@ export class AccountController {
 
   /** PATCH /api/auth/profile —— 改本人昵称。 */
   @Patch('profile')
+  @ZodResponse(okSchema)
   async updateProfile(
     @AuthUser() user: AuthedUser,
-    @ZodBody(profileSchema) dto: ProfileDto,
+    @Body() dto: ProfileDto,
   ): Promise<{ ok: true }> {
     await this.account.updateOwnName(user, dto.name);
 
@@ -87,9 +98,10 @@ export class AccountController {
 
   /** PATCH /api/auth/avatar —— 改本人头像（DiceBear seed；avatar=null 恢复首字母）。 */
   @Patch('avatar')
+  @ZodResponse(okSchema)
   async updateAvatar(
     @AuthUser() user: AuthedUser,
-    @ZodBody(avatarSchema) dto: AvatarDto,
+    @Body() dto: AvatarDto,
   ): Promise<{ ok: true }> {
     await this.account.updateOwnAvatar(user, dto.avatar);
 

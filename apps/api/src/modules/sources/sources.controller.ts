@@ -1,15 +1,9 @@
-import { Controller, Delete, Get, Param, ParseIntPipe, Post, Put } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { RequirePermission } from '@/common/auth-user.decorator';
-import { ZodBody } from '@/common/zod-body.decorator';
 import { type ConnectorInput } from '@/database';
 import { SourcesService } from '@/modules/sources/sources.service';
 import {
-  createConnectorSchema,
-  createSourceSchema,
-  updateConnectorSchema,
-  updateSourceSchema,
-} from './sources.schema';
-import type {
   CreateConnectorDto,
   CreateSourceDto,
   UpdateConnectorDto,
@@ -20,6 +14,7 @@ import type {
  * /api/sources/* —— 采集来源（爬虫计划）CRUD + 概览。
  * 编排与 Reddit 服务端闸在 {@link SourcesService}；本控制器仅做入参校验，业务失败由服务抛 DomainError。
  */
+@ApiTags('sources')
 @RequirePermission('settings:manage')
 @Controller('sources')
 export class SourcesController {
@@ -36,7 +31,7 @@ export class SourcesController {
 
   /** POST /api/sources —— 新建来源，201 { id } */
   @Post()
-  async create(@ZodBody(createSourceSchema) dto: CreateSourceDto) {
+  async create(@Body() dto: CreateSourceDto) {
     return this.sources.createSource(dto);
   }
 
@@ -44,7 +39,7 @@ export class SourcesController {
   @Put(':id')
   async update(
     @Param('id', ParseIntPipe) id: number,
-    @ZodBody(updateSourceSchema) dto: UpdateSourceDto,
+    @Body() dto: UpdateSourceDto,
   ) {
     await this.sources.updateSource(id, dto);
 
@@ -74,7 +69,7 @@ export class SourceConnectorsController {
 
   /** POST /api/source-connectors —— 新建连接器（凭据加密入库），201 { id } */
   @Post()
-  async create(@ZodBody(createConnectorSchema) dto: CreateConnectorDto) {
+  async create(@Body() dto: CreateConnectorDto) {
     const input: ConnectorInput = {
       platform: dto.platform,
       authKind: dto.authKind,
@@ -91,7 +86,7 @@ export class SourceConnectorsController {
   @Put(':id')
   async update(
     @Param('id', ParseIntPipe) id: number,
-    @ZodBody(updateConnectorSchema) dto: UpdateConnectorDto,
+    @Body() dto: UpdateConnectorDto,
   ) {
     await this.sources.updateConnector(id, dto);
 

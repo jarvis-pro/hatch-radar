@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { createZodDto } from 'nestjs-zod';
 
 /** SourcesController / SourceConnectorsController（/api/sources/*、/api/source-connectors/*）入参校验 schema（zod）+ 推导 DTO 类型。字段 `.describe()` 同步进 Swagger。 */
 
@@ -19,7 +20,7 @@ export const createSourceSchema = z.object({
     .describe('平台特定配置（如抓取范围 / 排序），自由 KV；省略=默认'),
   enabled: z.boolean().optional().describe('是否启用采集；省略走服务默认'),
 });
-export type CreateSourceDto = z.infer<typeof createSourceSchema>;
+export class CreateSourceDto extends createZodDto(createSourceSchema) {}
 
 /** 更新采集来源入参：每项可省略（不改）。 */
 export const updateSourceSchema = z.object({
@@ -31,7 +32,7 @@ export const updateSourceSchema = z.object({
     .describe('改平台配置（整体覆盖）；省略=不改'),
   enabled: z.boolean().optional().describe('改启停（启用走 Reddit 门禁）；省略=不改'),
 });
-export type UpdateSourceDto = z.infer<typeof updateSourceSchema>;
+export class UpdateSourceDto extends createZodDto(updateSourceSchema) {}
 
 /** 新建采集连接器入参：平台 + 鉴权方式 + 凭据（oauth 凭据完整性见 superRefine）。 */
 export const createConnectorSchema = z
@@ -56,7 +57,7 @@ export const createConnectorSchema = z
       }
     }
   });
-export type CreateConnectorDto = z.infer<typeof createConnectorSchema>;
+export class CreateConnectorDto extends createZodDto(createConnectorSchema) {}
 
 /** 更新采集连接器入参：每项可省略（不改）；改 secret 会清空上次测试结果。 */
 export const updateConnectorSchema = z.object({
@@ -67,4 +68,4 @@ export const updateConnectorSchema = z.object({
     .optional()
     .describe('改凭据（整体覆盖，加密入库，清空测试结果须重测）；省略=不改'),
 });
-export type UpdateConnectorDto = z.infer<typeof updateConnectorSchema>;
+export class UpdateConnectorDto extends createZodDto(updateConnectorSchema) {}

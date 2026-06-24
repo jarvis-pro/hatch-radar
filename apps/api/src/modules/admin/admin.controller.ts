@@ -1,16 +1,16 @@
-import { Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import type { AuthedUser } from '@/types/auth-context';
 import { AuthUser, RequirePermission } from '@/common/auth-user.decorator';
-import { ZodBody } from '@/common/zod-body.decorator';
 import { parsePage, trimmed } from '@/utils/query-parse';
 import { AdminService } from './admin.service';
-import { createUserSchema, editUserSchema, statusSchema } from './admin.schema';
-import type { CreateUserDto, EditUserDto, StatusDto } from './admin.schema';
+import { CreateUserDto, EditUserDto, StatusDto } from './admin.schema';
 
 /**
  * /api/admin/* —— 账户 / 权限管理（需 accounts:manage）。
  * 写方法由全局会话守卫强制 CSRF 头；超管层级 / 最后一个超管等业务校验在 AdminService。
  */
+@ApiTags('admin')
 @RequirePermission('accounts:manage')
 @Controller('admin')
 export class AdminController {
@@ -33,7 +33,7 @@ export class AdminController {
 
   @Post('users')
   @HttpCode(201)
-  createUser(@AuthUser() actor: AuthedUser, @ZodBody(createUserSchema) dto: CreateUserDto) {
+  createUser(@AuthUser() actor: AuthedUser, @Body() dto: CreateUserDto) {
     return this.admin.createUser(actor, {
       email: dto.email,
       name: dto.name,
@@ -48,7 +48,7 @@ export class AdminController {
   async editUser(
     @AuthUser() actor: AuthedUser,
     @Param('id') id: string,
-    @ZodBody(editUserSchema) dto: EditUserDto,
+    @Body() dto: EditUserDto,
   ): Promise<{ ok: true }> {
     await this.admin.editUser(actor, id, {
       name: dto.name,
@@ -77,7 +77,7 @@ export class AdminController {
   async setStatus(
     @AuthUser() actor: AuthedUser,
     @Param('id') id: string,
-    @ZodBody(statusSchema) dto: StatusDto,
+    @Body() dto: StatusDto,
   ): Promise<{ ok: true }> {
     await this.admin.setStatus(actor, id, dto.status);
 

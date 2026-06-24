@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { createZodDto } from 'nestjs-zod';
 
 /** PipelineController（/api/pipeline/*）入参校验 schema（zod）+ 推导 DTO 类型。字段 `.describe()` 同步进 Swagger。 */
 
@@ -6,4 +7,4 @@ import { z } from 'zod';
 export const stageGateSchema = z.object({
   gate: z.boolean().optional().describe('是否在该环节挂暂停点；省略 / false=摘点'),
 });
-export type StageGateDto = z.infer<typeof stageGateSchema>;
+export class StageGateDto extends createZodDto(stageGateSchema) {}

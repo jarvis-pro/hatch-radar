@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { createZodDto } from 'nestjs-zod';
 
 /** AdminController（/api/admin/*）入参校验 schema（zod）+ 推导 DTO 类型。字段 `.describe()` 同步进 Swagger。 */
 
@@ -14,7 +15,7 @@ export const createUserSchema = z.object({
   requireChange: z.boolean().optional().describe('是否强制首次登录改密；省略=false'),
   perms: z.array(z.string()).optional().describe('勾选的能力 key 列表（RBAC）；省略=无额外能力'),
 });
-export type CreateUserDto = z.infer<typeof createUserSchema>;
+export class CreateUserDto extends createZodDto(createUserSchema) {}
 
 /** 编辑账户入参：改昵称 / 角色 / 能力（不含口令、状态——各有独立端点）。 */
 export const editUserSchema = z.object({
@@ -22,7 +23,7 @@ export const editUserSchema = z.object({
   role: roleEnum.optional().describe('改角色；省略服务内默认 admin'),
   perms: z.array(z.string()).optional().describe('改能力 key 列表（整体覆盖）；省略=清空额外能力'),
 });
-export type EditUserDto = z.infer<typeof editUserSchema>;
+export class EditUserDto extends createZodDto(editUserSchema) {}
 
 /** 启停账户入参。 */
 export const statusSchema = z.object({
@@ -30,4 +31,4 @@ export const statusSchema = z.object({
     .enum(['active', 'disabled'])
     .describe('目标状态：active 启用 / disabled 停用（停用即吊销其会话）'),
 });
-export type StatusDto = z.infer<typeof statusSchema>;
+export class StatusDto extends createZodDto(statusSchema) {}

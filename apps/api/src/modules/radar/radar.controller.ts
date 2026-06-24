@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Delete,
   Get,
@@ -10,20 +11,14 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { RequirePermission } from '@/common/auth-user.decorator';
-import { ZodBody } from '@/common/zod-body.decorator';
 import { BlueprintService } from '@/modules/radar/blueprint.service';
 import { ProcessService } from '@/modules/radar/process.service';
 import { RadarService } from '@/modules/radar/radar.service';
 import { logger } from '@/logger';
 import type { RadarIntensity } from '@hatch-radar/shared';
 import {
-  createBlueprintSchema,
-  createProcessSchema,
-  updateBlueprintSchema,
-  updateProcessSchema,
-} from './radar.schema';
-import type {
   CreateBlueprintDto,
   CreateProcessDto,
   UpdateBlueprintDto,
@@ -33,6 +28,7 @@ import type {
 /**
  * /api/blueprints/* —— 图纸（纯配方）CRUD。读 pipeline:run，写 pipeline:control。
  */
+@ApiTags('radar')
 @RequirePermission('pipeline:run')
 @Controller('blueprints')
 export class BlueprintsController {
@@ -58,7 +54,7 @@ export class BlueprintsController {
 
   @Post()
   @RequirePermission('pipeline:control')
-  async create(@ZodBody(createBlueprintSchema) dto: CreateBlueprintDto) {
+  async create(@Body() dto: CreateBlueprintDto) {
     const bp = await this.blueprints.createBlueprint(dto);
     logger.info(`[图纸] 新建 #${bp.id}：${bp.kind}/${bp.label}`);
 
@@ -69,7 +65,7 @@ export class BlueprintsController {
   @RequirePermission('pipeline:control')
   async update(
     @Param('id', ParseIntPipe) id: number,
-    @ZodBody(updateBlueprintSchema) dto: UpdateBlueprintDto,
+    @Body() dto: UpdateBlueprintDto,
   ) {
     if (!(await this.blueprints.getBlueprint(id))) {
       throw new NotFoundException('图纸不存在');
@@ -94,6 +90,7 @@ export class BlueprintsController {
  * /api/processes/* —— 进程（图纸 + 触发节奏）CRUD + 暂停/恢复/触发。
  * 读 + 触发 pipeline:run；编辑/启停/删除 pipeline:control。
  */
+@ApiTags('radar')
 @RequirePermission('pipeline:run')
 @Controller('processes')
 export class ProcessesController {
@@ -124,7 +121,7 @@ export class ProcessesController {
 
   @Post()
   @RequirePermission('pipeline:control')
-  async create(@ZodBody(createProcessSchema) dto: CreateProcessDto) {
+  async create(@Body() dto: CreateProcessDto) {
     const res = await this.processes.createProcess(dto);
     logger.info(`[进程] 新建 #${res.id}：${res.label}`);
 
@@ -135,7 +132,7 @@ export class ProcessesController {
   @RequirePermission('pipeline:control')
   async update(
     @Param('id', ParseIntPipe) id: number,
-    @ZodBody(updateProcessSchema) dto: UpdateProcessDto,
+    @Body() dto: UpdateProcessDto,
   ) {
     if (!(await this.processes.getProcess(id))) {
       throw new NotFoundException('进程不存在');
@@ -193,6 +190,7 @@ const INTENSITIES: readonly RadarIntensity[] = ['high', 'medium', 'low'];
  * /api/radar/* —— 雷达指挥室只读 / 聚合视图（鉴权 pipeline:run）。
  * 指挥室聚合 / lane 概览 / 运行详情 / 收成洞察 / 帖子库 / 帖子一生。
  */
+@ApiTags('radar')
 @RequirePermission('pipeline:run')
 @Controller('radar')
 export class RadarController {

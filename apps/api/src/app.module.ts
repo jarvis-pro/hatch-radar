@@ -1,7 +1,9 @@
 import { Module } from '@nestjs/common';
-import { APP_FILTER, APP_GUARD } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
+import { ZodSerializerInterceptor } from 'nestjs-zod';
 import { AllExceptionsFilter } from './common/http-exception.filter';
 import { SessionAuthGuard } from './common/session-auth.guard';
+import { ZodDtoValidationPipe } from './common/zod-validation.pipe';
 import { AccountModule } from './modules/account/account.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { AppConfigModule } from './config/app-config.module';
@@ -75,6 +77,10 @@ import { WorkerModule } from './modules/worker/worker.module';
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
     // 全局会话守卫（fail-closed）：除 @Public 外全仓路由先过此守卫。守卫实例在根上下文实例化，
     { provide: APP_GUARD, useClass: SessionAuthGuard },
+    // 全局 zod 校验管道：对 createZodDto 的 DTO 类参数按 schema 校验（account 用），其余参数放行（@ZodBody 走自身参数级管道）。
+    { provide: APP_PIPE, useClass: ZodDtoValidationPipe },
+    // 全局 zod 出站序列化：仅对挂 @ZodResponse/@ZodSerializerDto 的方法按 schema 校验+裁剪响应，未标注方法原样放行。
+    { provide: APP_INTERCEPTOR, useClass: ZodSerializerInterceptor },
   ],
 })
 export class AppModule {}

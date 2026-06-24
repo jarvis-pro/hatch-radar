@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { createZodDto } from 'nestjs-zod';
 
 /** AnalysisController（/api/analysis/*，流水线检视器）入参校验 schema（zod）+ 推导 DTO 类型。字段 `.describe()` 同步进 Swagger。 */
 
@@ -12,4 +13,4 @@ export const inspectSchema = z.object({
     .default(true)
     .describe('逐节点闸门：缺省 true（逐步检视）；false 为运行到底＋留痕'),
 });
-export type InspectDto = z.infer<typeof inspectSchema>;
+export class InspectDto extends createZodDto(inspectSchema) {}

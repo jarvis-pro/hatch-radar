@@ -78,12 +78,15 @@ export const currentUserSchema = z
   })
   .meta({ id: 'CurrentUser' });
 
-/** `{ user }` 包络：登录与 session 校验的返回。 */
+/** `{ user }` 包络：session 校验的返回。 */
 export const userEnvelopeSchema = z
   .object({ user: currentUserSchema })
   .meta({ id: 'UserEnvelope' });
-export class UserEnvelopeDto extends createZodDto(userEnvelopeSchema) {}
+
+/** `{ user, token }` 包络：登录成功后的返回（token 由客户端自行持久化）。 */
+export const loginEnvelopeSchema = z
+  .object({ user: currentUserSchema, token: z.string().meta({ description: '会话 token，客户端存 localStorage，后续请求经 Authorization: Bearer 头携带' }) })
+  .meta({ id: 'LoginEnvelope' });
 
 /** `{ ok: true }`：无返回体的写操作统一回执。 */
 export const okSchema = z.object({ ok: z.literal(true) }).meta({ id: 'Ok' });
-export class OkDto extends createZodDto(okSchema) {}

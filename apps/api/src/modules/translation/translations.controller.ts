@@ -1,12 +1,11 @@
-import { Controller, Get, HttpCode, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Post, Query } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import type { ExportFilter } from '@hatch-radar/shared';
 import type { AuthedUser } from '@/types/auth-context';
 import { AuthUser, RequirePermission } from '@/common/auth-user.decorator';
-import { ZodBody } from '@/common/zod-body.decorator';
 import { parseExportFilter } from '@/modules/export/export-query';
 import { TranslationOrchestrator } from '@/modules/translation/translation-orchestrator.service';
-import { batchSchema, enqueueSchema } from './translations.schema';
-import type { BatchDto, EnqueueDto } from './translations.schema';
+import { BatchDto, EnqueueDto } from './translations.schema';
 
 /**
  * /api/translations/* —— 帖子内容翻译：查询某帖翻译进度（按钮三态）+ 入队翻译（首次/增量）。
@@ -14,6 +13,7 @@ import type { BatchDto, EnqueueDto } from './translations.schema';
  * 编排在 {@link TranslationOrchestrator}；本控制器仅做入参校验、导出筛选解析，业务失败由服务抛 DomainError。
  * 翻译走 claude_cli（订阅额度、零边际成本）或 azure（机翻、按字符计费）；未单独配置时回落 active provider。
  */
+@ApiTags('translations')
 @Controller('translations')
 export class TranslationsController {
   constructor(
@@ -49,7 +49,7 @@ export class TranslationsController {
   async enqueue(
     @AuthUser() actor: AuthedUser,
     @Param('id') postId: string,
-    @ZodBody(enqueueSchema) dto: EnqueueDto,
+    @Body() dto: EnqueueDto,
   ): Promise<{ enqueued: boolean }> {
     return this.translations.enqueue(actor.id, postId, dto.providerId);
   }
@@ -67,7 +67,7 @@ export class TranslationsController {
   @RequirePermission('analyze:run')
   async enqueueBatch(
     @AuthUser() actor: AuthedUser,
-    @ZodBody(batchSchema) dto: BatchDto,
+    @Body() dto: BatchDto,
   ): Promise<{ enqueued: number; posts: number }> {
     const filter: ExportFilter = {
       since: dto.since,

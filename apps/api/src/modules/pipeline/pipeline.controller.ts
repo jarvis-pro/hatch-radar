@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  Body,
   Controller,
   Get,
   HttpCode,
@@ -7,14 +8,13 @@ import {
   Param,
   Post,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { RequirePermission } from '@/common/auth-user.decorator';
-import { ZodBody } from '@/common/zod-body.decorator';
 import { PipelineQueryService } from '@/modules/pipeline/pipeline-query.service';
 import { PipelineService } from '@/modules/pipeline/pipeline.service';
 import { TaskControlService } from '@/modules/pipeline/pipeline.task-control.service';
 import { logger } from '@/logger';
-import { stageGateSchema } from './pipeline.schema';
-import type { StageGateDto } from './pipeline.schema';
+import { StageGateDto } from './pipeline.schema';
 
 function parseId(raw: string): number {
   const id = Number(raw);
@@ -31,6 +31,7 @@ function parseId(raw: string): number {
  * 只读视图（runs / runs/:id / inflight）委托 {@link PipelineQueryService}；触发（collect / recheck）委托
  * {@link PipelineService}；逐环节闸门控制委托 {@link TaskControlService}（与 /api/analysis/inspect/* 共用同一组方法）。
  */
+@ApiTags('pipeline')
 @RequirePermission('analyze:run')
 @Controller('pipeline')
 export class PipelineController {
@@ -136,7 +137,7 @@ export class PipelineController {
   async toggleStageGate(
     @Param('id') idRaw: string,
     @Param('seq') seqRaw: string,
-    @ZodBody(stageGateSchema) body: StageGateDto,
+    @Body() body: StageGateDto,
   ) {
     const seq = Number(seqRaw);
     if (!Number.isInteger(seq) || seq < 0) {

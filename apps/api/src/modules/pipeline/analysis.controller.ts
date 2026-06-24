@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  Body,
   Controller,
   Get,
   HttpCode,
@@ -7,13 +8,12 @@ import {
   Param,
   Post,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { RequirePermission } from '@/common/auth-user.decorator';
-import { ZodBody } from '@/common/zod-body.decorator';
 import { ProvidersRepository, SettingsRepository } from '@/database';
 import { TaskControlService } from '@/modules/pipeline/pipeline.task-control.service';
 import { logger } from '@/logger';
-import { inspectSchema } from './analysis.schema';
-import type { InspectDto } from './analysis.schema';
+import { InspectDto } from './analysis.schema';
 
 /** 解析并校验路径里的 jobId（正整数）。 */
 function parseJobId(raw: string): number {
@@ -36,6 +36,7 @@ function parseJobId(raw: string): number {
  * - POST /api/analysis/inspect/:jobId/retry-step 重试当前失败节点
  * - POST /api/analysis/inspect/:jobId/cancel     取消检视任务
  */
+@ApiTags('analysis')
 @RequirePermission('analyze:run')
 @Controller('analysis')
 export class AnalysisController {
@@ -64,7 +65,7 @@ export class AnalysisController {
   /** 发起检视任务：建 inspect job + 6 个 pending 节点 + 派发。该帖已有活跃分析任务时 400（服务抛 DomainError）。 */
   @Post('inspect')
   @HttpCode(200)
-  async inspect(@ZodBody(inspectSchema) dto: InspectDto) {
+  async inspect(@Body() dto: InspectDto) {
     const { taskId } = await this.taskControl.enqueueInspect(
       dto.postId,
       dto.providerId,
