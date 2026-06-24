@@ -1,4 +1,5 @@
 import { Controller, Get, HttpCode, Param, Post } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { RequirePermission } from '@/common/auth-user.decorator';
 import { nowSec } from '@/utils/time';
 import {
@@ -44,6 +45,7 @@ function toRequestView(r: RequestQueueRow) {
  * - POST /api/requests/lanes/:lane/pause  暂停某 lane（worker 抓取阻塞至恢复）
  * - POST /api/requests/lanes/:lane/resume 恢复某 lane
  */
+@ApiTags('requests')
 @RequirePermission('requests:control')
 @Controller('requests')
 export class RequestsController {

@@ -1,4 +1,5 @@
 import { Controller, Get } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { Public } from '@/common/auth-user.decorator';
 import { nowSec } from '@/utils/time';
 import { StatsRepository } from '@/database';
@@ -7,6 +8,7 @@ import { StatsRepository } from '@/database';
  * GET /api/health —— 健康检查 + 数据概览（@Public 豁免全局会话守卫，供未登录探活）。
  * 响应结构保持与裸跑实现一致：`{ ok, now, stats }`。
  */
+@ApiTags('health')
 @Controller('health')
 export class HealthController {
   constructor(

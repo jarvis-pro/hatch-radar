@@ -56,6 +56,7 @@ export class SourcesController {
  * /api/source-connectors/* —— 采集连接器（需鉴权平台的凭据）CRUD + 连通性测试。
  * 凭据加密入库、仅脱敏外发；改 secret 会清空上次测试结果（须重测才可用）。
  */
+@ApiTags('sources')
 @RequirePermission('settings:manage')
 @Controller('source-connectors')
 export class SourceConnectorsController {

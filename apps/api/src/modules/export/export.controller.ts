@@ -1,4 +1,5 @@
 import { Controller, Get, Query } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import type { ExportBatch } from '@hatch-radar/shared';
 import { RequirePermission } from '@/common/auth-user.decorator';
 import { parseExportFilter } from '@/modules/export/export-query';
@@ -10,6 +11,7 @@ import { logger } from '@/logger';
  *
  * - GET /api/export/batch   JSON 批次；查询参数 since / minIntensity / subreddit / limit
  */
+@ApiTags('export')
 @RequirePermission('export:run')
 @Controller('export')
 export class ExportController {
