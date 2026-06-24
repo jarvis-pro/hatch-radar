@@ -57,6 +57,7 @@ async function request<T>(
   if (token) {
     headers['authorization'] = `Bearer ${token}`;
   }
+
   if (body !== undefined) {
     headers['content-type'] = 'application/json';
   }

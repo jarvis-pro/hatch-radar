@@ -53,7 +53,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const setUser = useCallback((next: CurrentUser | null): void => {
-    if (!next) setToken(null);
+    if (!next) {
+      setToken(null);
+    }
+
     setUserState(next);
     setStatus(next ? 'authed' : 'anon');
   }, []);
