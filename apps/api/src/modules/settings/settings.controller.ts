@@ -61,10 +61,7 @@ export class SettingsController {
 
   /** PUT /api/settings/providers/:id —— 更新模型标量字段（密钥走 Key 池端点）。 */
   @Put('providers/:id')
-  async update(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() dto: UpdateProviderDto,
-  ) {
+  async update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateProviderDto) {
     await this.settings.updateProvider(id, dto);
 
     return { ok: true };
@@ -88,10 +85,7 @@ export class SettingsController {
 
   /** POST /api/settings/providers/:id/keys —— 新增一把备用 Key（密钥加密入库），201 { id } */
   @Post('providers/:id/keys')
-  async addKey(
-    @Param('id', ParseIntPipe) providerId: number,
-    @Body() dto: CreateKeyDto,
-  ) {
+  async addKey(@Param('id', ParseIntPipe) providerId: number, @Body() dto: CreateKeyDto) {
     return this.settings.addKey(providerId, dto satisfies KeyInput);
   }
 

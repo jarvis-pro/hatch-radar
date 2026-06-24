@@ -8,7 +8,10 @@ import {
   type KeyUpdate,
   type ProviderInput,
 } from '@/database';
-import { RuntimeSettingsService, type RuntimeSettingsPatch } from './settings.runtime-settings.service';
+import {
+  RuntimeSettingsService,
+  type RuntimeSettingsPatch,
+} from './settings.runtime-settings.service';
 import { isSecretConfigured } from '@/utils/crypto';
 import { NotFoundError, ValidationError } from '@/common/errors';
 import { nowSec } from '@/utils/time';

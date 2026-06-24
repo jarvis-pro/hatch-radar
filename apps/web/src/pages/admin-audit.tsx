@@ -65,10 +65,7 @@ function AuditView() {
 
   return (
     <div>
-      <PageHeader
-        title="审计日志"
-        description="账户 / 权限 / 密钥 / 分析 / 导出等敏感操作的追溯"
-      />
+      <PageHeader title="审计日志" description="账户 / 权限 / 密钥 / 分析 / 导出等敏感操作的追溯" />
 
       <FilterBar
         basePath="/admin/audit"

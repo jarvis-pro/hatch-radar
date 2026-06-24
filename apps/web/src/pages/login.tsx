@@ -141,7 +141,10 @@ export function LoginPage() {
     setError(null);
     setPending(true);
     try {
-      const { user, token } = await api.post<{ user: CurrentUser; token: string }>('/auth/login', { email, password });
+      const { user, token } = await api.post<{ user: CurrentUser; token: string }>('/auth/login', {
+        email,
+        password,
+      });
       setToken(token);
       setUser(user);
       navigate(user.mustChangePassword ? '/account/password' : next, { replace: true });

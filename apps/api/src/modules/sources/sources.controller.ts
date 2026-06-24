@@ -37,10 +37,7 @@ export class SourcesController {
 
   /** PUT /api/sources/:id —— 更新来源（含勾选 enabled，走 Reddit 门禁） */
   @Put(':id')
-  async update(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() dto: UpdateSourceDto,
-  ) {
+  async update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateSourceDto) {
     await this.sources.updateSource(id, dto);
 
     return { ok: true };
@@ -84,10 +81,7 @@ export class SourceConnectorsController {
 
   /** PUT /api/source-connectors/:id —— 更新（改 secret 会清空测试结果，须重测） */
   @Put(':id')
-  async update(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() dto: UpdateConnectorDto,
-  ) {
+  async update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateConnectorDto) {
     await this.sources.updateConnector(id, dto);
 
     return { ok: true };

@@ -16,8 +16,16 @@ export const createProviderSchema = z.object({
     .min(1)
     .optional()
     .describe('API Key 明文（加密入库）；claude_cli 订阅模式无需，其余 provider 服务内强制必填'),
-  baseUrl: z.string().trim().optional().describe('自定义 API 基址（自建网关 / 兼容端点）；省略走 provider 默认'),
-  region: z.string().trim().optional().describe('Azure Translator 资源区域（如 eastasia）；仅 azure 用'),
+  baseUrl: z
+    .string()
+    .trim()
+    .optional()
+    .describe('自定义 API 基址（自建网关 / 兼容端点）；省略走 provider 默认'),
+  region: z
+    .string()
+    .trim()
+    .optional()
+    .describe('Azure Translator 资源区域（如 eastasia）；仅 azure 用'),
   model: z.string().trim().min(1).describe('调用的模型 ID（如 claude-opus-4-8 / gpt-4o），非空'),
   enabled: z.boolean().optional().describe('是否启用；省略走服务默认（一般启用）'),
   inputPrice: z
@@ -67,7 +75,12 @@ export class UpdateProviderDto extends createZodDto(updateProviderSchema) {}
 export const createKeySchema = z.object({
   apiKey: z.string().trim().min(1).describe('API Key 明文（加密入库，仅脱敏外发），非空'),
   label: z.string().trim().optional().describe('Key 备注（区分多把 Key）；省略=无备注'),
-  priority: z.number().int().min(0).optional().describe('故障转移优先级，数字越小越优先；省略走服务默认'),
+  priority: z
+    .number()
+    .int()
+    .min(0)
+    .optional()
+    .describe('故障转移优先级，数字越小越优先；省略走服务默认'),
 });
 export class CreateKeyDto extends createZodDto(createKeySchema) {}
 
@@ -76,7 +89,10 @@ export const updateKeySchema = z.object({
   label: z.string().trim().optional().describe('改备注；省略=不改'),
   priority: z.number().int().min(0).optional().describe('改优先级；省略=不改'),
   enabled: z.boolean().optional().describe('改启停；省略=不改'),
-  reset: z.boolean().optional().describe('把 cooling/invalid 的 Key 复位为 active（人工排障后恢复使用）'),
+  reset: z
+    .boolean()
+    .optional()
+    .describe('把 cooling/invalid 的 Key 复位为 active（人工排障后恢复使用）'),
 });
 export class UpdateKeyDto extends createZodDto(updateKeySchema) {}
 
@@ -98,8 +114,16 @@ export const runtimeSettingsSchema = z
   .object({
     analyzeBatchSize: z.number().int().min(1).describe('每轮入队的分析任务条数上限'),
     sessionIdleDays: z.number().int().min(1).describe('会话空闲过期天数（无活动多久登出）'),
-    sessionAbsoluteDays: z.number().int().min(1).describe('会话绝对过期天数（无论是否活动的硬上限）'),
-    workerJobTimeoutMs: z.number().int().min(1000).describe('单个任务执行超时（毫秒），超时判定僵死回收'),
+    sessionAbsoluteDays: z
+      .number()
+      .int()
+      .min(1)
+      .describe('会话绝对过期天数（无论是否活动的硬上限）'),
+    workerJobTimeoutMs: z
+      .number()
+      .int()
+      .min(1000)
+      .describe('单个任务执行超时（毫秒），超时判定僵死回收'),
     workerStaleSeconds: z.number().int().min(30).describe('认领后多少秒无心跳判为僵死、可被重认领'),
     translationConcurrency: z.number().int().min(1).describe('翻译任务并发上限'),
   })

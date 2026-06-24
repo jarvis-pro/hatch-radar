@@ -80,13 +80,7 @@ function errText(err: unknown, fallback: string): string {
 }
 
 /** 账户管理：列表 + 新建/编辑 Sheet + 启停/重置/删除（护栏在服务端，UI 同步置灰）。 */
-export function AccountsManager({
-  users,
-  actor,
-}: {
-  users: AdminUserRow[];
-  actor: CurrentUser;
-}) {
+export function AccountsManager({ users, actor }: { users: AdminUserRow[]; actor: CurrentUser }) {
   const qc = useQueryClient();
   const [sheet, setSheet] = useState<AdminUserRow | 'new' | null>(null);
   const [confirm, setConfirm] = useState<{ kind: ConfirmKind; user: AdminUserRow } | null>(null);

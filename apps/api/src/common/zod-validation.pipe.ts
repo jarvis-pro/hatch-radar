@@ -15,5 +15,6 @@ export function zodIssuesMessage(error: ZodError): string {
  * （「请求非法：…」，经全局异常过滤器归一为 `{ error }`），使全仓控制器入参 400 格式统一。
  */
 export const ZodDtoValidationPipe = createZodValidationPipe({
-  createValidationException: (error) => new BadRequestException(zodIssuesMessage(error as ZodError)),
+  createValidationException: (error) =>
+    new BadRequestException(zodIssuesMessage(error as ZodError)),
 });

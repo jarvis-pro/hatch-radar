@@ -19,7 +19,10 @@ export const createBlueprintSchema = z.object({
     .record(z.string(), z.unknown())
     .optional()
     .describe('图纸参数（间隔 / 退避 / 阈值等），自由 KV；省略=默认'),
-  gates: z.array(z.string()).optional().describe('默认开闸的节点 key 列表（逐节点暂停）；省略=不开闸'),
+  gates: z
+    .array(z.string())
+    .optional()
+    .describe('默认开闸的节点 key 列表（逐节点暂停）；省略=不开闸'),
   enabledStages: z.array(z.string()).optional().describe('启用的执行节点 key 列表；省略=全部节点'),
 });
 export class CreateBlueprintDto extends createZodDto(createBlueprintSchema) {}
@@ -29,7 +32,10 @@ export const updateBlueprintSchema = z.object({
   label: z.string().trim().min(1).optional().describe('改展示名（非空）；省略=不改'),
   note: z.string().trim().optional().describe('改备注；省略=不改'),
   sources: z.array(sourceSchema).optional().describe('改采集来源（整体覆盖）；省略=不改'),
-  params: z.record(z.string(), z.unknown()).optional().describe('改图纸参数（整体覆盖）；省略=不改'),
+  params: z
+    .record(z.string(), z.unknown())
+    .optional()
+    .describe('改图纸参数（整体覆盖）；省略=不改'),
   gates: z.array(z.string()).optional().describe('改开闸节点（整体覆盖）；省略=不改'),
   enabledStages: z.array(z.string()).optional().describe('改启用节点（整体覆盖）；省略=不改'),
 });

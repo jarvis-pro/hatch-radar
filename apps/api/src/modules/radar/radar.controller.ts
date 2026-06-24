@@ -63,10 +63,7 @@ export class BlueprintsController {
 
   @Patch(':id')
   @RequirePermission('pipeline:control')
-  async update(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() dto: UpdateBlueprintDto,
-  ) {
+  async update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateBlueprintDto) {
     if (!(await this.blueprints.getBlueprint(id))) {
       throw new NotFoundException('图纸不存在');
     }
@@ -130,10 +127,7 @@ export class ProcessesController {
 
   @Patch(':id')
   @RequirePermission('pipeline:control')
-  async update(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() dto: UpdateProcessDto,
-  ) {
+  async update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateProcessDto) {
     if (!(await this.processes.getProcess(id))) {
       throw new NotFoundException('进程不存在');
     }

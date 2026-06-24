@@ -42,7 +42,12 @@ export const createConnectorSchema = z
       .enum(['oauth', 'scrape'])
       .describe('鉴权方式：oauth（官方 API 凭据）/ scrape（爬虫，无需凭据）'),
     label: z.string().trim().optional().describe('展示名；省略=自动命名'),
-    priority: z.number().int().min(0).optional().describe('故障转移优先级，数字越小越优先；省略走服务默认'),
+    priority: z
+      .number()
+      .int()
+      .min(0)
+      .optional()
+      .describe('故障转移优先级，数字越小越优先；省略走服务默认'),
     enabled: z.boolean().optional().describe('是否启用；省略走服务默认'),
     secret: secretSchema.describe(
       '凭据 KV（加密入库）；oauth 必须含 clientId/clientSecret/username/password/userAgent',

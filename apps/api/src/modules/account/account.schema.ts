@@ -60,4 +60,3 @@ export const avatarSchema = z
   })
   .meta({ id: 'AvatarBody' });
 export class AvatarDto extends createZodDto(avatarSchema) {}
-

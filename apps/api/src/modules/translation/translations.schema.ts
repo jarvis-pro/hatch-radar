@@ -28,6 +28,11 @@ export const batchSchema = z.object({
     .describe('最低痛点强度过滤；省略=各强度都翻'),
   subreddit: z.string().trim().min(1).optional().describe('限定版块；省略=全部版块'),
   limit: z.number().int().positive().optional().describe('命中帖子数上限；省略=不设上限'),
-  providerId: z.number().int().positive().optional().describe('本次翻译用的模型 id；省略走默认翻译模型'),
+  providerId: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe('本次翻译用的模型 id；省略走默认翻译模型'),
 });
 export class BatchDto extends createZodDto(batchSchema) {}
