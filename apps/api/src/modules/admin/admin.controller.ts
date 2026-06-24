@@ -1,6 +1,6 @@
 import { Controller, Delete, Get, HttpCode, Param, Patch, Post } from '@nestjs/common';
 import type { AuthedUser } from '@/types/auth-context';
-import { AuthUser, RequirePermission } from '@/modules/account/auth-user.decorator';
+import { AuthUser, RequirePermission } from '@/common/auth-user.decorator';
 import { ZodBody } from '@/common/zod-body.decorator';
 import { AdminService } from './admin.service';
 import { createUserSchema, editUserSchema, statusSchema } from './admin.schema';

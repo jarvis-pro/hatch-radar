@@ -1,7 +1,8 @@
 import { Module, RequestMethod } from '@nestjs/common';
-import { APP_FILTER } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { LoggerModule } from 'nestjs-pino';
 import { AllExceptionsFilter } from './common/http-exception.filter';
+import { SessionAuthGuard } from './common/session-auth.guard';
 import { AccountModule } from './modules/account/account.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { AppConfigModule } from './config/app-config.module';
@@ -34,7 +35,7 @@ import { WorkerModule } from './modules/worker/worker.module';
  * 图为无环 DAG（Analysis←Worker←Pipeline←{Radar / Settings / Translation / Scheduler}）。各 feature module
  * 同时声明自己的 HTTP 控制器（与 service 同目录 collocate）；根模块在此组合全部 feature module。
  * imports 各模块职责：
- * - AccountModule  会话鉴权权威（SessionAuthGuard 经 APP_GUARD 全局挂载 + cookie）+ 账户端点。
+ * - AccountModule  会话鉴权权威（AccountService + cookie 助手）+ 账户端点；SessionAuthGuard 与 @Public/@RequirePermission/@AuthUser 装饰器均在 @/common、守卫经下方 APP_GUARD 在根模块全局挂载。
  * - AdminModule    后台管理 + 审计日志（admin / audit）。
  * - PipelineModule / RadarModule / SettingsModule / SourcesModule / TranslationModule / ExportModule
  *                  各上下文的领域服务 + 其 HTTP 控制器。
@@ -76,7 +77,13 @@ import { WorkerModule } from './modules/worker/worker.module';
     WorkerModule,
     SchedulerModule,
   ],
-  // 全局异常过滤器经 DI 装配（取代 main.ts 的 new AllExceptionsFilter()）：可注入、可在测试中替换。
-  providers: [{ provide: APP_FILTER, useClass: AllExceptionsFilter }],
+  // 全局横切件经 DI 装配为 APP_* provider（取代 main.ts 手 new）：可注入、可在测试中替换。
+  providers: [
+    // 全局异常过滤器：领域错误 → HTTP 映射。
+    { provide: APP_FILTER, useClass: AllExceptionsFilter },
+    // 全局会话守卫（fail-closed）：除 @Public 外全仓路由先过此守卫。守卫实例在根上下文实例化，
+    // 注入的 AccountService 经 AccountModule 的 exports 跨模块解析（故该 export 为此守卫所必需）。
+    { provide: APP_GUARD, useClass: SessionAuthGuard },
+  ],
 })
 export class AppModule {}

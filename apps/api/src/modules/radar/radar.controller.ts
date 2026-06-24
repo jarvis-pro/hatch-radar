@@ -10,7 +10,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { RequirePermission } from '@/modules/account/auth-user.decorator';
+import { RequirePermission } from '@/common/auth-user.decorator';
 import { ZodBody } from '@/common/zod-body.decorator';
 import { BlueprintService } from '@/modules/radar/blueprint.service';
 import { ProcessService } from '@/modules/radar/process.service';

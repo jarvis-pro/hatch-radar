@@ -1,6 +1,6 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import type { ExportBatch } from '@hatch-radar/shared';
-import { RequirePermission } from '@/modules/account/auth-user.decorator';
+import { RequirePermission } from '@/common/auth-user.decorator';
 import { parseExportFilter } from '@/modules/export/export-query';
 import { ExportService } from '@/modules/export/export.service';
 import { logger } from '@/logger';

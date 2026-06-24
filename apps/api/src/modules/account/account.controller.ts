@@ -4,7 +4,7 @@ import type { CurrentUser } from '@hatch-radar/shared';
 import { ZodBody } from '@/common/zod-body.decorator';
 import { AccountService } from './account.service';
 import type { AuthedUser } from '@/types/auth-context';
-import { AuthUser, Public } from './auth-user.decorator';
+import { AuthUser, Public } from '@/common/auth-user.decorator';
 import { clearSessionCookie, setSessionCookie } from './cookies';
 import { avatarSchema, changePasswordSchema, loginSchema, profileSchema } from './account.schema';
 import type { AvatarDto, ChangePasswordDto, LoginDto, ProfileDto } from './account.schema';

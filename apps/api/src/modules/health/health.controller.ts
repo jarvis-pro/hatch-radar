@@ -1,5 +1,5 @@
 import { Controller, Get } from '@nestjs/common';
-import { Public } from '@/modules/account/auth-user.decorator';
+import { Public } from '@/common/auth-user.decorator';
 import { nowSec } from '@/utils/time';
 import { StatsRepository } from '@/database';
 

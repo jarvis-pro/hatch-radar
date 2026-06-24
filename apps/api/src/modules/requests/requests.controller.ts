@@ -1,5 +1,5 @@
 import { Controller, Get, HttpCode, Param, Post } from '@nestjs/common';
-import { RequirePermission } from '@/modules/account/auth-user.decorator';
+import { RequirePermission } from '@/common/auth-user.decorator';
 import { nowSec } from '@/utils/time';
 import {
   RequestLanesRepository,

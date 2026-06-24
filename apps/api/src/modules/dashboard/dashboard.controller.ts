@@ -1,6 +1,6 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import type { BoardData, BoardRange } from '@hatch-radar/shared';
-import { RequirePermission } from '@/modules/account/auth-user.decorator';
+import { RequirePermission } from '@/common/auth-user.decorator';
 import { CostRepository, StatsRepository } from '@/database';
 import { nowSec } from '@/utils/time';
 

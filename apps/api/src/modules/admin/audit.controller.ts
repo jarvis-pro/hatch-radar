@@ -1,5 +1,5 @@
 import { Controller, Get, Query } from '@nestjs/common';
-import { RequirePermission } from '@/modules/account/auth-user.decorator';
+import { RequirePermission } from '@/common/auth-user.decorator';
 import { parsePage, trimmed } from '@/common/query-parse';
 import { AuditLogsRepository } from '@/database';
 

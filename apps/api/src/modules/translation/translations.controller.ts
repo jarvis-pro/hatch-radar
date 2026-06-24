@@ -1,7 +1,7 @@
 import { Controller, Get, HttpCode, Param, Post, Query } from '@nestjs/common';
 import type { ExportFilter } from '@hatch-radar/shared';
 import type { AuthedUser } from '@/types/auth-context';
-import { AuthUser, RequirePermission } from '@/modules/account/auth-user.decorator';
+import { AuthUser, RequirePermission } from '@/common/auth-user.decorator';
 import { ZodBody } from '@/common/zod-body.decorator';
 import { parseExportFilter } from '@/modules/export/export-query';
 import { TranslationOrchestrator } from '@/modules/translation/translation-orchestrator.service';

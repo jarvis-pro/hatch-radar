@@ -7,7 +7,7 @@ import {
   Param,
   Post,
 } from '@nestjs/common';
-import { RequirePermission } from '@/modules/account/auth-user.decorator';
+import { RequirePermission } from '@/common/auth-user.decorator';
 import { ZodBody } from '@/common/zod-body.decorator';
 import { PipelineQueryService } from '@/modules/pipeline/pipeline-query.service';
 import { PipelineService } from '@/modules/pipeline/pipeline.service';

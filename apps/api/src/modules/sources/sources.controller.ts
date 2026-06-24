@@ -1,5 +1,5 @@
 import { Controller, Delete, Get, Param, ParseIntPipe, Post, Put } from '@nestjs/common';
-import { RequirePermission } from '@/modules/account/auth-user.decorator';
+import { RequirePermission } from '@/common/auth-user.decorator';
 import { ZodBody } from '@/common/zod-body.decorator';
 import { type ConnectorInput } from '@/database';
 import { SourcesService } from '@/modules/sources/sources.service';
