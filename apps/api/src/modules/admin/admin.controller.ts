@@ -2,7 +2,7 @@ import { Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from '@n
 import type { AuthedUser } from '@/types/auth-context';
 import { AuthUser, RequirePermission } from '@/common/auth-user.decorator';
 import { ZodBody } from '@/common/zod-body.decorator';
-import { parsePage, trimmed } from '@/common/query-parse';
+import { parsePage, trimmed } from '@/utils/query-parse';
 import { AdminService } from './admin.service';
 import { createUserSchema, editUserSchema, statusSchema } from './admin.schema';
 import type { CreateUserDto, EditUserDto, StatusDto } from './admin.schema';
