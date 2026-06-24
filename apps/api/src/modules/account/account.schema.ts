@@ -2,15 +2,12 @@ import { z } from 'zod';
 import { createZodDto } from 'nestjs-zod';
 
 /**
- * AccountController（/api/auth/*）入参 / 出参 schema（zod，单一事实源）。
+ * AccountController（/api/auth/*）入参 schema（zod，单一事实源）。
  *
- * 经 nestjs-zod 的 `createZodDto` 生成的 DTO 类一物三用：① ZodValidationPipe 校验入参、
- * ② 编译期 TS 类型（实例形状＝`z.infer`）、③ @nestjs/swagger 文档 schema（请求体 + 响应体均自动出，
- * 无需 `@ZodBody` / 手写 `@ApiResponse`）。`.meta({ id })` 让 schema 进 components.schemas 命名模型；
- * 字段 `.meta({ description, example })` 同步进 Swagger（example 供「Try it out」预填）。
+ * 经 nestjs-zod 的 `createZodDto` 生成的 DTO 类两用：① ZodValidationPipe 校验入参、
+ * ② 编译期 TS 类型（实例形状＝`z.infer`）。`.meta({ id })` 让 schema 进 components.schemas
+ * 命名模型；字段 `.meta({ description, example })` 同步进 Scalar 文档。
  */
-
-// ───────────────────────── 请求体 ─────────────────────────
 
 /** 登录入参：邮箱（归一为小写）+ 明文口令（服务内比对 scrypt 哈希）。 */
 export const loginSchema = z
