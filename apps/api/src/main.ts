@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { apiReference } from '@scalar/nestjs-api-reference';
 import { cleanupOpenApiDoc } from 'nestjs-zod';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Logger } from 'nestjs-pino';
@@ -25,10 +26,10 @@ function parseTrustProxy(raw: string): boolean | number | string {
 }
 
 /**
- * 挂载交互式 API 文档（Swagger UI）于 `/docs`，仅非生产环境——避免对外泄露完整接口目录。
+ * 挂载交互式 API 文档（Scalar）于 `/docs`，仅非生产环境——避免对外泄露完整接口目录。
  *
  * 文档内的操作路径默认带全局前缀 `/api`（`ignoreGlobalPrefix` 默认 false），故 “Try it out”
- * 直接命中真实路由。调试流程：先执行 POST /api/auth/login 拿到 token，再点 Authorize 填入即可。
+ * 直接命中真实路由。调试流程：先执行 POST /api/auth/login 拿到 token，再点 Authenticate 填入即可。
  *
  * 注：本仓直跑 TS 源（`@swc-node/register`、无 `nest build`），swagger 自动内省插件挂不上。请求体 / 响应体
  * 均由 nestjs-zod 从 zod schema 自动出 schema（请求 `@Body() dto: XxxDto`＝createZodDto 类、响应
@@ -46,11 +47,7 @@ function mountApiDocs(app: NestExpressApplication): void {
   const document = cleanupOpenApiDoc(SwaggerModule.createDocument(app, config));
   // 全局声明 Bearer 鉴权：所有端点默认需要 Authorization: Bearer <token>。
   document.security = [{ bearer: [] }];
-  // persistAuthorization：刷新后保留已填的 token，免反复输入
-  SwaggerModule.setup('docs', app, document, {
-    customSiteTitle: 'Hatch Radar API',
-    swaggerOptions: { persistAuthorization: true },
-  });
+  app.use('/docs', apiReference({ spec: { content: document } }));
 }
 
 /**
