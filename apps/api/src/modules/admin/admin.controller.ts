@@ -1,7 +1,8 @@
-import { Controller, Delete, Get, HttpCode, Param, Patch, Post } from '@nestjs/common';
+import { Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
 import type { AuthedUser } from '@/types/auth-context';
 import { AuthUser, RequirePermission } from '@/common/auth-user.decorator';
 import { ZodBody } from '@/common/zod-body.decorator';
+import { parsePage, trimmed } from '@/common/query-parse';
 import { AdminService } from './admin.service';
 import { createUserSchema, editUserSchema, statusSchema } from './admin.schema';
 import type { CreateUserDto, EditUserDto, StatusDto } from './admin.schema';
@@ -21,6 +22,13 @@ export class AdminController {
   @Get('users')
   listUsers() {
     return this.admin.listUsers();
+  }
+
+  /** GET /api/admin/audit —— 审计日志分页（需 audit:view，方法级覆盖类级 accounts:manage）。 */
+  @Get('audit')
+  @RequirePermission('audit:view')
+  listAudit(@Query() q: Record<string, string | undefined>) {
+    return this.admin.listAudit({ q: trimmed(q.q), page: parsePage(q.page) });
   }
 
   @Post('users')

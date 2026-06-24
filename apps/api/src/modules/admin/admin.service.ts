@@ -68,6 +68,18 @@ export class AdminService {
     return this.users.listForAdmin();
   }
 
+  /**
+   * 审计日志分页（审计视图）。
+   *
+   * - 与账户管理是独立能力：调用此方法的控制器路由须单标 `audit:view`，方法级覆盖类级 `accounts:manage`。
+   * @param opts.q 关键字过滤；为空 / undefined 则不过滤
+   * @param opts.page 页码（1 起）
+   * @returns 当页审计记录 + 分页元信息
+   */
+  listAudit(opts: { q?: string; page: number }) {
+    return this.audit.listPaged(opts);
+  }
+
   // ── 账户写 ──────────────────────────────────────────────────────────────
 
   /**
