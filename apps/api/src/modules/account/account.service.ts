@@ -49,7 +49,7 @@ export interface LoginMeta {
 }
 
 /**
- * 登录成功结果：token（控制器据此 Set-Cookie）+ 用户态 + cookie 绝对生命周期（天）。
+ * 登录成功结果：token + 用户态 + 会话绝对生命周期（天）。
  * 失败一律抛 DomainError。absoluteDays 随运行期设置可变，故由服务回传而非控制器自取。
  */
 export type LoginResult = { token: string; user: CurrentUser; absoluteDays: number };
@@ -153,11 +153,12 @@ export class AccountService {
 
   /**
    * 登录：限流 → 校验邮箱+密码 → 建会话 + 回 token；错误文案统一不泄露账户存在性。
-   * - 成功的副作用（清失败计数 + 建会话 + 记最近登录）收进一个事务，同生共死
+   * - 单点登录：新建会话前先吊销该用户全部旧会话（同一账户同时只允许一个活跃会话）
+   * - 成功的副作用（吊销旧会话 + 清失败计数 + 建新会话 + 记最近登录）收进一个事务，同生共死
    * @param email 登录邮箱
    * @param password 明文密码
    * @param meta 客户端信息（User-Agent / IP，写入会话与审计）
-   * @returns token（控制器据此 Set-Cookie）+ 用户态 + cookie 绝对生命周期天数
+   * @returns token + 用户态 + 会话绝对生命周期天数
    * @throws ValidationError 邮箱或密码为空
    * @throws RateLimitError 滑动窗内失败次数达阈值被锁定
    * @throws UnauthorizedError 邮箱或密码不正确（账户不存在 / 停用同此文案，不泄露存在性）
@@ -196,8 +197,9 @@ export class AccountService {
       const { idleDays, absoluteDays } = await this.runtimeSettings.getSessionConfig();
       const token = generateSessionToken();
       const tokenHash = hashSessionToken(token);
-      // 成功登录的副作用收进一个事务：清失败计数 + 建会话 + 记最近登录同生共死。
+      // 单点登录：吊销旧会话 + 清失败计数 + 建新会话 + 记最近登录同生共死。
       await this.tx.run(async () => {
+        await this.sessions.deleteByUser(view.id);
         await this.clearAttempts(email, meta.ip);
         await this.sessions.create({
           userId: view.id,
@@ -310,17 +312,6 @@ export class AccountService {
       const rows = await this.sessions.listActiveByUser(user.id, nowSec());
 
       return rows.map((s) => ({ ...s, current: s.id === user.sessionId }));
-    });
-  }
-
-  /**
-   * 个人中心：登出除当前外的其它会话。
-   * @param user 当前登录用户（保留其 sessionId）
-   * @throws ServiceUnavailableError 意外错误记根因后兜底
-   */
-  async revokeOtherSessions(user: AuthedUser): Promise<void> {
-    await this.guard('revokeOtherSessions', '操作失败：服务暂时不可用', async () => {
-      await this.sessions.deleteOthers(user.id, user.sessionId);
     });
   }
 

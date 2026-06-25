@@ -94,11 +94,4 @@ export class AccountController {
     return { ok: true };
   }
 
-  @Post('sessions/revoke-others')
-  @HttpCode(200)
-  async revokeOthers(@AuthUser() user: AuthedUser): Promise<{ ok: true }> {
-    await this.account.revokeOtherSessions(user);
-
-    return { ok: true };
-  }
 }
