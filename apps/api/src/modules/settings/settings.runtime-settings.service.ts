@@ -19,9 +19,13 @@ const STALE_OVER_TIMEOUT_BUFFER_SEC = 60;
  * 这是这些参数默认值的唯一事实源（不再经 env）。
  */
 const DEFAULT_RUNTIME_SETTINGS: Record<RuntimeSettingKey, number> = {
+  // 每轮 AI 分析入队的帖子批次上限（cron 每小时入队，挡单轮洪峰压垮 worker / AI 额度）
   analyzeBatchSize: 20,
+  // Web 会话空闲过期窗（天）：距上次活动超过此天数即失效（滑动续期，限频 60s）
   sessionIdleDays: 7,
+  // Web 会话绝对过期窗（天）：自签发起算的硬上限，无论是否活跃到期即失效
   sessionAbsoluteDays: 30,
+  // 单个分析 job 的硬超时（毫秒）：超时即判失败、可重排；默认 600s
   workerJobTimeoutMs: 600_000,
   // 僵死回收阈值须 > 单环节硬超时（见 getWorkerTuning 的运行时下界 enforce）：默认 900s = 600s + 余量。
   workerStaleSeconds: 900,
