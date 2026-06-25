@@ -27,7 +27,6 @@ interface Crumb {
 const ACCOUNT_SUB: Record<string, string> = {
   '/account/profile': '资料',
   '/account/security': '安全',
-  '/account/sessions': '会话',
   '/account/permissions': '我的权限',
   '/account/password': '修改密码',
 };

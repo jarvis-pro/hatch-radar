@@ -3,7 +3,6 @@ import { ProtectedLayout } from '@/layout';
 import { PermissionsPage } from '@/pages/account-permissions';
 import { ProfilePage } from '@/pages/account-profile';
 import { SecurityPage } from '@/pages/account-security';
-import { SessionsPage } from '@/pages/account-sessions';
 import { AccountsPage } from '@/pages/admin-accounts';
 import { AuditPage } from '@/pages/admin-audit';
 import { DashboardPage } from '@/pages/dashboard';
@@ -47,7 +46,6 @@ export const router = createBrowserRouter([
       { path: 'account', element: <Navigate to="/account/profile" replace /> },
       { path: 'account/profile', element: <ProfilePage /> },
       { path: 'account/security', element: <SecurityPage /> },
-      { path: 'account/sessions', element: <SessionsPage /> },
       { path: 'account/permissions', element: <PermissionsPage /> },
       { path: 'account/password', element: <PasswordPage /> },
       { path: 'admin/accounts', element: <AccountsPage /> },

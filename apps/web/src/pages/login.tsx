@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { Radar } from 'lucide-react';
 import type { CurrentUser } from '@hatch-radar/shared';
@@ -125,8 +125,16 @@ export function LoginPage() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
+  const [expired, setExpired] = useState(false);
   const [pending, setPending] = useState(false);
   const next = safeNext(params.get('next'));
+
+  useEffect(() => {
+    if (sessionStorage.getItem('auth:expired')) {
+      sessionStorage.removeItem('auth:expired');
+      setExpired(true);
+    }
+  }, []);
 
   // 已登录访问 /login → 回目标页（替代原 middleware 行为）
   if (status === 'authed' && user) {
@@ -210,6 +218,11 @@ export function LoginPage() {
                       required
                     />
                   </div>
+                  {expired && !error ? (
+                    <Alert>
+                      <AlertDescription>会话已失效，请重新登录</AlertDescription>
+                    </Alert>
+                  ) : null}
                   {error ? (
                     <Alert variant="destructive">
                       <AlertDescription>{error}</AlertDescription>

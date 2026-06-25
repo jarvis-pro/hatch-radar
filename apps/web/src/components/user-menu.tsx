@@ -3,7 +3,6 @@ import {
   ChevronsUpDown,
   KeyRound,
   LogOut,
-  MonitorSmartphone,
   Shield,
   User as UserIcon,
 } from 'lucide-react';
@@ -91,11 +90,6 @@ export function UserMenu({ user }: { user: CurrentUser }) {
             <DropdownMenuItem asChild>
               <Link to="/account/security">
                 <Shield /> 安全
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link to="/account/sessions">
-                <MonitorSmartphone /> 会话
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>

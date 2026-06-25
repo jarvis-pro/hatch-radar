@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -30,6 +31,8 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>('loading');
   const [user, setUserState] = useState<CurrentUser | null>(null);
+  // ref 避免 401 handler 闭包里读到过期的 status
+  const statusRef = useRef<AuthStatus>('loading');
 
   const refresh = useCallback(async (): Promise<void> => {
     if (!getToken()) {
@@ -62,12 +65,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    statusRef.current = status;
+  }, [status]);
+
+  useEffect(() => {
     void refresh();
   }, [refresh]);
 
+  // 登录态心跳：每 30s 探活一次，SSO 顶掉旧会话后下次心跳即收到 401 被踢出
+  useEffect(() => {
+    if (status !== 'authed') {
+      return;
+    }
+
+    const id = setInterval(() => {
+      void api.get('/account/session').catch(() => undefined);
+    }, 30_000);
+
+    return () => clearInterval(id);
+  }, [status]);
+
   // 任意请求 401 → 清 token + 置匿名（路由守卫据此跳 /login）
+  // 若来自已登录态（如被 SSO 顶掉），写 sessionStorage 标记供登录页展示提示
   useEffect(() => {
     setUnauthorizedHandler(() => {
+      if (statusRef.current === 'authed') {
+        sessionStorage.setItem('auth:expired', '1');
+      }
+
       setToken(null);
       setUserState(null);
       setStatus('anon');
