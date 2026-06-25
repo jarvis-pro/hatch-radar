@@ -9,7 +9,7 @@ import { type AppDatabase } from '@/database/internal';
 @Injectable()
 export class RateLimitAttemptsRepository {
   constructor(
-    // 事务感知 Prisma 客户端（经 @Inject(PRISMA)，按 ALS 自动路由事务/根客户端）：读写限流计数（login_attempts）表
+    // 事务感知 Prisma 客户端（经 @Inject(PRISMA)，按 ALS 自动路由事务/根客户端）：读写限流计数（rate_limit_attempts）表
     @Inject(PRISMA) private readonly db: AppDatabase,
   ) {}
 
@@ -19,7 +19,7 @@ export class RateLimitAttemptsRepository {
    * @returns 计数行；从未失败过返回 null
    */
   findByKey(key: string) {
-    return this.db.login_attempts.findUnique({ where: { key } });
+    return this.db.rate_limit_attempts.findUnique({ where: { key } });
   }
 
   /**
@@ -47,7 +47,7 @@ export class RateLimitAttemptsRepository {
     // 绑定参数显式 ::bigint / ::int：driver 把 JS 值绑为 unknown 类型，`$now + $lockSec` 这类纯参数运算
     // 会因 PG「operator is not unique: unknown + unknown」(42725) 失败，故逐个标注类型消歧。
     await this.db.$executeRaw`
-      INSERT INTO login_attempts (key, failed_count, locked_until, last_attempt_at, updated_at)
+      INSERT INTO rate_limit_attempts (key, failed_count, locked_until, last_attempt_at, updated_at)
       VALUES (
         ${key},
         1,
@@ -57,15 +57,15 @@ export class RateLimitAttemptsRepository {
       )
       ON CONFLICT (key) DO UPDATE SET
         failed_count = CASE
-          WHEN ${now}::bigint - login_attempts.last_attempt_at <= ${windowSec}::bigint
-          THEN login_attempts.failed_count + 1
+          WHEN ${now}::bigint - rate_limit_attempts.last_attempt_at <= ${windowSec}::bigint
+          THEN rate_limit_attempts.failed_count + 1
           ELSE 1
         END,
         locked_until = CASE
           WHEN (
             CASE
-              WHEN ${now}::bigint - login_attempts.last_attempt_at <= ${windowSec}::bigint
-              THEN login_attempts.failed_count + 1
+              WHEN ${now}::bigint - rate_limit_attempts.last_attempt_at <= ${windowSec}::bigint
+              THEN rate_limit_attempts.failed_count + 1
               ELSE 1
             END
           ) >= ${maxFailures}::int
@@ -82,6 +82,6 @@ export class RateLimitAttemptsRepository {
    * @param key 限流桶键
    */
   async clear(key: string): Promise<void> {
-    await this.db.login_attempts.deleteMany({ where: { key } });
+    await this.db.rate_limit_attempts.deleteMany({ where: { key } });
   }
 }
