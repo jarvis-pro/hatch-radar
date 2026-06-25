@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
-import { hashPassword } from '@/auth';
+import { hashPassword } from '@/utils/auth';
 import {
   isPermissionKey,
   type AdminUserRow,

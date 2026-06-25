@@ -1,12 +1,12 @@
 /**
- * 口令哈希（Node-only）：node:crypto scrypt，每用户随机盐 + timingSafeEqual 比对。
+ * 认证 crypto（Node-only）：scrypt 口令哈希 / 校验 + 会话 token 生成 / 哈希。
  *
+ * 仅依赖 node:crypto，无第三方依赖。
  * 入库格式 `scrypt:N:r:p:saltB64:hashB64` 自带参数，便于将来调强度而不影响旧哈希校验。
- * 复用 server utils/crypto.ts 的 scrypt 范式；web 与 server 共用本模块，mobile 不引。
  */
-import { randomBytes, scrypt as scryptCb, timingSafeEqual, type ScryptOptions } from 'node:crypto';
+import { randomBytes, createHash, scrypt as scryptCb, timingSafeEqual, type ScryptOptions } from 'node:crypto';
 
-// N=16384（2^14，约 16MiB，低于默认 maxmem 32MiB）与既有 crypto.ts 默认一致；r/p 取标准值。
+// N=16384（2^14，约 16MiB，低于默认 maxmem 32MiB）与 utils/crypto.ts 默认一致；r/p 取标准值。
 const N = 16384;
 const R = 8;
 const P = 1;
@@ -70,4 +70,14 @@ export async function verifyPassword(plain: string, stored: string): Promise<boo
   const key = await scryptAsync(plain.normalize('NFKC'), salt, expected.length, { N: n, r, p });
 
   return key.length === expected.length && timingSafeEqual(key, expected);
+}
+
+/** 生成不透明会话 token（base64url，32 字节熵）。原始值仅写入用户 cookie。 */
+export function generateSessionToken(): string {
+  return randomBytes(32).toString('base64url');
+}
+
+/** 会话 token 的存储哈希（sha256 hex）；sessions.token_hash 存此值、按此查会话。 */
+export function hashSessionToken(token: string): string {
+  return createHash('sha256').update(token).digest('hex');
 }

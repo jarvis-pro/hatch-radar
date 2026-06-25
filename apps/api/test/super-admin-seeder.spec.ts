@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { verifyPassword } from '@/auth';
+import { verifyPassword } from '@/utils/auth';
 import type { AppDatabase, DbHandle } from '@/database';
 import type { AppEnv } from '@/config/env';
 import { UsersRepository } from '@/database';

@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { APP_ENV } from '@/common/tokens';
-import { hashPassword } from '@/auth';
+import { hashPassword } from '@/utils/auth';
 import type { AppEnv } from '@/config/env';
 import { UsersRepository } from '@/database';
 import type { Seeder, SeedContext, SeedOutcome } from './seeder';

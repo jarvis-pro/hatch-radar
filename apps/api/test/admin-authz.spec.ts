@@ -7,7 +7,7 @@ import {
   type DbHandle,
 } from '@/database';
 import { AdminService } from '@/modules/admin/admin.service';
-import { hashPassword } from '@/auth';
+import { hashPassword } from '@/utils/auth';
 import { nowSec } from '@/utils/time';
 import type { PermissionKey, UserRole } from '@hatch-radar/shared';
 import type { AuthedUser } from '@/types/auth-context';

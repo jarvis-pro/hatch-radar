@@ -4,7 +4,7 @@ import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { AppModule } from '@/app.module';
 import { SessionsRepository, UsersRepository, type DbHandle } from '@/database';
-import { generateSessionToken, hashSessionToken } from '@/auth';
+import { generateSessionToken, hashSessionToken } from '@/utils/auth';
 import { nowSec } from '@/utils/time';
 import { setupTestDb, truncateAll, TEST_DATABASE_URL } from './helpers';
 
