@@ -232,9 +232,9 @@ export class AccountService {
   }
 
   /**
-   * 改密：校验当前密码 → 写新哈希、清强制改密标记、吊销其余会话。
-   * - 写新哈希与踢其余会话同事务，杜绝「密码已改、旧会话仍有效」的窗口
-   * @param user 当前登录用户（含 sessionId，用于保留当前会话）
+   * 改密：校验当前密码 → 写新哈希、清强制改密标记。
+   * SSO 已保证同一账户只有一个活跃会话，改密后无须额外踢会话。
+   * @param user 当前登录用户
    * @param current 当前密码（明文，校验用）
    * @param next 新密码（明文，至少 8 位）
    * @param confirm 再次输入的新密码（须与 next 一致）
@@ -262,11 +262,7 @@ export class AccountService {
       }
 
       const newHash = await hashPassword(next);
-      // 改密与「踢其余会话」必须同生共死：崩在两步之间会留下「密码已改、旧会话仍有效」的窗口。
-      await this.tx.run(async () => {
-        await this.users.updatePassword(user.id, newHash, false, nowSec());
-        await this.sessions.deleteOthers(user.id, user.sessionId);
-      });
+      await this.users.updatePassword(user.id, newHash, false, nowSec());
       await this.audit.write({ actorId: user.id, action: 'account.password.change' });
     });
   }

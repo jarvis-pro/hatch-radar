@@ -71,15 +71,6 @@ export class SessionsRepository {
   }
 
   /**
-   * 删除某用户除保留会话外的全部会话（改密 / 「登出其他会话」）。
-   * @param userId 用户 id
-   * @param keepSessionId 保留的会话 id（当前会话）
-   */
-  async deleteOthers(userId: string, keepSessionId: string): Promise<void> {
-    await this.db.sessions.deleteMany({ where: { user_id: userId, id: { not: keepSessionId } } });
-  }
-
-  /**
    * 滑动续期：更新 last_seen_at 与 expires_at（失败吞掉，不阻断鉴权）。
    * @param id 会话 id
    * @param lastSeenAt 最近活跃时刻 Unix 时间戳（秒）
