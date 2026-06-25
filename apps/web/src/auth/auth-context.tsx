@@ -24,7 +24,7 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 /**
- * 鉴权上下文：进站若有本地 token 则 GET /api/auth/session 验证（内存缓存）。
+ * 鉴权上下文：进站若有本地 token 则 GET /api/account/session 验证（内存缓存）。
  * 任意请求 401 → 全局处理器清 token + 置匿名 → 路由守卫跳 /login。
  */
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -40,7 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      const { user } = await api.get<{ user: CurrentUser }>('/auth/session', {
+      const { user } = await api.get<{ user: CurrentUser }>('/account/session', {
         skipAuthHandler: true,
       });
       setUserState(user);

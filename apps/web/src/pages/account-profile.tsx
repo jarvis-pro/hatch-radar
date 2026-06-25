@@ -39,7 +39,7 @@ function ProfileForm({ user }: { user: CurrentUser }) {
     setError(null);
     setPending(true);
     try {
-      await api.patch('/auth/profile', { name });
+      await api.patch('/account/profile', { name });
       await refresh();
       toast.success('资料已保存');
     } catch (err) {

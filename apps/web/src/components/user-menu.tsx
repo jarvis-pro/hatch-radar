@@ -38,7 +38,7 @@ export function UserMenu({ user }: { user: CurrentUser }) {
 
   async function logout(): Promise<void> {
     try {
-      await api.post('/auth/logout');
+      await api.post('/account/logout');
     } catch {
       // 即便登出请求失败也清本地态并跳登录页
     }

@@ -31,15 +31,15 @@ function SessionList() {
   const qc = useQueryClient();
   const sessionsQ = useQuery({
     queryKey: ['sessions'],
-    queryFn: () => api.get<SessionInfo[]>('/auth/sessions'),
+    queryFn: () => api.get<SessionInfo[]>('/account/sessions'),
   });
   const invalidate = () => qc.invalidateQueries({ queryKey: ['sessions'] });
   const revokeOne = useMutation({
-    mutationFn: (id: string) => api.del(`/auth/sessions/${id}`),
+    mutationFn: (id: string) => api.del(`/account/sessions/${id}`),
     onSuccess: invalidate,
   });
   const revokeOthers = useMutation({
-    mutationFn: () => api.post('/auth/sessions/revoke-others'),
+    mutationFn: () => api.post('/account/sessions/revoke-others'),
     onSuccess: invalidate,
   });
 

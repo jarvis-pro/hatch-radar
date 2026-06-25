@@ -33,7 +33,7 @@
 ```
 
 - 前端：Vite 构建的纯客户端 React SPA，`react-router-dom` 的 `createBrowserRouter` 管路由；数据用 RR `loader` 或 React Query 客户端 fetch `/api`。
-- 会话：登录 `POST /api/auth/login` → server 回 `Set-Cookie: radar_session=…; HttpOnly; SameSite=Lax`；之后同源 fetch 自动带；server `SessionAuthGuard` 读 cookie 校验。SPA **永不接触 token**。
+- 会话：登录 `POST /api/account/login` → server 回 `Set-Cookie: radar_session=…; HttpOnly; SameSite=Lax`；之后同源 fetch 自动带；server `SessionAuthGuard` 读 cookie 校验。SPA **永不接触 token**。
 - 托管：`@nestjs/serve-static` 指向 SPA `dist`，`exclude: ['/api/{*path}']`，非 `/api` 未命中回 `index.html`（支持前端深链刷新）。
 
 ---
@@ -62,16 +62,16 @@
 
 ### 4.2 逐项替换（机械、量可控）
 
-| Next 用法                                                         | 计数 | 换成                                                                    |
-| ----------------------------------------------------------------- | ---- | ----------------------------------------------------------------------- |
-| App Router（12 page.tsx + 1 layout）                              | 13   | RR route 组件 + layout route（`createBrowserRouter`）                   |
-| `next/link`                                                       | 11   | `react-router-dom` 的 `<Link>`                                          |
-| `next/navigation`（useRouter/usePathname/useSearchParams）        | 11   | RR `useNavigate` / `useLocation` / `useSearchParams`                    |
-| `next/image`                                                      | 1    | 原生 `<img>`                                                            |
-| `middleware.ts`（cookie 粗筛 + 重定向）                           | 1    | 客户端路由守卫（根 loader 查 `GET /api/auth/session`，无效跳 `/login`） |
-| `app/api/*` 代理路由                                              | 6    | 删除——SPA 同源直连 `/api/*`（settings/sources/analysis/export/...）     |
-| server actions / `lib/auth`、`lib/admin`、`lib/queries`、`lib/db` | —    | 删除——改 `fetch('/api/...')`（业务已在后端归一里搬到 server）           |
-| `force-dynamic` / RSC / `next/headers` cookies()                  | 17/2 | 移除（无 SSR；cookie 由浏览器同源自动带，前端不读）                     |
+| Next 用法                                                         | 计数 | 换成                                                                       |
+| ----------------------------------------------------------------- | ---- | -------------------------------------------------------------------------- |
+| App Router（12 page.tsx + 1 layout）                              | 13   | RR route 组件 + layout route（`createBrowserRouter`）                      |
+| `next/link`                                                       | 11   | `react-router-dom` 的 `<Link>`                                             |
+| `next/navigation`（useRouter/usePathname/useSearchParams）        | 11   | RR `useNavigate` / `useLocation` / `useSearchParams`                       |
+| `next/image`                                                      | 1    | 原生 `<img>`                                                               |
+| `middleware.ts`（cookie 粗筛 + 重定向）                           | 1    | 客户端路由守卫（根 loader 查 `GET /api/account/session`，无效跳 `/login`） |
+| `app/api/*` 代理路由                                              | 6    | 删除——SPA 同源直连 `/api/*`（settings/sources/analysis/export/...）        |
+| server actions / `lib/auth`、`lib/admin`、`lib/queries`、`lib/db` | —    | 删除——改 `fetch('/api/...')`（业务已在后端归一里搬到 server）              |
+| `force-dynamic` / RSC / `next/headers` cookies()                  | 17/2 | 移除（无 SSR；cookie 由浏览器同源自动带，前端不读）                        |
 
 ### 4.3 唯一的共享包改动：去 `next-themes`
 
@@ -82,16 +82,16 @@
 ## 5. 鉴权在 SPA 里怎么走
 
 ```
-登录页 → POST /api/auth/login {email,password}
+登录页 → POST /api/account/login {email,password}
          server 验密码 → 建会话 → Set-Cookie: radar_session（HttpOnly; SameSite=Lax; Secure(prod)）
 之后任意页 → fetch('/api/...')（同源，浏览器自动带 cookie）
             server SessionAuthGuard：读 cookie → 校验 → 200 数据 / 401
-SPA 根守卫：进站先 GET /api/auth/session → 拿用户态(角色/权限) 存内存
+SPA 根守卫：进站先 GET /api/account/session → 拿用户态(角色/权限) 存内存
             401 → 跳 /login；某页缺权限 → 渲 Forbidden（按 packages/shared 目录显隐导航）
-登出 → POST /api/auth/logout（server 删会话 + 过期 cookie）
+登出 → POST /api/account/logout（server 删会话 + 过期 cookie）
 ```
 
-- 前端**不持 token、不读 cookie**（httpOnly），用户态来自 `/api/auth/session`。
+- 前端**不持 token、不读 cookie**（httpOnly），用户态来自 `/api/account/session`。
 - **CSRF**：同源 + `SameSite=Lax` 已挡大部分；写操作再要求一个自定义头（如 `X-Requested-With`，server 校验）或双提交 token 兜底。
 
 ---

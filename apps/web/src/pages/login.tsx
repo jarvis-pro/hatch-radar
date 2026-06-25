@@ -141,7 +141,7 @@ export function LoginPage() {
     setError(null);
     setPending(true);
     try {
-      const { user, token } = await api.post<{ user: CurrentUser; token: string }>('/auth/login', {
+      const { user, token } = await api.post<{ user: CurrentUser; token: string }>('/account/login', {
         email,
         password,
       });

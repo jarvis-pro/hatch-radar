@@ -2,14 +2,12 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { apiReference } from '@scalar/nestjs-api-reference';
 import { cleanupOpenApiDoc } from 'nestjs-zod';
 import type { NestExpressApplication } from '@nestjs/platform-express';
-import { version } from '@/../package.json';
-
 const TAG_ACCOUNT = `鉴权权威端点，负责人工账户的登录、会话管理与个人资料维护。
 
 **登录流程**
-1. \`POST /api/auth/login\` — 提交邮箱 + 口令，返回 \`{ user, token }\`
+1. \`POST /api/account/login\` — 提交邮箱 + 口令，返回 \`{ user, token }\`
 2. 客户端将 token 存入 \`localStorage\`，后续请求通过 \`Authorization: Bearer <token>\` 携带
-3. \`GET /api/auth/session\` — SPA 进站时调用一次，取当前用户态
+3. \`GET /api/account/session\` — SPA 进站时调用一次，取当前用户态
 
 **会话管理**
 - 可查看本账户的全部活跃会话并逐个撤销，或一键登出其余所有设备
@@ -128,13 +126,13 @@ const TAG_HEALTH = `健康检查端点，供负载均衡器探活或未登录用
 
 const API_DESCRIPTION = `## 快速开始
 
-1. 调用 \`POST /api/auth/login\` 获取 token
+1. 调用 \`POST /api/account/login\` 获取 token
 2. 点击右上角 **Authenticate**，填入 Bearer token
 3. 所有接口即可直接调用（token 刷新后自动保留）
 
 ## 鉴权
 
-除 \`POST /api/auth/login\` 外，所有接口均需携带：
+除 \`POST /api/account/login\` 外，所有接口均需携带：
 
 \`\`\`
 Authorization: Bearer <token>
@@ -162,7 +160,7 @@ const TAG_TRANSLATIONS = `内容翻译管线端点，译文按源内容哈希缓
  * 挂载交互式 API 文档（Scalar）于 `/docs`，仅非生产环境——避免对外泄露完整接口目录。
  *
  * 文档内的操作路径默认带全局前缀 `/api`（`ignoreGlobalPrefix` 默认 false），故 "Try it out"
- * 直接命中真实路由。调试流程：先执行 POST /api/auth/login 拿到 token，再点 Authenticate 填入即可。
+ * 直接命中真实路由。调试流程：先执行 POST /api/account/login 拿到 token，再点 Authenticate 填入即可。
  *
  * 注：本仓直跑 TS 源（`@swc-node/register`、无 `nest build`），swagger 自动内省插件挂不上。请求体
  * 由 nestjs-zod 从 zod schema 自动出 schema（`@Body() dto: XxxDto` = createZodDto 类），
@@ -172,7 +170,7 @@ export function mountApiDocs(app: NestExpressApplication): void {
   const config = new DocumentBuilder()
     .setTitle('Hatch Radar API')
     .setDescription(API_DESCRIPTION)
-    .setVersion(version)
+    .setVersion(__APP_VERSION__)
     .addBearerAuth()
     .addTag('account', TAG_ACCOUNT)
     .addTag('admin', TAG_ADMIN)

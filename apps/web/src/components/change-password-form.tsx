@@ -22,7 +22,7 @@ export function ChangePasswordForm() {
     setError(null);
     setPending(true);
     try {
-      await api.post('/auth/change-password', {
+      await api.post('/account/change-password', {
         current: String(f.get('current') ?? ''),
         password: String(f.get('password') ?? ''),
         confirm: String(f.get('confirm') ?? ''),

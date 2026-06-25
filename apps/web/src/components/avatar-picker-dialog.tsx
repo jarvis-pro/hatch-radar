@@ -21,7 +21,7 @@ import { UserAvatar } from './user-avatar';
 const BATCH = 12;
 
 /**
- * 换头像弹窗：随机一批候选头像供选择，「换一批」重新生成，保存写入 `PATCH /auth/avatar`。
+ * 换头像弹窗：随机一批候选头像供选择，「换一批」重新生成，保存写入 `PATCH /account/avatar`。
  * 头像由 seed 确定性生成，保存的是所选 seed（或 null=恢复昵称首字母）。
  */
 export function AvatarPickerDialog({ user }: { user: CurrentUser }) {
@@ -46,7 +46,7 @@ export function AvatarPickerDialog({ user }: { user: CurrentUser }) {
     setPending(true);
     setError(null);
     try {
-      await api.patch('/auth/avatar', { avatar: selected });
+      await api.patch('/account/avatar', { avatar: selected });
       await refresh();
       setOpen(false);
     } catch (err) {
