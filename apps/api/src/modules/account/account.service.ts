@@ -4,7 +4,7 @@ import type { CurrentUser, SessionInfo } from '@hatch-radar/shared';
 import { RuntimeSettingsService } from '@/modules/settings/settings.runtime-settings.service';
 import {
   AuditLogsRepository,
-  LoginAttemptsRepository,
+  RateLimitAttemptsRepository,
   SessionsRepository,
   TxContext,
   UsersRepository,
@@ -80,8 +80,8 @@ export class AccountService {
     private readonly users: UsersRepository,
     // 会话仓储：会话建/查/吊销/滑动续期
     private readonly sessions: SessionsRepository,
-    // 登录失败仓储：限流计数与锁定（email / IP 双维）
-    private readonly attempts: LoginAttemptsRepository,
+    // 限流计数仓储：滑动窗失败记录与锁定（email / IP 双维）
+    private readonly attempts: RateLimitAttemptsRepository,
     // 审计日志仓储：登录 / 登出 / 改密等行为留痕
     private readonly audit: AuditLogsRepository,
     // 运行期设置服务：读会话生命周期配置（空闲 / 绝对天数）

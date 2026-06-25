@@ -3,13 +3,13 @@ import { PRISMA } from '@/common/tokens';
 import { type AppDatabase } from '@/database/internal';
 
 /**
- * 登录限流计数表数据访问（滑动窗 / 锁定策略由 AccountService 决定，本类只存取）。
- * 按「限流桶键」寻址：键形如 `email:<归一邮箱>` 或 `ip:<客户端 IP>`，email / IP 两维共用本表与同一套机制。
+ * 通用限流计数表数据访问（滑动窗 / 锁定策略由调用方决定，本类只存取）。
+ * 按任意字符串 key 寻址，调用方自行约定命名空间前缀（如 `email:`、`ip:`）以区分维度与场景。
  */
 @Injectable()
-export class LoginAttemptsRepository {
+export class RateLimitAttemptsRepository {
   constructor(
-    // 事务感知 Prisma 客户端（经 @Inject(PRISMA)，按 ALS 自动路由事务/根客户端）：读写登录限流计数（login_attempts）表
+    // 事务感知 Prisma 客户端（经 @Inject(PRISMA)，按 ALS 自动路由事务/根客户端）：读写限流计数（login_attempts）表
     @Inject(PRISMA) private readonly db: AppDatabase,
   ) {}
 
@@ -78,8 +78,8 @@ export class LoginAttemptsRepository {
   }
 
   /**
-   * 登录成功后清除某限流桶的失败计数。
-   * @param key 限流桶键（`email:` / `ip:` 前缀）
+   * 清除某限流桶的失败计数（如操作成功后重置）。
+   * @param key 限流桶键
    */
   async clear(key: string): Promise<void> {
     await this.db.login_attempts.deleteMany({ where: { key } });

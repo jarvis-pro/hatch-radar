@@ -22,7 +22,7 @@ export * from './repositories/tasks.repository';
 export * from './repositories/task-stages.repository';
 export * from './repositories/request-queue.repository';
 export * from './repositories/request-lanes.repository';
-export * from './repositories/login-attempts.repository';
+export * from './repositories/rate-limit-attempts.repository';
 export * from './repositories/posts.repository';
 export * from './repositories/providers.repository';
 export * from './repositories/sessions.repository';
