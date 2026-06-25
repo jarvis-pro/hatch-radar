@@ -10,11 +10,7 @@ import {
   UsersRepository,
   type UserAuthView,
 } from '@/database';
-import {
-  RateLimitError,
-  UnauthorizedError,
-  ValidationError,
-} from '@/common/errors';
+import { RateLimitError, UnauthorizedError, ValidationError } from '@/common/errors';
 import { nowSec } from '@/utils/time';
 import type { AuthedUser } from '@/types/auth-context';
 
