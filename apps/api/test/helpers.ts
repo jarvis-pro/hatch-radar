@@ -14,9 +14,9 @@ export function setupTestDb(): DbHandle {
 
 /** 清空全部业务表并重置自增序列（每个用例前调用，保证互相隔离） */
 export async function truncateAll(db: AppDatabase): Promise<void> {
-  // login_attempts 无指向 users 的外键，故不会随 users 的 CASCADE 一并清空，须显式列出——
+  // rate_limit_attempts 无指向 users 的外键，故不会随 users 的 CASCADE 一并清空，须显式列出——
   // 否则登录限流计数（滑动窗）跨测试轮次残留，使阈值类用例在 15min 内重跑变红。
   await db.$executeRawUnsafe(
-    'TRUNCATE task_stages, tasks, runs, processes, blueprints, request_queue, request_lanes, translations, triage, insights, comments, posts, provider_api_keys, model_providers, sources, source_connectors, app_settings, login_attempts, users RESTART IDENTITY CASCADE',
+    'TRUNCATE task_stages, tasks, runs, processes, blueprints, request_queue, request_lanes, translations, triage, insights, comments, posts, provider_api_keys, model_providers, sources, source_connectors, app_settings, rate_limit_attempts, users RESTART IDENTITY CASCADE',
   );
 }

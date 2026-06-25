@@ -70,19 +70,19 @@ describe('鉴权契约 e2e（真实 AppModule + HTTP）', () => {
   let token = '';
 
   it('未带 token 访问受保护端点 → 401', async () => {
-    const r = await call('GET', '/api/auth/session');
+    const r = await call('GET', '/api/account/session');
     expect(r.status).toBe(401);
   });
 
   it('凭据错误 → 401（不泄露存在性）', async () => {
-    const r = await call('POST', '/api/auth/login', {
+    const r = await call('POST', '/api/account/login', {
       body: { email: ADMIN_EMAIL, password: 'wrong-password' },
     });
     expect(r.status).toBe(401);
   });
 
   it('登录成功 → 200 + 响应体含 token', async () => {
-    const r = await call('POST', '/api/auth/login', {
+    const r = await call('POST', '/api/account/login', {
       body: { email: ADMIN_EMAIL, password: ADMIN_PASS },
     });
     expect(r.status).toBe(200);
@@ -94,12 +94,12 @@ describe('鉴权契约 e2e（真实 AppModule + HTTP）', () => {
   });
 
   it('带有效 Bearer token 访问受保护端点 → 200', async () => {
-    const r = await call('GET', '/api/auth/session', { authorization: `Bearer ${token}` });
+    const r = await call('GET', '/api/account/session', { authorization: `Bearer ${token}` });
     expect(r.status).toBe(200);
   });
 
   it('写方法带有效 token → 放行（200）', async () => {
-    const r = await call('POST', '/api/auth/logout', { authorization: `Bearer ${token}` });
+    const r = await call('POST', '/api/account/logout', { authorization: `Bearer ${token}` });
     expect(r.status).toBe(200);
   });
 
@@ -136,7 +136,7 @@ describe('鉴权契约 e2e（真实 AppModule + HTTP）', () => {
   });
 
   it('无效 token → 401', async () => {
-    const r = await call('GET', '/api/auth/session', { authorization: 'Bearer bogus-token' });
+    const r = await call('GET', '/api/account/session', { authorization: 'Bearer bogus-token' });
     expect(r.status).toBe(401);
   });
 
@@ -144,14 +144,14 @@ describe('鉴权契约 e2e（真实 AppModule + HTTP）', () => {
     const probe = 'lockout-probe@test.co'; // 不存在的账户：失败也照记（防账户枚举）
     // 前 5 次（MAX_FAILURES）均因凭据错返回 401，第 5 次后该邮箱桶被锁定
     for (let i = 0; i < 5; i++) {
-      const r = await call('POST', '/api/auth/login', {
+      const r = await call('POST', '/api/account/login', {
         body: { email: probe, password: 'nope' },
       });
       expect(r.status).toBe(401);
     }
 
     // 第 6 次：已锁定 → 429（在校验凭据前就被拦截，验证累加 / 派生锁定的原子写入与按桶寻址生效）
-    const locked = await call('POST', '/api/auth/login', {
+    const locked = await call('POST', '/api/account/login', {
       body: { email: probe, password: 'nope' },
     });
     expect(locked.status).toBe(429);
