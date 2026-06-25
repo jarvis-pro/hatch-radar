@@ -11,22 +11,12 @@ import {
   type UserAuthView,
 } from '@/database';
 import {
-  DomainError,
   RateLimitError,
-  ServiceUnavailableError,
   UnauthorizedError,
   ValidationError,
 } from '@/common/errors';
-import { logger } from '@/logger';
 import { nowSec } from '@/utils/time';
 import type { AuthedUser } from '@/types/auth-context';
-
-/** 把被兜底成 503 的意外错误（DB 抖动 / 约束冲突等）的根因落日志——否则「服务暂时不可用」在日志里无迹可循。 */
-function logUnexpected(scope: string, e: unknown): void {
-  logger.error(
-    `[account] ${scope} 异常：${e instanceof Error ? (e.stack ?? e.message) : String(e)}`,
-  );
-}
 
 const DAY = 86_400;
 /** 滑动续期写库的最小间隔（秒）：last_seen 在此区间内不重复 update，省写。 */
@@ -68,10 +58,8 @@ function stripHash(view: UserAuthView): CurrentUser {
 }
 
 /**
- * 人鉴权权威服务（后端归一：原 web lib/auth 整体迁来，行为不变）。
- *
- * 负责会话生命周期（建/解析/滑动续期/吊销）、登录限流、改密与审计。
- * 密码 scrypt 校验、会话 token 哈希复用 @/auth。
+ * 人鉴权权威服务：会话生命周期（建/解析/滑动续期/吊销）、登录限流、改密与审计。
+ * 密码 scrypt 校验、会话 token 哈希复用 @/utils/auth；意外错误由全局异常过滤器统一兜底。
  */
 @Injectable()
 export class AccountService {
@@ -86,69 +74,46 @@ export class AccountService {
     private readonly audit: AuditLogsRepository,
     // 运行期设置服务：读会话生命周期配置（空闲 / 绝对天数）
     private readonly runtimeSettings: RuntimeSettingsService,
-    // 事务上下文（UoW）：登录 / 改密的多仓储写入收进单事务
+    // 事务上下文（UoW）：登录的多仓储写入收进单事务
     private readonly tx: TxContext,
   ) {}
-
-  /**
-   * 统一包裹会触达 DB 的方法：领域错误（业务失败）原样冒泡，其余意外错误（DB 抖动 / 约束冲突等）
-   * 落根因日志后兜底成 ServiceUnavailableError。收口此处，杜绝各方法各写一份 try/catch 导致的覆盖不一致。
-   * @param scope 出错日志的范围标签（方法名）
-   * @param fallback 兜底 503 对外的用户文案
-   * @param fn 实际业务逻辑（其 throw 的 DomainError 原样透传）
-   */
-  private async guard<T>(scope: string, fallback: string, fn: () => Promise<T>): Promise<T> {
-    try {
-      return await fn();
-    } catch (e) {
-      if (e instanceof DomainError) {
-        throw e;
-      }
-
-      logUnexpected(scope, e);
-      throw new ServiceUnavailableError(fallback);
-    }
-  }
 
   /**
    * 解析会话 token → 当前用户（含权限 + sessionId）。
    * 无效 / 过期 / 账户停用一律返回 null，并顺手清理坏会话；活跃则滑动续期（限频写库）。
    * @param token 会话 token（明文，内部哈希后比对）
    * @returns 当前用户（含 sessionId）；无效 / 过期 / 停用时返回 null
-   * @throws ServiceUnavailableError 意外错误（DB 抖动等）记根因后兜底——区别于「未登录」的 null
    */
   async resolveSession(token: string): Promise<AuthedUser | null> {
-    return this.guard('resolveSession', '会话校验失败：服务暂时不可用', async () => {
-      const now = nowSec();
-      const session = await this.sessions.findByTokenHash(hashSessionToken(token));
-      if (!session) {
-        return null;
-      }
+    const now = nowSec();
+    const session = await this.sessions.findByTokenHash(hashSessionToken(token));
+    if (!session) {
+      return null;
+    }
 
-      if (Number(session.expires_at) <= now) {
-        await this.sessions.deleteById(session.id);
+    if (Number(session.expires_at) <= now) {
+      await this.sessions.deleteById(session.id);
 
-        return null;
-      }
+      return null;
+    }
 
-      const user = await this.users.resolveWithPermissions(session.user_id);
-      if (!user || user.status !== 'active') {
-        await this.sessions.deleteById(session.id);
+    const user = await this.users.resolveWithPermissions(session.user_id);
+    if (!user || user.status !== 'active') {
+      await this.sessions.deleteById(session.id);
 
-        return null;
-      }
+      return null;
+    }
 
-      if (now - Number(session.last_seen_at) >= SLIDE_THROTTLE) {
-        const { idleDays, absoluteDays } = await this.runtimeSettings.getSessionConfig();
-        const nextExpiry = Math.min(
-          now + idleDays * DAY,
-          Number(session.created_at) + absoluteDays * DAY,
-        );
-        await this.sessions.touch(session.id, now, nextExpiry);
-      }
+    if (now - Number(session.last_seen_at) >= SLIDE_THROTTLE) {
+      const { idleDays, absoluteDays } = await this.runtimeSettings.getSessionConfig();
+      const nextExpiry = Math.min(
+        now + idleDays * DAY,
+        Number(session.created_at) + absoluteDays * DAY,
+      );
+      await this.sessions.touch(session.id, now, nextExpiry);
+    }
 
-      return { ...stripHash(user), sessionId: session.id };
-    });
+    return { ...stripHash(user), sessionId: session.id };
   }
 
   /**
@@ -162,73 +127,67 @@ export class AccountService {
    * @throws ValidationError 邮箱或密码为空
    * @throws RateLimitError 滑动窗内失败次数达阈值被锁定
    * @throws UnauthorizedError 邮箱或密码不正确（账户不存在 / 停用同此文案，不泄露存在性）
-   * @throws ServiceUnavailableError 意外错误（DB 抖动等）记根因后兜底
    */
   async login(email: string, password: string, meta: LoginMeta): Promise<LoginResult> {
     if (!email || !password) {
       throw new ValidationError('请输入邮箱和密码');
     }
 
-    return this.guard('login', '登录失败：服务暂时不可用，请稍后再试', async () => {
-      const now = nowSec();
-      const lock = await this.lockRemaining(email, meta.ip, now);
-      if (lock > 0) {
-        await this.audit.write({
-          action: 'auth.login.locked',
-          metadata: { email },
-          ip: meta.ip ?? null,
-        });
-        throw new RateLimitError(`尝试过于频繁，请约 ${Math.ceil(lock / 60)} 分钟后再试`);
-      }
-
-      const view = await this.users.findAuthViewByEmail(email);
-      const ok =
-        !!view && view.status === 'active' && (await verifyPassword(password, view.passwordHash));
-      if (!view || !ok) {
-        await this.recordFailure(email, meta.ip, now);
-        await this.audit.write({
-          action: 'auth.login.failed',
-          metadata: { email },
-          ip: meta.ip ?? null,
-        });
-        throw new UnauthorizedError('邮箱或密码不正确');
-      }
-
-      const { idleDays, absoluteDays } = await this.runtimeSettings.getSessionConfig();
-      const token = generateSessionToken();
-      const tokenHash = hashSessionToken(token);
-      // 单点登录：吊销旧会话 + 清失败计数 + 建新会话 + 记最近登录同生共死。
-      await this.tx.run(async () => {
-        await this.sessions.deleteByUser(view.id);
-        await this.clearAttempts(email, meta.ip);
-        await this.sessions.create({
-          userId: view.id,
-          tokenHash,
-          expiresAt: now + idleDays * DAY,
-          lastSeenAt: now,
-          createdAt: now,
-          userAgent: meta.userAgent ?? null,
-          ip: meta.ip ?? null,
-        });
-        await this.users.updateLastLogin(view.id, now);
+    const now = nowSec();
+    const lock = await this.lockRemaining(email, meta.ip, now);
+    if (lock > 0) {
+      await this.audit.write({
+        action: 'auth.login.locked',
+        metadata: { email },
+        ip: meta.ip ?? null,
       });
-      await this.audit.write({ actorId: view.id, action: 'auth.login', ip: meta.ip ?? null });
+      throw new RateLimitError(`尝试过于频繁，请约 ${Math.ceil(lock / 60)} 分钟后再试`);
+    }
 
-      return { token, user: stripHash(view), absoluteDays };
+    const view = await this.users.findAuthViewByEmail(email);
+    const ok =
+      !!view && view.status === 'active' && (await verifyPassword(password, view.passwordHash));
+    if (!view || !ok) {
+      await this.recordFailure(email, meta.ip, now);
+      await this.audit.write({
+        action: 'auth.login.failed',
+        metadata: { email },
+        ip: meta.ip ?? null,
+      });
+      throw new UnauthorizedError('邮箱或密码不正确');
+    }
+
+    const { idleDays, absoluteDays } = await this.runtimeSettings.getSessionConfig();
+    const token = generateSessionToken();
+    const tokenHash = hashSessionToken(token);
+    // 单点登录：吊销旧会话 + 清失败计数 + 建新会话 + 记最近登录同生共死。
+    await this.tx.run(async () => {
+      await this.sessions.deleteByUser(view.id);
+      await this.clearAttempts(email, meta.ip);
+      await this.sessions.create({
+        userId: view.id,
+        tokenHash,
+        expiresAt: now + idleDays * DAY,
+        lastSeenAt: now,
+        createdAt: now,
+        userAgent: meta.userAgent ?? null,
+        ip: meta.ip ?? null,
+      });
+      await this.users.updateLastLogin(view.id, now);
     });
+    await this.audit.write({ actorId: view.id, action: 'auth.login', ip: meta.ip ?? null });
+
+    return { token, user: stripHash(view), absoluteDays };
   }
 
   /**
-   * 登出：吊销当前会话 + 写审计。会话已由守卫解析，故凭 sessionId 直接删（无需再读 cookie / 哈希 token）。
+   * 登出：吊销当前会话 + 写审计。会话已由守卫解析，故凭 sessionId 直接删（无需再哈希 token）。
    * @param sessionId 待吊销的会话 id（守卫解析出的当前会话）
    * @param actorId 操作者 id（写登出审计）
-   * @throws ServiceUnavailableError 意外错误记根因后兜底
    */
   async logout(sessionId: string, actorId: string): Promise<void> {
-    await this.guard('logout', '登出失败：服务暂时不可用', async () => {
-      await this.sessions.deleteById(sessionId);
-      await this.audit.write({ actorId, action: 'auth.logout' });
-    });
+    await this.sessions.deleteById(sessionId);
+    await this.audit.write({ actorId, action: 'auth.logout' });
   }
 
   /**
@@ -239,7 +198,6 @@ export class AccountService {
    * @param next 新密码（明文，至少 8 位）
    * @param confirm 再次输入的新密码（须与 next 一致）
    * @throws ValidationError 新密码不足 8 位 / 两次输入不一致 / 当前密码不正确
-   * @throws ServiceUnavailableError 意外错误记根因后兜底
    */
   async changePassword(
     user: AuthedUser,
@@ -255,16 +213,14 @@ export class AccountService {
       throw new ValidationError('两次输入的新密码不一致');
     }
 
-    await this.guard('changePassword', '修改失败：服务暂时不可用，请稍后再试', async () => {
-      const row = await this.users.findById(user.id);
-      if (!row || !(await verifyPassword(current, row.password_hash))) {
-        throw new ValidationError('当前密码不正确');
-      }
+    const row = await this.users.findById(user.id);
+    if (!row || !(await verifyPassword(current, row.password_hash))) {
+      throw new ValidationError('当前密码不正确');
+    }
 
-      const newHash = await hashPassword(next);
-      await this.users.updatePassword(user.id, newHash, false, nowSec());
-      await this.audit.write({ actorId: user.id, action: 'account.password.change' });
-    });
+    const newHash = await hashPassword(next);
+    await this.users.updatePassword(user.id, newHash, false, nowSec());
+    await this.audit.write({ actorId: user.id, action: 'account.password.change' });
   }
 
   /**
@@ -272,7 +228,6 @@ export class AccountService {
    * @param user 当前登录用户
    * @param name 新昵称（首尾空白会被裁剪）
    * @throws ValidationError 昵称去空白后为空
-   * @throws ServiceUnavailableError 意外错误记根因后兜底
    */
   async updateOwnName(user: AuthedUser, name: string): Promise<void> {
     const trimmed = name.trim();
@@ -280,21 +235,16 @@ export class AccountService {
       throw new ValidationError('昵称不能为空');
     }
 
-    await this.guard('updateOwnName', '保存失败：服务暂时不可用', async () => {
-      await this.users.updateName(user.id, trimmed, nowSec());
-    });
+    await this.users.updateName(user.id, trimmed, nowSec());
   }
 
   /**
    * 改本人头像（avatar=DiceBear seed；null 恢复昵称首字母）。
    * @param user 当前登录用户
    * @param avatar DiceBear seed；传 null 恢复昵称首字母
-   * @throws ServiceUnavailableError 意外错误记根因后兜底
    */
   async updateOwnAvatar(user: AuthedUser, avatar: string | null): Promise<void> {
-    await this.guard('updateOwnAvatar', '保存失败：服务暂时不可用', async () => {
-      await this.users.updateAvatar(user.id, avatar, nowSec());
-    });
+    await this.users.updateAvatar(user.id, avatar, nowSec());
   }
 
   // ── 限流（双维：email + IP，各滑动窗 + 锁定）──────────────────────────
