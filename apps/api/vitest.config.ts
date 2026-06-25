@@ -1,6 +1,10 @@
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-
 import { defineConfig } from 'vitest/config';
+
+const pkg = JSON.parse(
+  readFileSync(fileURLToPath(new URL('../package.json', import.meta.url)), 'utf-8'),
+) as { version: string };
 
 /**
  * 集成测试配置：直连本地 PG（docker-compose 的 hatch_radar_test 库）。
@@ -9,6 +13,9 @@ import { defineConfig } from 'vitest/config';
  * - setup 引入 reflect-metadata，供 Nest 装饰器在测试中正常工作
  */
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version),
+  },
   // Vite 不读 tsconfig 的 paths，需手动对齐 @/* -> src（与 tsconfig.json 保持一致）
   resolve: {
     alias: {

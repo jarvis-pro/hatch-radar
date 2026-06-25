@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+import { readFileSync } from 'node:fs';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Logger } from 'nestjs-pino';
@@ -7,6 +8,10 @@ import { logger } from '@/logger';
 import { AppModule } from './app.module';
 import { APP_ENV } from './common/tokens';
 import { mountApiDocs } from './docs';
+
+(globalThis as Record<string, unknown>).__APP_VERSION__ = (
+  JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf-8')) as { version: string }
+).version;
 
 /** 解析 TRUST_PROXY env：'true'/'false' → 布尔；非负整数字符串 → 代理层数；其余（如 'loopback'）原样。 */
 function parseTrustProxy(raw: string): boolean | number | string {
