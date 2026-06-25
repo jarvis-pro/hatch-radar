@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { generateSessionToken, hashPassword, hashSessionToken, verifyPassword } from '@/auth';
-import type { CurrentUser, SessionInfo } from '@hatch-radar/shared';
+import { generateSessionToken, hashPassword, hashSessionToken, verifyPassword } from '@/utils/auth';
+import type { CurrentUser } from '@hatch-radar/shared';
 import { RuntimeSettingsService } from '@/modules/settings/settings.runtime-settings.service';
 import {
   AuditLogsRepository,
@@ -298,32 +298,6 @@ export class AccountService {
   async updateOwnAvatar(user: AuthedUser, avatar: string | null): Promise<void> {
     await this.guard('updateOwnAvatar', '保存失败：服务暂时不可用', async () => {
       await this.users.updateAvatar(user.id, avatar, nowSec());
-    });
-  }
-
-  /**
-   * 个人中心：未过期会话列表（标记当前会话）。
-   * @param user 当前登录用户（据 sessionId 标记 current）
-   * @returns 会话列表，最近活跃在前
-   * @throws ServiceUnavailableError 意外错误记根因后兜底
-   */
-  async listSessions(user: AuthedUser): Promise<SessionInfo[]> {
-    return this.guard('listSessions', '获取会话失败：服务暂时不可用', async () => {
-      const rows = await this.sessions.listActiveByUser(user.id, nowSec());
-
-      return rows.map((s) => ({ ...s, current: s.id === user.sessionId }));
-    });
-  }
-
-  /**
-   * 个人中心：登出指定会话（仅限本人会话）。
-   * @param user 当前登录用户（限定只能登出本人会话）
-   * @param sessionId 待登出的会话 id
-   * @throws ServiceUnavailableError 意外错误记根因后兜底
-   */
-  async revokeSession(user: AuthedUser, sessionId: string): Promise<void> {
-    await this.guard('revokeSession', '操作失败：服务暂时不可用', async () => {
-      await this.sessions.deleteOwn(sessionId, user.id);
     });
   }
 

@@ -63,14 +63,6 @@ export class SessionsRepository {
   }
 
   /**
-   * 按 token 哈希删除会话（登出）。
-   * @param tokenHash 会话 token 的哈希
-   */
-  async deleteByTokenHash(tokenHash: string): Promise<void> {
-    await this.db.sessions.deleteMany({ where: { token_hash: tokenHash } });
-  }
-
-  /**
    * 删除某用户全部会话（停用 / 重置密码 → 强制下线）。
    * @param userId 用户 id
    */
@@ -88,15 +80,6 @@ export class SessionsRepository {
   }
 
   /**
-   * 登出指定会话（仅限本人会话）。
-   * @param sessionId 待登出的会话 id
-   * @param userId 用户 id（限定只能删本人会话）
-   */
-  async deleteOwn(sessionId: string, userId: string): Promise<void> {
-    await this.db.sessions.deleteMany({ where: { id: sessionId, user_id: userId } });
-  }
-
-  /**
    * 滑动续期：更新 last_seen_at 与 expires_at（失败吞掉，不阻断鉴权）。
    * @param id 会话 id
    * @param lastSeenAt 最近活跃时刻 Unix 时间戳（秒）
@@ -111,34 +94,4 @@ export class SessionsRepository {
       .catch(() => undefined);
   }
 
-  /**
-   * 某用户当前未过期的会话列表（个人中心展示，最近活跃在前）。
-   * @param userId 用户 id
-   * @param now 当前 Unix 时间戳（秒，判定未过期）
-   */
-  async listActiveByUser(
-    userId: string,
-    now: number,
-  ): Promise<
-    {
-      id: string;
-      userAgent: string | null;
-      ip: string | null;
-      lastSeenAt: number;
-      createdAt: number;
-    }[]
-  > {
-    const rows = await this.db.sessions.findMany({
-      where: { user_id: userId, expires_at: { gt: BigInt(now) } },
-      orderBy: { last_seen_at: 'desc' },
-    });
-
-    return rows.map((s) => ({
-      id: s.id,
-      userAgent: s.user_agent,
-      ip: s.ip,
-      lastSeenAt: Number(s.last_seen_at),
-      createdAt: Number(s.created_at),
-    }));
-  }
 }

@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Req } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Patch, Post, Req } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import type { CurrentUser } from '@hatch-radar/shared';
@@ -8,7 +8,7 @@ import { AuthUser, Public } from '@/common/auth-user.decorator';
 import { AvatarDto, ChangePasswordDto, LoginDto, ProfileDto } from './account.schema';
 
 /**
- * /api/account/* —— 人鉴权权威端点（会话登录/登出/校验/改密/会话管理/资料）。
+ * /api/account/* —— 人鉴权权威端点（会话登录/登出/校验/改密/资料）。
  * 登录以 @Public 豁免全局守卫；其余端点受全局会话守卫保护（读 Authorization: Bearer 头校验）。
  *
  * 入参 `@Body() dto: XxxDto`（createZodDto 类 + 全局 ZodDtoValidationPipe 校验）。
@@ -17,7 +17,7 @@ import { AvatarDto, ChangePasswordDto, LoginDto, ProfileDto } from './account.sc
 @Controller('account')
 export class AccountController {
   constructor(
-    // 账户领域服务：登录/登出/会话校验/改密/会话管理/资料
+    // 账户领域服务：登录/登出/会话校验/改密/资料
     private readonly account: AccountService,
   ) {}
 
@@ -75,21 +75,6 @@ export class AccountController {
   @Patch('avatar')
   async updateAvatar(@AuthUser() user: AuthedUser, @Body() dto: AvatarDto): Promise<{ ok: true }> {
     await this.account.updateOwnAvatar(user, dto.avatar);
-
-    return { ok: true };
-  }
-
-  @Get('sessions')
-  sessions(@AuthUser() user: AuthedUser) {
-    return this.account.listSessions(user);
-  }
-
-  @Delete('sessions/:id')
-  async revokeSession(
-    @AuthUser() user: AuthedUser,
-    @Param('id') id: string,
-  ): Promise<{ ok: true }> {
-    await this.account.revokeSession(user, id);
 
     return { ok: true };
   }
