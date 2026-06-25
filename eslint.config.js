@@ -137,7 +137,7 @@ export default tseslint.config(
   prettier,
   {
     rules: {
-      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
       '@typescript-eslint/no-explicit-any': 'warn',
       'no-console': 'off',
       // 强制控制流语句（if/else/for/while/do）一律带花括号，禁止无大括号单行式——
