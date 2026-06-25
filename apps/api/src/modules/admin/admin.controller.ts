@@ -24,7 +24,6 @@ export class AdminController {
     return this.admin.listUsers();
   }
 
-  /** GET /api/admin/audit —— 审计日志分页（需 audit:view，方法级覆盖类级 accounts:manage）。 */
   @Get('audit')
   @RequirePermission('audit:view')
   listAudit(@Query() q: Record<string, string | undefined>) {
